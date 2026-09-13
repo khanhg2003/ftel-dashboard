@@ -128,7 +128,8 @@ def _sidebar(path: str):
             items.extend(muc_hien)
     return html.Div([
         html.Div([
-            html.Div([_brand_dots(),
+            html.Div([html.Img(src="/assets/fpt_logo.png", className="logo-img",
+                               alt="FPT Telecom"),
                       html.Div([html.Div("FPT Telecom", className="logo"),
                                 html.Div("Sales & HR Performance", className="sub")],
                                className="brand-text")],
