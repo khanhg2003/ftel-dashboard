@@ -33,8 +33,17 @@ def test_chup_anh_bao_cao_day_du_ca_bang():
     img = Image.open(io.BytesIO(noi_dung))
     df, _ = bang_tong_quan(THANG)
     # đủ chiều cao cho toàn bộ số dòng (không cắt bớt như chụp màn hình)
-    assert img.height > len(df) * 27 * 2
-    assert img.width > 2000 and img.mode == "RGB"
+    from app.export_png import CAO_DONG, TY_LE_MIN
+    assert img.height > len(df) * CAO_DONG * TY_LE_MIN
+    # ngang khoảng 2.400px: đủ nét mà Zalo không thu nhỏ
+    assert 2000 < img.width <= 2600 and img.mode == "RGB"
+
+
+def test_anh_dung_font_tieng_viet_di_kem_app():
+    """Máy chủ Vercel không có font tiếng Việt - phải dùng font trong assets/fonts."""
+    from app.export_png import THU_MUC_FONT, _duong_dan_font
+    for kieu in ("thuong", "vua", "dam", "rat_dam"):
+        assert _duong_dan_font(kieu).parent == THU_MUC_FONT
 
 
 # ------------------------------------------------------------ cỡ bảng vừa màn hình
