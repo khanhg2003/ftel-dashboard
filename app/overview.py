@@ -62,8 +62,10 @@ def _pttb_cnql(thang: str, ngay: int) -> pd.Series:
 
 
 def _so_ton() -> pd.Series:
-    return _sql_series("""SELECT phong_code, COUNT(*) n FROM fact_internet
-                          WHERE ngay_online IS NULL GROUP BY phong_code""", {})
+    from app.metrics import dieu_kien_ton
+    dk, p = dieu_kien_ton()
+    return _sql_series(f"SELECT phong_code, COUNT(*) n FROM fact_internet WHERE {dk} "
+                       "GROUP BY phong_code", p)
 
 
 def _targets(thang: str) -> pd.DataFrame:

@@ -644,3 +644,8 @@ table.simple tr:last-child td { border-bottom: none; }
 .ag-theme-ftel .tieu-de-giua .ag-header-cell-label { flex-direction: row; justify-content: center; }
 .ag-theme-ftel .ag-right-aligned-header .ag-header-cell-text,
 .ag-theme-ftel .tieu-de-giua .ag-header-cell-text { text-align: center; }
+
+/* ---------- Phân tích bán hàng: 6 chỉ số không để lẻ một thẻ xuống dòng ---------- */
+.kpi-row.kpi-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 1280px) { .kpi-row.kpi-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .kpi-row.kpi-6 { grid-template-columns: 1fr 1fr; } }

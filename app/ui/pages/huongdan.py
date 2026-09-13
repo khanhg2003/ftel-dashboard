@@ -54,6 +54,10 @@ def layout():
                     "Mỗi dòng một phòng, cuối mỗi bầy có dòng tổng, dưới cùng là tổng chi nhánh. ",
                     html.B("Số liệu cộng dồn"), " từ ngày 01 đến ngày đang chọn; nhóm cột cuối là "
                     "kết quả riêng của ngày đó. Màu ô: xanh đạt, vàng sát ngưỡng, đỏ cần xử lý."]),
+                _muc("Phân tích bán hàng", "Bán có tốt không, đang tắc ở đâu", [
+                    "Tỷ lệ bán kèm V.VIP / Camera, trả trước, online trong 1 ngày theo từng phòng và "
+                    "nhân viên - màu so với mức chung chi nhánh. Mục ", html.B("Số tồn theo thời "
+                    "gian chờ"), " có danh sách hợp đồng chờ từ 7 ngày để đôn đốc."]),
                 _muc("Tracking ngày", "Diễn biến từng ngày của từng phòng", [
                     "Mỗi cột là một ngày. Màu ô so với mức trung bình của chính phòng đó: xanh là "
                     "ngày tốt, đỏ là ngày hụt. Đọc ngang một dòng thấy ngay phòng đang lên hay "
@@ -69,8 +73,9 @@ def layout():
                     "Kiểm 5 điểm: hợp đồng chưa gán phòng, acc ngoài danh mục, ngày thiếu dữ "
                     "liệu, đơn tồn quá 7 ngày, hợp đồng đã huỷ. Mỗi mục có sẵn hướng xử lý."]),
                 _muc("Nạp dữ liệu", "Đưa file export vào hệ thống",
-                     "Chọn nhiều file cùng lúc, xem trước 20 dòng đầu rồi mới lưu. Nạp lại đúng "
-                     "file cũ không làm số bị nhân đôi."),
+                     "Chọn nhiều file cùng lúc, xem trước 20 dòng đầu rồi mới lưu. File export 3 "
+                     "tháng nạp lại bao nhiêu lần cũng không nhân đôi số: hợp đồng đã có được cập "
+                     "nhật, tháng nào tự về tháng đó theo Ngày online."),
                 _muc("Quản trị", "Tài khoản, danh mục nhân sự, lịch sử nạp",
                      "Cấp tài khoản theo vai trò và phạm vi, khai acc người bán thuộc phòng nào, "
                      "gỡ bỏ lần nạp sai."),
@@ -82,15 +87,19 @@ def layout():
 
         card([
             html.Div([
-                _muc("Số online", "", "Hợp đồng đã đấu nối và khách bắt đầu sử dụng - cơ sở "
+                _muc("Số online", "", "Hợp đồng đã online, khách bắt đầu sử dụng - cơ sở "
                                           "tính thành tích."),
-                _muc("Đơn chờ đấu nối", "", "Đã ký hợp đồng nhưng chưa online."),
+                _muc("Số tồn", "", "Đã ký hợp đồng nhưng chưa online, và còn nằm trong file mới nhất."),
                 _muc("V.VIP", "", "Hợp đồng có gói truyền hình V.VIP, đã gồm cả V.VIP Plus."),
                 _muc("PTTB CNQL", "", "Hợp đồng do chi nhánh quản lý sau bán."),
                 _muc("Bầy", "", "Nhóm nhiều phòng kinh doanh, xếp lại được theo từng tháng."),
                 _muc("Acc inside", "", "Tài khoản nhân viên trên hệ thống bán hàng "
                                        "(vd: DNG.HongDTA3) - căn cứ gán hợp đồng về phòng."),
                 _muc("Tỷ lệ HTKH", "", "Tỷ lệ hoàn thành chỉ tiêu tháng."),
+                _muc("Kèm V.VIP / Kèm Camera", "", "Hợp đồng Internet online trong kỳ có thêm "
+                                                   "V.VIP / Camera (ghép theo số hợp đồng)."),
+                _muc("Bán ngoại tỉnh", "", "Khách thuộc tỉnh khác (CN Quản lý ngoài DNG/QNM) do "
+                                           "mình bán online, số tính cho tỉnh khác."),
             ], className="hd-list"),
         ], title="Thuật ngữ"),
 

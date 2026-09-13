@@ -326,13 +326,15 @@ def hd_bat_thuong(thang: str) -> pd.DataFrame:
 
 def ton_dong_lau(so_ngay: int = 7) -> pd.DataFrame:
     """Hợp đồng đã tạo nhưng chưa online quá N ngày - điểm nghẽn triển khai."""
+    from app.metrics import dieu_kien_ton
     from app.sql_dialect import so_ngay_den_hom_nay
     tuoi = so_ngay_den_hom_nay("f.ngay_tao_hd")
+    dk, p = dieu_kien_ton("f.")
     return _sql_df(f"""SELECT p.ten AS phong, COUNT(*) AS so_hd,
                               ROUND(CAST(AVG({tuoi}) AS NUMERIC), 1) AS tuoi_tb
                        FROM fact_internet f LEFT JOIN dim_phong p ON p.code = f.phong_code
-                       WHERE f.ngay_online IS NULL AND {tuoi} >= :n
-                       GROUP BY p.ten ORDER BY so_hd DESC""", {"n": so_ngay})
+                       WHERE {dk} AND {tuoi} >= :n
+                       GROUP BY p.ten ORDER BY so_hd DESC""", {"n": so_ngay, **p})
 
 
 def tom_tat_chat_luong(thang: str) -> dict:

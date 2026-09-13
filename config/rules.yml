@@ -21,3 +21,8 @@ heatmap:
   htkh:        {rat_kem: 15, kem: 25, trung_binh: 35, kha: 50}
   tang_truong: {rat_kem: -10, kem: 0, trung_binh: 10, kha: 20}
   ty_le:       {rat_kem: 40, kem: 60, trung_binh: 75, kha: 85}
+
+# Trang Phân tích bán hàng: tô màu tỷ lệ so với MỨC CHUNG (dòng tổng) của phạm vi đang xem
+phan_tich:
+  tot: 5          # cao hơn mức chung từ 5 điểm % -> xanh
+  kem: 10         # thấp hơn mức chung từ 10 điểm % -> đỏ (5-10 điểm -> vàng)

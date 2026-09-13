@@ -97,6 +97,24 @@ def _fact_rows(res: LoadResult, staff_map: dict[str, str], batch_id: int) -> lis
     return rows
 
 
+def _bo_dong_camera_cu(session, rows: list[dict]) -> int:
+    """Camera khoá theo mã băm cả dòng, nên khi một hợp đồng đổi thông tin (vừa online, đổi hình
+    thức thanh toán...) file mới sinh ra dòng có mã băm khác. Nạp lại file 3 tháng mà không bỏ dòng
+    cũ thì camera đó bị đếm hai lần. File mới là bản đầy đủ nhất của các hợp đồng có trong nó,
+    nên xoá các dòng cũ của đúng những hợp đồng này rồi ghi lại."""
+    moi = {r["row_hash"] for r in rows}
+    hop_dong = sorted({r["hop_dong"] for r in rows})
+    bo = 0
+    for i in range(0, len(hop_dong), 500):
+        cu = session.execute(select(FactCamera.row_hash).where(
+            FactCamera.hop_dong.in_(hop_dong[i:i + 500]))).scalars().all()
+        xoa = [h for h in cu if h not in moi]
+        for j in range(0, len(xoa), 500):
+            session.execute(delete(FactCamera).where(FactCamera.row_hash.in_(xoa[j:j + 500])))
+        bo += len(xoa)
+    return bo
+
+
 def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
                   user: str = "system", thang: str | None = None) -> dict:
     """Ghi 1 khối dữ liệu vào DB, trả về thống kê để hiển thị cho người dùng."""
@@ -125,6 +143,8 @@ def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
             seen.add(r[key])
             uniq.append(r)
         stats["trung_trong_file"] = before - len(uniq)
+        if res.dataset == "camera":
+            stats["thay_the"] = _bo_dong_camera_cu(session, uniq)
         new, upd = _upsert(session, FACT_MODELS[res.dataset], uniq, key)
         stats.update(them_moi=new, cap_nhat=upd)
 

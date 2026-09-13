@@ -111,6 +111,33 @@ def tracking_table(thang: str, metric: str = "online", cong_don: bool = False,
     return df
 
 
+def lan_nap_day_du(dataset: str = "internet") -> int | None:
+    """Mã lần nạp gần nhất nếu đó là một file đầy đủ (bản chụp 3 tháng), ngược lại None.
+
+    File export là bản chụp cuộn khoảng 3 tháng: hợp đồng bị huỷ/rớt sẽ biến mất khỏi file mới.
+    Hợp đồng chưa online mà không còn trong file mới nhất thì không còn là "tồn" nữa.
+    Lần nạp chỉ bằng dưới một nửa lần nạp đầy đủ trước đó thì coi là file lẻ (không phải bản chụp),
+    khi đó không dùng để lọc.
+    """
+    df = pd.read_sql(text("""SELECT id, rows_valid FROM upload_batch WHERE dataset = :d
+                             ORDER BY id DESC"""), engine, params={"d": dataset})
+    if df.empty:
+        return None
+    moi = df.iloc[0]
+    lon_nhat_truoc = df.iloc[1:6].rows_valid.max() if len(df) > 1 else 0
+    if lon_nhat_truoc and moi.rows_valid < 0.5 * lon_nhat_truoc:
+        return None
+    return int(moi.id)
+
+
+def dieu_kien_ton(alias: str = "") -> tuple[str, dict]:
+    """Điều kiện SQL cho "Số tồn": chưa online VÀ còn nằm trong file Internet mới nhất."""
+    lo = lan_nap_day_du("internet")
+    if lo is None:
+        return f"{alias}ngay_online IS NULL", {}
+    return f"{alias}ngay_online IS NULL AND {alias}batch_id = :lo_moi_nhat", {"lo_moi_nhat": lo}
+
+
 def tong_thang(thang: str, metric: str = "online") -> int:
     return int(daily_counts(thang, metric).to_numpy().sum())
 
@@ -134,8 +161,9 @@ def summary_phong(thang: str, den_ngay: int | None = None,
     d_prev = daily_counts(pm, "online")
     prev = d_prev.loc[:, [c for c in d_prev.columns if c <= den_ngay]].sum(axis=1)
 
-    ton = pd.read_sql(text("""SELECT phong_code, COUNT(*) n FROM fact_internet
-                              WHERE ngay_online IS NULL GROUP BY phong_code"""), engine)
+    dk_ton, p_ton = dieu_kien_ton()
+    ton = pd.read_sql(text(f"""SELECT phong_code, COUNT(*) n FROM fact_internet
+                               WHERE {dk_ton} GROUP BY phong_code"""), engine, params=p_ton)
     ton = ton.set_index("phong_code")["n"] if not ton.empty else pd.Series(dtype=int)
 
     tgt = pd.read_sql(text("""SELECT ma_doi_tuong, chi_tieu, gia_tri FROM target_monthly

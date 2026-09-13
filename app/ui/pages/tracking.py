@@ -198,7 +198,7 @@ def register(app):
             kpi("Số Online", f"{online:,}".replace(",", "."), delta),
             kpi("Số V.VIP", f"{vvip:,}".replace(",", "."), f"Tỷ lệ V.VIP/Online {ty_vvip:.1f}%"),
             kpi("Camera", f"{camera:,}".replace(",", "."), "Đã loại các dòng trùng"),
-            kpi("Đơn chờ đấu nối", f"{ton:,}".replace(",", "."),
+            kpi("Số tồn", f"{ton:,}".replace(",", "."),
                 "Đã ký nhưng chưa online",
                 "warn" if ton else ""),
             kpi("Hoàn thành kế hoạch", f"{htkh:.1f}%" if htkh else "—",

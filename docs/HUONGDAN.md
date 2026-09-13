@@ -101,8 +101,8 @@ Tháng sau đổi phòng sang bầy khác thì sửa ở đây, tháng cũ vẫn
 
 | Từ | Nghĩa đơn giản |
 |---|---|
-| **Số online** | Hợp đồng đã đấu nối xong, khách bắt đầu dùng — con số tính thành tích |
-| **Đơn chờ đấu nối** (số tồn) | Khách đã ký nhưng chưa online |
+| **Số online** | Hợp đồng đã online, khách bắt đầu dùng — con số tính thành tích |
+| **Số tồn** (chưa online) | Khách đã ký nhưng chưa online, và còn nằm trong file mới nhất |
 | **V.VIP** | Hợp đồng có gói truyền hình V.VIP (app tính cả V.VIP Plus) |
 | **PTTB CNQL** | Hợp đồng do chi nhánh mình quản lý sau bán |
 | **Bầy** | Nhóm gồm nhiều phòng kinh doanh, mỗi tháng xếp lại được |

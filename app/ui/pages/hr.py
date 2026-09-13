@@ -79,8 +79,8 @@ def layout():
             html.Div(card([dcc.Loading(dcc.Graph(
                 id="hr-leadtime", config={"displayModeBar": False, "responsive": True},
                 style={"width": "100%"}))],
-                title="Thời gian đấu nối",
-                desc="Số ngày bình quân từ lúc ký đến khi khách online, theo phòng"),
+                title="Thời gian từ ký đến online",
+                desc="Số ngày bình quân từ lúc tạo hợp đồng đến khi online, theo phòng"),
                 className="chart-col"),
         ], className="chart-row"),
 
