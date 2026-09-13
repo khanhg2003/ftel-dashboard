@@ -46,13 +46,16 @@ def layout():
             html.Div([
                 field("Kỳ 1 · từ", _dp("ss-k1-tu", ngays, k1_tu.isoformat())),
                 field("đến", _dp("ss-k1-den", ngays, k1_den.isoformat())),
-                html.Div(style={"width": "12px"}),
+                html.Div(style={"width": "16px", "borderLeft": "1px solid #E4E9F0",
+                                "alignSelf": "stretch", "margin": "0 4px"}),
                 field("Kỳ 2 · từ", _dp("ss-k2-tu", ngays, k2_tu.isoformat())),
                 field("đến", _dp("ss-k2-den", ngays, k2_den.isoformat())),
-                html.Div(className="grow"),
+            ], className="toolbar", style={"marginBottom": "10px"}),
+            html.Div([
                 field("Chỉ số", seg_control("ss-metric",
                                             [("online", "Số Online"), ("vvip", "Số V.VIP"),
                                              ("camera", "Camera")], "online")),
+                html.Div(className="grow"),
                 field("Nhóm phòng", dcc.Dropdown(
                     id="ss-nhom", clearable=False, value="kd", style={"width": "190px"},
                     options=[{"label": "Chỉ phòng kinh doanh", "value": "kd"},
