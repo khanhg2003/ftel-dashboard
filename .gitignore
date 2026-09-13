@@ -1,0 +1,21 @@
+# ---- Dữ liệu thật: KHÔNG BAO GIỜ đưa lên GitHub
+data/
+backups/
+logs/
+*.csv
+*.xlsx
+*.db
+*.db-*
+
+# ---- Bí mật
+.env
+.env.*
+!.env.example
+
+# ---- Rác môi trường
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.vercel/
+.claude/

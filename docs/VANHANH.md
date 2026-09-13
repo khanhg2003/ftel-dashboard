@@ -1,0 +1,143 @@
+# Hướng dẫn vận hành
+
+## 1. Chạy app
+
+| Mục đích | Lệnh | Ghi chú |
+|---|---|---|
+| Phát triển / thử | `python run.py` | Server dev, chỉ máy mình dùng |
+| Chạy thật | `python serve.py` | Máy chủ waitress, nhiều người dùng được |
+| Đổi cổng | `python serve.py --port 9000` | |
+| Chỉ cho máy mình | `python serve.py --host 127.0.0.1` | |
+
+```bash
+python serve.py
+```
+
+Sau khi chạy, màn hình in sẵn địa chỉ để phát cho mọi người, ví dụ
+`http://192.168.1.25:8050`. Nếu cần xem lại: `ipconfig`.
+
+**Tài khoản đầu tiên:** `admin` / `Ftel@2026` — đây là mật khẩu mẫu, mỗi lần khởi động
+`serve.py` sẽ cảnh báo nếu chưa đổi. Vào **Quản trị → Tài khoản** đổi ngay, rồi tạo tài
+khoản cho từng người (vai trò *Giám đốc Bầy* / *Trưởng phòng* chỉ xem đúng phạm vi của mình).
+
+### Kiểm tra app còn sống
+`http://<máy-chủ>:8050/healthz` → `{"status": "ok", "du_lieu_moi_nhat": "2026-09-11", ...}`.
+Trang này không cần đăng nhập và không lộ số liệu kinh doanh — dùng cho công cụ giám sát
+hoặc để kiểm tra nhanh khi có người báo *"vào không được"*.
+
+### Nhật ký
+`serve.py` ghi ra `logs/app.log` (xoay vòng 5 file × 2 MB). Mở file này trước tiên khi có lỗi.
+
+## 2. Chạy nền như một dịch vụ Windows
+
+**Cách 1 — Task Scheduler (đơn giản nhất)**
+
+1. Mở *Task Scheduler* → *Create Task*.
+2. Tab *General*: đặt tên `FTEL Dashboard`, chọn **Run whether user is logged on or not**.
+3. Tab *Triggers*: *New* → **At startup**.
+4. Tab *Actions*: *New* →
+   - Program: `python` (hoặc đường dẫn đầy đủ tới `python.exe`)
+   - Arguments: `serve.py`
+   - Start in: `E:\App Báo cáo - FTEL`
+5. Tab *Settings*: bỏ chọn *Stop the task if it runs longer than...*
+
+**Cách 2 — NSSM** (nếu muốn quản lý như dịch vụ thật, có tự khởi động lại khi lỗi)
+
+```bash
+nssm install FtelDashboard "C:\Users\ADMIN\AppData\Local\Programs\Python\Python311\python.exe" "E:\App Báo cáo - FTEL\serve.py"
+nssm set FtelDashboard AppDirectory "E:\App Báo cáo - FTEL"
+nssm start FtelDashboard
+```
+
+## 3. Sao lưu database
+
+```bash
+python scripts/backup_db.py
+```
+
+Tạo bản sao vào thư mục `backups/`, giữ 30 bản gần nhất. Bản sao dùng API backup của
+SQLite nên an toàn ngay cả khi app đang chạy.
+
+Đặt lịch chạy hằng ngày: Task Scheduler → trigger **Daily 22:00** → Action:
+Program `python`, Arguments `scripts/backup_db.py`, Start in `E:\App Báo cáo - FTEL`.
+
+> Khi chuyển sang dùng thật, nên đặt thư mục `backups/` ở ổ khác hoặc đồng bộ lên
+> OneDrive/Google Drive của công ty.
+
+## 4. HTTPS
+
+Waitress chạy HTTP. Trong mạng nội bộ thường là đủ. Nếu cần HTTPS:
+
+- **Caddy** (dễ nhất): file `Caddyfile`
+  ```
+  bao-cao.noi-bo.local {
+      reverse_proxy 127.0.0.1:8050
+  }
+  ```
+- Hoặc IIS / nginx làm reverse proxy tới `127.0.0.1:8050`, gắn chứng chỉ nội bộ của công ty.
+
+Khi có HTTPS, mở `app/ui/app.py` và bật thêm `SESSION_COOKIE_SECURE=True`.
+
+## 4b. Khoá phiên đăng nhập
+
+Nếu chưa đặt `APP_SECRET_KEY` trong `.env`, app tự sinh khoá ngẫu nhiên và lưu ở
+`data/secret.key`; khởi động lại không làm ai bị đăng xuất. **Đừng chép file này ra ngoài**
+và đừng xoá — xoá thì mọi người phải đăng nhập lại.
+
+## 5. Kiểm thử trước khi nâng cấp
+
+```bash
+python -m pytest -q
+```
+
+67 phép kiểm, gồm:
+
+- `tests/test_bao_cao.py` — chốt các con số đã đối chiếu tay với báo cáo kỳ 01–11/09/2026
+  (tổng Online 1.394 · V.VIP 980 · Camera 554 · Khối D1 · Khối D2 · quy tắc gán phòng).
+- `tests/test_phan_quyen.py` — phân quyền 3 vai trò, chặn truy cập khi chưa đăng nhập,
+  khoá sau 5 lần sai, dựng được cả 8 trang, `/healthz`, sao lưu database.
+- `tests/test_giao_dien.py` — ảnh PNG đủ dòng, cỡ bảng vừa màn hình, lọc chi nhánh
+  (DNG + QNM = tổng), thêm/xoá tài khoản, ràng buộc khi xoá bầy/phòng, trang 404,
+  bảng dài cuộn trong khung, thanh lọc dính.
+
+Bộ kiểm thử chạy trên database riêng `data/kiemthu.db` (tự dựng ở lần chạy đầu từ dữ liệu
+gốc kỳ 01-11/09/2026), nên **nạp thêm file mới không làm hỏng các phép kiểm**.
+
+**Luôn chạy lệnh này sau khi sửa công thức hoặc sửa phân quyền** — sai lệch sẽ bị chặn ngay.
+
+## 5a. Hướng dẫn cho người dùng cuối
+
+Gửi anh chị em bản [HUONGDAN.md](HUONGDAN.md), hoặc chỉ họ vào mục **Trợ giúp → Hướng dẫn
+sử dụng** ngay trong app (không cần quyền gì đặc biệt cũng xem được).
+
+## 5b. Gửi báo cáo cho nhóm
+
+Trang **Báo cáo Tổng** → nút **Chụp ảnh (PNG)**: tải về một ảnh có đủ toàn bộ dòng và cột,
+kèm tiêu đề ngày, giữ nguyên màu heatmap - gửi thẳng vào nhóm Zalo/Telegram.
+Ảnh được vẽ ở máy chủ nên không phụ thuộc bạn đang để cỡ bảng bao nhiêu, và không bị
+thiếu cột như chụp màn hình.
+
+Cần bản để tính toán tiếp thì dùng **Excel**; cần dữ liệu thô thì dùng **CSV**.
+
+## 6. Việc định kỳ
+
+| Khi nào | Việc |
+|---|---|
+| Hằng ngày | Kéo cả 3 file export vào *Nạp dữ liệu* → lưu một lần → xem *Chất lượng dữ liệu* → **Báo cáo Tổng → Chụp ảnh (PNG)** → gửi nhóm |
+| Đầu tháng | Cấu hình → *Cơ cấu Bầy của kỳ* (nếu có thay đổi) + nhập chỉ tiêu tháng |
+| Khi có file NSLĐ | Nạp ở trang *Nạp dữ liệu*, nhớ điền đúng tháng |
+| Khi nhân sự vào/ra/chuyển phòng | Quản trị → *Danh mục nhân sự*, rồi bấm *Tính lại việc gán phòng* |
+| Hằng tuần | Kiểm tra thư mục `backups/` có bản mới; liếc `logs/app.log` xem có lỗi lặp lại |
+| Khi có người vào không được | Mở `/healthz`; nếu `ok` thì là tài khoản (bị khoá 15 phút sau 5 lần sai) |
+| Khi có người nghỉ việc | Quản trị → *Tài khoản* → chuyển sang **Ngừng dùng** |
+
+## 7. Chuyển sang PostgreSQL (khi cần)
+
+Sửa `DATABASE_URL` trong `.env`:
+
+```
+DATABASE_URL=postgresql+psycopg://user:pass@host:5432/ftel
+```
+
+Code không phải sửa gì thêm — toàn bộ truy vấn đi qua SQLAlchemy. Chạy lại
+`python scripts/seed_from_sheet.py` hoặc nạp lại dữ liệu từ giao diện.

@@ -1,0 +1,131 @@
+# Bản đồ cột: tên cột trong file export  ->  tên trường trong database.
+# App dò theo TÊN CỘT (chuẩn hoá Unicode NFC + bỏ khoảng trắng thừa + không phân biệt hoa/thường),
+# KHÔNG dùng vị trí cột. Hệ thống đổi tên cột thì chỉ cần thêm tên mới vào danh sách "ten".
+datasets:
+  internet:
+    ten_hien_thi: "Internet (PTTB)"
+    nhan_dien:
+      phai_co: ["hợp đồng", "acc nhân viên bán", "clbh net thời điểm hiện tại"]
+      khong_duoc_co: ["gói dịch vụ fpt play", "tên gói cloud"]
+    cot:
+      - {field: hop_dong,        ten: ["Hợp đồng"],                          kieu: ma,    bat_buoc: true}
+      - {field: cn_quan_ly,      ten: ["CN Quản lý"],                        kieu: str,   bat_buoc: true}
+      - {field: cn_ban,          ten: ["CN Bán"],                            kieu: str,   bat_buoc: true}
+      - {field: vung_mien,       ten: ["Vùng miền"],                         kieu: str}
+      - {field: phong_he_thong,  ten: ["Phòng kinh doanh"],                  kieu: str,   bat_buoc: true}
+      - {field: goi_dich_vu,     ten: ["Gói dịch vụ"],                       kieu: str}
+      - {field: nguon_ban,       ten: ["Nguồn bán", "Kênh bán"],             kieu: str,   bat_buoc: true}
+      - {field: tinh_trang,      ten: ["Tình trạng"],                        kieu: str,   bat_buoc: true}
+      - {field: ten_khach_hang,  ten: ["Tên khách hàng"],                    kieu: pii}
+      - {field: ngay_tao_hd,     ten: ["Ngày tạo HĐ"],                       kieu: ngay,  bat_buoc: true}
+      - {field: ngay_online,     ten: ["Ngày Online", "Ngày online"],        kieu: ngay,  bat_buoc: true}
+      - {field: ngay_huy,        ten: ["Ngày hủy dịch vụ"],                  kieu: ngay}
+      - {field: acc_nhan_vien,   ten: ["Acc nhân viên bán"],                 kieu: acc,   bat_buoc: true}
+      - {field: ma_nhan_vien,    ten: ["Mã Nhân viên", "Mã nhân viên"],      kieu: manv,  bat_buoc: true}
+      - {field: quan_huyen,      ten: ["Quận/ Huyện", "Quận/Huyện"],         kieu: str}
+      - {field: xa_phuong,       ten: ["Xã/ Phường", "Xã/Phường"],           kieu: str}
+      - {field: tap_diem,        ten: ["Thông số tập điểm"],                 kieu: str}
+      - {field: chinh_sach_ban,  ten: ["CLBH Net Thời điểm hiện tại"],       kieu: str}
+      - {field: tien_hoa_mang,   ten: ["Tiền hòa mạng"],                     kieu: so}
+      - {field: so_thang_tra_truoc, ten: ["Số tháng trả trước"],             kieu: so}
+      - {field: hinh_thuc_tt,    ten: ["Hình thức thanh toán"],              kieu: str}
+      - {field: so_tien_tra_truoc,  ten: ["Số tiền trả trước"],              kieu: so}
+      - {field: arpu_tra_truoc,  ten: ["ARPU Trả trước"],                    kieu: so}
+      - {field: arpu_tra_sau,    ten: ["ARPU Trả sau"],                      kieu: so}
+      - {field: doi_tuong_kh,    ten: ["Đối tượng KH"],                      kieu: str}
+
+  fptplay:
+    ten_hien_thi: "FPT Play"
+    nhan_dien:
+      phai_co: ["hợp đồng", "gói dịch vụ fpt play"]
+      khong_duoc_co: ["tên gói cloud"]
+    cot:
+      - {field: hop_dong,        ten: ["Hợp đồng"],                          kieu: ma,    bat_buoc: true}
+      - {field: cn_quan_ly,      ten: ["CN Quản lý"],                        kieu: str,   bat_buoc: true}
+      - {field: cn_ban,          ten: ["CN Bán"],                            kieu: str,   bat_buoc: true}
+      - {field: phong_he_thong,  ten: ["Phòng kinh doanh"],                  kieu: str,   bat_buoc: true}
+      - {field: goi_dich_vu,     ten: ["Gói dịch vụ"],                       kieu: str}
+      - {field: goi_fpt_play,    ten: ["Gói dịch vụ FPT Play"],              kieu: str,   bat_buoc: true}
+      - {field: loai_box,        ten: ["Loại Box Truyền hình"],              kieu: str}
+      - {field: nguon_ban,       ten: ["Nguồn bán", "Kênh bán"],             kieu: str}
+      - {field: tinh_trang,      ten: ["Tình trạng"],                        kieu: str}
+      - {field: ten_khach_hang,  ten: ["Tên khách hàng"],                    kieu: pii}
+      - {field: ngay_tao_hd,     ten: ["Ngày tạo HĐ"],                       kieu: ngay,  bat_buoc: true}
+      - {field: ngay_online,     ten: ["Ngày Online", "Ngày online"],        kieu: ngay,  bat_buoc: true}
+      - {field: ngay_huy,        ten: ["Ngày hủy dịch vụ"],                  kieu: ngay}
+      - {field: ma_nhan_vien,    ten: ["Mã Nhân viên", "Mã nhân viên"],      kieu: manv,  bat_buoc: true}
+      - {field: acc_nhan_vien,   ten: ["Acc nhân viên bán"],                 kieu: acc,   bat_buoc: true}
+      - {field: tap_diem,        ten: ["Thông số tập điểm"],                 kieu: str}
+      - {field: chinh_sach_ban,  ten: ["CLBH truyền hình thời điểm hiện tại"], kieu: str}
+      - {field: gia_box,         ten: ["Giá box"],                           kieu: so}
+      - {field: so_thang_tra_truoc, ten: ["Số Tháng Trả Trước", "Số tháng trả trước"], kieu: so}
+      - {field: ngay_ban,        ten: ["Ngày bán"],                          kieu: ngay}
+      - {field: tinh_trang_fpl,  ten: ["Tình trạng FPT Play"],               kieu: str}
+      - {field: doi_tuong_kh,    ten: ["Đối tượng KH"],                      kieu: str}
+
+  camera:
+    ten_hien_thi: "Camera"
+    nhan_dien:
+      phai_co: ["hợp đồng", "tên gói cloud"]
+      khong_duoc_co: []
+    cot:
+      - {field: hop_dong,        ten: ["Hợp đồng"],                          kieu: ma,    bat_buoc: true}
+      - {field: cn_quan_ly,      ten: ["CN Quản lý"],                        kieu: str,   bat_buoc: true}
+      - {field: cn_ban,          ten: ["CN Bán"],                            kieu: str,   bat_buoc: true}
+      - {field: phong_he_thong,  ten: ["Phòng kinh doanh"],                  kieu: str,   bat_buoc: true}
+      - {field: goi_dich_vu,     ten: ["Gói dịch vụ"],                       kieu: str}
+      - {field: so_luong_cloud,  ten: ["Số lượng Gói cloud"],                kieu: so}
+      - {field: gia_cuoc_cloud,  ten: ["Giá cước gói Cloud"],                kieu: so}
+      - {field: ten_goi_cloud,   ten: ["Tên gói Cloud"],                     kieu: str}
+      - {field: ky_tt,           ten: ["Kỳ TT"],                             kieu: so}
+      - {field: nguon_ban,       ten: ["Kênh bán", "Nguồn bán"],             kieu: str}
+      - {field: tinh_trang,      ten: ["Tình trạng"],                        kieu: str}
+      - {field: ten_khach_hang,  ten: ["Tên khách hàng"],                    kieu: pii}
+      - {field: ngay_tao_hd,     ten: ["Ngày tạo HĐ"],                       kieu: ngay,  bat_buoc: true}
+      - {field: ngay_online,     ten: ["Ngày online (Ngày hoàn tất triển khai/ giao TB)", "Ngày Online", "Ngày online"], kieu: ngay, bat_buoc: true}
+      - {field: ngay_huy,        ten: ["Ngày hủy dịch vụ"],                  kieu: ngay}
+      - {field: ma_nhan_vien,    ten: ["Mã Nhân viên", "Mã nhân viên"],      kieu: manv,  bat_buoc: true}
+      - {field: acc_nhan_vien,   ten: ["Acc nhân viên bán"],                 kieu: acc,   bat_buoc: true}
+      - {field: don_gia,         ten: ["Thông tin đơn giá"],                 kieu: so}
+      - {field: so_luong,        ten: ["Số lượng"],                          kieu: so}
+      - {field: tong_tien,       ten: ["Tổng tiền"],                         kieu: so}
+      - {field: phan_loai,       ten: ["Phân loại"],                         kieu: str}
+      - {field: doi_tuong_kh,    ten: ["Đối tượng KH"],                      kieu: str}
+
+  nhan_su:
+    ten_hien_thi: "Nhân sự (NSLĐ)"
+    nhan_dien:
+      phai_co: ["tên ibb (theo inside)", "mã nv"]
+      khong_duoc_co: []
+    cot:
+      - {field: ma_nv,            ten: ["Mã NV", "Mã nhân viên"],            kieu: manv,  bat_buoc: true}
+      - {field: ho_ten,           ten: ["Họ tên"],                           kieu: str,   bat_buoc: true}
+      - {field: acc,              ten: ["Tên IBB (theo inside)"],            kieu: acc,   bat_buoc: true}
+      - {field: khu_vuc,          ten: ["Khu vực"],                          kieu: str}
+      - {field: vi_tri,           ten: ["Vị trí (NVKD/CTV)"],                kieu: str}
+      - {field: don_vi_ps,        ten: ["Đơn vị (theo PS)"],                 kieu: str}
+      - {field: phong_ps,         ten: ["Phòng (theo PS)"],                  kieu: str,   bat_buoc: true}
+      - {field: vi_tri_inside,    ten: ["Vị trí (theo inside)"],             kieu: str}
+      - {field: ngay_tinh_luong,  ten: ["Ngày tính lương"],                  kieu: ngay}
+      - {field: tham_nien_bucket, ten: ["Tháng NSLĐ"],                       kieu: str}
+      - {field: trang_thai,       ten: ["Tình trạng (Bình thường/ Nghỉ việc/ Nghỉ tạm thời)", "Tình trạng"], kieu: str}
+      - {field: ngay_nghi_viec,   ten: ["Ngày nghỉ việc"],                   kieu: ngay}
+      - {field: ngay_gian_doan,   ten: ["Số ngày nghỉ gián đoạn trong tháng"], kieu: so}
+      - {field: dieu_kien,        ten: ["Điều kiện (Xét NSLĐ/ Không xét)"],  kieu: str}
+      - {field: diem_itn,         ten: ["ITN"],                              kieu: so}
+      - {field: diem_fpt_play,    ten: ["FPT Play"],                         kieu: so}
+      - {field: diem_tong,        ten: ["Tổng"],                             kieu: so}
+      - {field: ket_luan,         ten: ["KẾT LUẬN"],                         kieu: str}
+      - {field: ghi_chu,          ten: ["Ghi chú"],                          kieu: str}
+      - {field: tong_bao_lanh,    ten: ["Tổng bảo lãnh"],                    kieu: so}
+
+  danh_muc_nv:
+    ten_hien_thi: "Danh mục NV - Phòng kinh doanh"
+    nhan_dien:
+      phai_co: ["phòng kinh doanh", "tên nhân viên"]
+      khong_duoc_co: ["hợp đồng"]
+    cot:
+      - {field: phong,   ten: ["Phòng kinh doanh", "Phòng"],                 kieu: str, bat_buoc: true}
+      - {field: acc,     ten: ["Tên nhân viên", "Acc nhân viên", "Acc"],     kieu: acc, bat_buoc: true}
+      - {field: ma_nv,   ten: ["Mã NV", "Mã nhân viên"],                     kieu: manv}
+      - {field: ghi_chu, ten: ["Ghi chú"],                                   kieu: str}

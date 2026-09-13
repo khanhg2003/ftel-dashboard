@@ -1,0 +1,61 @@
+# Cơ cấu tổ chức dùng cho báo cáo. Sửa file này khi có thay đổi phòng/bầy.
+chi_nhanh: "DNG_QNM"
+bay:
+  - code: BAY1
+    ten_tong: "BẦY DNG_1"
+    ten: "BẦY 1"
+    thu_tu: 1
+  - code: BAY2
+    ten_tong: "BẦY DNG_2"
+    ten: "BẦY 2"
+    thu_tu: 2
+  - code: BAY3
+    ten_tong: "BẦY DNG_3"
+    ten: "BẦY 3"
+    thu_tu: 3
+  - code: ECOM
+    ten_tong: "TỔNG ECOM"
+    ten: "ECOM"
+    thu_tu: 4
+  - code: KHAC
+    ten_tong: "TỔNG KHÁC"
+    ten: "KHÁC"
+    thu_tu: 9
+
+phong:
+  # loai: IBB | DIABAN | KT | CUS | ECOM | KHAC
+  # nhom_khac: DNG | QNM | null  (dùng cho Khối D1 "DNG Khác / QNM Khác")
+  - {code: IBB2,     ten: "IBB2",           bay: BAY1, loai: IBB,    chi_nhanh: DNG, nhom_khac: null, thu_tu: 1}
+  - {code: IBB6,     ten: "IBB6",           bay: BAY1, loai: IBB,    chi_nhanh: DNG, nhom_khac: null, thu_tu: 2}
+  - {code: IBB4,     ten: "IBB4",           bay: BAY1, loai: IBB,    chi_nhanh: DNG, nhom_khac: null, thu_tu: 3}
+  - {code: HOIAN,    ten: "Hội An",         bay: BAY1, loai: DIABAN, chi_nhanh: QNM, nhom_khac: null, thu_tu: 4}
+  - {code: KT_DNG1,  ten: "Phòng KT DNG1",  bay: BAY1, loai: KT,     chi_nhanh: DNG, nhom_khac: DNG,  thu_tu: 5}
+  - {code: CUS_DNG1, ten: "Phòng CUS DNG1", bay: BAY1, loai: CUS,    chi_nhanh: DNG, nhom_khac: DNG,  thu_tu: 6}
+  - {code: IBB5,     ten: "IBB5",           bay: BAY2, loai: IBB,    chi_nhanh: DNG, nhom_khac: null, thu_tu: 1}
+  - {code: IBB7,     ten: "IBB7",           bay: BAY2, loai: IBB,    chi_nhanh: DNG, nhom_khac: null, thu_tu: 2}
+  - {code: TAMKY,    ten: "Tam Kỳ",         bay: BAY2, loai: DIABAN, chi_nhanh: QNM, nhom_khac: null, thu_tu: 3}
+  - {code: NUITHANH, ten: "Núi Thành",      bay: BAY2, loai: DIABAN, chi_nhanh: QNM, nhom_khac: null, thu_tu: 4}
+  - {code: KT_DNG2,  ten: "Phòng KT DNG2",  bay: BAY2, loai: KT,     chi_nhanh: DNG, nhom_khac: DNG,  thu_tu: 5}
+  - {code: CUS_DNG2, ten: "Phòng CUS DNG2", bay: BAY2, loai: CUS,    chi_nhanh: DNG, nhom_khac: DNG,  thu_tu: 6}
+  - {code: IBB1,     ten: "IBB1",           bay: BAY3, loai: IBB,    chi_nhanh: DNG, nhom_khac: null, thu_tu: 1}
+  - {code: IBB3,     ten: "IBB3",           bay: BAY3, loai: IBB,    chi_nhanh: DNG, nhom_khac: null, thu_tu: 2}
+  - {code: DAILOC,   ten: "Đại Lộc",        bay: BAY3, loai: DIABAN, chi_nhanh: QNM, nhom_khac: null, thu_tu: 3}
+  - {code: DIENBAN,  ten: "Điện Bàn",       bay: BAY3, loai: DIABAN, chi_nhanh: QNM, nhom_khac: null, thu_tu: 4}
+  - {code: KT_QNM,   ten: "Phòng KT QNM",   bay: BAY3, loai: KT,     chi_nhanh: QNM, nhom_khac: QNM,  thu_tu: 5}
+  - {code: CUS_QNM,  ten: "Phòng CUS QNM",  bay: BAY3, loai: CUS,    chi_nhanh: QNM, nhom_khac: QNM,  thu_tu: 6}
+  - {code: ECOM_DNG, ten: "ECOM DNG",       bay: ECOM, loai: ECOM,   chi_nhanh: DNG, nhom_khac: DNG,  thu_tu: 1}
+  - {code: ECOM_QNM, ten: "ECOM QNM",       bay: ECOM, loai: ECOM,   chi_nhanh: QNM, nhom_khac: QNM,  thu_tu: 2}
+  - {code: ANCS,     ten: "ANCS",           bay: KHAC, loai: KHAC,   chi_nhanh: DNG, nhom_khac: null, thu_tu: 1}
+  - {code: DOANHNGHIEP, ten: "Doanh nghiệp", bay: KHAC, loai: KHAC,  chi_nhanh: DNG, nhom_khac: null, thu_tu: 2}
+  - {code: CHUA_GAN, ten: "Chưa gán phòng", bay: KHAC, loai: KHAC,   chi_nhanh: DNG, nhom_khac: null, thu_tu: 3}
+
+# Quy tắc gán phòng cho HĐ của nhân sự KHÔNG có trong danh mục (đã kiểm chứng khớp báo cáo)
+fallback:
+  ecom_cn_ban_suffix: "_ECOM"      # CN Bán = HCM_ECOM / HNI_ECOM  -> ECOM
+  ecom_theo_cn_quan_ly:            # tách ECOM DNG / ECOM QNM theo CN Quản lý
+    QNM: ECOM_QNM
+    _default: ECOM_DNG
+  theo_phong_he_thong:
+    "Phòng kỹ thuật": {DNG_01: KT_DNG1, DNG_02: KT_DNG2, QNM: KT_QNM}
+    "Phòng CUS":      {DNG_01: CUS_DNG1, DNG_02: CUS_DNG2, QNM: CUS_QNM}
+  mac_dinh: CHUA_GAN

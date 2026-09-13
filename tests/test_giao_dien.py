@@ -1,0 +1,234 @@
+"""Kiểm thử các chức năng giao diện thêm ở đợt tối ưu trải nghiệm (nhóm A → F).
+
+Chốt những thứ dễ vỡ khi sửa về sau: ảnh PNG, cỡ bảng vừa màn hình, lọc chi nhánh,
+thêm/xoá tài khoản, xoá bầy/phòng có ràng buộc, trang 404.
+"""
+from __future__ import annotations
+
+import io
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.config import DATA_DIR                                       # noqa: E402
+from app.db import session_scope                                      # noqa: E402
+from app.org import loc_chi_nhanh, phong_order, xoa_bay, xoa_phong    # noqa: E402
+
+THANG = "2026-09"
+pytestmark = pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(),
+                                reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
+
+
+# --------------------------------------------------------------- ảnh báo cáo
+def test_chup_anh_bao_cao_day_du_ca_bang():
+    from PIL import Image
+
+    from app.export_png import anh_tong_quan
+    from app.overview import bang_tong_quan
+    noi_dung, ten = anh_tong_quan(THANG)
+    assert ten == "BaoCaoTong_202609_ngay11.png"
+    img = Image.open(io.BytesIO(noi_dung))
+    df, _ = bang_tong_quan(THANG)
+    # đủ chiều cao cho toàn bộ số dòng (không cắt bớt như chụp màn hình)
+    assert img.height > len(df) * 27 * 2
+    assert img.width > 2000 and img.mode == "RGB"
+
+
+# ------------------------------------------------------------ cỡ bảng vừa màn hình
+@pytest.mark.parametrize("rong_man_hinh, toi_da", [(1366, 0.75), (1536, 0.85), (2560, 1.0)])
+def test_ty_le_vua_man_hinh(rong_man_hinh, toi_da):
+    from app.ui.pages.tongquan import _cols, ty_le_vua_man_hinh
+    cols = _cols(THANG, 11)
+    ty_le = ty_le_vua_man_hinh(cols, {"w": rong_man_hinh})
+    assert 0.3 < ty_le <= toi_da
+    # thu gọn sidebar thì được rộng hơn
+    assert ty_le_vua_man_hinh(cols, {"w": rong_man_hinh}, True) >= ty_le
+
+
+def test_tieu_de_cot_du_rong_de_khong_bi_cat():
+    """Tiêu đề xuống dòng được thì mới không hiện dấu ... - phải bật đúng hai tuỳ chọn."""
+    from app.ui.pages.tongquan import layout
+    grid = _tim(layout(), "tq-grid")
+    assert grid.defaultColDef["wrapHeaderText"] and grid.defaultColDef["autoHeaderHeight"]
+
+
+def test_tracking_ghim_tieu_de_bang_chieu_cao_co_dinh():
+    from app.ui.pages.tracking import layout
+    grid = _tim(layout(), "tk-grid")
+    assert grid.dashGridOptions["domLayout"] == "normal"     # cuộn trong bảng -> tiêu đề ở lại
+    assert grid.style["height"].endswith("px")
+
+
+def _tim(node, id_can_tim):
+    """Tìm một component theo id trong cây layout (children có thể là 1 hoặc nhiều)."""
+    if getattr(node, "id", None) == id_can_tim:
+        return node
+    con = getattr(node, "children", None)
+    if con is None or isinstance(con, str):
+        return None
+    for c in (con if isinstance(con, (list, tuple)) else [con]):
+        kq = _tim(c, id_can_tim)
+        if kq is not None:
+            return kq
+    return None
+
+
+# ---------------------------------------------------------------- lọc chi nhánh
+def test_loc_chi_nhanh_cat_dung_danh_sach_phong():
+    tat_ca = {p["code"] for p in phong_order(THANG)}
+    dng = set(loc_chi_nhanh(None, "DNG", THANG))
+    qnm = set(loc_chi_nhanh(None, "QNM", THANG))
+    assert dng and qnm and not (dng & qnm)
+    assert dng | qnm == tat_ca
+    assert loc_chi_nhanh(None, "all", THANG) is None
+    # giao với quyền: trưởng phòng IBB2 chọn QNM thì không còn phòng nào
+    assert loc_chi_nhanh(["IBB2"], "DNG", THANG) == ["IBB2"]
+    assert loc_chi_nhanh(["IBB2"], "QNM", THANG) == []
+
+
+def test_bao_cao_theo_chi_nhanh_cong_lai_bang_tong():
+    from app.overview import bang_tong_quan
+
+    def tong(cn):
+        df, _ = bang_tong_quan(THANG, chi_phong=loc_chi_nhanh(None, cn, THANG))
+        return int(df[df.loai_dong == "total"].iloc[0].online)
+
+    assert tong("DNG") + tong("QNM") == tong("all") == 1394
+
+
+def test_nhan_su_co_cot_chi_nhanh():
+    from app.hr_metrics import hieu_suat_nhan_su
+    df = hieu_suat_nhan_su(THANG)
+    assert "chi_nhanh" in df.columns
+    assert {"Đà Nẵng", "Quảng Nam"} <= set(df.chi_nhanh.unique())
+
+
+# ------------------------------------------------------------------ tài khoản
+def test_them_va_xoa_tai_khoan():
+    from app.admin_service import them_user, xoa_user
+    ok, msg = them_user({"username": "zz_ui_test", "ho_ten": "Kiểm thử giao diện",
+                         "role": "phong", "pham_vi": ["IBB2"], "mat_khau": "Kiemthu@2026"},
+                        "admin")
+    assert ok, msg
+    ok2, msg2 = them_user({"username": "zz_ui_test", "role": "phong", "pham_vi": ["IBB2"],
+                           "mat_khau": "Kiemthu@2026"}, "admin")
+    assert not ok2 and "đã tồn tại" in msg2            # không cho trùng tên
+    n, _ = xoa_user(["zz_ui_test"], "admin")
+    assert n == 1
+
+
+@pytest.mark.parametrize("du_lieu, loi_mong_doi", [
+    ({"username": "", "mat_khau": "Kiemthu@2026"}, "Chưa nhập"),
+    ({"username": "zz_x", "mat_khau": "123"}, "8 ký tự"),
+    ({"username": "zz_x", "mat_khau": "Kiemthu@2026", "role": "phong", "pham_vi": []},
+     "phạm vi"),
+])
+def test_tao_tai_khoan_thieu_thong_tin_thi_bao_loi(du_lieu, loi_mong_doi):
+    from app.admin_service import them_user
+    ok, msg = them_user(du_lieu, "admin")
+    assert not ok and loi_mong_doi in msg
+
+
+def test_khong_xoa_duoc_chinh_minh_va_admin_cuoi_cung():
+    from app.admin_service import xoa_user
+    n, bo_qua = xoa_user(["admin"], "admin")
+    assert n == 0 and "không tự xoá" in " ".join(bo_qua)
+
+
+# -------------------------------------------------------------- bầy và phòng
+def test_khong_xoa_bay_con_phong_va_phong_dang_co_du_lieu():
+    from app.org import bay_info
+    ma_bay = next(c for c, _ in bay_info().items()
+                  if any(p["bay"] == c for p in phong_order()))
+    with session_scope() as s:
+        n, bo_qua = xoa_bay(s, [ma_bay])
+        assert n == 0 and "còn" in bo_qua[0]
+        n2, bo_qua2 = xoa_phong(s, ["IBB2"])
+        assert n2 == 0 and "Ngừng dùng" in bo_qua2[0]
+
+
+# ------------------------------------------------------------------- 404
+def test_duong_dan_la_hien_trang_404():
+    from flask_login import login_user
+    from sqlalchemy import select
+
+    from app.auth import SessionUser
+    from app.models import User
+    from app.ui.app import _router, server
+    with session_scope() as s:
+        u = SessionUser(s.execute(select(User).where(User.role == "admin")).scalars().first())
+    with server.test_request_context("/"):
+        login_user(u)
+        noi_dung, _ = _router("/khong-co-trang-nay")
+    assert "404" in str(noi_dung.children[0].children)
+
+
+# --------------------------------------------------------- chọn kỳ & hướng dẫn
+def test_chon_ky_khong_con_tab_thang_cung():
+    """Tháng mới có dữ liệu là tự hiện ra, không phải sửa code mỗi đầu tháng."""
+    from app.metrics import cac_thang_co_du_lieu
+    from app.ui.components import chon_ky, ten_ky
+    thangs = cac_thang_co_du_lieu()
+    bo_chon = chon_ky("kt-thang", thangs)
+    dd = bo_chon.children[1]
+    assert [o["value"] for o in dd.options] == thangs
+    assert dd.value == thangs[0]                      # mặc định là kỳ mới nhất
+    assert ten_ky("2026-09") == "Tháng 09/2026"
+
+
+def test_trang_huong_dan_dung_duoc():
+    from app.ui.pages.huongdan import layout, topbar
+    assert layout() is not None and topbar() is not None
+
+
+def test_nap_duoc_nhieu_file_mot_luot():
+    from app.ui.pages.upload import layout
+    up = _tim(layout(), "up-file")
+    assert up.multiple is True
+
+
+# ------------------------------------------------------ bố cục & khả năng đọc
+@pytest.mark.parametrize("trang, id_bang, cao_toi_da", [
+    ("hr", "hr-canhbao", 400), ("hr", "hr-grid", 520),
+    ("sosanh", "ss-hut", 460), ("quantri", "qt-staff-grid", 500),
+])
+def test_bang_dai_cuon_trong_khung(trang, id_bang, cao_toi_da):
+    """Bảng dài phải cuộn trong khung để tiêu đề cột không trôi mất khi lướt."""
+    import importlib
+    mod = importlib.import_module(f"app.ui.pages.{trang}")
+    grid = _tim(mod.layout(), id_bang)
+    opts = grid.dashGridOptions
+    # "normal" = cuộn trong khung; hoặc chia trang thì cũng không bao giờ dài quá màn hình
+    assert opts.get("domLayout", "normal") == "normal" or opts.get("pagination")
+    assert int(grid.style["height"].replace("px", "")) <= cao_toi_da
+
+
+@pytest.mark.parametrize("trang, id_loc", [
+    ("tongquan", "tq-cn"), ("tracking", "tk-cn"), ("hr", "hr-cn"), ("chatluong", "cl-cn"),
+])
+def test_thanh_loc_dinh_tren_dau_trang(trang, id_loc):
+    """Thanh lọc kỳ + chi nhánh phải dính lại khi cuộn (class loc-trang)."""
+    import importlib
+    mod = importlib.import_module(f"app.ui.pages.{trang}")
+    goc = mod.layout()
+    assert _co_class(goc, "loc-trang"), f"{trang}: thiếu thanh lọc dính"
+    assert _tim(goc, id_loc) is not None
+
+
+def _co_class(node, ten_class: str) -> bool:
+    if ten_class in (getattr(node, "className", "") or ""):
+        return True
+    con = getattr(node, "children", None)
+    if con is None or isinstance(con, str):
+        return False
+    return any(_co_class(c, ten_class)
+               for c in (con if isinstance(con, (list, tuple)) else [con]))
+
+
+def test_bieu_do_xem_duoc_theo_bay_va_theo_phong():
+    from app.ui.pages.tracking import layout
+    seg = _tim(layout(), "tk-nhom")
+    assert [c.value for c in seg.children] == ["bay", "phong"]

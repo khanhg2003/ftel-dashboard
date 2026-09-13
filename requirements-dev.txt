@@ -1,0 +1,3 @@
+# Chỉ cần khi phát triển / chạy kiểm thử trên máy
+-r requirements.txt
+pytest>=8.0

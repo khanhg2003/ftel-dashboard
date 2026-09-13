@@ -1,0 +1,18 @@
+# Phương án dự phòng nếu Vercel báo vượt giới hạn dung lượng (xem docs/TRIEN_KHAI.md, Phụ lục A).
+# Render chạy app như một máy chủ thường trực: không giới hạn 4,5 MB, không khởi động lạnh.
+services:
+  - type: web
+    name: ftel-dashboard
+    runtime: python
+    region: singapore
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: waitress-serve --host=0.0.0.0 --port=$PORT --threads=8 app.ui.app:server
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_SECRET_KEY
+        generateValue: true

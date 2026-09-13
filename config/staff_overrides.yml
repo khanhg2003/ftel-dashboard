@@ -1,0 +1,6 @@
+# Ghi đè phòng cho một số acc (áp dụng SAU khi nạp danh mục NV).
+# Dùng khi danh mục gốc ghi sai / nhân sự làm việc ở phòng khác với danh mục.
+overrides:
+  - acc: "TIN.MinhLH1"
+    phong: "CUS_DNG2"
+    ghi_chu: "BGD chốt 11/09/2026: chỉ tính cho Phòng CUS DNG2, không tính cho IBB6."

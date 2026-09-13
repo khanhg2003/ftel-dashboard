@@ -1,0 +1,23 @@
+# Quy tắc nghiệp vụ (BGD chốt ngày 11/09/2026). Sửa ở đây, không sửa trong code.
+vvip:
+  goi_tinh_vvip: ["V.VIP", "V.VIP Plus"]   # V.VIP Plus ĐƯỢC tính vào V.VIP
+  goi_fpt_play_khac: ["VIP", "KXD"]
+camera:
+  gop_dong_trung_lap: true    # 2 dòng giống hệt nhau (trừ cột STT) = 1 camera
+fptplay:
+  gop_dong_trung_lap: true
+chua_gan_phong:
+  cong_vao_tong_chi_nhanh: true
+tham_nien:
+  - {code: MOI,     ten: "Mới (1-3 tháng)",     tu: 1,  den: 3}
+  - {code: DANG_LEN, ten: "Đang lên (4-6)",     tu: 4,  den: 6}
+  - {code: ON_DINH, ten: "Ổn định (7-12)",      tu: 7,  den: 12}
+  - {code: LAU_NAM, ten: "Lâu năm (13+)",       tu: 13, den: 999}
+ngay_lam_viec:
+  tuan_bat_dau: 1   # 1 = Thứ 2
+
+# Ngưỡng tô màu (heatmap) cho bảng tổng quan - sửa tại đây nếu muốn khắt khe/dễ hơn
+heatmap:
+  htkh:        {rat_kem: 15, kem: 25, trung_binh: 35, kha: 50}
+  tang_truong: {rat_kem: -10, kem: 0, trung_binh: 10, kha: 20}
+  ty_le:       {rat_kem: 40, kem: 60, trung_binh: 75, kha: 85}

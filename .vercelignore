@@ -1,0 +1,17 @@
+# Không đưa lên Vercel: dữ liệu thật, database trên máy, tài liệu nội bộ, bộ kiểm thử
+data/
+backups/
+logs/
+tests/
+docs/
+scripts/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.csv
+*.xlsx
+*.db
+.env
+.env.*
+serve.py
+run.py
