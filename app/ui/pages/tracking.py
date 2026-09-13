@@ -58,13 +58,13 @@ def layout():
     return html.Div([
         html.Div([
             field("Kỳ báo cáo", chon_ky("tk-thang", thangs)),
+            field("Chi nhánh", chi_nhanh_control("tk-cn")),
+            html.Div(className="grow"),
             field("Chỉ số", seg_control("tk-metric",
                                         [("online", "Số Online"), ("vvip", "Số V.VIP"),
                                          ("camera", "Camera"), ("ban_moi", "Bán mới")], "online")),
             field("Cách xem", seg_control("tk-view", [("ngay", "Từng ngày"),
                                                       ("congdon", "Cộng dồn")], "ngay")),
-            html.Div(className="grow"),
-            field("Chi nhánh", chi_nhanh_control("tk-cn")),
         ], className="toolbar loc-trang"),
 
         html.Div(id="tk-kpi", className="kpi-row"),
@@ -93,9 +93,8 @@ def layout():
 
         html.Div([
             html.Div(card([
-                html.Div([html.Div(className="grow"),
-                          field("Nhóm theo", seg_control("tk-nhom", [("bay", "Bầy"),
-                                                                     ("phong", "Phòng")], "bay"))],
+                html.Div([field("Nhóm biểu đồ theo", seg_control("tk-nhom", [("bay", "Bầy"),
+                                                                             ("phong", "Phòng")], "bay"))],
                          className="toolbar", style={"marginBottom": "10px"}),
                 dcc.Loading(dcc.Graph(id="tk-line",
                                       config={"displayModeBar": False, "responsive": True},
