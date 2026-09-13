@@ -38,27 +38,50 @@ def layout():
     k1_tu, k1_den = k2_tu - timedelta(days=7), k2_tu - timedelta(days=1)
     return html.Div([
         card([
+            # Hàng 1: Preset shortcuts + Chỉ số + Chi nhánh (tự hiểu, không cần label)
             html.Div([
-                html.Button("7 ngày gần nhất vs 7 ngày trước", id="ss-p-7ngay", className="chip"),
-                html.Button("Tuần này vs tuần trước", id="ss-p-tuan", className="chip"),
-                html.Button("Tháng này vs cùng kỳ tháng trước", id="ss-p-thang", className="chip"),
-            ], className="chips", style={"marginBottom": "12px"}),
-            html.Div([
-                field("Kỳ 1 · từ", _dp("ss-k1-tu", ngays, k1_tu.isoformat())),
-                field("đến", _dp("ss-k1-den", ngays, k1_den.isoformat())),
-                html.Div(style={"width": "1px", "background": "#E4E9F0",
-                                "alignSelf": "stretch", "margin": "0 12px"}),
-                field("Kỳ 2 · từ", _dp("ss-k2-tu", ngays, k2_tu.isoformat())),
-                field("đến", _dp("ss-k2-den", ngays, k2_den.isoformat())),
+                html.Button("7 ngày gần nhất", id="ss-p-7ngay", className="chip",
+                            title="So 7 ngày gần nhất vs 7 ngày trước"),
+                html.Button("Tuần này", id="ss-p-tuan", className="chip",
+                            title="Tuần này vs tuần trước"),
+                html.Button("Tháng này", id="ss-p-thang", className="chip",
+                            title="Tháng này vs cùng kỳ tháng trước"),
                 html.Div(className="grow"),
-                field("Chỉ số", seg_control("ss-metric",
-                                            [("online", "Số Online"), ("vvip", "Số V.VIP"),
-                                             ("camera", "Camera")], "online")),
+                seg_control("ss-metric", [("online", "Số Online"), ("vvip", "Số V.VIP"),
+                                          ("camera", "Camera")], "online"),
+                html.Div(style={"width": "1px", "background": "#E4E9F0",
+                                "alignSelf": "stretch", "margin": "0 10px"}),
+                chi_nhanh_control("ss-cn"),
+            ], className="toolbar", style={"marginBottom": "10px"}),
+            # Hàng 2: Khoảng thời gian compact (2 pickers/kỳ gộp chung) + Nhóm phòng
+            html.Div([
+                html.Div([
+                    html.Label("Kỳ 1"),
+                    html.Div([
+                        _dp("ss-k1-tu", ngays, k1_tu.isoformat()),
+                        html.Span("→", style={"color": "#94A3B8", "padding": "0 5px",
+                                               "alignSelf": "center", "flexShrink": "0",
+                                               "lineHeight": "1"}),
+                        _dp("ss-k1-den", ngays, k1_den.isoformat()),
+                    ], style={"display": "flex", "alignItems": "center"}),
+                ], className="field"),
+                html.Div(style={"width": "1px", "background": "#E4E9F0",
+                                "alignSelf": "stretch", "margin": "4px 14px"}),
+                html.Div([
+                    html.Label("Kỳ 2"),
+                    html.Div([
+                        _dp("ss-k2-tu", ngays, k2_tu.isoformat()),
+                        html.Span("→", style={"color": "#94A3B8", "padding": "0 5px",
+                                               "alignSelf": "center", "flexShrink": "0",
+                                               "lineHeight": "1"}),
+                        _dp("ss-k2-den", ngays, k2_den.isoformat()),
+                    ], style={"display": "flex", "alignItems": "center"}),
+                ], className="field"),
+                html.Div(className="grow"),
                 field("Nhóm phòng", dcc.Dropdown(
-                    id="ss-nhom", clearable=False, value="kd", style={"width": "175px"},
+                    id="ss-nhom", clearable=False, value="kd", style={"width": "165px"},
                     options=[{"label": "Chỉ phòng kinh doanh", "value": "kd"},
                              {"label": "Tất cả phòng", "value": "all"}])),
-                field("Chi nhánh", chi_nhanh_control("ss-cn")),
             ], className="toolbar"),
         ], title="Khoảng so sánh",
             desc="Kỳ 1 là mốc cũ, Kỳ 2 là mốc mới. Dùng nút gợi ý hoặc tự chọn ngày."),
