@@ -609,3 +609,28 @@ table.simple tr:last-child td { border-bottom: none; }
 }
 .ag-theme-ftel .ag-header-cell-label { letter-spacing: .3px; }
 .ag-theme-ftel .ag-header-cell, .ag-theme-ftel .ag-header-group-cell { padding-left: 8px; padding-right: 8px; }
+
+/* ------------------------------------------------ tiêu đề bảng giống ảnh chụp báo cáo
+   Hàng nhóm cột (INTERNET, TĂNG TRƯỞNG...): nền xanh FPT, chữ trắng đậm, vạch trắng ngăn nhóm.
+   Hàng tên cột: nền xanh nhạt, chữ xanh đậm, viết thường cho dễ đọc. */
+.ag-theme-ftel {
+  --ag-header-background-color: #E3EEF8;
+  --ag-header-foreground-color: #0B2E4F;
+  --ag-header-column-separator-color: #C5D6E8;
+}
+.ag-theme-ftel .ag-header-group-cell-with-group {
+  background: #0072BC; color: #fff; border-right: 1px solid rgba(255, 255, 255, .85);
+  border-bottom: 1px solid rgba(255, 255, 255, .85);
+}
+.ag-theme-ftel .ag-header-group-cell-with-group .ag-header-group-cell-label {
+  color: #fff; font-weight: 700; font-size: 11.5px; letter-spacing: .4px;
+}
+.ag-theme-ftel .ag-header-group-cell-no-group { background: #E3EEF8; border-bottom: none; }
+.ag-theme-ftel .ag-header-cell-label { color: #0B2E4F; font-weight: 650; font-size: 11.5px;
+  text-transform: none; letter-spacing: 0; }
+.ag-theme-ftel .ag-header-row-column-group + .ag-header-row-column .ag-header-cell { border-top: none; }
+.ag-theme-ftel .ag-header { border-bottom: 1px solid #B9CBE0; }
+@media (max-width: 767px) {
+  .ag-theme-ftel .ag-header-cell-label { font-size: 10.5px; letter-spacing: 0; }
+  .ag-theme-ftel .ag-header-group-cell-with-group .ag-header-group-cell-label { font-size: 10.5px; }
+}
