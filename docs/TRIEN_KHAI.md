@@ -8,7 +8,7 @@ Làm lần lượt, xong bước nào nhắn Claude bước đó.
 ## Bức tranh tổng thể
 
 ```
-Người dùng ──► Vercel (chạy app, máy chủ Singapore) ──► Supabase (lưu dữ liệu, Singapore)
+Người dùng ──► Vercel (chạy app, máy chủ Tokyo) ──► Supabase (lưu dữ liệu, Tokyo)
                      ▲
                 GitHub (nơi cất code, Vercel tự lấy code từ đây mỗi lần cập nhật)
 ```
@@ -24,7 +24,7 @@ Người dùng ──► Vercel (chạy app, máy chủ Singapore) ──► Sup
 ## Bước 0 · Ba điều cần quyết trước 🧑
 
 1. **Dữ liệu nội bộ ra ngoài công ty.** Số bán, acc nhân viên, hồ sơ NSLĐ sẽ nằm trên máy chủ
-   của Supabase và Vercel (đặt tại Singapore). Nên hỏi bộ phận IT / bảo mật của chi nhánh trước.
+   của Supabase và Vercel (đặt tại Tokyo, Nhật Bản). Nên hỏi bộ phận IT / bảo mật của chi nhánh trước.
    App đã **bỏ không lưu tên khách hàng** để giảm rủi ro.
 2. **Chi phí khi dùng cho công ty.**
    - Vercel gói miễn phí (Hobby) chỉ cho mục đích cá nhân, phi thương mại → dùng cho công ty
@@ -62,7 +62,9 @@ Người dùng ──► Vercel (chạy app, máy chủ Singapore) ──► Sup
    - **Name:** `ftel-dashboard`
    - **Database Password:** bấm **Generate a password** → **lưu vào nơi an toàn** (trình quản lý
      mật khẩu). Mất mật khẩu này thì phải đặt lại.
-   - **Region:** `Southeast Asia (Singapore)` ⚠️ (gần Việt Nam nhất, app chạy nhanh hơn)
+   - **Region:** `Asia-Pacific` → Supabase đặt tại **Tokyo** (`ap-northeast-1`). Gói miễn phí
+     hiện không cho chọn Singapore. App trên Vercel được đặt cùng Tokyo (`vercel.json` → `hnd1`)
+     để app và database nằm cạnh nhau.
 3. Bấm **Create new project**, chờ khoảng 2 phút.
 4. Khi xong, bấm nút **Connect** ở thanh trên cùng → tab **Connection String** → mục
    **Type: URI**. Bạn sẽ thấy 3 loại chuỗi, cần 2 loại:
@@ -163,6 +165,10 @@ dung lượng, không chậm lúc mở lần đầu. Code đã có sẵn file `r
 3. 🧑 Khi được hỏi `DATABASE_URL` → dán chuỗi **Session pooler** (cổng 5432).
    `APP_SECRET_KEY` Render tự tạo.
 4. 🧑 **Apply**. Gói `starter` khoảng 7 USD/tháng, luôn chạy, máy chủ Singapore.
+
+> Lưu ý: Render không có máy chủ Tokyo. Database đang ở Tokyo nên nếu dùng Render, mỗi lượt mở
+> trang sẽ chậm hơn Vercel. Khi đó nên cân nhắc tạo lại database Supabase ở Singapore (gói Pro
+> cho chọn vùng cụ thể) rồi chép lại dữ liệu bằng `--lam-lai`.
 
 ---
 
