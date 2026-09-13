@@ -39,6 +39,11 @@ def layout():
     return html.Div([
         card([
             html.Div([
+                html.Button("7 ngày gần nhất vs 7 ngày trước", id="ss-p-7ngay", className="chip"),
+                html.Button("Tuần này vs tuần trước", id="ss-p-tuan", className="chip"),
+                html.Button("Tháng này vs cùng kỳ tháng trước", id="ss-p-thang", className="chip"),
+            ], className="chips", style={"marginBottom": "12px"}),
+            html.Div([
                 field("Kỳ 1 · từ", _dp("ss-k1-tu", ngays, k1_tu.isoformat())),
                 field("đến", _dp("ss-k1-den", ngays, k1_den.isoformat())),
                 html.Div(style={"width": "12px"}),
@@ -54,11 +59,6 @@ def layout():
                              {"label": "Tất cả phòng", "value": "all"}])),
                 field("Chi nhánh", chi_nhanh_control("ss-cn")),
             ], className="toolbar"),
-            html.Div([
-                html.Button("7 ngày gần nhất vs 7 ngày trước", id="ss-p-7ngay", className="chip"),
-                html.Button("Tuần này vs tuần trước", id="ss-p-tuan", className="chip"),
-                html.Button("Tháng này vs cùng kỳ tháng trước", id="ss-p-thang", className="chip"),
-            ], className="chips"),
         ], title="Khoảng so sánh",
             desc="Kỳ 1 là mốc cũ, Kỳ 2 là mốc mới. Dùng nút gợi ý hoặc tự chọn ngày."),
 
@@ -125,6 +125,14 @@ def _cols_phong():
               "style": {"color": "#04843F", "fontWeight": "700"}}]}},
         {"field": "ty_le", "headerName": "%", "flex": 1, "minWidth": 72, "type": "numericColumn",
          "valueFormatter": {"function": "params.value == null ? '' : params.value + '%'"}},
+        {"field": "tb1", "headerName": "TB1/ng", "flex": 1, "minWidth": 80,
+         "type": "numericColumn",
+         "valueFormatter": {"function": "params.value == null ? '' : params.value"},
+         "headerTooltip": "Trung bình số/ngày của Kỳ 1"},
+        {"field": "tb2", "headerName": "TB2/ng", "flex": 1, "minWidth": 80,
+         "type": "numericColumn",
+         "valueFormatter": {"function": "params.value == null ? '' : params.value"},
+         "headerTooltip": "Trung bình số/ngày của Kỳ 2"},
     ]
 
 
@@ -141,6 +149,12 @@ def _cols_acc():
               "style": {"color": "#C8372D", "fontWeight": "700"}},
              {"condition": "params.value.indexOf('▲') >= 0",
               "style": {"color": "#04843F", "fontWeight": "700"}}]}},
+        {"field": "pct", "headerName": "%", "flex": 0.9, "minWidth": 70,
+         "cellStyle": {"styleConditions": [
+             {"condition": "params.value && params.value.indexOf('-') >= 0",
+              "style": {"color": "#C8372D"}},
+             {"condition": "params.value && params.value.indexOf('+') >= 0",
+              "style": {"color": "#04843F"}}]}},
     ]
 
 
@@ -191,6 +205,10 @@ def register(app):
         so_ngay1 = (date.fromisoformat(k1_den) - date.fromisoformat(k1_tu)).days + 1
         so_ngay2 = (date.fromisoformat(k2_den) - date.fromisoformat(k2_tu)).days + 1
         giam = dfp[dfp.chenh < 0]
+        tang_phong = dfp[dfp.chenh > 0]
+        # TB/ngày cho từng kỳ
+        dfp["tb1"] = (dfp.ky1 / so_ngay1).round(1)
+        dfp["tb2"] = (dfp.ky2 / so_ngay2).round(1)
         kpis = [
             kpi(f"Kỳ 1 ({so_ngay1} ngày)", f"{t1:,}".replace(",", "."),
                 f"{k1_tu[8:10]}/{k1_tu[5:7]} → {k1_den[8:10]}/{k1_den[5:7]} · TB "
@@ -200,6 +218,9 @@ def register(app):
                 f"{t2 / so_ngay2:.1f}/ngày"),
             kpi("Chênh lệch", f"{chenh:+,}".replace(",", "."),
                 f"{pct:+.1f}%" if pct is not None else "", "ok" if chenh >= 0 else "bad"),
+            kpi("Phòng tăng", f"{len(tang_phong)}/{len(dfp)}",
+                ", ".join(tang_phong.phong.head(3)) if len(tang_phong) else "Không có phòng nào tăng",
+                "ok" if len(tang_phong) else ""),
             kpi("Phòng giảm", f"{len(giam)}/{len(dfp)}",
                 ", ".join(giam.phong.head(3)) if len(giam) else "Không có phòng nào giảm",
                 "warn" if len(giam) else "ok"),
@@ -210,9 +231,11 @@ def register(app):
         hut = dfa[dfa.chenh < 0].head(TOP_N).copy()
         hut.insert(0, "stt", range(1, len(hut) + 1))
         hut["chenh_txt"] = ["▼" + str(abs(int(c))) for c in hut.chenh]
+        hut["pct"] = [f"{c/k*100:+.0f}%" if k else "" for c, k in zip(hut.chenh, hut.ky1)]
         tang = dfa[dfa.chenh > 0].sort_values("chenh", ascending=False).head(TOP_N).copy()
         tang.insert(0, "stt", range(1, len(tang) + 1))
         tang["chenh_txt"] = ["▲" + str(int(c)) for c in tang.chenh]
+        tang["pct"] = [f"{c/k*100:+.0f}%" if k else "" for c, k in zip(tang.chenh, tang.ky1)]
 
         d = dfp[dfp.chenh != 0].sort_values("chenh")
         fig = go.Figure(go.Bar(
