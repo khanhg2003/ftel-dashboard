@@ -9,23 +9,38 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from app.config import rules_config
-from app.overview import bang_tong_quan
+from app.overview import TEN_PHAM_VI, bang_tong_quan
 
 XANH_DAM = "0B2E4F"
 HEAT = ["F7BDBD", "FBD9AE", "FCEBB4", "D3EBD4", "A5DCAF"]
 VIEN = Side(style="thin", color="D8DEE7")
 KHUNG = Border(left=VIEN, right=VIEN, top=VIEN, bottom=VIEN)
+TEN_FILE = {"all": "ToanCN", "DNG": "DaNang", "QNM": "QuangNam"}
+MAU_KET_LUAN = {"Đạt": "DCF5E6", "Không đạt": "FBE3E1", "Chưa đạt": "FDF1D8"}
+
+
+def tieu_de_bao_cao(thang: str, ngay: int, chi_nhanh: str = "all") -> str:
+    pham_vi = TEN_PHAM_VI.get(chi_nhanh, TEN_PHAM_VI["all"]).upper()
+    return f"BÁO CÁO TỔNG · {pham_vi} · NGÀY {ngay:02d}/{thang[5:7]}/{thang[:4]}"
+
+
+def dong_trang_thai(tam_tinh: bool, luc: datetime | None) -> str:
+    if tam_tinh and luc:
+        return f"Số tạm tính, cập nhật lúc {luc:%H:%M %d/%m}"
+    return f"Số đã chốt · cập nhật lần cuối {luc:%H:%M %d/%m}" if luc else ""
+
 
 # (tiêu đề nhóm, [(tiêu đề cột, khoá dữ liệu, kiểu)]) - kiểu: so | pct:<ngưỡng> | text
 def cau_truc(thang: str, ngay: int):
     thang_so = int(thang[5:7])
+    thang_truoc = 12 if thang_so == 1 else thang_so - 1
     return [
         ("", [("PKD", "phong", "text"), ("Nhân sự", "nhan_su", "so")]),
         (f"INTERNET THÁNG {thang_so}", [("Mục tiêu", "mt_internet", "so"),
                                         ("Số tồn", "so_ton", "so"),
                                         ("Số online", "online", "so"),
                                         ("Tỷ lệ HTKH", "htkh_internet", "pct:htkh")]),
-        ("TĂNG TRƯỞNG", [("Số online", "ck_online", "so"), ("Tỷ lệ", "tang_truong",
+        ("TĂNG TRƯỞNG", [(f"Cùng kỳ T{thang_truoc}", "ck_online", "so"), ("Tỷ lệ", "tang_truong",
                                                             "pct:tang_truong")]),
         ("FPT PLAY", [("Combo", "fpl_combo", "so"), ("Tỷ lệ FPL/NET", "fpl_ty_le", "pct:ty_le")]),
         ("PTTB CNQL", [("Số online", "cnql", "so"), ("Tỷ lệ", "cnql_ty_le", "pct:ty_le")]),
@@ -33,7 +48,7 @@ def cau_truc(thang: str, ngay: int):
                         ("Tỷ lệ VVIP/PTTB", "vvip_ty_le", "pct:ty_le")]),
         ("CAMERA", [("Mục tiêu", "mt_camera", "so"), ("Thực hiện", "camera", "so"),
                     ("Tỷ lệ HTKH", "htkh_camera", "pct:htkh")]),
-        (f"KẾT QUẢ THỰC HIỆN NGÀY {ngay:02d}", [("Mục tiêu", "mt_ngay", "so"),
+        (f"KẾT QUẢ NGÀY {ngay:02d}/{thang_so:02d}", [("Mục tiêu", "mt_ngay", "so"),
                                                 ("Bán mới", "ngay_ban_moi", "so"),
                                                 ("Online", "ngay_online", "so"),
                                                 ("VVIP", "ngay_vvip", "so"),
@@ -53,18 +68,21 @@ def mau_heat(kind: str, gia_tri) -> str | None:
 
 
 def xuat_tong_quan(thang: str, ngay: int | None = None,
-                   chi_phong: list[str] | None = None) -> tuple[bytes, str]:
+                   chi_phong: list[str] | None = None, chi_nhanh: str = "all",
+                   tam_tinh: bool = False, luc: datetime | None = None) -> tuple[bytes, str]:
     """Trả về (nội dung file xlsx, tên file)."""
-    df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong)
+    df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong, chi_nhanh=chi_nhanh,
+                              tam_tinh=tam_tinh)
     ct = cau_truc(thang, ngay)
 
     wb = Workbook()
     ws = wb.active
     ws.title = f"Tong quan {thang}"
 
-    ws["A1"] = f"BÁO CÁO TỔNG QUAN NGÀY {ngay:02d}/{thang[5:7]}/{thang[:4]}"
+    ws["A1"] = tieu_de_bao_cao(thang, ngay, chi_nhanh)
     ws["A1"].font = Font(bold=True, size=14, color=XANH_DAM)
-    ws["A2"] = f"Xuất lúc {datetime.now():%d/%m/%Y %H:%M} · FPT Telecom - Chi nhánh Đà Nẵng & Quảng Nam"
+    ws["A2"] = " · ".join(x for x in (dong_trang_thai(tam_tinh, luc),
+                                      "FPT Telecom - Chi nhánh Đà Nẵng & Quảng Nam") if x)
     ws["A2"].font = Font(size=10, color="667789")
 
     r_nhom, r_cot, r_dau = 4, 5, 6
@@ -113,8 +131,8 @@ def xuat_tong_quan(thang: str, ngay: int | None = None,
                 o.font = Font(bold=la_tong or khoa == "phong", size=10, color=chu)
                 if nen and not (kieu.startswith("pct") and v is not None):
                     o.fill = PatternFill("solid", fgColor=nen)
-                if khoa == "ket_luan" and v in ("Đạt", "Không đạt"):
-                    o.fill = PatternFill("solid", fgColor="DCF5E6" if v == "Đạt" else "FBE3E1")
+                if khoa == "ket_luan" and v in MAU_KET_LUAN:
+                    o.fill = PatternFill("solid", fgColor=MAU_KET_LUAN[v])
                 col += 1
 
     ws.freeze_panes = ws.cell(row=r_dau, column=2)
@@ -125,5 +143,5 @@ def xuat_tong_quan(thang: str, ngay: int | None = None,
 
     buf = io.BytesIO()
     wb.save(buf)
-    ten_file = f"TongQuan_{thang.replace('-', '')}_ngay{ngay:02d}.xlsx"
+    ten_file = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{thang.replace('-', '')}_ngay{ngay:02d}.xlsx"
     return buf.getvalue(), ten_file

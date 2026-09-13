@@ -37,7 +37,7 @@ def badge(text: str, muc: str = ""):
 def seg_control(id: str, options: list[tuple[str, str]], value: str):
     """Nhóm nút dạng segmented control."""
     return dcc.Tabs(
-        id=id, value=value, className="seg",
+        id=id, value=value, className="seg", mobile_breakpoint=0,   # không tự xếp dọc trên điện thoại
         children=[dcc.Tab(label=lb, value=v, className="seg-item",
                           selected_className="seg-item active") for v, lb in options],
     )

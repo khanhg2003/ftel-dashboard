@@ -11,6 +11,8 @@ PTTB CNQL = hợp đồng có CN Quản lý thuộc chi nhánh (DNG_01/DNG_02/QN
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import numpy as np
 import pandas as pd
 from sqlalchemy import text
@@ -20,6 +22,10 @@ from app.metrics import daily_counts, month_range, ngay_co_du_lieu, prev_month
 from app.org import bay_info, phong_order
 
 CN_NOI_BO = ("DNG_01", "DNG_02", "QNM")
+
+TEN_PHAM_VI = {"all": "Toàn chi nhánh", "DNG": "Đà Nẵng", "QNM": "Quảng Nam"}
+TEN_DONG_TONG = {"all": "TỔNG TOÀN CHI NHÁNH", "DNG": "TỔNG ĐÀ NẴNG", "QNM": "TỔNG QUẢNG NAM"}
+LECH_GIO_VN = timedelta(hours=7)          # database lưu giờ UTC
 
 
 def _sum_den_ngay(thang: str, metric: str, ngay: int) -> pd.Series:
@@ -70,8 +76,13 @@ def _targets(thang: str) -> pd.DataFrame:
 
 
 def bang_tong_quan(thang: str, ngay: int | None = None,
-                   chi_phong: list[str] | None = None) -> tuple[pd.DataFrame, int]:
-    """Trả về (bảng đã có dòng tổng bầy + tổng chi nhánh, ngày dữ liệu được dùng)."""
+                   chi_phong: list[str] | None = None, chi_nhanh: str = "all",
+                   tam_tinh: bool = False) -> tuple[pd.DataFrame, int]:
+    """Trả về (bảng đã có dòng tổng bầy + dòng tổng, ngày dữ liệu được dùng).
+
+    `chi_nhanh` chỉ đổi tên dòng tổng (TỔNG ĐÀ NẴNG...). `tam_tinh` = ngày còn đang nạp số:
+    phòng chưa đủ mục tiêu ghi "Chưa đạt" thay vì "Không đạt".
+    """
     ngay = ngay or ngay_co_du_lieu(thang) or month_range(thang)[2]
     codes = [p["code"] for p in phong_order(thang)]
     if chi_phong is not None:
@@ -132,10 +143,11 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
                      "phong": binfo.get("ten_tong", f"TỔNG {binfo['ten']}"), **tong.to_dict()})
     tong_all = df.drop(columns=["phong", "bay"]).sum()
     rows.append({"phong_code": "TOTAL", "loai_dong": "total",
-                 "phong": "TỔNG TOÀN CHI NHÁNH", **tong_all.to_dict()})
+                 "phong": TEN_DONG_TONG.get(chi_nhanh, TEN_DONG_TONG["all"]),
+                 **tong_all.to_dict()})
 
     out = pd.DataFrame(rows)
-    out = _them_ty_le(out)
+    out = _them_ty_le(out, tam_tinh)
     return out, ngay
 
 
@@ -151,7 +163,7 @@ def _ty_le(tu: pd.Series, mau: pd.Series) -> pd.Series:
     return (tu / mau.replace(0, np.nan) * 100).round(0)
 
 
-def _them_ty_le(out: pd.DataFrame) -> pd.DataFrame:
+def _them_ty_le(out: pd.DataFrame, tam_tinh: bool = False) -> pd.DataFrame:
     out["htkh_internet"] = _ty_le(out.online, out.mt_internet)
     out["tang_truong"] = ((out.online - out.ck_online) /
                           out.ck_online.replace(0, np.nan) * 100).round(0)
@@ -160,6 +172,28 @@ def _them_ty_le(out: pd.DataFrame) -> pd.DataFrame:
     out["vvip_ty_le"] = _ty_le(out.vvip, out.online)
     out["htkh_camera"] = _ty_le(out.camera, out.mt_camera)
     out["ket_luan"] = np.where(out.ngay_online >= out.mt_ngay.replace(0, np.nan).fillna(10 ** 9),
-                               "Đạt", "Không đạt")
+                               "Đạt", "Chưa đạt" if tam_tinh else "Không đạt")
     out.loc[out.mt_ngay == 0, "ket_luan"] = "—"
     return out.replace({np.nan: None})
+
+
+def lan_nap_so_cuoi() -> datetime | None:
+    """Giờ Việt Nam của lần nạp file Internet gần nhất (file quyết định số online)."""
+    df = pd.read_sql(text("SELECT MAX(uploaded_at) AS t FROM upload_batch "
+                          "WHERE dataset = 'internet'"), engine)
+    v = df["t"].iloc[0] if not df.empty else None
+    if v is None or pd.isna(v):
+        return None
+    return pd.Timestamp(v).to_pydatetime().replace(tzinfo=None) + LECH_GIO_VN
+
+
+def trang_thai_ngay(ngay_iso: str) -> tuple[bool, datetime | None]:
+    """(ngày này còn đang cập nhật?, giờ nạp số gần nhất).
+
+    File được xuất nhiều lần trong ngày. Ngày mới nhất coi là "đang cập nhật" khi lần nạp
+    cuối vẫn diễn ra trong chính ngày đó - tức chưa có lượt nạp nào sau khi ngày kết thúc.
+    """
+    from app.metrics import ngay_moi_nhat
+    luc = lan_nap_so_cuoi()
+    dang = bool(luc) and ngay_iso == ngay_moi_nhat() and luc.date().isoformat() <= ngay_iso
+    return dang, luc

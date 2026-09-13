@@ -12,7 +12,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from app.export_excel import cau_truc, mau_heat
+from app.export_excel import (MAU_KET_LUAN, TEN_FILE, cau_truc, dong_trang_thai, mau_heat,
+                              tieu_de_bao_cao)
 from app.overview import bang_tong_quan
 
 SCALE = 2                     # vẽ gấp đôi rồi giữ nguyên -> ảnh nét khi phóng to trên điện thoại
@@ -76,9 +77,11 @@ def _o_chu(kieu: str, v) -> str:
 
 
 def anh_tong_quan(thang: str, ngay: int | None = None,
-                  chi_phong: list[str] | None = None) -> tuple[bytes, str]:
+                  chi_phong: list[str] | None = None, chi_nhanh: str = "all",
+                  tam_tinh: bool = False, luc: datetime | None = None) -> tuple[bytes, str]:
     """Trả về (nội dung PNG, tên file) - toàn bộ bảng Báo cáo Tổng trong một ảnh."""
-    df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong)
+    df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong, chi_nhanh=chi_nhanh,
+                              tam_tinh=tam_tinh)
     ct = cau_truc(thang, ngay)
     rows = df.to_dict("records")
 
@@ -109,11 +112,15 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
     d = ImageDraw.Draw(img)
 
     x0, y = LE * SCALE, 14 * SCALE
-    d.text((x0, y), f"BÁO CÁO TỔNG · NGÀY {ngay:02d}/{thang[5:7]}/{thang[:4]}",
-           font=f_tieu_de, fill=XANH_DAM)
+    d.text((x0, y), tieu_de_bao_cao(thang, ngay, chi_nhanh), font=f_tieu_de, fill=XANH_DAM)
     y += 24 * SCALE
-    d.text((x0, y), "FPT Telecom · Chi nhánh Đà Nẵng & Quảng Nam · "
-                    f"chụp lúc {datetime.now():%H:%M %d/%m/%Y}", font=f_phu, fill=XAM_CHU)
+    trang_thai = dong_trang_thai(tam_tinh, luc)
+    x_phu = x0
+    if trang_thai:
+        f_tt = f_nhom if tam_tinh else f_phu
+        d.text((x_phu, y), trang_thai, font=f_tt, fill="#B45309" if tam_tinh else XAM_CHU)
+        x_phu += _rong(d, trang_thai + "  ·  ", f_tt)
+    d.text((x_phu, y), "FPT Telecom · Chi nhánh Đà Nẵng & Quảng Nam", font=f_phu, fill=XAM_CHU)
     y = cao_tieu_de
 
     # ---- hàng tiêu đề nhóm
@@ -149,8 +156,8 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
                 mau = mau_heat(kieu.split(":")[1], v)
                 if mau:
                     nen_o = "#" + mau
-            if khoa == "ket_luan" and v in ("Đạt", "Không đạt"):
-                nen_o = "#DCF5E6" if v == "Đạt" else "#FBE3E1"
+            if khoa == "ket_luan" and v in MAU_KET_LUAN:
+                nen_o = "#" + MAU_KET_LUAN[v]
             d.rectangle([x, y, x + rong[i], y + CAO_DONG * SCALE],
                         fill=nen_o or NEN, outline=VIEN)
             chu = _o_chu(kieu, v)
@@ -168,7 +175,7 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
-    ten = f"BaoCaoTong_{thang.replace('-', '')}_ngay{ngay:02d}.png"
+    ten = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{thang.replace('-', '')}_ngay{ngay:02d}.png"
     return buf.getvalue(), ten
 
 

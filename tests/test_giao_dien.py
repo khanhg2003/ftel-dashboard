@@ -29,7 +29,7 @@ def test_chup_anh_bao_cao_day_du_ca_bang():
     from app.export_png import anh_tong_quan
     from app.overview import bang_tong_quan
     noi_dung, ten = anh_tong_quan(THANG)
-    assert ten == "BaoCaoTong_202609_ngay11.png"
+    assert ten == "BaoCaoTong_ToanCN_202609_ngay11.png"
     img = Image.open(io.BytesIO(noi_dung))
     df, _ = bang_tong_quan(THANG)
     # đủ chiều cao cho toàn bộ số dòng (không cắt bớt như chụp màn hình)
@@ -232,3 +232,47 @@ def test_bieu_do_xem_duoc_theo_bay_va_theo_phong():
     from app.ui.pages.tracking import layout
     seg = _tim(layout(), "tk-nhom")
     assert [c.value for c in seg.children] == ["bay", "phong"]
+
+
+# ------------------------------------------------------ Báo cáo Tổng (bản sắp xếp lại)
+@pytest.mark.parametrize("cn, ten", [("all", "TỔNG TOÀN CHI NHÁNH"), ("DNG", "TỔNG ĐÀ NẴNG"),
+                                     ("QNM", "TỔNG QUẢNG NAM")])
+def test_dong_tong_doi_ten_theo_chi_nhanh(cn, ten):
+    from app.org import loc_chi_nhanh
+    from app.overview import bang_tong_quan
+    df, _ = bang_tong_quan(THANG, chi_phong=loc_chi_nhanh(None, cn, THANG), chi_nhanh=cn)
+    assert df.iloc[-1]["phong"] == ten
+
+
+def test_ngay_dang_cap_nhat_ghi_chua_dat_thay_vi_khong_dat():
+    from app.overview import bang_tong_quan
+    chot, _ = bang_tong_quan(THANG, 11)
+    tam, _ = bang_tong_quan(THANG, 11, tam_tinh=True)
+    assert "Chưa đạt" not in set(chot.ket_luan)
+    assert set(tam.ket_luan) - {"Đạt", "—"} <= {"Chưa đạt"}
+    # chỉ đổi chữ, không đổi số
+    assert chot.online.tolist() == tam.online.tolist()
+
+
+def test_dien_thoai_khong_thu_nho_qua_muc_doc_duoc():
+    from app.ui.pages.tongquan import TY_LE_TOI_THIEU_DT, _cols, ty_le_vua_man_hinh
+    for gon in (True, False):
+        assert ty_le_vua_man_hinh(_cols(THANG, 11, gon), {"w": 375}) >= TY_LE_TOI_THIEU_DT
+
+
+def test_bao_cao_tong_co_chu_giai_mau_va_trang_thai_so_lieu():
+    from app.ui.pages.tongquan import layout
+    goc = layout()
+    for id_ in ("tq-canh-bao", "tq-xem-chot", "tq-cot", "tq-nho", "tq-to", "tq-png", "tq-xls"):
+        assert _tim(goc, id_) is not None, id_
+    assert _co_class(goc, "chu-giai")
+    assert _tim(goc, "tq-export") is None          # bỏ nút CSV
+
+
+def test_anh_png_ghi_ro_pham_vi_va_so_tam_tinh():
+    from datetime import datetime
+    from app.export_png import anh_tong_quan
+    from app.org import loc_chi_nhanh
+    noi_dung, ten = anh_tong_quan(THANG, 11, chi_phong=loc_chi_nhanh(None, "QNM", THANG),
+                                  chi_nhanh="QNM", tam_tinh=True, luc=datetime(2026, 9, 11, 15, 38))
+    assert noi_dung[:8] == b"\x89PNG\r\n\x1a\n" and ten == "BaoCaoTong_QuangNam_202609_ngay11.png"

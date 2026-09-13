@@ -506,3 +506,98 @@ table.simple tr:last-child td { border-bottom: none; }
 /* ------------------------------------------------ bảng dài thì cuộn trong khung */
 .bang-cuon .ag-root-wrapper { max-height: none; }
 .card .ag-theme-ftel .ag-header { position: sticky; top: 0; z-index: 2; }
+
+
+/* ================================================= Báo cáo Tổng (bản sắp xếp lại)
+   Thanh lọc: ngày và chi nhánh chung một hàng. Thẻ bảng: tên + phạm vi bên trái,
+   thao tác bên phải. Chú thích màu gập lại, bấm mới mở. */
+.topbar-noi { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
+.nut-menu, .menu-nen { display: none; }
+
+.chon-ngay { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+.chon-ngay .nut-ky { width: 34px; }
+.btn.nho { padding: 6px 12px; font-size: 13px; }
+.chon-nhanh { width: 190px; }
+.chon-nhanh .Select-placeholder { color: var(--text-muted) !important; font-weight: 600; font-size: 13px; }
+
+.thanh-canh-bao { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.thanh-canh-bao .btn { background: #fff; }
+
+.badge .cham { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.badge .cham.nhap-nhay { animation: nhap-nhay 1.6s ease-in-out infinite; }
+@keyframes nhap-nhay { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+.the-dau { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.the-ten { flex: 1 1 260px; min-width: 0; }
+.the-ten h3 { margin: 0 0 2px; font-size: 15px; font-weight: 680; }
+.the-ten .desc { font-size: 12.5px; color: var(--text-muted); }
+.the-nut { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.zoom-box .zoom-nhan { font-size: 12.5px; min-width: 104px; justify-content: center; color: var(--text-muted); }
+
+.chu-giai { margin: 0 0 12px; font-size: 12.5px; }
+.chu-giai summary { cursor: pointer; color: var(--fpt-blue-700); font-weight: 600; width: max-content; }
+.chu-giai summary:hover { color: var(--fpt-orange); }
+.cg-than { display: flex; flex-direction: column; gap: 7px; padding: 10px 12px; margin-top: 8px;
+  background: #F7FAFD; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.cg-dong { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.cg-ten { width: 160px; font-weight: 600; color: var(--text); }
+.cg-o { padding: 2px 9px; border-radius: 5px; font-weight: 650; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cg-ghi { color: var(--text-muted); }
+
+/* ================================================= Điện thoại (< 768px) */
+@media (max-width: 767px) {
+  .app-shell, .app-shell.thu-gon { --sidebar-w: 248px; }
+  .sidebar { transform: translateX(-100%); transition: transform .22s var(--ease); z-index: 60;
+    box-shadow: 8px 0 30px rgba(0, 20, 40, .3); }
+  body.menu-mo .sidebar { transform: none; }
+  body.menu-mo .menu-nen { display: block; position: fixed; inset: 0; z-index: 55;
+    background: rgba(11, 32, 51, .45); }
+  .main { margin-left: 0 !important; }
+  .side-toggle { display: none !important; }
+  /* menu trên điện thoại luôn hiện đủ chữ, bỏ qua chế độ thu gọn của máy tính */
+  .app-shell.thu-gon .brand-text, .app-shell.thu-gon .nav-group,
+  .app-shell.thu-gon .foot .who, .app-shell.thu-gon .foot > div:nth-child(2) { display: block; }
+  .app-shell.thu-gon .nav-item > span:last-child, .app-shell.thu-gon .foot a span:last-child { display: inline; }
+  .app-shell.thu-gon .brand { flex-direction: row; padding: 16px 14px 14px; }
+  .app-shell.thu-gon .nav { padding: 12px; }
+  .app-shell.thu-gon .nav-item { justify-content: flex-start; padding: 10px 12px; }
+  .app-shell.thu-gon .foot { padding: 12px 18px 14px; text-align: left; }
+  .app-shell.thu-gon .foot a { justify-content: flex-start; margin-top: 10px; }
+
+  .nut-menu { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 38px;
+    height: 38px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: #fff; color: var(--text); cursor: pointer; }
+  .topbar { padding: 10px 14px; gap: 10px; }
+  .topbar-noi { flex-wrap: wrap; gap: 4px 10px; }
+  .topbar h1 { font-size: 17px; }
+  .topbar .sub, .topbar .spacer { display: none; }
+  .topbar .badge { font-size: 11.5px; padding: 3px 9px; }
+
+  .page { padding: 14px 14px 32px; }
+  .toolbar.loc-trang { position: static; margin: -14px -14px 12px; padding: 10px 14px; gap: 10px; }
+  .toolbar .field { min-width: 0; width: 100%; }
+  .chon-ngay .date-pick { flex: 1 1 auto; }
+  .chon-ngay .date-pick .DateInput { width: 100%; }
+  .chon-nhanh { flex: 1 1 150px; width: auto; }
+  .loc-trang .seg { display: flex !important; width: 100% !important; }
+  .loc-trang .seg .seg-item { flex: 1 1 0 !important; text-align: center; }
+
+  .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .kpi { padding: 12px 12px 11px; }
+  .kpi .label { font-size: 10px; letter-spacing: .4px; }
+  .kpi .value { font-size: 21px; margin-top: 4px; }
+  .kpi .hint { font-size: 11.5px; }
+  .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  .card { padding: 14px 14px 16px; border-radius: 10px; }
+  .the-nut { width: 100%; }
+  .the-nut .zoom-box { display: none; }
+  .the-nut .btn.primary { flex: 1; justify-content: center; }
+  .cg-ten { width: 100%; }
+  .ag-theme-ftel { --ag-font-size: 12.5px; }
+}
+@media (max-width: 767px) {
+  .the-nut .seg .seg-item { padding: 7px 12px !important; }
+  .ag-theme-ftel .ag-header-cell-label, .ag-theme-ftel .ag-header-group-cell-label { font-size: 9.5px; letter-spacing: .2px; }
+  .ag-theme-ftel .ag-header-cell { padding-left: 6px; padding-right: 6px; }
+}

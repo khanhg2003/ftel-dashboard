@@ -149,9 +149,15 @@ def serve_layout():
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="ui-sidebar", storage_type="local", data={"thu_gon": False}),
         dcc.Store(id="ui-vw", data={"w": 1440, "h": 900}),
+        dcc.Store(id="ui-menu"),
         html.Div(id="sidebar-container"),
+        html.Div(id="menu-nen", className="menu-nen"),
         html.Div([
-            html.Div(id="topbar", className="topbar"),
+            html.Div([
+                html.Button(icon("menu", 20), id="btn-menu", className="nut-menu",
+                            title="Mở menu"),
+                html.Div(id="topbar", className="topbar-noi"),
+            ], className="topbar"),
             html.Div(id="page-content", className="page"),
         ], className="main"),
     ], id="app-shell", className="app-shell")
@@ -160,16 +166,37 @@ def serve_layout():
 app.layout = serve_layout
 
 
+# Điện thoại: menu là ngăn kéo trượt ra. Bấm nút ☰ để mở, bấm nền mờ hoặc chọn trang để đóng.
+app.clientside_callback(
+    """
+    function(_mo, _nen, path) {
+        const trig = (window.dash_clientside.callback_context.triggered[0] || {}).prop_id || '';
+        if (trig.startsWith('btn-menu')) { document.body.classList.toggle('menu-mo'); }
+        else { document.body.classList.remove('menu-mo'); }
+        return null;
+    }
+    """,
+    Output("ui-menu", "data"), Input("btn-menu", "n_clicks"), Input("menu-nen", "n_clicks"),
+    Input("url", "pathname"))
+
+
 # Đo bề rộng cửa sổ để bảng tự co cho vừa màn hình (chế độ "Vừa màn hình").
+# Đồng thời đo chiều cao thanh tiêu đề để thanh lọc dính ngay bên dưới, không bị che.
 app.clientside_callback(
     """
     function(path, thu_gon) {
+        const doCao = function () {
+            const tb = document.querySelector('.topbar');
+            if (tb) { document.documentElement.style.setProperty('--topbar-h', tb.offsetHeight + 'px'); }
+        };
+        setTimeout(doCao, 60); setTimeout(doCao, 600);
         if (!window.__ftel_resize) {          // gắn một lần, sau đó tự cập nhật khi kéo cửa sổ
             window.__ftel_resize = true;
             let cho = null;
             window.addEventListener('resize', function () {
                 clearTimeout(cho);
                 cho = setTimeout(function () {
+                    doCao();
                     window.dash_clientside.set_props('ui-vw',
                         {data: {w: window.innerWidth, h: window.innerHeight}});
                 }, 150);
