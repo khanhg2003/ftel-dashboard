@@ -1,7 +1,10 @@
 """Trang Chất lượng dữ liệu: soi các điểm nghi ngờ trước khi báo cáo lên BGD."""
 from __future__ import annotations
 
+import numbers
+
 import dash_ag_grid as dag
+import pandas as pd
 from dash import Input, Output, dcc, html
 
 from app.admin_service import (acc_la, chua_gan_phong, hd_bat_thuong, ngay_thieu_du_lieu,
@@ -90,6 +93,15 @@ def _loc_cn(df, chi_nhanh: str | None, cot_phong: str | None = None,
     return df
 
 
+def _la_cot_so(cot: pd.Series) -> bool:
+    """Cột toàn số - kể cả kiểu Decimal mà PostgreSQL trả về cho phép ROUND."""
+    if pd.api.types.is_numeric_dtype(cot):
+        return True
+    gia_tri = cot.dropna()
+    return not gia_tri.empty and all(isinstance(v, numbers.Number) and not isinstance(v, bool)
+                                     for v in gia_tri)
+
+
 def _cols(df, ten: dict[str, str] | None = None, rong: dict[str, int] | None = None):
     """Cột co giãn theo bề rộng thật của màn hình - không đặt width cứng để khỏi kéo ngang."""
     ten, rong = ten or {}, rong or {}
@@ -97,6 +109,9 @@ def _cols(df, ten: dict[str, str] | None = None, rong: dict[str, int] | None = N
     for c in df.columns:
         col = {"field": c, "headerName": ten.get(c, c.replace("_", " ").title()),
                "minWidth": rong.get(c, 110), "flex": 1, "tooltipField": c}
+        # cột số lượng / số ngày căn giữa; mã NV, acc, số hợp đồng là mã định danh nên giữ căn trái
+        if _la_cot_so(df[c]) and c not in ("ma_nv", "acc", "hop_dong"):
+            col["type"] = "numericColumn"
         out.append(col)
     return out
 

@@ -634,3 +634,12 @@ table.simple tr:last-child td { border-bottom: none; }
   .ag-theme-ftel .ag-header-cell-label { font-size: 10.5px; letter-spacing: 0; }
   .ag-theme-ftel .ag-header-group-cell-with-group .ag-header-group-cell-label { font-size: 10.5px; }
 }
+
+/* ------------------------------------------------ cột số liệu căn giữa (mọi bảng)
+   Cột số (type numericColumn, hoặc class o-giua) căn giữa cả ô lẫn tiêu đề, giống bảng tính báo cáo.
+   Cột chữ (tên phòng, họ tên, acc...) vẫn căn trái để dễ dò. */
+.ag-theme-ftel .ag-right-aligned-cell, .ag-theme-ftel .o-giua { text-align: center; justify-content: center; }
+.ag-theme-ftel .ag-right-aligned-header .ag-header-cell-label,
+.ag-theme-ftel .tieu-de-giua .ag-header-cell-label { flex-direction: row; justify-content: center; }
+.ag-theme-ftel .ag-right-aligned-header .ag-header-cell-text,
+.ag-theme-ftel .tieu-de-giua .ag-header-cell-text { text-align: center; }

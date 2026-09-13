@@ -135,7 +135,7 @@ def layout():
                 id="tq-grid", className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
                 defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True,
                                "wrapHeaderText": True, "autoHeaderHeight": True,
-                               "cellStyle": {"textAlign": "center"}},
+                               "cellClass": "o-giua", "headerClass": "tieu-de-giua"},
                 dashGridOptions={"suppressCellFocus": True, "headerHeight": 42,
                                  "groupHeaderHeight": 30, "rowHeight": 32,
                                  "domLayout": "autoHeight", "suppressColumnVirtualisation": True,
@@ -189,6 +189,7 @@ def _cols(thang: str, ngay: int, gon: bool = False):
     thang_truoc = 12 if thang_so == 1 else thang_so - 1
     w = 72
     phong = {"headerName": "PKD", "field": "phong", "pinned": "left", "width": 172,
+             "cellClass": "", "headerClass": "",
              "cellStyle": {"textAlign": "left", "fontWeight": "600"}}
     ket_luan = {"headerName": "Kết luận", "field": "ket_luan", "width": 96,
                 "cellStyle": KET_LUAN_STYLE,
