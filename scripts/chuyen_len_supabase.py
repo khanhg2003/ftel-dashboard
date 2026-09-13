@@ -42,9 +42,8 @@ KHOI = 2000
 
 
 def _url_postgres(url: str) -> str:
-    if url.startswith(("postgres://", "postgresql://")):
-        return "postgresql+psycopg://" + url.split("://", 1)[1]
-    return url
+    from app.config import chuan_hoa_url_postgres   # mã hoá sẵn mật khẩu có ký tự @ # / ?
+    return chuan_hoa_url_postgres(url)
 
 
 def _kieu_python(col):

@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 import yaml
 from dotenv import load_dotenv
@@ -52,6 +53,24 @@ def _secret_key() -> str:
 
 SECRET_KEY = _secret_key()
 
+def chuan_hoa_url_postgres(url: str) -> str:
+    """postgresql://user:matkhau@host... -> postgresql+psycopg://..., mã hoá mật khẩu.
+
+    Mật khẩu Supabase tự sinh hay có ký tự @ # / ? % - dán thẳng vào chuỗi kết nối sẽ làm
+    sai tên máy chủ. Tách theo dấu @ CUỐI CÙNG nên người dùng không phải tự mã hoá.
+    """
+    if not url.startswith(("postgres://", "postgresql://", "postgresql+psycopg://")):
+        return url
+    phan_sau = url.split("://", 1)[1]
+    if "@" in phan_sau:
+        dang_nhap, may_chu = phan_sau.rsplit("@", 1)
+        if ":" in dang_nhap:
+            ten, mat_khau = dang_nhap.split(":", 1)
+            dang_nhap = f"{ten}:{quote(unquote(mat_khau), safe='')}"
+        phan_sau = f"{dang_nhap}@{may_chu}"
+    return "postgresql+psycopg://" + phan_sau
+
+
 _db_url = os.getenv("DATABASE_URL", "").strip()
 if not _db_url:
     if LA_SERVERLESS:
@@ -59,8 +78,8 @@ if not _db_url:
                            "Variables của Vercel.")
     _db_url = f"sqlite:///{(DATA_DIR / 'ftel.db').as_posix()}"
 # Supabase đưa chuỗi dạng postgresql://... -> chỉ rõ driver psycopg (bản 3) cho SQLAlchemy
-if _db_url.startswith(("postgres://", "postgresql://")):
-    _db_url = "postgresql+psycopg://" + _db_url.split("://", 1)[1]
+if _db_url.startswith(("postgres://", "postgresql://", "postgresql+psycopg://")):
+    _db_url = chuan_hoa_url_postgres(_db_url)
 elif _db_url.startswith("sqlite:///") and not _db_url.startswith("sqlite:////"):
     # đường dẫn tương đối -> tuyệt đối, để chạy từ thư mục nào cũng đúng
     rel = _db_url.replace("sqlite:///", "", 1)
