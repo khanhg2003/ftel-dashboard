@@ -285,3 +285,13 @@ def test_anh_png_ghi_ro_pham_vi_va_so_tam_tinh():
     noi_dung, ten = anh_tong_quan(THANG, 11, chi_phong=loc_chi_nhanh(None, "QNM", THANG),
                                   chi_nhanh="QNM", tam_tinh=True, luc=datetime(2026, 9, 11, 15, 38))
     assert noi_dung[:8] == b"\x89PNG\r\n\x1a\n" and ten == "BaoCaoTong_QuangNam_202609_ngay11.png"
+
+
+def test_tieu_de_cot_khong_bi_cat_ngang_tu():
+    """Mọi bảng: tiêu đề chỉ xuống dòng giữa các từ, cột hẹp thì tự nới (assets/khong_rot_chu.js)."""
+    from pathlib import Path
+    goc = Path(__file__).resolve().parent.parent / "assets"
+    css = (goc / "style.css").read_text(encoding="utf-8")
+    assert "word-break: keep-all" in css
+    js = (goc / "khong_rot_chu.js").read_text(encoding="utf-8")
+    assert "setColumnWidths" in js and ".ag-theme-ftel" in js

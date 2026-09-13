@@ -601,3 +601,11 @@ table.simple tr:last-child td { border-bottom: none; }
   .ag-theme-ftel .ag-header-cell-label, .ag-theme-ftel .ag-header-group-cell-label { font-size: 9.5px; letter-spacing: .2px; }
   .ag-theme-ftel .ag-header-cell { padding-left: 6px; padding-right: 6px; }
 }
+
+/* ------------------------------------------------ tiêu đề cột không cắt ngang từ
+   Chỉ xuống dòng giữa các từ. Cột hẹp hơn từ dài nhất sẽ được assets/khong_rot_chu.js nới ra. */
+.ag-theme-ftel .ag-header-cell-text {
+  word-break: keep-all; overflow-wrap: normal; hyphens: none; text-overflow: clip;
+}
+.ag-theme-ftel .ag-header-cell-label { letter-spacing: .3px; }
+.ag-theme-ftel .ag-header-cell, .ag-theme-ftel .ag-header-group-cell { padding-left: 8px; padding-right: 8px; }
