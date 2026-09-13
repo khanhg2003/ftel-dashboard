@@ -127,12 +127,55 @@ def test_nap_lai_camera_khong_dem_trung_khi_hop_dong_doi_thong_tin():
 
 
 def test_trang_phan_tich_dung_duoc():
+    from flask_login import login_user
+    from sqlalchemy import select
+
+    from app.auth import SessionUser
+    from app.db import session_scope
+    from app.models import User
+    from app.ui.app import server
     from app.ui.pages import phantich
-    phantich.layout()
-    assert phantich.topbar()
+    with session_scope() as s:
+        admin = SessionUser(s.execute(select(User).where(User.role == "admin")).scalars().first())
+    with server.test_request_context("/"):
+        login_user(admin)
+        assert phantich.layout() is not None and phantich.topbar()
 
 
 def test_khong_con_chu_dau_noi():
     goc = Path(__file__).resolve().parent.parent
     for f in list((goc / "app").rglob("*.py")) + list((goc / "docs").glob("*.md")):
         assert "đấu nối" not in f.read_text(encoding="utf-8").lower(), f
+
+
+def test_excel_phan_tich_moi_bang_mot_sheet():
+    import io
+
+    from openpyxl import load_workbook
+
+    from app.export_phan_tich import xuat_phan_tich
+    tu, den, _ = pt.ky_phan_tich(THANG)
+    df, ton = pt.hop_dong_online(tu, den), pt.hop_dong_ton()
+    bang = pt.bang_theo_phong(df, ton, THANG)
+    noi_dung = xuat_phan_tich("", "PHÂN TÍCH", [
+        ("Theo phòng", bang, [("phong", "Phòng", "text"), ("online", "Online", "so"),
+                              ("kem_vvip", "HĐ kèm V.VIP", "pct")]),
+        ("Trống", bang.iloc[0:0], [("phong", "Phòng", "text")])])
+    wb = load_workbook(io.BytesIO(noi_dung))
+    assert wb.sheetnames == ["Theo phòng"]                 # bảng trống không tạo sheet
+    ws = wb["Theo phòng"]
+    assert ws["A3"].value == "Phòng" and ws.cell(row=4, column=3).number_format == "0%"
+
+
+def test_muc_chung_kinh_doanh_chi_tinh_phong_kinh_doanh():
+    from app.org import phong_order
+    tu, den, _ = pt.ky_phan_tich(THANG)
+    df = pt.hop_dong_online(tu, den)
+    kd = {p["code"] for p in phong_order(THANG) if p["loai"] in pt.LOAI_KINH_DOANH}
+    assert pt.muc_chung_kinh_doanh(df, THANG)["online"] == int(df.phong_code.isin(kd).sum())
+
+
+def test_moc_ton_lien_mach_khong_trung():
+    for (a1, b1, _), (a2, _, _) in zip(pt.MOC_TON, pt.MOC_TON[1:]):
+        assert a2 == b1 + 1
+    assert pt.MOC_TON[0][0] == 0 and pt.MOC_TON[2][0] == 7      # khớp mốc "chờ từ 7 ngày"

@@ -21,7 +21,9 @@ from app.org import bay_info, phong_order
 
 CN_NOI_BO = ("DNG_01", "DNG_02", "QNM")
 NHOM_GOI = ("Giga", "Sky", "Meta")
-MOC_TON = [(0, 2, "0-2 ngày"), (3, 6, "3-6 ngày"), (7, 14, "7-14 ngày"), (15, 10 ** 6, "Trên 14 ngày")]
+MOC_TON = [(0, 2, "0-2 ngày"), (3, 6, "3-6 ngày"), (7, 14, "7-14 ngày"), (15, 30, "15-30 ngày"),
+           (31, 10 ** 6, "Trên 30 ngày")]
+LOAI_KINH_DOANH = {"IBB", "DIABAN"}
 MOC_ONLINE = [(0, 0, "Trong ngày"), (1, 1, "1 ngày"), (2, 2, "2 ngày"), (3, 3, "3 ngày"),
               (4, 7, "4-7 ngày"), (8, 10 ** 6, "Trên 7 ngày")]
 THU = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
@@ -143,6 +145,7 @@ def bang_theo_phong(df: pd.DataFrame, ton: pd.DataFrame, thang: str,
             continue
         for c in ma:
             rows.append({"phong_code": c, "loai_dong": "data", "phong": meta[c]["ten"],
+                         "nhom_kd": meta[c].get("loai") in LOAI_KINH_DOANH,
                          **dong(df[df.phong_code == c], ton[ton.phong_code == c])})
         rows.append({"phong_code": f"SUB_{bcode}", "loai_dong": "subtotal",
                      "phong": binfo.get("ten_tong", f"TỔNG {binfo['ten']}"),
@@ -166,7 +169,8 @@ def ton_theo_tuoi(ton: pd.DataFrame, thang: str) -> pd.DataFrame:
     out = pd.DataFrame(rows)
     if out.empty:
         return out
-    out = out.sort_values(["m3", "m2", "tong"], ascending=False)
+    out["_lau"] = out.m3 + out.m4
+    out = out.sort_values(["_lau", "m2", "tong"], ascending=False).drop(columns="_lau")
     tong = {"phong_code": "TOTAL", "phong": "TỔNG", "loai_dong": "total",
             "tong": int(out.tong.sum()), "tb_ngay": round(float(ton.so_ngay_cho.mean()), 1),
             **{f"m{i}": int(out[f"m{i}"].sum()) for i in range(len(MOC_TON))}}
@@ -244,3 +248,10 @@ def theo_nhan_vien(df: pd.DataFrame, ton: pd.DataFrame, thang: str) -> pd.DataFr
     g["ho_ten"] = ten.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten.reindex(g.index)
     g["phong"] = [meta.get(c, {}).get("ten", "Chưa gán phòng") for c in g.phong_code]
     return g.reset_index().sort_values("online", ascending=False).replace({np.nan: None})
+
+
+def muc_chung_kinh_doanh(df: pd.DataFrame, thang: str) -> dict:
+    """Tỷ lệ chung của các phòng kinh doanh (IBB và địa bàn) - mốc tô màu công bằng hơn so với
+    dòng tổng chi nhánh vốn gồm cả phòng Kỹ thuật, CUS, ECOM có đặc thù bán kèm thấp."""
+    kd = {p["code"] for p in phong_order(thang) if p.get("loai") in LOAI_KINH_DOANH}
+    return chi_so_chung(df[df.phong_code.isin(kd)])

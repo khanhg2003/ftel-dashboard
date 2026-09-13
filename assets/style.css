@@ -97,7 +97,9 @@ body {
 .brand-dots i:nth-child(1) { background: var(--fpt-orange); }
 .brand-dots i:nth-child(2) { background: var(--fpt-green); }
 .brand-dots i:nth-child(3) { background: #37A5E6; }
-.logo-img { width: 44px; height: auto; object-fit: contain; flex: 0 0 44px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.25)); }
+/* ảnh logo đã cắt sát nét chữ (bỏ lề trong suốt) nên cỡ này là cỡ thật của logo */
+.logo-img { width: 50px; height: auto; object-fit: contain; flex: 0 0 50px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.25)); }
+.app-shell.thu-gon .logo-img { width: 40px; flex-basis: 40px; }
 .brand .logo { font-size: 15.5px; font-weight: 700; letter-spacing: .3px; }
 .brand .sub { font-size: 11.5px; color: #9FC0DA; margin-top: 4px; letter-spacing: .2px; }
 
@@ -649,3 +651,51 @@ table.simple tr:last-child td { border-bottom: none; }
 .kpi-row.kpi-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (min-width: 1280px) { .kpi-row.kpi-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 @media (max-width: 767px) { .kpi-row.kpi-6 { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- Báo cáo phòng + Phân tích bán hàng (đợt hoàn thiện) ---------- */
+/* laptop từ 1200px: biểu đồ / bảng phụ xếp đôi cho trang đỡ dài */
+@media (min-width: 1200px) { .chart-row.doi > .chart-col { flex: 1 1 calc(50% - 10px); } }
+.chart-row.doi { align-items: stretch; }
+.chart-row.doi > .chart-col > .card { height: 100%; }
+
+/* thanh công cụ đầu thẻ: tiêu đề trái, điều khiển phải */
+.the-thanh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.the-thanh .grow { flex: 1; }
+.the-thanh .o-tim, .o-tim { width: 220px !important; flex: 0 0 auto; height: 36px; border: 1px solid var(--border); border-radius: 8px; padding: 0 12px;
+         font: inherit; font-size: 13px; min-width: 210px; background: #fff; }
+.o-tim:focus { outline: none; border-color: var(--fpt-blue); box-shadow: 0 0 0 3px rgba(0,114,188,.12); }
+
+/* chú giải cách tính */
+.dinh-nghia { margin: 4px 0 14px; }
+.dinh-nghia .cg-tieu-de { cursor: pointer; font-size: 12.5px; color: var(--fpt-blue); font-weight: 600; }
+.dn-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px 22px;
+           margin-top: 10px; padding: 12px 14px; background: #F6F9FC; border-radius: 10px; }
+.dn-dong { font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.dn-dong b { color: var(--text); margin-right: 6px; }
+
+/* ngăn chi tiết nhân sự trượt từ phải */
+.ngan { display: none; }
+.ngan.mo { display: block; }
+.ngan-nen { position: fixed; inset: 0; background: rgba(11, 32, 51, .40); z-index: 90; }
+.ngan-hop { position: fixed; top: 0; right: 0; bottom: 0; z-index: 91; width: min(760px, 100vw);
+            background: #fff; box-shadow: -18px 0 50px rgba(6, 24, 44, .25); overflow-y: auto;
+            animation: ngan-vao .18s ease-out; }
+@keyframes ngan-vao { from { transform: translateX(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+.ngan-dau { position: sticky; top: 0; background: #fff; z-index: 2; display: flex; align-items: center;
+            gap: 12px; padding: 16px 22px; border-bottom: 1px solid var(--border); }
+.ngan-dau h3 { margin: 0; font-size: 17px; }
+.ngan-dau .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+.ngan-than { padding: 16px 22px 26px; }
+.ct-luoi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.ct-o { background: #F6F9FC; border: 1px solid #E6EDF4; border-radius: 10px; padding: 10px 12px; }
+.ct-o .nhan { font-size: 11px; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); }
+.ct-o .so { font-size: 20px; font-weight: 700; color: #0B2E4F; margin-top: 2px; }
+.ct-o .phu { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.ct-chip { display: inline-block; background: #FBE3E1; color: #93241C; border-radius: 999px;
+           padding: 3px 10px; font-size: 12px; font-weight: 600; margin: 0 6px 6px 0; }
+.ct-chip.ok { background: #DCF5E6; color: #0A5B31; }
+.ngan-than h4 { margin: 16px 0 8px; font-size: 13.5px; }
+@media (max-width: 767px) { .ct-luoi { grid-template-columns: 1fr 1fr; } }
+
+/* dòng phòng không thuộc nhóm kinh doanh: chữ nhạt, không tô màu so sánh */
+.ag-theme-ftel .dong-phu .ag-cell { color: #7A8796; }

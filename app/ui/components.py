@@ -120,6 +120,71 @@ def chi_nhanh_control(id: str, value: str = "all"):
     return seg_control(id, [("all", "Tất cả"), ("DNG", "Đà Nẵng"), ("QNM", "Quảng Nam")], value)
 
 
+def chon_ngay(prefix: str, ngays: list[str]):
+    """Bộ chọn ngày báo cáo dùng chung: ‹ lịch › + nút Mới nhất. Chỉ cho chọn ngày đã có số."""
+    from datetime import date, timedelta
+    moi_nhat = ngays[-1] if ngays else None
+    co = set(ngays)
+    thieu = []
+    if ngays:
+        d0, d1 = date.fromisoformat(ngays[0]), date.fromisoformat(ngays[-1])
+        thieu = [(d0 + timedelta(days=i)).isoformat() for i in range((d1 - d0).days + 1)
+                 if (d0 + timedelta(days=i)).isoformat() not in co]
+    return html.Div([
+        html.Button("‹", id=f"{prefix}-lui", className="nut-ky", title="Ngày trước đó"),
+        dcc.DatePickerSingle(id=f"{prefix}-date", date=moi_nhat, display_format="DD/MM/YYYY",
+                             min_date_allowed=ngays[0] if ngays else None,
+                             max_date_allowed=moi_nhat, initial_visible_month=moi_nhat,
+                             disabled_days=thieu, first_day_of_week=1, clearable=False,
+                             className="date-pick"),
+        html.Button("›", id=f"{prefix}-toi", className="nut-ky", title="Ngày sau đó"),
+        html.Button("Mới nhất", id=f"{prefix}-moinhat", className="btn nho"),
+    ], className="chon-ngay")
+
+
+def gan_chon_ngay(app, prefix: str):
+    """Nối nút ‹ › Mới nhất của bộ chọn ngày."""
+    from dash import Input, Output, State, ctx, no_update
+
+    from app.metrics import cac_ngay_co_du_lieu
+
+    @app.callback(Output(f"{prefix}-date", "date"), Input(f"{prefix}-lui", "n_clicks"),
+                  Input(f"{prefix}-toi", "n_clicks"), Input(f"{prefix}-moinhat", "n_clicks"),
+                  State(f"{prefix}-date", "date"), prevent_initial_call=True)
+    def _chon(_a, _b, _c, hien_tai):
+        ngays = cac_ngay_co_du_lieu()
+        if not ngays:
+            return no_update
+        d = hien_tai or ngays[-1]
+        if ctx.triggered_id == f"{prefix}-lui":
+            truoc = [x for x in ngays if x < d]
+            return truoc[-1] if truoc else no_update
+        if ctx.triggered_id == f"{prefix}-toi":
+            sau = [x for x in ngays if x > d]
+            return sau[0] if sau else no_update
+        return ngays[-1]
+
+
+def chu_giai(tieu_de: str, muc: list[tuple[str, str]]):
+    """Khối "Cách tính" gập được: (tên chỉ số, định nghĩa)."""
+    return html.Details([
+        html.Summary(tieu_de, className="cg-tieu-de"),
+        html.Div([html.Div([html.B(ten), html.Span(dn)], className="dn-dong") for ten, dn in muc],
+                 className="dn-luoi"),
+    ], className="chu-giai dinh-nghia")
+
+
+# Chữ tiếng Việt cho bảng (phân trang, không có dữ liệu, bộ lọc)
+LOCALE_VI = {
+    "page": "Trang", "of": "/", "to": "đến", "more": "thêm", "next": "Sau", "last": "Cuối",
+    "first": "Đầu", "previous": "Trước", "noRowsToShow": "Không có dữ liệu",
+    "loadingOoo": "Đang tải...", "filterOoo": "Lọc...", "contains": "Có chứa",
+    "equals": "Bằng", "notEqual": "Khác", "lessThan": "Nhỏ hơn", "greaterThan": "Lớn hơn",
+    "andCondition": "Và", "orCondition": "Hoặc", "pageSizeSelectorLabel": "Số dòng:",
+    "ariaPageSizeSelectorLabel": "Số dòng",
+}
+
+
 def empty_state(text: str):
     return html.Div(text, style={"padding": "40px", "textAlign": "center",
                                  "color": "var(--text-muted)"})

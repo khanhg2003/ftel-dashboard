@@ -6,9 +6,11 @@ quyền ở máy chủ - không tin giá trị phòng gửi lên từ trình duy
 
 Bố cục theo thứ tự Trưởng phòng cần trong buổi sáng:
 1. Ngày + phòng, trạng thái số (đang cập nhật / đã chốt), nút Chụp ảnh và Excel.
-2. Sáu chỉ số của phòng, có hạng so với các phòng cùng nhóm.
-3. Bảng nhân sự (hạng trong phòng) - bấm một người để xem chi tiết ngay bên dưới.
-4. Phòng đứng ở đâu so với chi nhánh theo từng chỉ số + diễn biến online từng ngày.
+2. Sáu chỉ số của phòng, có hạng so với các phòng kinh doanh khác.
+3. Bảng nhân sự xếp hạng trong phòng, chia hai góc nhìn vừa khít màn hình laptop:
+   "Bán hàng" và "Theo dõi" (tồn, nhịp có số, NSLĐ). Dòng TỔNG PHÒNG luôn ghim ở đáy.
+   Bấm một người -> ngăn chi tiết trượt ra bên phải, không phải cuộn tìm.
+4. Phòng đứng ở đâu so với chi nhánh + online / bán mới từng ngày, xếp đôi trên laptop.
 """
 from __future__ import annotations
 
@@ -16,7 +18,7 @@ from datetime import date
 
 import dash_ag_grid as dag
 import plotly.graph_objects as go
-from dash import Input, Output, State, ctx, dcc, html, no_update
+from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
 from app import bao_cao_phong as bp
@@ -25,17 +27,35 @@ from app.export_phong import anh_bao_cao_phong, xuat_bao_cao_phong
 from app.metrics import cac_ngay_co_du_lieu
 from app.org import phong_order
 from app.overview import trang_thai_ngay
-from app.ui.components import alert, card, field, kpi
+from app.ui.components import (LOCALE_VI, alert, card, chon_ngay, chu_giai, field, gan_chon_ngay,
+                               kpi, seg_control)
 from app.ui.icons import icon
 
 SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
 PCT = {"function": "params.value == null ? '–' : Math.round(params.value) + '%'"}
-ROW_STYLE = {"styleConditions": [
-    {"condition": "params.data.loai_dong == 'total'",
-     "style": {"backgroundColor": "#DCE8F4", "fontWeight": "700", "color": "#003057"}}]}
+CHENH = {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + params.value"}
 DO, VANG, XANH = ({"backgroundColor": "#F7BDBD", "color": "#7F1D1D", "fontWeight": "600"},
                   {"backgroundColor": "#FCEBB4", "color": "#6B5104"},
                   {"backgroundColor": "#D3EBD4", "color": "#14532D", "fontWeight": "600"})
+ROW_STYLE = {"styleConditions": [
+    {"condition": "params.node.rowPinned", "style": {"backgroundColor": "#DCE8F4", "fontWeight": "700",
+                                                     "color": "#003057"}}]}
+
+DINH_NGHIA = [
+    ("Online", "Hợp đồng Internet có ngày online trong kỳ (01 đến ngày chọn), theo acc người bán."),
+    ("Cùng kỳ", "Online của chính người đó cùng số ngày tháng trước."),
+    ("VVIP/PTTB · Camera/PTTB", "Số V.VIP (Camera) online trong kỳ chia số online - cùng cách tính "
+                                "với Báo cáo Tổng. Một hợp đồng lắp nhiều camera nên có thể trên 100%."),
+    ("Đủ 3 DV", "Hợp đồng online có cả V.VIP và Camera."),
+    ("Trả trước", "Hợp đồng có trả trước 3, 6 hoặc 12 tháng."),
+    ("Online trong 1 ngày", "Online ngay trong ngày tạo hợp đồng hoặc hôm sau."),
+    ("Chưa online · Chờ từ 7 ngày", "Hợp đồng đã tạo, chưa online, còn trong file mới nhất; "
+                                    "số ngày tính từ ngày tạo."),
+    ("Ngày liền chưa có số", "Số ngày tính từ lần có số online gần nhất đến ngày chọn."),
+    ("Hạng", "Xếp theo số online trong phòng; bằng số thì đồng hạng."),
+    ("Cần chú ý", f"Từ {bp.NGAY_LIEN_CANH_BAO} ngày liền chưa có số, tuần này giảm từ một nửa, "
+                  f"từ {bp.TON_LAU_CANH_BAO} hợp đồng chờ online từ 7 ngày, có số mà chưa bán kèm."),
+]
 
 
 def phong_duoc_chon() -> list[dict]:
@@ -66,21 +86,12 @@ def layout():
         return alert("Tài khoản chưa được gán phòng phụ trách. Liên hệ quản trị để được gán phòng.",
                      "warn")
     ngays = cac_ngay_co_du_lieu()
-    moi_nhat = ngays[-1] if ngays else None
     return html.Div([
         html.Div([
-            field("Ngày báo cáo", html.Div([
-                html.Button("‹", id="bp-lui", className="nut-ky", title="Ngày trước đó"),
-                dcc.DatePickerSingle(id="bp-date", date=moi_nhat, display_format="DD/MM/YYYY",
-                                     min_date_allowed=ngays[0] if ngays else None,
-                                     max_date_allowed=moi_nhat, initial_visible_month=moi_nhat,
-                                     first_day_of_week=1, clearable=False, className="date-pick"),
-                html.Button("›", id="bp-toi", className="nut-ky", title="Ngày sau đó"),
-                html.Button("Mới nhất", id="bp-moinhat", className="btn nho"),
-            ], className="chon-ngay")),
+            field("Ngày báo cáo", chon_ngay("bp", ngays)),
             field("Phòng", dcc.Dropdown(id="bp-phong", options=lua_chon, value=lua_chon[0]["value"],
                                         clearable=False, searchable=len(lua_chon) > 6,
-                                        disabled=len(lua_chon) == 1, style={"width": "220px"})),
+                                        disabled=len(lua_chon) == 1, style={"width": "210px"})),
             html.Div(className="grow"),
             field(" ", html.Div([
                 html.Button([icon("camera", 14), html.Span("Chụp ảnh")], id="bp-png",
@@ -90,50 +101,68 @@ def layout():
             ], style={"display": "flex", "gap": "8px"})),
         ], className="toolbar loc-trang"),
         dcc.Download(id="bp-tai-xuong"),
-        dcc.Store(id="bp-chon-nv"),
 
         html.Div(id="bp-canh-bao"),
-        html.Div(id="bp-kpi", className="kpi-row kpi-6"),
+        dcc.Loading(html.Div(id="bp-kpi", className="kpi-row kpi-6"), type="dot"),
 
-        card([
+        html.Div([
             html.Div([
-                html.Div(id="bp-mo-ta-nv", className="desc", style={"margin": 0}),
+                html.Div([html.H3("Nhân sự của phòng", style={"margin": 0}),
+                          html.Div(id="bp-mo-ta-nv", className="desc", style={"margin": "2px 0 0"})]),
                 html.Div(className="grow"),
+                dcc.Input(id="bp-tim", type="search", placeholder="Tìm tên hoặc acc…",
+                          className="o-tim"),
+                seg_control("bp-xem", [("ban", "Bán hàng"), ("theo_doi", "Nhịp có số & tồn"),
+                                       ("tat_ca", "Tất cả cột")], "ban"),
                 dcc.Dropdown(id="bp-loc", clearable=False, value="all", searchable=False,
-                             style={"width": "210px"},
+                             style={"width": "190px"},
                              options=[{"label": "Tất cả nhân sự", "value": "all"},
                                       {"label": "Chỉ người cần chú ý", "value": "chu_y"}]),
-            ], className="toolbar", style={"marginBottom": "10px"}),
+            ], className="the-thanh"),
             dcc.Loading(dag.AgGrid(
                 id="bp-nv", className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
                 defaultColDef={"resizable": True, "sortable": True, "suppressMovable": True,
                                "wrapHeaderText": True, "autoHeaderHeight": True},
                 dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight",
-                                 "rowSelection": "single", "tooltipShowDelay": 300},
+                                 "tooltipShowDelay": 300, "localeText": LOCALE_VI,
+                                 "rowStyle": {"cursor": "pointer"}},
+                getRowId="params.data.acc_norm",
                 getRowStyle=ROW_STYLE, style={"width": "100%"})),
-            html.Div("Bấm vào một nhân sự để xem chi tiết. Màu VVIP/PTTB, Camera/PTTB so với mức chung "
-                     "của phòng: xanh cao hơn từ 5 điểm, đỏ thấp hơn từ 10 điểm.",
-                     className="desc", style={"margin": "10px 0 0"}),
-        ], title="Nhân sự của phòng"),
-
-        html.Div(id="bp-chi-tiet"),
+            html.Div("Bấm vào một nhân sự để mở chi tiết. Màu VVIP/PTTB, Camera/PTTB so với mức "
+                     "chung của phòng: xanh cao hơn từ 5 điểm, vàng thấp hơn 5-10 điểm, đỏ thấp hơn "
+                     "từ 10 điểm.", className="desc", style={"margin": "10px 0 4px"}),
+            chu_giai("Cách tính các cột", DINH_NGHIA),
+        ], className="card"),
 
         html.Div([
-            html.Div(card([dcc.Loading(dag.AgGrid(
-                id="bp-so-sanh", className="ag-theme-quartz ag-theme-ftel", columnDefs=[],
-                rowData=[], defaultColDef={"resizable": True, "sortable": False,
-                                           "suppressMovable": True},
-                dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight"},
-                style={"width": "100%"}))],
-                title="Phòng đứng ở đâu so với chi nhánh",
-                desc="Hạng so với các phòng cùng nhóm. Mức chung là tỷ lệ của toàn chi nhánh; "
-                     "với số lượng là bình quân một phòng."), className="chart-col"),
+            html.Div(html.Div([
+                html.H3("Phòng đứng ở đâu so với chi nhánh"),
+                html.Div(id="bp-mo-ta-ss", className="desc"),
+                dcc.Loading(dag.AgGrid(
+                    id="bp-so-sanh", className="ag-theme-quartz ag-theme-ftel", columnDefs=[],
+                    rowData=[], defaultColDef={"resizable": True, "sortable": False,
+                                               "suppressMovable": True},
+                    dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight",
+                                     "localeText": LOCALE_VI},
+                    style={"width": "100%"}))], className="card"), className="chart-col"),
             html.Div(card([dcc.Loading(dcc.Graph(id="bp-ngay", config={"displayModeBar": False,
                                                                        "responsive": True},
                                                  style={"width": "100%"}))],
-                          title="Online từng ngày của phòng",
-                          desc="Đường cam là mục tiêu ngày"), className="chart-col"),
-        ], className="chart-row"),
+                          title="Online và bán mới từng ngày",
+                          desc="Cột xanh là online, cột cam là hợp đồng tạo mới; đường chấm là "
+                               "mục tiêu ngày"), className="chart-col"),
+        ], className="chart-row doi"),
+
+        # ngăn chi tiết nhân sự
+        html.Div([
+            html.Div(id="bp-ngan-nen", className="ngan-nen"),
+            html.Div([
+                html.Div([html.Div(id="bp-ngan-tieu-de", className="grow"),
+                          html.Button("×", id="bp-ngan-dong", className="modal-x", title="Đóng")],
+                         className="ngan-dau"),
+                dcc.Loading(html.Div(id="bp-ngan-than", className="ngan-than")),
+            ], className="ngan-hop"),
+        ], id="bp-ngan", className="ngan"),
     ])
 
 
@@ -141,74 +170,103 @@ def layout():
 def _mau_ty_le(chung) -> dict:
     if chung is None:
         return {}
-    goc = "params.data.loai_dong == 'data' && params.value != null && "
+    goc = "params.value != null && !params.node.rowPinned && "
     return {"styleConditions": [
         {"condition": goc + f"params.value <= {chung - 10}", "style": DO},
         {"condition": goc + f"params.value < {chung - 5}", "style": VANG},
         {"condition": goc + f"params.value >= {chung + 5}", "style": XANH}]}
 
 
-def _cot_nv(thang: str, ngay: int, tong: dict) -> list:
+def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
     m = int(thang[5:7])
+    goc = "params.value != null && !params.node.rowPinned && "
 
-    def so(field_, ten, w=76, **kw):
+    def so(field_, ten, w=74, **kw):
         return {"field": field_, "headerName": ten, "minWidth": w, "flex": 1,
                 "type": "numericColumn", "valueFormatter": SO, **kw}
 
-    def pct(field_, ten, tip, **kw):
-        return {"field": field_, "headerName": ten, "headerTooltip": tip, "minWidth": 84, "flex": 1,
+    def pct(field_, ten, tip, w=78, **kw):
+        return {"field": field_, "headerName": ten, "headerTooltip": tip, "minWidth": w, "flex": 1,
                 "type": "numericColumn", "valueFormatter": PCT, **kw}
 
-    goc = "params.data.loai_dong == 'data' && params.value != null && "
-    return [
-        {"field": "hang", "headerName": "Hạng", "pinned": "left", "width": 70,
-         "type": "numericColumn", "sort": "asc"},
-        {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "minWidth": 180,
-         "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}},
-        {"field": "tham_nien_bucket", "headerName": "Thâm niên", "minWidth": 84, "flex": .8},
-        {"headerName": f"LUỸ KẾ THÁNG {m}", "children": [
-            so("online", "Online", cellStyle={"fontWeight": "700"}),
-            so("ck_online", f"Cùng kỳ {bp.thang_truoc_nhan(thang)}", 84),
-            so("vvip", "V.VIP"),
-            pct("kem_vvip", "VVIP/PTTB", "Số V.VIP / số online", cellStyle=_mau_ty_le(tong.get("kem_vvip"))),
-            so("camera", "Camera"),
-            pct("kem_camera", "Camera/PTTB", "Số camera / số online",
-                cellStyle=_mau_ty_le(tong.get("kem_camera"))),
-            pct("du_3", "Đủ 3 DV", "Hợp đồng online có cả V.VIP và Camera"),
-            pct("tra_truoc", "Trả trước", "Hợp đồng có trả trước 3, 6 hoặc 12 tháng"),
-        ]},
-        {"headerName": f"NGÀY {ngay:02d}/{m:02d}", "children": [
-            so("ban_moi_ngay", "Bán mới"), so("online_ngay", "Online")]},
-        {"headerName": "SỐ TỒN", "children": [
-            so("ton", "Chưa online", 84),
-            so("ton_qua_7", "Chờ từ 7 ngày", 90, cellStyle={"styleConditions": [
-                {"condition": goc + "params.value >= 3", "style": DO},
-                {"condition": goc + "params.value > 0", "style": VANG}]})]},
-        {"headerName": "THEO DÕI", "children": [
-            so("ngay_lien_chua_co_so", "Ngày liền chưa có số", 96, cellStyle={"styleConditions": [
-                {"condition": goc + "params.value >= 7", "style": DO},
-                {"condition": goc + f"params.value >= {bp.NGAY_LIEN_CANH_BAO}", "style": VANG}]}),
-            so("tuan_nay", "Tuần này"), so("tuan_truoc", "Tuần trước"),
-            {"field": "ket_luan", "headerName": "NSLĐ kỳ trước", "minWidth": 90, "flex": .9,
-             "cellStyle": {"styleConditions": [
-                 {"condition": "params.value == 'NOT OK'", "style": DO}]}},
-        ]},
-        {"field": "chu_y", "headerName": "Cần chú ý", "minWidth": 260, "flex": 2.4,
-         "tooltipField": "chu_y", "cellStyle": {"color": "#93241C"}},
-    ]
+    hang = {"field": "hang", "headerName": "Hạng", "pinned": "left", "width": 68,
+            "type": "numericColumn", "sort": "asc"}
+    ten = {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "minWidth": 150,
+           "flex": 1.6, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}}
+    chu_y = {"field": "chu_y", "headerName": "Cần chú ý", "minWidth": 160, "flex": 3,
+             "tooltipField": "chu_y", "cellStyle": {"color": "#93241C"}}
+    c = {
+        "tham_nien": {"field": "tham_nien_bucket", "headerName": "Thâm niên", "minWidth": 80,
+                      "flex": .8},
+        "online": so("online", "Online", cellStyle={"fontWeight": "700"}),
+        "ck": so("ck_online", f"Cùng kỳ {bp.thang_truoc_nhan(thang)}", 72),
+        "chenh": so("chenh_ck", "+/−", 58, valueFormatter=CHENH, headerTooltip="Online so với cùng kỳ",
+                    cellStyle={"styleConditions": [
+                        {"condition": goc + "params.value > 0", "style": {"color": "#0A7A3D",
+                                                                          "fontWeight": "600"}},
+                        {"condition": goc + "params.value < 0", "style": {"color": "#B42318",
+                                                                          "fontWeight": "600"}}]}),
+        "vvip": so("vvip", "V.VIP"),
+        "kem_vvip": pct("kem_vvip", "VVIP/PTTB", "Số V.VIP / số online",
+                        cellStyle=_mau_ty_le(tong.get("kem_vvip"))),
+        "camera": so("camera", "Camera"),
+        "kem_camera": pct("kem_camera", "Camera/PTTB", "Số camera / số online",
+                          cellStyle=_mau_ty_le(tong.get("kem_camera"))),
+        "ban_moi_ngay": so("ban_moi_ngay", "Bán mới"),
+        "online_ngay": so("online_ngay", "Online"),
+        "ban_moi": so("ban_moi", "Bán mới tháng", 84),
+        "so_ngay": so("so_ngay_co_so", "Số ngày có số", 70),
+        "ngay_lien": so("ngay_lien_chua_co_so", "Ngày liền chưa có số", 84,
+                        cellStyle={"styleConditions": [
+                            {"condition": goc + "params.value >= 7", "style": DO},
+                            {"condition": goc + f"params.value >= {bp.NGAY_LIEN_CANH_BAO}",
+                             "style": VANG}]}),
+        "tuan_nay": so("tuan_nay", "Tuần này"),
+        "tuan_truoc": so("tuan_truoc", "Tuần trước"),
+        "ton": so("ton", "Chưa online", 72),
+        "ton7": so("ton_qua_7", "Chờ từ 7 ngày", 78, cellStyle={"styleConditions": [
+            {"condition": goc + f"params.value >= {bp.TON_LAU_CANH_BAO}", "style": DO},
+            {"condition": goc + "params.value > 0", "style": VANG}]}),
+        "onl1": pct("onl_1_ngay", "Online trong 1 ngày", "Online trong ngày tạo hoặc hôm sau", 80),
+        "du3": pct("du_3", "Đủ 3 DV", "Hợp đồng online có cả V.VIP và Camera"),
+        "tra_truoc": pct("tra_truoc", "Trả trước", "Có trả trước 3, 6 hoặc 12 tháng"),
+        "nsld": {"field": "ket_luan", "headerName": "NSLĐ kỳ trước", "minWidth": 86, "flex": .9,
+                 "cellStyle": {"styleConditions": [
+                     {"condition": "params.value == 'NOT OK'", "style": DO}]}},
+    }
+    nhom_thang = {"headerName": f"LUỸ KẾ THÁNG {m}", "children": []}
+    nhom_ngay = {"headerName": f"NGÀY {ngay:02d}/{m:02d}", "children": [c["ban_moi_ngay"],
+                                                                        c["online_ngay"]]}
+    if xem == "ban":
+        nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", "vvip", "kem_vvip",
+                                                 "camera", "kem_camera")]
+        return [hang, ten, nhom_thang, nhom_ngay, chu_y]
+    if xem == "theo_doi":
+        return [hang, ten, c["tham_nien"],
+                {"headerName": "NHỊP CÓ SỐ", "children": [c["so_ngay"], c["ngay_lien"],
+                                                          c["tuan_nay"], c["tuan_truoc"]]},
+                {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
+                c["nsld"], chu_y]
+    nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", "ban_moi", "vvip", "kem_vvip",
+                                             "camera", "kem_camera", "du3", "tra_truoc", "onl1")]
+    return [hang, ten, c["tham_nien"], nhom_thang, nhom_ngay,
+            {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
+            {"headerName": "NHỊP CÓ SỐ", "children": [c["so_ngay"], c["ngay_lien"], c["tuan_nay"],
+                                                      c["tuan_truoc"]]},
+            c["nsld"], chu_y]
 
 
 COT_SO_SANH = [
-    {"field": "chi_so", "headerName": "Chỉ số", "minWidth": 200, "flex": 2},
-    {"field": "gia_tri_chu", "headerName": "Phòng", "minWidth": 80, "flex": 1,
+    {"field": "chi_so", "headerName": "Chỉ số", "minWidth": 190, "flex": 2.2},
+    {"field": "gia_tri_chu", "headerName": "Phòng", "minWidth": 76, "flex": 1,
      "type": "numericColumn", "cellStyle": {"fontWeight": "700"}},
-    {"field": "muc_chung_chu", "headerName": "Mức chung", "minWidth": 90, "flex": 1,
+    {"field": "muc_chung_chu", "headerName": "Mức chung", "minWidth": 86, "flex": 1,
      "type": "numericColumn"},
-    {"field": "chenh_chu", "headerName": "Chênh", "minWidth": 80, "flex": 1, "type": "numericColumn",
+    {"field": "chenh_chu", "headerName": "Chênh", "minWidth": 84, "flex": 1, "type": "numericColumn",
      "cellStyle": {"styleConditions": [
          {"condition": "params.data.tot === true", "style": XANH},
          {"condition": "params.data.tot === false", "style": DO}]}},
-    {"field": "hang_chu", "headerName": "Hạng", "minWidth": 80, "flex": .9, "type": "numericColumn",
+    {"field": "hang_chu", "headerName": "Hạng", "minWidth": 70, "flex": .8, "type": "numericColumn",
      "cellStyle": {"fontWeight": "700"}},
 ]
 
@@ -220,7 +278,7 @@ def _dong_so_sanh(ss) -> list[dict]:
         if kieu == "pct":
             return f"{v:+.0f} điểm" if dau else f"{v:.0f}%"
         if kieu == "so1":
-            return f"{v:+.1f}" if dau else f"{v:.1f}"
+            return f"{v:+.1f}".replace(".", ",") if dau else f"{v:.1f}".replace(".", ",")
         return f"{v:+,.0f}".replace(",", ".") if dau else f"{v:,.0f}".replace(",", ".")
 
     rows = []
@@ -266,116 +324,117 @@ def _kpis(thang: str, ngay: int, dong: dict, ss, tam_tinh: bool) -> list:
             "" if not dong.get("mt_ngay") else
             ("ok" if kl == "Đạt" else ("warn" if tam_tinh else "bad"))),
         kpi("Hạng phòng", f"{h.hang}/{h.so_phong}" if h.hang else "–",
-            "Theo tỷ lệ HTKH, trong các phòng cùng nhóm" if h is h_htkh
-            else "Theo số online, trong các phòng cùng nhóm",
+            ("Theo tỷ lệ HTKH" if h is h_htkh else "Theo số online") + " · phòng kinh doanh",
             "" if not h.hang else ("ok" if h.hang <= h.so_phong / 3 else
                                    ("bad" if h.hang > h.so_phong * 2 / 3 else "warn"))),
     ]
 
 
-def _bieu_do_ngay(thang: str, ngay: int, code: str, mt_ngay) -> go.Figure:
-    d = bp.dien_bien_ngay(thang, ngay, code)
-    fig = go.Figure()
-    if len(d):
-        fig.add_trace(go.Bar(x=d.ngay, y=d.online, marker_color="#0072BC", name="Online",
-                             text=d.online, textposition="outside", cliponaxis=False,
-                             hovertemplate="Ngày %{x}: %{y} online<extra></extra>"))
-        if mt_ngay:
-            fig.add_hline(y=float(mt_ngay), line_dash="dot", line_color="#F37021",
-                          annotation_text=f"Mục tiêu ngày {mt_ngay:.0f}",
-                          annotation_position="top left")
-        fig.update_yaxes(range=[0, max(d.online.max(), float(mt_ngay or 0)) * 1.25 + 1])
-    return _fig(fig)
-
-
 def _fig(fig: go.Figure, height: int = 330) -> go.Figure:
-    fig.update_layout(height=height, autosize=True, margin=dict(l=8, r=8, t=10, b=8),
+    fig.update_layout(height=height, autosize=True, margin=dict(l=8, r=8, t=30, b=8),
                       font=dict(family="Inter, Segoe UI, sans-serif", size=12, color="#1B2733"),
-                      plot_bgcolor="white", paper_bgcolor="white", showlegend=False)
+                      plot_bgcolor="white", paper_bgcolor="white", bargap=.25,
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+                      hovermode="x unified")
     fig.update_xaxes(showgrid=False, linecolor="#E4E9F0", dtick=1)
-    fig.update_yaxes(gridcolor="#F1F5F9", zeroline=False)
+    fig.update_yaxes(gridcolor="#F1F5F9", zeroline=False, rangemode="tozero")
     return fig
 
 
-def _chi_tiet(thang: str, ngay: int, code: str, r: dict) -> html.Div:
+def _bieu_do(d, mt_ngay=None, height: int = 330) -> go.Figure:
+    fig = go.Figure()
+    if len(d):
+        fig.add_trace(go.Bar(x=d.ngay, y=d.online, name="Online", marker_color="#0072BC",
+                             hovertemplate="%{y} online<extra></extra>"))
+        fig.add_trace(go.Bar(x=d.ngay, y=d.ban_moi, name="Bán mới", marker_color="#F5A25D",
+                             hovertemplate="%{y} bán mới<extra></extra>"))
+        if mt_ngay:
+            fig.add_hline(y=float(mt_ngay), line_dash="dot", line_color="#C8372D",
+                          annotation_text=f"Mục tiêu ngày {mt_ngay:.0f}",
+                          annotation_position="top left")
+        fig.update_layout(barmode="group")
+    return _fig(fig, height)
+
+
+def _o(nhan: str, so: str, phu: str = "") -> html.Div:
+    return html.Div([html.Div(nhan, className="nhan"), html.Div(so, className="so"),
+                     html.Div(phu, className="phu")], className="ct-o")
+
+
+def _ngan_noi_dung(thang: str, ngay: int, code: str, r: dict):
     ds = bp.dien_bien_nhan_su(thang, ngay, r["acc_norm"])
-    fig = go.Figure(go.Bar(x=ds.ngay, y=ds.online, marker_color="#37A5E6", text=ds.online,
-                           textposition="outside", cliponaxis=False,
-                           hovertemplate="Ngày %{x}: %{y} online<extra></extra>"))
-    fig.update_yaxes(range=[0, (ds.online.max() or 1) * 1.3 + 1])
     cho = bp.hop_dong_cho_cua_nhan_su(r["acc_norm"], code)
     ghi_log("xem_nhan_su", f"{code}: {r.get('acc')}")
+    chenh = r.get("chenh_ck") or 0
+    ngay_lien = r.get("ngay_lien_chua_co_so")
+    chu_y = [x for x in (r.get("chu_y") or "").split(" · ") if x]
 
-    def dong(nhan, gia_tri):
-        return html.Div([html.Span(nhan, className="cg-ten"), html.B(gia_tri)], className="ct-dong")
-
-    thong_tin = html.Div([
-        dong("Acc", r.get("acc") or ""),
-        dong("Thâm niên", f"{r.get('tham_nien_bucket') or '–'} tháng · {r.get('vi_tri') or ''}"),
-        dong("Online tháng", f"{_so(r.get('online'))} (cùng kỳ {_so(r.get('ck_online'))})"),
-        dong("Bán mới tháng", _so(r.get("ban_moi"))),
-        dong("V.VIP · Camera", f"{_so(r.get('vvip'))} ({_pct(r.get('kem_vvip'))}) · "
-                               f"{_so(r.get('camera'))} ({_pct(r.get('kem_camera'))})"),
-        dong("Đủ 3 DV · Trả trước", f"{_pct(r.get('du_3'))} · {_pct(r.get('tra_truoc'))}"),
-        dong("Online trong 1 ngày", _pct(r.get("onl_1_ngay"))),
-        dong("Số ngày có số", f"{r.get('so_ngay_co_so') or 0}/{ngay} ngày"),
-        dong("NSLĐ kỳ trước", f"{r.get('ket_luan') or '–'} · điểm {r.get('diem_tong') or '–'}"),
-        html.Div(r.get("chu_y") or "Không có điểm cần chú ý.", className="desc",
-                 style={"marginTop": "10px", "color": "#93241C" if r.get("chu_y") else None}),
-    ])
-    bang_cho = dag.AgGrid(
-        className="ag-theme-quartz ag-theme-ftel", rowData=cho.to_dict("records"),
-        columnDefs=[{"field": "hop_dong", "headerName": "Hợp đồng", "flex": 1, "minWidth": 110},
-                    {"field": "goi_dich_vu", "headerName": "Gói", "flex": .8, "minWidth": 80},
-                    {"field": "nguon_ban", "headerName": "Nguồn", "flex": .8, "minWidth": 80},
-                    {"field": "ngay_tao", "headerName": "Ngày tạo", "flex": 1, "minWidth": 100},
-                    {"field": "so_ngay_cho", "headerName": "Số ngày chờ", "flex": .8,
-                     "minWidth": 90, "type": "numericColumn"}],
-        dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight", "pagination": True,
-                         "paginationPageSize": 8, "paginationPageSizeSelector": False},
-        style={"width": "100%"})
-    return card([
+    hang = r.get("hang")
+    tieu_de = html.Div([html.H3(f"{r.get('ho_ten')}" + (f" · hạng {int(hang)}" if hang else "")),
+                        html.Div(f"{r.get('acc')} · {bp.ten_phong(code)} · thâm niên "
+                                 f"{r.get('tham_nien_bucket') or '–'} tháng · "
+                                 f"{r.get('vi_tri') or 'chưa có hồ sơ NSLĐ'}", className="sub")])
+    than = [
+        html.Div([html.Span(x, className="ct-chip") for x in chu_y] if chu_y else
+                 [html.Span("Không có điểm cần chú ý", className="ct-chip ok")],
+                 style={"marginBottom": "8px"}),
         html.Div([
-            html.Div(thong_tin, className="chart-col", style={"flex": "1 1 260px"}),
-            html.Div(dcc.Graph(figure=_fig(fig, 260), config={"displayModeBar": False,
-                                                              "responsive": True}),
-                     className="chart-col", style={"flex": "2 1 420px"}),
-        ], className="chart-row"),
-        html.H3(f"Hợp đồng chưa online ({len(cho)})", style={"marginTop": "14px"}),
-        bang_cho if len(cho) else html.Div("Không có hợp đồng nào đang chờ.", className="desc"),
-    ], title=f"Chi tiết · {r.get('ho_ten')}", desc="Online từng ngày trong tháng")
+            _o("Online tháng", _so(r.get("online")),
+               f"Cùng kỳ {_so(r.get('ck_online'))} ({'+' if chenh > 0 else ''}{chenh})"),
+            _o("Bán mới tháng", _so(r.get("ban_moi")),
+               f"Ngày {ngay:02d}: bán mới {_so(r.get('ban_moi_ngay'))}, online "
+               f"{_so(r.get('online_ngay'))}"),
+            _o("Số ngày có số", f"{int(r.get('so_ngay_co_so') or 0)}/{ngay}",
+               "Chưa có số trong 2 tháng" if ngay_lien is None else
+               ("Có số ngày gần nhất" if ngay_lien == 0 else f"{ngay_lien} ngày liền chưa có số")),
+            _o("V.VIP", _so(r.get("vvip")), f"VVIP/PTTB {_pct(r.get('kem_vvip'))}"),
+            _o("Camera", _so(r.get("camera")), f"Camera/PTTB {_pct(r.get('kem_camera'))}"),
+            _o("Chưa online", _so(r.get("ton")), f"{_so(r.get('ton_qua_7'))} hợp đồng chờ từ 7 ngày"),
+            _o("Online trong 1 ngày", _pct(r.get("onl_1_ngay")), "Trong ngày tạo hoặc hôm sau"),
+            _o("Đủ 3 DV · Trả trước", f"{_pct(r.get('du_3'))} · {_pct(r.get('tra_truoc'))}"),
+            _o("Tuần này", _so(r.get("tuan_nay")), f"Tuần trước {_so(r.get('tuan_truoc'))} · NSLĐ kỳ "
+                                                   f"trước {r.get('ket_luan') or '–'}"),
+        ], className="ct-luoi"),
+        html.H4("Online và bán mới từng ngày"),
+        dcc.Graph(figure=_bieu_do(ds, height=250), config={"displayModeBar": False,
+                                                           "responsive": True}),
+        html.H4(f"Hợp đồng chưa online ({len(cho)})"),
+        dag.AgGrid(
+            className="ag-theme-quartz ag-theme-ftel", rowData=cho.to_dict("records"),
+            columnDefs=[{"field": "hop_dong", "headerName": "Hợp đồng", "flex": 1, "minWidth": 110},
+                        {"field": "goi_dich_vu", "headerName": "Gói", "flex": .8, "minWidth": 80},
+                        {"field": "nguon_ban", "headerName": "Nguồn", "flex": .8, "minWidth": 80},
+                        {"field": "ngay_tao", "headerName": "Ngày tạo", "flex": 1, "minWidth": 100},
+                        {"field": "so_ngay_cho", "headerName": "Số ngày chờ", "flex": .8,
+                         "minWidth": 90, "type": "numericColumn",
+                         "cellStyle": {"styleConditions": [
+                             {"condition": "params.value >= 7", "style": DO}]}}],
+            dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight",
+                             "pagination": True, "paginationPageSize": 10,
+                             "paginationPageSizeSelector": False, "localeText": LOCALE_VI},
+            style={"width": "100%"}) if len(cho) else
+        html.Div("Không có hợp đồng nào đang chờ online.", className="desc"),
+    ]
+    return tieu_de, than
 
 
 # ------------------------------------------------------------------ callback
 def register(app):
-    @app.callback(Output("bp-date", "date"), Input("bp-lui", "n_clicks"),
-                  Input("bp-toi", "n_clicks"), Input("bp-moinhat", "n_clicks"),
-                  State("bp-date", "date"), prevent_initial_call=True)
-    def _chon_ngay(_a, _b, _c, hien_tai):
-        ngays = cac_ngay_co_du_lieu()
-        if not ngays:
-            return no_update
-        d = hien_tai or ngays[-1]
-        if ctx.triggered_id == "bp-lui":
-            truoc = [x for x in ngays if x < d]
-            return truoc[-1] if truoc else no_update
-        if ctx.triggered_id == "bp-toi":
-            sau = [x for x in ngays if x > d]
-            return sau[0] if sau else no_update
-        return ngays[-1]
+    gan_chon_ngay(app, "bp")
 
     @app.callback(
         Output("bp-kpi", "children"), Output("bp-badge", "children"),
         Output("bp-canh-bao", "children"), Output("bp-mo-ta-nv", "children"),
         Output("bp-nv", "columnDefs"), Output("bp-nv", "rowData"),
+        Output("bp-nv", "pinnedBottomRowData"),
         Output("bp-so-sanh", "columnDefs"), Output("bp-so-sanh", "rowData"),
-        Output("bp-ngay", "figure"), Output("bp-chi-tiet", "children", allow_duplicate=True),
+        Output("bp-mo-ta-ss", "children"), Output("bp-ngay", "figure"),
         Input("bp-date", "date"), Input("bp-phong", "value"), Input("bp-loc", "value"),
-        prevent_initial_call="initial_duplicate")
-    def _cap_nhat(ngay_iso, code, loc):
+        Input("bp-xem", "value"))
+    def _cap_nhat(ngay_iso, code, loc, xem):
         if not duoc_xem_phong(code) or not ngay_iso:
             chan = alert("Không có quyền xem phòng này." if ngay_iso else "Chưa có số liệu.", "bad")
-            return [], "", chan, "", [], [], [], [], go.Figure(), ""
+            return [], "", chan, "", [], [], [], [], [], "", go.Figure()
         d = date.fromisoformat(ngay_iso)
         thang, ngay = f"{d.year}-{d.month:02d}", d.day
         tam_tinh, luc = trang_thai_ngay(ngay_iso)
@@ -386,41 +445,54 @@ def register(app):
         du_lieu = nv[nv.loai_dong == "data"]
         can_chu_y = du_lieu[du_lieu.chu_y.fillna("") != ""]
         hien = can_chu_y if loc == "chu_y" else du_lieu
-        rows = hien.to_dict("records") + [tong]
 
-        badge = (html.Span([html.I(className="cham nhap-nhay"), f"Đang cập nhật · số lúc {luc:%H:%M}"],
-                           className="badge warn") if tam_tinh else
-                 html.Span([html.I(className="cham"), "Đã chốt số"], className="badge ok")) \
-            if luc else ""
-        canh_bao = []
-        if tam_tinh:
-            canh_bao.append(alert([html.B(f"Ngày {ngay:02d}/{d.month:02d} đang cập nhật. "),
-                                   f"Số tính đến {luc:%H:%M}."], "warn"))
+        badge = ""
+        if luc:
+            badge = (html.Span([html.I(className="cham nhap-nhay"),
+                                f"Đang cập nhật · số lúc {luc:%H:%M}"], className="badge warn")
+                     if tam_tinh else
+                     html.Span([html.I(className="cham"), "Đã chốt số"], className="badge ok",
+                               title=f"Lần nạp số gần nhất: {luc:%H:%M %d/%m/%Y}"))
+        canh_bao = alert([html.B(f"Ngày {ngay:02d}/{d.month:02d} đang cập nhật. "),
+                          f"Số tính đến {luc:%H:%M}, phòng chưa đủ mục tiêu ngày ghi “Chưa đạt”."],
+                         "warn") if tam_tinh else ""
         mo_ta = (f"{len(du_lieu)} nhân sự · {len(can_chu_y)} người cần chú ý · luỹ kế 01 - "
                  f"{ngay:02d}/{d.month:02d}")
+        so_phong = int(ss.so_phong.max() or 0)
+        mo_ta_ss = (f"Hạng trong {so_phong} phòng kinh doanh (IBB và địa bàn). Mức chung với tỷ lệ "
+                    "là của toàn chi nhánh, với số lượng là bình quân một phòng.")
         return (_kpis(thang, ngay, dong, ss, tam_tinh), badge, canh_bao, mo_ta,
-                _cot_nv(thang, ngay, tong), rows, COT_SO_SANH, _dong_so_sanh(ss),
-                _bieu_do_ngay(thang, ngay, code, dong.get("mt_ngay")), "")
+                _cot_nv(thang, ngay, tong, xem or "ban"), hien.to_dict("records"), [tong],
+                COT_SO_SANH, _dong_so_sanh(ss), mo_ta_ss,
+                _bieu_do(bp.dien_bien_ngay(thang, ngay, code), dong.get("mt_ngay")))
 
-    @app.callback(Output("bp-chi-tiet", "children"), Input("bp-nv", "cellClicked"),
-                  State("bp-nv", "rowData"), State("bp-date", "date"), State("bp-phong", "value"),
+    @app.callback(Output("bp-nv", "dashGridOptions"), Input("bp-tim", "value"),
                   prevent_initial_call=True)
-    def _xem_chi_tiet(o, rows, ngay_iso, code):
-        if not o or not duoc_xem_phong(code) or not ngay_iso:
-            return no_update
-        i = o.get("rowIndex")
-        acc = (o.get("data") or {}).get("acc_norm") if o.get("data") else (
-            rows[i]["acc_norm"] if rows and i is not None and i < len(rows) else None)
-        if not acc or acc == "TOTAL":
-            return ""
+    def _tim(chu):
+        p = Patch()
+        p["quickFilterText"] = chu or ""
+        return p
+
+    @app.callback(Output("bp-ngan", "className"), Output("bp-ngan-tieu-de", "children"),
+                  Output("bp-ngan-than", "children"),
+                  Input("bp-nv", "cellClicked"), Input("bp-ngan-dong", "n_clicks"),
+                  Input("bp-ngan-nen", "n_clicks"), Input("bp-phong", "value"),
+                  Input("bp-date", "date"), prevent_initial_call=True)
+    def _ngan(o, _dong, _nen, code, ngay_iso):
+        if ctx.triggered_id != "bp-nv":
+            return "ngan", no_update, no_update
+        acc = (o or {}).get("rowId")              # getRowId = acc_norm của nhân sự
+        if not acc or acc == "TOTAL" or not duoc_xem_phong(code) or not ngay_iso:
+            return no_update, no_update, no_update
         d = date.fromisoformat(ngay_iso)
         thang = f"{d.year}-{d.month:02d}"
-        # tính lại ở máy chủ: chỉ hiện nếu người này đúng là nhân sự của phòng đang được phép xem
+        # tính lại ở máy chủ: chỉ mở nếu người này đúng là nhân sự của phòng được phép xem
         nv = bp.bang_nhan_su(thang, d.day, code)
         r = nv[(nv.acc_norm == acc) & (nv.loai_dong == "data")]
         if r.empty:
-            return ""
-        return _chi_tiet(thang, d.day, code, r.iloc[0].to_dict())
+            return no_update, no_update, no_update
+        tieu_de, than = _ngan_noi_dung(thang, d.day, code, r.iloc[0].to_dict())
+        return "ngan mo", tieu_de, than
 
     @app.callback(Output("bp-tai-xuong", "data"), Input("bp-png", "n_clicks"),
                   Input("bp-xls", "n_clicks"), State("bp-date", "date"), State("bp-phong", "value"),
@@ -436,4 +508,3 @@ def register(app):
         noi_dung, ten = ham(thang, d.day, code, tam_tinh=tam_tinh, luc=luc)
         ghi_log("xuat_bao_cao_phong", f"{'png' if la_anh else 'xlsx'} {code} {ngay_iso}")
         return dcc.send_bytes(noi_dung, ten)
-

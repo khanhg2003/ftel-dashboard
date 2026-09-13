@@ -238,23 +238,26 @@ def so_sanh_phong(thang: str, ngay: int, code: str,
 
 
 def dien_bien_ngay(thang: str, ngay: int, code: str) -> pd.DataFrame:
-    d = daily_counts(thang, "online")
-    if code not in d.index:
-        return pd.DataFrame({"ngay": [], "online": []})
-    s = d.loc[code]
-    s = s[[c for c in s.index if c <= ngay]]
-    return pd.DataFrame({"ngay": list(s.index), "online": list(s.values)})
+    """Online và bán mới (hợp đồng tạo mới) từng ngày của phòng."""
+    ngays = list(range(1, ngay + 1))
+    out = pd.DataFrame({"ngay": ngays})
+    for metric in ("online", "ban_moi"):
+        d = daily_counts(thang, metric)
+        out[metric] = [int(d.at[code, c]) if code in d.index and c in d.columns else 0 for c in ngays]
+    return out
 
 
 def dien_bien_nhan_su(thang: str, ngay: int, acc_norm: str) -> pd.DataFrame:
-    """Online từng ngày của một nhân sự trong tháng."""
+    """Online và bán mới từng ngày của một nhân sự trong tháng."""
     tu, den = f"{thang}-01", f"{thang}-{ngay:02d}"
-    df = _q("""SELECT ngay_online, COUNT(*) AS n FROM fact_internet
-               WHERE acc_norm = :a AND ngay_online >= :tu AND ngay_online <= :den
-               GROUP BY ngay_online""", a=acc_norm, tu=tu, den=den)
-    dem = {pd.Timestamp(str(x)[:10]).day: int(n) for x, n in zip(df.ngay_online, df.n)}
-    return pd.DataFrame({"ngay": list(range(1, ngay + 1)),
-                         "online": [dem.get(i, 0) for i in range(1, ngay + 1)]})
+    out = pd.DataFrame({"ngay": list(range(1, ngay + 1))})
+    for ten, cot in (("online", "ngay_online"), ("ban_moi", "ngay_tao_hd")):
+        df = _q(f"""SELECT {cot} AS d, COUNT(*) AS n FROM fact_internet
+                    WHERE acc_norm = :a AND {cot} >= :tu AND {cot} <= :den
+                    GROUP BY {cot}""", a=acc_norm, tu=tu, den=den)
+        dem = {pd.Timestamp(str(x)[:10]).day: int(n) for x, n in zip(df.d, df.n)}
+        out[ten] = [dem.get(i, 0) for i in out.ngay]
+    return out
 
 
 def hop_dong_cho_cua_nhan_su(acc_norm: str, code: str) -> pd.DataFrame:
