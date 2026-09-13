@@ -15,9 +15,8 @@ from app.models import (AuditLog, FactCamera, FactFptPlay, FactInternet, HrMonth
 from app.org import phong_order
 
 ph = PasswordHasher()
-ROLES = [("admin", "Quản trị (BGD)"), ("operator", "Nhập liệu"), ("bay", "Giám đốc Bầy"),
-         ("phong", "Trưởng phòng"), ("nhanvien", "Nhân viên")]
-ROLE_TEN = dict(ROLES)
+ROLES = [("admin", "Quản trị (BGD)"), ("operator", "Nhập liệu"), ("phong", "Trưởng phòng")]
+ROLE_TEN = {**dict(ROLES), "bay": "Trưởng phòng", "nhanvien": "Nhân viên"}
 TEN_ROLE = {v: k for k, v in ROLES}
 FACTS = {"internet": FactInternet, "fptplay": FactFptPlay, "camera": FactCamera}
 
@@ -30,7 +29,8 @@ def danh_sach_user() -> pd.DataFrame:
     if df.empty:
         return df
     df["vai_tro"] = df["role"].map(ROLE_TEN).fillna(df["role"])
-    df["pham_vi"] = df["scope"].apply(_scope_text)
+    df["pham_vi"] = [_scope_text(s) if r in ("phong", "bay") else "Toàn chi nhánh"
+                     for s, r in zip(df["scope"], df["role"])]
     df["trang_thai"] = df.apply(
         lambda r: "Đang khoá" if (r.locked_until and str(r.locked_until) > str(datetime.now()))
         else ("Đang dùng" if r.active else "Ngừng dùng"), axis=1)
@@ -40,7 +40,7 @@ def danh_sach_user() -> pd.DataFrame:
 
 def _scope_text(scope) -> str:
     if not scope:
-        return "Toàn chi nhánh"
+        return "Chưa chọn phòng"
     try:
         ma = json.loads(scope)
     except (TypeError, ValueError):
@@ -48,7 +48,7 @@ def _scope_text(scope) -> str:
     ten = {p["code"]: p["ten"] for p in phong_order()}
     from app.org import bay_info
     ten.update({c: b["ten"] for c, b in bay_info().items()})
-    return ", ".join(ten.get(m, m) for m in ma) if ma else "Toàn chi nhánh"
+    return ", ".join(ten.get(m, m) for m in ma) if ma else "Chưa chọn phòng"
 
 
 def luu_user(rows: list[dict], nguoi_thuc_hien: str) -> tuple[int, list[str]]:
@@ -71,10 +71,13 @@ def luu_user(rows: list[dict], nguoi_thuc_hien: str) -> tuple[int, list[str]]:
                 canh_bao.append(f"{username}: mật khẩu khởi tạo là Ftel@2026")
             row.ho_ten = norm_text(r.get("ho_ten")) or username
             row.email = norm_text(r.get("email")) or None
-            row.role = TEN_ROLE.get(norm_text(r.get("vai_tro")), r.get("vai_tro") or "phong")
+            role = TEN_ROLE.get(norm_text(r.get("vai_tro")), r.get("vai_tro") or "phong")
+            row.role = role if role in dict(ROLES) else "phong"
             row.ma_nv = norm_manv(r.get("ma_nv")) or None
             pv = [x.strip() for x in norm_text(r.get("pham_vi")).split(",") if x.strip()]
             pv = [ten2ma.get(x, x) for x in pv if x.lower() != "toàn chi nhánh"]
+            if row.role != "phong":
+                pv = []                  # Quản trị / Nhập liệu luôn xem toàn chi nhánh
             row.scope = json.dumps(pv, ensure_ascii=False) if pv else None
             row.active = norm_text(r.get("trang_thai")) != "Ngừng dùng"
             if norm_text(r.get("trang_thai")) != "Đang khoá":
@@ -86,12 +89,8 @@ def luu_user(rows: list[dict], nguoi_thuc_hien: str) -> tuple[int, list[str]]:
 
 
 def pham_vi_options() -> list[dict]:
-    """Danh sách phòng + bầy để chọn phạm vi dữ liệu (không phải gõ tay)."""
-    from app.org import bay_info
-    ds = [{"label": f"Bầy · {b['ten']}", "value": c}
-          for c, b in sorted(bay_info().items(), key=lambda kv: kv[1]["thu_tu"])]
-    ds += [{"label": f"Phòng · {p['ten']}", "value": p["code"]} for p in phong_order()]
-    return ds
+    """Danh sách phòng để chọn phòng phụ trách của Trưởng phòng (không phải gõ tay)."""
+    return [{"label": p["ten"], "value": p["code"]} for p in phong_order()]
 
 
 def them_user(d: dict, nguoi_thuc_hien: str) -> tuple[bool, str]:
@@ -108,8 +107,10 @@ def them_user(d: dict, nguoi_thuc_hien: str) -> tuple[bool, str]:
     if role not in ROLE_TEN:
         return False, "Vai trò không hợp lệ."
     pham_vi = [x for x in (d.get("pham_vi") or []) if x]
-    if role in ("bay", "phong", "nhanvien") and not pham_vi:
-        return False, "Vai trò này bắt buộc chọn phạm vi dữ liệu."
+    if role == "phong" and not pham_vi:
+        return False, "Trưởng phòng bắt buộc chọn phòng phụ trách."
+    if role != "phong":
+        pham_vi = []
     with session_scope() as s:
         if s.execute(select(User).where(User.username == username)).scalars().first():
             return False, f"Tài khoản “{username}” đã tồn tại."

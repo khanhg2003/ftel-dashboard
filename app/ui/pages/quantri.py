@@ -48,16 +48,16 @@ def _hop_thoai_user():
             _o("Họ tên", dcc.Input(id="qt-f-hoten", type="text", className="inp")),
             _o("Vai trò *", dcc.Dropdown(id="qt-f-role", clearable=False, value="phong",
                                          options=[{"label": t, "value": v} for v, t in ROLES])),
-            _o("Phạm vi dữ liệu", dcc.Dropdown(id="qt-f-phamvi", multi=True,
-                                               placeholder="Để trống = toàn chi nhánh",
+            _o("Phòng phụ trách", dcc.Dropdown(id="qt-f-phamvi", multi=True,
+                                               placeholder="Chỉ chọn cho Trưởng phòng",
                                                options=pham_vi_options())),
             _o("Mã NV", dcc.Input(id="qt-f-manv", type="text", className="inp")),
             _o("Email", dcc.Input(id="qt-f-email", type="text", className="inp")),
             _o("Mật khẩu khởi tạo *", dcc.Input(id="qt-f-matkhau", type="text", value="Ftel@2026",
                                                 className="inp")),
         ], className="form-grid"),
-        html.Div("Quản trị và Nhập liệu xem toàn chi nhánh - để trống phạm vi. "
-                 "Giám đốc Bầy chọn bầy, Trưởng phòng chọn phòng.", className="desc"),
+        html.Div("Quản trị và Nhập liệu không cần chọn phòng. Trưởng phòng chọn phòng mình "
+                 "phụ trách (kiêm nhiệm thì chọn nhiều phòng).", className="desc"),
         html.Div(id="qt-modal-user-msg"),
     ], nut_chinh="Tạo tài khoản")
 
@@ -122,9 +122,10 @@ def layout():
                            defaultColDef={"resizable": True, "sortable": True},
                            dashGridOptions={**GRID, "domLayout": "normal"},
                            getRowStyle=ROW_STYLE, style={"width": "100%", "height": "340px"}),
-                html.Div("Quản trị: toàn quyền · Nhập liệu: chỉ nạp dữ liệu · Giám đốc Bầy: "
-                         "các phòng trong bầy · Trưởng phòng: phòng mình · Nhân viên: số của "
-                         "bản thân.", className="desc", style={"marginTop": "12px"}),
+                html.Div("Quản trị (BGĐ): toàn quyền, xem chi tiết nhân sự mọi phòng · Nhập liệu: "
+                         "nạp dữ liệu và xem số chung, không xem nhân sự · Trưởng phòng: xem số "
+                         "chung toàn chi nhánh, chi tiết nhân sự chỉ của phòng phụ trách.",
+                         className="desc", style={"marginTop": "12px"}),
             ], title="Tài khoản người dùng"),
         ]),
 
@@ -189,8 +190,9 @@ def _user_cols():
         {"field": "vai_tro", "headerName": "Vai trò", "editable": True, "minWidth": 140,
          "flex": 1.3, "cellEditor": "agSelectCellEditor",
          "cellEditorParams": {"values": [t for _, t in ROLES]}},
-        {"field": "pham_vi", "headerName": "Phạm vi dữ liệu", "editable": True, "minWidth": 180,
-         "flex": 2, "tooltipField": "pham_vi"},
+        {"field": "pham_vi", "headerName": "Phòng phụ trách", "editable": True, "minWidth": 180,
+         "flex": 2, "tooltipField": "pham_vi",
+         "headerTooltip": "Chỉ dùng cho Trưởng phòng. Nhiều phòng thì cách nhau dấu phẩy"},
         {"field": "ma_nv", "headerName": "Mã NV", "editable": True, "minWidth": 90, "flex": .8},
         {"field": "email", "headerName": "Email", "editable": True, "minWidth": 150, "flex": 1.4},
         {"field": "trang_thai", "headerName": "Trạng thái", "editable": True, "minWidth": 120,

@@ -95,10 +95,11 @@ app = Dash(__name__, server=server, suppress_callback_exceptions=True,
 NAV = [
     ("Báo cáo", [
         ("/", "Báo cáo Tổng", "dashboard", None),
+        ("/phong", "Báo cáo phòng", "table", "nhansu"),
         ("/phantich", "Phân tích bán hàng", "compare", None),
         ("/tracking", "Tracking ngày", "calendar", None),
         ("/sosanh", "So sánh kỳ", "compare", None),
-        ("/hr", "Hiệu suất nhân sự", "users", None),
+        ("/hr", "Hiệu suất nhân sự", "users", "nhansu"),
     ]),
     ("Vận hành", [
         ("/chatluong", "Chất lượng dữ liệu", "shield", None),
@@ -124,6 +125,8 @@ def _sidebar(path: str):
             if quyen == "upload" and not current_user.duoc_upload:
                 continue
             if quyen == "settings" and not current_user.duoc_cau_hinh:
+                continue
+            if quyen == "nhansu" and not current_user.duoc_xem_nhan_su:
                 continue
             cls = "nav-item active" if path == href else "nav-item"
             muc_hien.append(dcc.Link([icon(ico), html.Span(label)], href=href, className=cls))
@@ -245,11 +248,16 @@ def _router(path):
     from app.ui.pages import hr as hr_page
     from app.ui.pages import quantri
     from app.ui.pages import settings as settings_page
-    from app.ui.pages import phantich, sosanh, tongquan, tracking, upload
+    from app.ui.pages import phantich, phong, sosanh, tongquan, tracking, upload
 
     path = path or "/"
     if path == "/huongdan":
         return huongdan.layout(), huongdan.topbar()
+    if path in ("/phong", "/hr") and not current_user.duoc_xem_nhan_su:
+        return (html.Div("Bạn không có quyền xem chi tiết nhân sự."),
+                _topbar_simple("Báo cáo phòng" if path == "/phong" else "Hiệu suất nhân sự"))
+    if path == "/phong":
+        return phong.layout(), phong.topbar()
     if path == "/phantich":
         return phantich.layout(), phantich.topbar()
     if path == "/tracking":
@@ -297,9 +305,9 @@ def _register_pages():
     from app.ui.pages import hr as hr_page
     from app.ui.pages import quantri
     from app.ui.pages import settings as settings_page
-    from app.ui.pages import phantich, sosanh, tongquan, tracking, upload
+    from app.ui.pages import phantich, phong, sosanh, tongquan, tracking, upload
 
-    for mod in (tongquan, phantich, tracking, sosanh, hr_page, chatluong, upload, quantri, settings_page,
+    for mod in (tongquan, phong, phantich, tracking, sosanh, hr_page, chatluong, upload, quantri, settings_page,
                 huongdan):
         mod.register(app)
 

@@ -16,6 +16,7 @@ from dash import Input, Output, dcc, html
 from flask_login import current_user
 
 from app import phan_tich as pt
+from app.auth import loc_nhan_su
 from app.config import rules_config
 from app.metrics import cac_thang_co_du_lieu
 from app.org import loc_chi_nhanh
@@ -419,12 +420,17 @@ def register(app):
 
         ton_phong = pt.ton_theo_tuoi(ton, thang)
         meta_ten = dict(zip(ton_phong.phong_code, ton_phong.phong)) if len(ton_phong) else {}
+        pham_vi_nv = loc_nhan_su(scope, current_user.phong_nhan_su())
         ds = ton[ton.so_ngay_cho >= 7].copy()
+        if pham_vi_nv is not None:          # danh sách hợp đồng có acc nhân viên -> theo quyền
+            ds = ds[ds.phong_code.isin(set(pham_vi_nv))]
         ds["phong"] = [meta_ten.get(c, "Chưa gán phòng") for c in ds.phong_code]
         ds["ngay_tao"] = ds.ngay_tao_hd.dt.strftime("%d/%m/%Y")
         ds = ds.sort_values("so_ngay_cho", ascending=False)
 
         nv = pt.theo_nhan_vien(df, ton, thang)
+        if pham_vi_nv is not None and not nv.empty:
+            nv = nv[nv.phong_code.isin(set(pham_vi_nv))]
         if not nv.empty and loc_nv == "khong_kem":
             nv = nv[(nv.vvip == 0) | (nv.camera == 0)]
         elif not nv.empty and loc_nv == "ton":

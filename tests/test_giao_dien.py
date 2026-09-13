@@ -133,7 +133,7 @@ def test_them_va_xoa_tai_khoan():
     ({"username": "", "mat_khau": "Kiemthu@2026"}, "Chưa nhập"),
     ({"username": "zz_x", "mat_khau": "123"}, "8 ký tự"),
     ({"username": "zz_x", "mat_khau": "Kiemthu@2026", "role": "phong", "pham_vi": []},
-     "phạm vi"),
+     "phòng phụ trách"),
 ])
 def test_tao_tai_khoan_thieu_thong_tin_thi_bao_loi(du_lieu, loi_mong_doi):
     from app.admin_service import them_user

@@ -18,7 +18,8 @@ Sau khi chạy, màn hình in sẵn địa chỉ để phát cho mọi người,
 
 **Tài khoản đầu tiên:** `admin` / `Ftel@2026` — đây là mật khẩu mẫu, mỗi lần khởi động
 `serve.py` sẽ cảnh báo nếu chưa đổi. Vào **Quản trị → Tài khoản** đổi ngay, rồi tạo tài
-khoản cho từng người (vai trò *Giám đốc Bầy* / *Trưởng phòng* chỉ xem đúng phạm vi của mình).
+khoản cho từng người (*Trưởng phòng* chọn phòng phụ trách: xem số chung toàn chi nhánh, chi tiết
+nhân sự chỉ của phòng mình).
 
 ### Kiểm tra app còn sống
 `http://<máy-chủ>:8050/healthz` → `{"status": "ok", "du_lieu_moi_nhat": "2026-09-11", ...}`.

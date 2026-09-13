@@ -19,11 +19,16 @@ login_manager.login_view = "login"
 KHOA_SAU = 5            # sai 5 lần thì khoá
 KHOA_PHUT = 15
 
-ROLE_LABEL = {"admin": "Quản trị (BGD)", "operator": "Nhập liệu", "bay": "Giám đốc Bầy",
+ROLE_LABEL = {"admin": "Quản trị (BGD)", "operator": "Nhập liệu",
               "phong": "Trưởng phòng", "nhanvien": "Nhân viên"}
 ROLE_UPLOAD = {"admin", "operator"}
-ROLE_CHAT = {"admin", "bay"}
+ROLE_CHAT = {"admin"}
 ROLE_SETTINGS = {"admin"}
+# Hai lớp dữ liệu:
+# - SỐ CHUNG (theo phòng, bầy, chi nhánh): Quản trị, Nhập liệu, Trưởng phòng đều xem toàn chi nhánh.
+# - CHI TIẾT NHÂN SỰ (tên, acc, số từng người): Quản trị xem mọi phòng, Trưởng phòng chỉ phòng
+#   mình phụ trách, Nhập liệu không xem.
+ROLE_XEM_NHAN_SU = {"admin", "phong"}
 
 
 class SessionUser(UserMixin):
@@ -34,6 +39,9 @@ class SessionUser(UserMixin):
         self.role = row.role
         self.ma_nv = row.ma_nv
         self.scope = json.loads(row.scope) if row.scope else []
+        if self.role == "bay":       # vai trò Giám đốc Bầy đã bỏ: tài khoản cũ quy về Trưởng phòng
+            self.role = "phong"      # của các phòng trong bầy đó, không bị mở rộng quyền
+            self.scope = _phong_cua_bay(self.scope)
 
     # --- quyền
     @property
@@ -48,17 +56,25 @@ class SessionUser(UserMixin):
     def duoc_cau_hinh(self) -> bool:
         return self.role in ROLE_SETTINGS
 
-    def phong_duoc_xem(self) -> list[str] | None:
-        """None = xem tất cả. Ngược lại là danh sách mã phòng."""
-        from app.org import phong_order
+    @property
+    def duoc_xem_nhan_su(self) -> bool:
+        return self.role in ROLE_XEM_NHAN_SU
 
-        if self.role in ("admin", "operator"):
+    def phong_duoc_xem(self) -> list[str] | None:
+        """Phạm vi SỐ CHUNG. None = toàn chi nhánh, ngược lại là danh sách mã phòng."""
+        if self.role in ("admin", "operator", "phong"):
             return None
-        if self.role == "bay":
-            return [p["code"] for p in phong_order() if p["bay"] in self.scope]
         if self.role == "nhanvien":
             return self.phong_cua_minh()
         return list(self.scope)
+
+    def phong_nhan_su(self) -> list[str] | None:
+        """Phạm vi CHI TIẾT NHÂN SỰ. None = mọi phòng, [] = không được xem ai."""
+        if self.role == "admin":
+            return None
+        if self.role == "phong":
+            return list(self.scope)
+        return []
 
     def phong_cua_minh(self) -> list[str]:
         """Nhân viên chỉ thấy phòng của chính mình (tra theo mã NV, sau đó tới phạm vi)."""
@@ -73,6 +89,20 @@ class SessionUser(UserMixin):
             if codes:
                 return sorted(set(codes))
         return list(self.scope)
+
+
+def _phong_cua_bay(ma_bay: list[str]) -> list[str]:
+    from app.org import phong_order
+    return [p["code"] for p in phong_order() if p["bay"] in set(ma_bay)]
+
+
+def loc_nhan_su(scope_so: list[str] | None, scope_nhan_su: list[str] | None) -> list[str] | None:
+    """Giao của phạm vi đang lọc trên trang (chi nhánh...) với phạm vi được xem nhân sự."""
+    if scope_nhan_su is None:
+        return scope_so
+    if scope_so is None:
+        return list(scope_nhan_su)
+    return [c for c in scope_so if c in set(scope_nhan_su)]
 
 
 @login_manager.user_loader

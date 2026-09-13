@@ -26,15 +26,14 @@ Ba việc app làm giúp:
 - Gõ sai mật khẩu 5 lần thì tài khoản bị khoá 15 phút. Quên mật khẩu thì nhờ người quản trị
   đặt lại giúp.
 
-Mỗi người chỉ nhìn thấy phần của mình:
+Số liệu chia hai lớp: **số chung** (theo phòng, bầy, chi nhánh) và **chi tiết nhân sự**
+(tên, acc, số từng người).
 
-| Vai trò | Thấy được gì |
-|---|---|
-| Quản trị (BGD) | Toàn chi nhánh, sửa được mọi thứ |
-| Nhập liệu | Toàn chi nhánh, chỉ để tải file lên |
-| Giám đốc Bầy | Các phòng trong bầy mình |
-| Trưởng phòng | Phòng mình |
-| Nhân viên | Số của chính mình |
+| Vai trò | Số chung | Chi tiết nhân sự (Báo cáo phòng, Hiệu suất nhân sự) |
+|---|---|---|
+| Quản trị (BGĐ) | Toàn chi nhánh, sửa được mọi thứ | Mọi phòng |
+| Trưởng phòng | Toàn chi nhánh (Báo cáo Tổng, Tracking, Phân tích, Chất lượng dữ liệu) | Chỉ phòng mình phụ trách (kiêm nhiệm thì nhiều phòng) |
+| Nhập liệu | Toàn chi nhánh, nạp file | Không xem |
 
 ---
 

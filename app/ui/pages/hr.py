@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, dcc, html
 from flask_login import current_user
 
+from app.auth import loc_nhan_su
 from app.config import rules_config
 from app.hr_metrics import (canh_bao_nhan_su, duong_cong_nang_suat,
                             hieu_suat_nhan_su, thoi_gian_trien_khai,
@@ -132,7 +133,8 @@ def register(app):
                   Input("hr-thang", "value"), Input("hr-nhom", "value"), Input("hr-loc", "value"),
                   Input("hr-cn", "value"), Input("hr-xep", "value"))
     def _cap_nhat(thang, nhom, loc, chi_nhanh, xep_hang):
-        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
+        scope = loc_nhan_su(loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang),
+                            current_user.phong_nhan_su())
         df = hieu_suat_nhan_su(thang, chi_phong=scope)
         hr_thang = df.hr_thang.iloc[0] if len(df) and df.hr_thang.notna().any() else None
 

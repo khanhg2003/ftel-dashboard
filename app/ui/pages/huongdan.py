@@ -54,6 +54,11 @@ def layout():
                     "Mỗi dòng một phòng, cuối mỗi bầy có dòng tổng, dưới cùng là tổng chi nhánh. ",
                     html.B("Số liệu cộng dồn"), " từ ngày 01 đến ngày đang chọn; nhóm cột cuối là "
                     "kết quả riêng của ngày đó. Màu ô: xanh đạt, vàng sát ngưỡng, đỏ cần xử lý."]),
+                _muc("Báo cáo phòng", "Trưởng phòng theo dõi phòng và từng nhân sự", [
+                    "Sáu chỉ số và hạng của phòng, bảng nhân sự xếp hạng trong phòng, người cần chú ý "
+                    "(nhiều ngày chưa có số, tuần sụt, hợp đồng chờ lâu). Bấm một người để xem chi "
+                    "tiết. Nút ", html.B("Chụp ảnh"), " tạo ảnh gửi nhóm Zalo của phòng. Trưởng phòng "
+                    "chỉ xem được phòng mình phụ trách."]),
                 _muc("Phân tích bán hàng", "Bán có tốt không, đang tắc ở đâu", [
                     "Tỷ lệ bán kèm V.VIP / Camera, trả trước, online trong 1 ngày theo từng phòng và "
                     "nhân viên - màu so với mức chung chi nhánh. Mục ", html.B("Số tồn theo thời "
@@ -77,7 +82,7 @@ def layout():
                      "tháng nạp lại bao nhiêu lần cũng không nhân đôi số: hợp đồng đã có được cập "
                      "nhật, tháng nào tự về tháng đó theo Ngày online."),
                 _muc("Quản trị", "Tài khoản, danh mục nhân sự, lịch sử nạp",
-                     "Cấp tài khoản theo vai trò và phạm vi, khai acc người bán thuộc phòng nào, "
+                     "Cấp tài khoản theo vai trò (Trưởng phòng chọn phòng phụ trách), khai acc người bán thuộc phòng nào, "
                      "gỡ bỏ lần nạp sai."),
                 _muc("Cấu hình", "Cơ cấu tổ chức và chỉ tiêu",
                      "Thêm bầy, thêm phòng, xếp lại cơ cấu theo từng tháng, nhập chỉ tiêu - "

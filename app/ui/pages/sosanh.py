@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, State, ctx, dcc, html
 from flask_login import current_user
 
+from app.auth import loc_nhan_su
 from app.metrics import METRIC_LABEL, cac_ngay_co_du_lieu, so_sanh_acc, so_sanh_ky
 from app.org import loc_chi_nhanh, phong_order
 from app.ui.components import card, chi_nhanh_control, field, kpi, seg_control
@@ -221,7 +222,8 @@ def register(app):
             scope = kd if scope is None else [c for c in scope if c in set(kd)]
         ky1, ky2 = (k1_tu, k1_den), (k2_tu, k2_den)
         dfp = so_sanh_ky(ky1, ky2, metric, chi_phong=scope)
-        dfa = so_sanh_acc(ky1, ky2, metric, chi_phong=scope)
+        dfa = so_sanh_acc(ky1, ky2, metric,
+                          chi_phong=loc_nhan_su(scope, current_user.phong_nhan_su()))
 
         t1, t2 = int(dfp.ky1.sum()), int(dfp.ky2.sum())
         chenh = t2 - t1
