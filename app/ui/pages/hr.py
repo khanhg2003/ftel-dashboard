@@ -18,10 +18,10 @@ import plotly.graph_objects as go
 from dash import Input, Output, Patch, State, dcc, html, no_update
 from flask_login import current_user
 
-from app import nsld
+from app import canh_bao, nsld
 from app.auth import ghi_log
 from app.export_phan_tich import xuat_phan_tich
-from app.hr_metrics import (LOAI_KINH_DOANH, MOC_THAM_NIEN, NGAY_KHONG_SO_CAO, TEN_NHOM,
+from app.hr_metrics import (LOAI_KINH_DOANH, MOC_THAM_NIEN, TEN_NHOM,
                             canh_bao_nhan_su, hieu_suat_nhan_su, tong_hop_tham_nien)
 from app.metrics import cac_ngay_co_du_lieu
 from app.org import phong_order
@@ -56,9 +56,8 @@ DINH_NGHIA = [
     ("So với cùng thâm niên", "Online của người đó so với trung vị những người cùng mốc thâm niên "
                               "ở phòng kinh doanh. +50% là bán hơn một nửa so với người cùng mốc."),
     ("VVIP/PTTB", "Số V.VIP online chia số online, cùng cách tính với Báo cáo Tổng."),
-    ("Cần trao đổi ngay", f"{NGAY_KHONG_SO_CAO} ngày gần nhất không có số online nào."),
-    ("Cần theo dõi", "Tuần này giảm từ một nửa so với tuần trước (tuần trước từ 3 số), "
-                     "hoặc NSLĐ chưa đạt."),
+    ("Trao đổi ngay", canh_bao.MO_TA_TRAO_DOI_NGAY + " Cùng quy tắc với Báo cáo phòng."),
+    ("Theo dõi", canh_bao.MO_TA_THEO_DOI),
 ]
 
 
@@ -350,7 +349,7 @@ def _bieu_do_tham_nien(df):
     nhan = [f"{m} th" if m in MOC_THAM_NIEN[:6] else f"{m}" for m in g.tham_nien_bucket]
     fig.add_trace(go.Bar(
         x=nhan, y=g.tb_online, marker_color=[MAU_NHOM.get(c, "#0072BC") for c in g.nhom_tham_nien],
-        text=[f"{v:.1f}" for v in g.tb_online], textposition="outside", cliponaxis=False,
+        text=[f"{v:.1f}".replace(".", ",") for v in g.tb_online], textposition="outside", cliponaxis=False,
         customdata=list(zip(g.so_nv, g.trung_vi, g.chua_co_so)),
         hovertemplate="Thâm niên %{x}<br>Bình quân %{y:.1f} online/người<br>"
                       "%{customdata[0]} người · trung vị %{customdata[1]}<br>"
@@ -569,11 +568,11 @@ def register(app):
         zero = int((dang_lam.online == 0).sum())
         notok = int((dang_lam.nsld == "Chưa đạt").sum())
         cb = canh_bao_nhan_su(thang, ngay=d.day, df=df)
-        cao = int((cb.muc_rui_ro == "Cao").sum()) if len(cb) else 0
+        cao = int((cb.muc_rui_ro == canh_bao.TRAO_DOI_NGAY).sum()) if len(cb) else 0
         theo_doi = len(cb) - cao
         moi = int(dang_lam.nhom_tham_nien.eq("MOI").sum())
         kpis = [
-            kpi("Nhân sự", f"{n}", f"{moi} người mới, 1-3 tháng" if hr_thang else "Đang làm"),
+            kpi("Nhân sự đang làm", f"{n}", f"{moi} người mới, 1-3 tháng" if hr_thang else "Đang làm"),
             kpi("Online bình quân", f"{tong / n:.1f}".replace(".", ",") if n else "–",
                 f"mỗi người · tổng {tong:,} online".replace(",", ".")),
             kpi("Chưa có số", f"{zero}", f"{zero / n * 100:.0f}% nhân sự" if n else "",
@@ -585,14 +584,15 @@ def register(app):
         ]
 
         if len(cb):
-            cb = cb.assign(muc=cb.muc_rui_ro.map({"Cao": "Trao đổi ngay", "Trung bình": "Theo dõi"}))
+            cb = cb.assign(muc=cb.muc_rui_ro)
         tom_tat = html.Div([
             html.Span(f"{cao} trao đổi ngay", className="badge bad" if cao else "badge ok"),
             html.Span(f"{theo_doi} theo dõi", className="badge warn" if theo_doi else "badge muted"),
         ], style={"display": "flex", "gap": "8px", "marginBottom": "10px"}) if len(cb) else html.Div(
             "Không có ai cần trao đổi trong phạm vi này.", className="desc")
-        mo_ta_cb = (f"{_ten_pham_vi(chon_phong).capitalize()} · tính đến {d:%d/%m}: "
-                    f"{NGAY_KHONG_SO_CAO} ngày chưa có số, tuần này giảm từ một nửa, NSLĐ chưa đạt")
+        mo_ta_cb = (f"{_ten_pham_vi(chon_phong).capitalize()} · tính đến {d:%d/%m} · trao đổi ngay: "
+                    f"từ {canh_bao.NGAY_TRAO_DOI_NGAY} ngày không có số · theo dõi: từ "
+                    f"{canh_bao.NGAY_THEO_DOI} ngày liền chưa có số, tuần này giảm từ một nửa, NSLĐ chưa đạt")
         mo_ta_tn = (f"Online bình quân mỗi người, luỹ kế 01-{d:%d/%m} · thâm niên theo "
                     f"{nsld_nhan}" if hr_thang else "Cần file NSLĐ để chia theo thâm niên")
         return (kpis, nguon, thong_bao, _cols_canh_bao(), _ban_ghi(cb) if len(cb) else [],
@@ -616,8 +616,11 @@ def register(app):
         if d is None:
             return _cols(xem), [], "", khung_cuon(0)
         df = _loc_bang(df, nhom, loc)
+        nghi = int((~df.dang_lam).sum())
+        so_nguoi = f"{len(df)} người" + (f" ({len(df) - nghi} đang làm, {nghi} đã nghỉ còn số trong kỳ)"
+                                         if nghi else "")
         return (_cols(xem), _ban_ghi(df),
-                f"{len(df)} người · {_ten_pham_vi(chon_phong)} · luỹ kế 01-{d:%d/%m/%Y}",
+                f"{so_nguoi} · {_ten_pham_vi(chon_phong)} · luỹ kế 01-{d:%d/%m/%Y}",
                 khung_cuon(len(df)))
 
     @app.callback(Output("hr-grid", "dashGridOptions"), Input("hr-tim", "value"),

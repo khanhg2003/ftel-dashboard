@@ -123,10 +123,10 @@ def test_canh_bao_co_ly_do_va_chi_xet_phong_kinh_doanh():
     df = hieu_suat_nhan_su(THANG, ngay=11)
     cb = canh_bao_nhan_su(THANG, ngay=11, df=df)
     assert len(cb) and (cb.ly_do.str.len() > 0).all()
-    assert set(cb.muc_rui_ro) <= {"Cao", "Trung bình"}
+    assert set(cb.muc_rui_ro) <= {"Trao đổi ngay", "Theo dõi"}
     kd = set(df[df.kd].acc_norm)
     assert set(cb.acc_norm) <= kd
-    assert (cb[cb.muc_rui_ro == "Cao"].tuan_nay == 0).all()
+    assert (cb[cb.muc_rui_ro == "Trao đổi ngay"].tuan_nay == 0).all()
 
 
 def test_trang_hieu_suat_dung_duoc():

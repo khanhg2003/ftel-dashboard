@@ -47,6 +47,18 @@ def _bang(kw: dict) -> None:
     kw["dashGridOptions"] = opts
 
 
+def _bieu_do() -> None:
+    """Biểu đồ viết số kiểu Việt Nam: 1.438 và 8,6 (mặc định Plotly là 1,438 và 8.6)."""
+    import plotly.graph_objects as go
+    import plotly.io as pio
+    if "ftel" not in pio.templates:
+        mau = go.layout.Template(pio.templates["plotly"])
+        mau.layout.separators = ",."
+        pio.templates["ftel"] = mau
+    pio.templates.default = "ftel"
+
+
 def viet_hoa() -> None:
     _gan_mac_dinh(dcc.Dropdown, _dropdown)
     _gan_mac_dinh(dag.AgGrid, _bang)
+    _bieu_do()

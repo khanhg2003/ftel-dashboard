@@ -137,6 +137,9 @@ body {
   gap: 6px; margin-top: 10px; font-weight: 500;
 }
 .sidebar .foot a:hover { color: #fff; }
+.sidebar .foot .foot-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.sidebar .foot a.active { color: #fff; }
+.bang-thong-tin th { text-align: left; width: 150px; color: var(--text-muted); font-weight: 500; }
 
 .main { margin-left: var(--sidebar-w); flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
@@ -379,6 +382,7 @@ table.simple tr:last-child td { border-bottom: none; }
 .app-shell.thu-gon .nav-item.active::before { left: -8px; }
 .app-shell.thu-gon .foot { padding: 12px 8px; text-align: center; }
 .app-shell.thu-gon .foot a { justify-content: center; margin-top: 0; }
+.app-shell.thu-gon .foot .foot-links { flex-direction: column; align-items: center; gap: 12px; }
 
 /* ------------------------------------------------ ô chọn ngày (lịch) */
 .date-pick .SingleDatePickerInput {
@@ -566,6 +570,7 @@ table.simple tr:last-child td { border-bottom: none; }
   .app-shell.thu-gon .nav-item { justify-content: flex-start; padding: 10px 12px; }
   .app-shell.thu-gon .foot { padding: 12px 18px 14px; text-align: left; }
   .app-shell.thu-gon .foot a { justify-content: flex-start; margin-top: 10px; }
+  .app-shell.thu-gon .foot .foot-links { flex-direction: row; align-items: center; gap: 16px; }
 
   .nut-menu { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 38px;
     height: 38px; border: 1px solid var(--border); border-radius: var(--radius-sm);

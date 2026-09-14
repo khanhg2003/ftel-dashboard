@@ -6,11 +6,14 @@ import plotly.graph_objects as go
 from dash import Input, Output, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
+from app.auth import ghi_log
+from app.export_phan_tich import xuat_phan_tich
+
 from app.metrics import (METRIC_LABEL, cac_thang_co_du_lieu, daily_counts, month_range,
-                         ngay_co_du_lieu, summary_phong, tien_do_thang, tracking_table)
+                         ngay_co_du_lieu, prev_month, summary_phong, tien_do_thang, tracking_table)
 from app.org import bay_info, loc_chi_nhanh, phong_order
 from app.ui.components import (GRID_STYLE_CONDITIONS, card, chi_nhanh_control, chon_ky, field,
-                               gan_dieu_huong_ky, kpi, seg_control)
+                               gan_dieu_huong_ky, kpi, pct_vn, seg_control, so_vn)
 from app.ui.icons import icon
 
 ZOOM_STEPS = [50, 75, 90, 100, 125, 150, 200]
@@ -77,9 +80,11 @@ def layout():
                 field("Cỡ bảng", dcc.Dropdown(
                     id="tk-zoom", clearable=False, value="fit", options=ZOOM_OPTIONS,
                     style={"width": "150px"})),
-                field(" ", html.Button([icon("download", 14), html.Span("Xuất CSV")],
-                                       id="tk-export", className="btn")),
+                field(" ", html.Button([icon("download", 14), html.Span("Excel")],
+                                       id="tk-export", className="btn",
+                                       title="Tải bảng số theo ngày đang xem")),
             ], className="toolbar", style={"marginBottom": "12px"}),
+            dcc.Download(id="tk-tai-xuong"),
             html.Div(dcc.Loading(dag.AgGrid(
                 id="tk-grid", className="ag-theme-quartz ag-theme-ftel",
                 columnDefs=[], rowData=[],
@@ -125,10 +130,23 @@ def _fig(fig: go.Figure, height: int = 320) -> go.Figure:
 def register(app):
     gan_dieu_huong_ky(app, "tk-thang")
 
-    @app.callback(Output("tk-grid", "exportDataAsCsv"), Input("tk-export", "n_clicks"),
-                  prevent_initial_call=True)
-    def _export(n):
-        return bool(n)
+    @app.callback(Output("tk-tai-xuong", "data"), Input("tk-export", "n_clicks"),
+                  State("tk-thang", "value"), State("tk-metric", "value"), State("tk-view", "value"),
+                  State("tk-cn", "value"), prevent_initial_call=True)
+    def _export(n, thang, metric, view, chi_nhanh):
+        if not n or not thang:
+            return no_update
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
+        den_ngay = ngay_co_du_lieu(thang) or month_range(thang)[2]
+        df = tracking_table(thang, metric, cong_don=view == "congdon", den_ngay=den_ngay, chi_phong=scope)
+        ngay = [c for c in df.columns if c.isdigit()]
+        cot = ([("bay", "Bầy", "text"), ("phong", "Phòng", "text")]
+               + [(c, f"{int(c):02d}/{thang[5:7]}", "so") for c in ngay] + [("Tổng", "Tổng", "so")])
+        cach = "cộng dồn" if view == "congdon" else "từng ngày"
+        noi_dung = xuat_phan_tich("", f"TRACKING {METRIC_LABEL[metric].upper()} THÁNG {thang[5:7]}/{thang[:4]} "
+                                      f"· {cach}", [("Theo ngày", df, cot)])
+        ghi_log("xuat_tracking", f"{thang} {metric} {view} {chi_nhanh}")
+        return dcc.send_bytes(noi_dung, f"Tracking_{metric}_{thang.replace('-', '')}.xlsx")
 
     @app.callback(
         Output("tk-kpi", "children"), Output("tk-grid", "columnDefs"),
@@ -186,27 +204,27 @@ def register(app):
         ton, ck = int(s.ton.sum()), int(s.cung_ky_thang_truoc.sum())
         tang = (online - ck) / ck * 100 if ck else None
         ty_vvip = vvip / online * 100 if online else 0
-        td = tien_do_thang(thang, den_ngay=den_ngay)
+        td = tien_do_thang(thang, den_ngay=den_ngay, chi_phong=scope)
         mt = td["muc_tieu"]
         htkh = (online / mt * 100) if mt else None
         trang_thai = "" if htkh is None else ("ok" if htkh >= td["ty_le_thoi_gian"] else "warn")
 
-        delta = (html.Span(f"{tang:+.1f}% so cùng kỳ T{int(thang[5:7]) - 1}",
+        delta = (html.Span(f"{pct_vn(tang, dau=True)} so cùng kỳ T{int(prev_month(thang)[5:7])}",
                            className=f"delta {'up' if tang >= 0 else 'down'}")
                  if tang is not None else "")
         return [
-            kpi("Số Online", f"{online:,}".replace(",", "."), delta),
-            kpi("Số V.VIP", f"{vvip:,}".replace(",", "."), f"Tỷ lệ V.VIP/Online {ty_vvip:.1f}%"),
-            kpi("Camera", f"{camera:,}".replace(",", "."), "Đã loại các dòng trùng"),
-            kpi("Số tồn", f"{ton:,}".replace(",", "."),
+            kpi("Số Online", so_vn(online), delta),
+            kpi("Số V.VIP", so_vn(vvip), f"Tỷ lệ V.VIP/Online {pct_vn(ty_vvip)}"),
+            kpi("Camera", so_vn(camera), "Đã loại các dòng trùng"),
+            kpi("Số tồn", so_vn(ton),
                 "Đã ký nhưng chưa online",
                 "warn" if ton else ""),
-            kpi("Hoàn thành kế hoạch", f"{htkh:.1f}%" if htkh else "—",
-                f"Chỉ tiêu tháng {mt:,.0f}".replace(",", ".") if mt
+            kpi("Hoàn thành kế hoạch", pct_vn(htkh) if htkh else "—",
+                f"Chỉ tiêu tháng {so_vn(mt)}" if mt
                 else "Chưa nhập chỉ tiêu (mục Cấu hình)", trang_thai),
             kpi("Tiến độ tháng", f"{td['ngay_da_chay']}/{td['so_ngay_trong_thang']} ngày",
-                (f"Cần {td['can_moi_ngay']} số/ngày trong {td['con_lai_ngay']} ngày còn lại"
-                 if td["can_moi_ngay"] else f"Bình quân {td['tb_ngay_hien_tai']} số/ngày")),
+                (f"Cần {so_vn(td['can_moi_ngay'])} số/ngày trong {td['con_lai_ngay']} ngày còn lại"
+                 if td["can_moi_ngay"] else f"Bình quân {so_vn(td['tb_ngay_hien_tai'], 1)} số/ngày")),
         ]
 
     def _line_chart(thang, metric, cong_don, scope, den_ngay, nhom="bay"):

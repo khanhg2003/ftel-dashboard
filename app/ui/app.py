@@ -150,7 +150,12 @@ def _sidebar(path: str):
         html.Div(items, className="nav"),
         html.Div([html.Div(current_user.ho_ten, className="who"),
                   html.Div(ROLE_LABEL.get(current_user.role, current_user.role)),
-                  html.A([icon("logout", 14), html.Span("Đăng xuất")], href="/logout")],
+                  html.Div([
+                      dcc.Link([icon("user", 14), html.Span("Tài khoản")], href="/taikhoan",
+                               className="active" if path == "/taikhoan" else "",
+                               title="Tài khoản của tôi · đổi mật khẩu"),
+                      html.A([icon("logout", 14), html.Span("Đăng xuất")], href="/logout"),
+                  ], className="foot-links")],
                  className="foot"),
         html.Button([icon("thu_gon", 17), html.Span("Thu gọn")], id="btn-thu-gon",
                     className="side-toggle", title="Thu gọn / mở rộng menu"),
@@ -253,9 +258,11 @@ def _router(path):
     from app.ui.pages import hr as hr_page
     from app.ui.pages import quantri
     from app.ui.pages import settings as settings_page
-    from app.ui.pages import phantich, phong, sosanh, tongquan, tracking, upload
+    from app.ui.pages import phantich, phong, sosanh, taikhoan, tongquan, tracking, upload
 
     path = path or "/"
+    if path == "/taikhoan":
+        return taikhoan.layout(), taikhoan.topbar()
     if path == "/huongdan":
         return huongdan.layout(), huongdan.topbar()
     if path in ("/phong", "/hr") and not current_user.duoc_xem_nhan_su:
@@ -310,10 +317,10 @@ def _register_pages():
     from app.ui.pages import hr as hr_page
     from app.ui.pages import quantri
     from app.ui.pages import settings as settings_page
-    from app.ui.pages import phantich, phong, sosanh, tongquan, tracking, upload
+    from app.ui.pages import phantich, phong, sosanh, taikhoan, tongquan, tracking, upload
 
     for mod in (tongquan, phong, phantich, tracking, sosanh, hr_page, chatluong, upload, quantri, settings_page,
-                huongdan):
+                huongdan, taikhoan):
         mod.register(app)
 
 

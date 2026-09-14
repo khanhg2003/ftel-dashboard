@@ -22,6 +22,7 @@ from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
 from app import bao_cao_phong as bp
+from app import canh_bao as quy_tac   # quy tắc cần chú ý dùng chung
 from app.auth import ghi_log
 from app.export_phong import anh_bao_cao_phong, xuat_bao_cao_phong
 from app.metrics import cac_ngay_co_du_lieu
@@ -53,8 +54,10 @@ DINH_NGHIA = [
                                     "số ngày tính từ ngày tạo."),
     ("Ngày liền chưa có số", "Số ngày tính từ lần có số online gần nhất đến ngày chọn."),
     ("Hạng", "Xếp theo số online trong phòng; bằng số thì đồng hạng."),
-    ("Cần chú ý", f"Từ {bp.NGAY_LIEN_CANH_BAO} ngày liền chưa có số, tuần này giảm từ một nửa, "
-                  f"từ {bp.TON_LAU_CANH_BAO} hợp đồng chờ online từ 7 ngày, có số mà chưa bán kèm."),
+    ("Trao đổi ngay", quy_tac.MO_TA_TRAO_DOI_NGAY + " Cùng quy tắc với trang Nhân sự & NSLĐ."),
+    ("Theo dõi", quy_tac.MO_TA_THEO_DOI),
+    ("Lưu ý khác", f"Từ {bp.TON_LAU_CANH_BAO} hợp đồng chờ online từ 7 ngày, có số mà chưa bán kèm - "
+                   "ghi trong cột Cần chú ý nhưng không tính là người cần chú ý."),
 ]
 
 
@@ -193,8 +196,12 @@ def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
             "type": "numericColumn", "sort": "asc"}
     ten = {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "minWidth": 150,
            "flex": 1.6, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}}
-    chu_y = {"field": "chu_y", "headerName": "Cần chú ý", "minWidth": 160, "flex": 3,
-             "tooltipField": "chu_y", "cellStyle": {"color": "#93241C"}}
+    chu_y = [{"field": "muc_chu_y", "headerName": "Mức", "minWidth": 104, "flex": .9,
+              "cellStyle": {"styleConditions": [
+                  {"condition": f"params.value == '{quy_tac.TRAO_DOI_NGAY}'", "style": DO},
+                  {"condition": f"params.value == '{quy_tac.THEO_DOI}'", "style": VANG}]}},
+             {"field": "chu_y", "headerName": "Cần chú ý", "minWidth": 160, "flex": 3,
+              "tooltipField": "chu_y", "cellStyle": {"color": "#93241C"}}]
     c = {
         "tham_nien": {"field": "tham_nien_bucket", "headerName": "Thâm niên", "minWidth": 80,
                       "flex": .8},
@@ -218,7 +225,8 @@ def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
         "so_ngay": so("so_ngay_co_so", "Số ngày có số", 70),
         "ngay_lien": so("ngay_lien_chua_co_so", "Ngày liền chưa có số", 84,
                         cellStyle={"styleConditions": [
-                            {"condition": goc + "params.value >= 7", "style": DO},
+                            {"condition": goc + f"params.value >= {quy_tac.NGAY_TRAO_DOI_NGAY}",
+                             "style": DO},
                             {"condition": goc + f"params.value >= {bp.NGAY_LIEN_CANH_BAO}",
                              "style": VANG}]}),
         "tuan_nay": so("tuan_nay", "Tuần này"),
@@ -240,20 +248,20 @@ def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
     if xem == "ban":
         nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", "vvip", "kem_vvip",
                                                  "camera", "kem_camera")]
-        return [hang, ten, nhom_thang, nhom_ngay, chu_y]
+        return [hang, ten, nhom_thang, nhom_ngay, *chu_y]
     if xem == "theo_doi":
         return [hang, ten, c["tham_nien"],
                 {"headerName": "NHỊP CÓ SỐ", "children": [c["so_ngay"], c["ngay_lien"],
                                                           c["tuan_nay"], c["tuan_truoc"]]},
                 {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
-                c["nsld"], chu_y]
+                c["nsld"], *chu_y]
     nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", "ban_moi", "vvip", "kem_vvip",
                                              "camera", "kem_camera", "du3", "tra_truoc", "onl1")]
     return [hang, ten, c["tham_nien"], nhom_thang, nhom_ngay,
             {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
             {"headerName": "NHỊP CÓ SỐ", "children": [c["so_ngay"], c["ngay_lien"], c["tuan_nay"],
                                                       c["tuan_truoc"]]},
-            c["nsld"], chu_y]
+            c["nsld"], *chu_y]
 
 
 COT_SO_SANH = [
@@ -368,6 +376,7 @@ def _ngan_noi_dung(thang: str, ngay: int, code: str, r: dict):
     chenh = r.get("chenh_ck") or 0
     ngay_lien = r.get("ngay_lien_chua_co_so")
     chu_y = [x for x in (r.get("chu_y") or "").split(" · ") if x]
+    muc = r.get("muc_chu_y") or ""
 
     hang = r.get("hang")
     tieu_de = html.Div([html.H3(f"{r.get('ho_ten')}" + (f" · hạng {int(hang)}" if hang else "")),
@@ -375,8 +384,10 @@ def _ngan_noi_dung(thang: str, ngay: int, code: str, r: dict):
                                  f"{r.get('tham_nien_bucket') or '–'} tháng · "
                                  f"{r.get('vi_tri') or 'chưa có hồ sơ NSLĐ'}", className="sub")])
     than = [
-        html.Div([html.Span(x, className="ct-chip") for x in chu_y] if chu_y else
-                 [html.Span("Không có điểm cần chú ý", className="ct-chip ok")],
+        html.Div(([html.Span(muc, className="badge bad" if muc == quy_tac.TRAO_DOI_NGAY else "badge warn",
+                             style={"marginRight": "6px"})] if muc else [])
+                 + ([html.Span(x, className="ct-chip") for x in chu_y] if chu_y else
+                    [html.Span("Không có điểm cần chú ý", className="ct-chip ok")]),
                  style={"marginBottom": "8px"}),
         html.Div([
             _o("Online tháng", _so(r.get("online")),
@@ -443,7 +454,8 @@ def register(app):
         ss, dong = bp.so_sanh_phong(thang, ngay, code, tam_tinh)
         tong = nv[nv.loai_dong == "total"].iloc[0].to_dict()
         du_lieu = nv[nv.loai_dong == "data"]
-        can_chu_y = du_lieu[du_lieu.chu_y.fillna("") != ""]
+        can_chu_y = du_lieu[du_lieu.muc_chu_y.fillna("") != ""]
+        so_ngay_ngay = int((can_chu_y.muc_chu_y == quy_tac.TRAO_DOI_NGAY).sum())
         hien = can_chu_y if loc == "chu_y" else du_lieu
 
         badge = ""
@@ -456,8 +468,8 @@ def register(app):
         canh_bao = alert([html.B(f"Ngày {ngay:02d}/{d.month:02d} đang cập nhật. "),
                           f"Số tính đến {luc:%H:%M}, phòng chưa đủ mục tiêu ngày ghi “Chưa đạt”."],
                          "warn") if tam_tinh else ""
-        mo_ta = (f"{len(du_lieu)} nhân sự · {len(can_chu_y)} người cần chú ý · luỹ kế 01 - "
-                 f"{ngay:02d}/{d.month:02d}")
+        mo_ta = (f"{len(du_lieu)} nhân sự · {so_ngay_ngay} trao đổi ngay · "
+                 f"{len(can_chu_y) - so_ngay_ngay} theo dõi · luỹ kế 01 - {ngay:02d}/{d.month:02d}")
         so_phong = int(ss.so_phong.max() or 0)
         mo_ta_ss = (f"Hạng trong {so_phong} phòng kinh doanh (IBB và địa bàn). Mức chung với tỷ lệ "
                     "là của toàn chi nhánh, với số lượng là bình quân một phòng.")

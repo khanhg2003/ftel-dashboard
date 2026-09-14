@@ -11,7 +11,7 @@ from dash import Input, Output, State, ctx, dcc, html, no_update
 from flask_login import current_user
 from sqlalchemy import select, text
 
-from app.auth import doi_mat_khau, ghi_log
+from app.auth import ghi_log
 from app.db import engine, session_scope
 from app.ingest.commit import recompute_phong
 from app.metrics import cac_thang_co_du_lieu, prev_month
@@ -20,7 +20,7 @@ from app.org import (LOAI_PHONG, bay_info, bay_options, co_cau_rieng, luu_bay, l
                      luu_phong, phong_order, xoa_bay, xoa_cache_org, xoa_co_cau_thang, xoa_phong)
 from app.thoi_gian import chu_gio_vn
 from app.mau_nhap import ap_dung_co_cau, mau_co_cau, xem_truoc_co_cau
-from app.ui.components import (MAU_LOAI_THAY_DOI, alert, card, chon_ky, field, gan_dieu_huong_ky,
+from app.ui.components import (callback_can_quyen, MAU_LOAI_THAY_DOI, alert, card, chon_ky, field, gan_dieu_huong_ky,
                                gan_import, modal, nhac_chua_luu, nut_import)
 from app.ui.icons import icon
 
@@ -222,30 +222,9 @@ def layout():
             ], title="Danh mục nhân sự → Phòng kinh doanh",
                 desc="Sửa ở Quản trị → Danh mục nhân sự, hoặc nạp file danh mục"),
 
-            html.Div([
-                html.Div(card([
-                    html.Div([
-                        field("Mật khẩu hiện tại", dcc.Input(id="st-mk-cu", type="password",
-                                                             style=_inp())),
-                        field("Mật khẩu mới", dcc.Input(id="st-mk-moi", type="password",
-                                                        style=_inp())),
-                    ], style={"display": "flex", "gap": "14px", "flexWrap": "wrap"}),
-                    html.Div(style={"height": "10px"}),
-                    html.Button("Đổi mật khẩu", id="st-doi-mk", className="btn primary"),
-                    html.Div(id="st-mk-msg", style={"marginTop": "10px"}),
-                ], title="Tài khoản", desc=f"Đang đăng nhập: {current_user.username}"),
-                    style={"flex": "1 1 360px"}),
-                html.Div(card([html.Div(id="st-log")], title="Nhật ký hệ thống",
-                              desc="20 thao tác gần nhất"),
-                     style={"flex": "1 1 460px"}),
-            ], style={"display": "flex", "gap": "20px", "flexWrap": "wrap"}),
+            card([html.Div(id="st-log")], title="Nhật ký hệ thống", desc="20 thao tác gần nhất"),
         ]),
     ])
-
-
-def _inp():
-    return {"padding": "9px 12px", "borderRadius": "8px", "border": "1px solid var(--border)",
-            "width": "190px"}
 
 
 # ----------------------------------------------------------------- dữ liệu bảng
@@ -363,6 +342,7 @@ def _luu_target_rows(thang: str, rows: list[dict], ghi_chu: str) -> int:
 
 # ----------------------------------------------------------------- callbacks
 def register(app):
+    cb = callback_can_quyen(app, "duoc_cau_hinh")   # mọi thao tác ở trang này chỉ dành cho Quản trị
     gan_dieu_huong_ky(app, "st-thang")
     nhac_chua_luu(app, "st-bay-grid", "st-bay-nhac", "st-bay-msg")
     nhac_chua_luu(app, "st-phong-grid", "st-phong-nhac", "st-phong-msg")
@@ -382,14 +362,14 @@ def register(app):
                    f"Thêm mới {d.get('Thêm mới', 0)}, cập nhật {d.get('Cập nhật', 0)}, bỏ qua "
                    f"{d.get('Lỗi', 0)} dòng lỗi. Phòng mới cần gán nhân sự ở Quản trị → Danh mục nhân sự."])
 
-    @app.callback(Output("st-pane-cocau", "style"), Output("st-pane-chitieu", "style"),
+    @cb(Output("st-pane-cocau", "style"), Output("st-pane-chitieu", "style"),
                   Output("st-pane-khac", "style"), Input("st-tab", "value"))
     def _tab(tab):
         an = {"display": "none"}
         return ({} if tab == "cocau" else an, {} if tab == "chitieu" else an,
                 {} if tab == "khac" else an)
 
-    @app.callback(Output("st-bay-grid", "columnDefs"), Output("st-bay-grid", "rowData"),
+    @cb(Output("st-bay-grid", "columnDefs"), Output("st-bay-grid", "rowData"),
                   Output("st-phong-grid", "columnDefs"), Output("st-phong-grid", "rowData"),
                   Output("st-cocau-grid", "columnDefs"), Output("st-cocau-grid", "rowData"),
                   Output("st-cocau-trangthai", "children"),
@@ -434,21 +414,21 @@ def register(app):
                 dm_ui, log_ui)
 
     # --- thêm bầy / phòng bằng hộp thoại
-    @app.callback(Output("st-modal-bay", "className"),
+    @cb(Output("st-modal-bay", "className"),
                   Input("st-bay-them", "n_clicks"), Input("st-modal-bay-dong", "n_clicks"),
                   Input("st-modal-bay-huy", "n_clicks"), Input("st-bay-msg", "children"),
                   prevent_initial_call=True)
     def _mo_dong_bay(*_):
         return "modal mo" if ctx.triggered_id == "st-bay-them" else "modal"
 
-    @app.callback(Output("st-modal-phong", "className"),
+    @cb(Output("st-modal-phong", "className"),
                   Input("st-phong-them", "n_clicks"), Input("st-modal-phong-dong", "n_clicks"),
                   Input("st-modal-phong-huy", "n_clicks"), Input("st-phong-msg", "children"),
                   prevent_initial_call=True)
     def _mo_dong_phong(*_):
         return "modal mo" if ctx.triggered_id == "st-phong-them" else "modal"
 
-    @app.callback(Output("st-bay-xacnhan", "displayed"), Output("st-bay-xacnhan", "message"),
+    @cb(Output("st-bay-xacnhan", "displayed"), Output("st-bay-xacnhan", "message"),
                   Input("st-bay-xoa", "n_clicks"), State("st-bay-grid", "selectedRows"),
                   prevent_initial_call=True)
     def _hoi_xoa_bay(n, chon):
@@ -457,7 +437,7 @@ def register(app):
         return True, (f"Xoá {len(chon)} bầy ({', '.join(r['ten'] for r in chon[:5])})? "
                       "Bầy còn phòng sẽ không xoá được.")
 
-    @app.callback(Output("st-phong-xacnhan", "displayed"), Output("st-phong-xacnhan", "message"),
+    @cb(Output("st-phong-xacnhan", "displayed"), Output("st-phong-xacnhan", "message"),
                   Input("st-phong-xoa", "n_clicks"), State("st-phong-grid", "selectedRows"),
                   prevent_initial_call=True)
     def _hoi_xoa_phong(n, chon):
@@ -467,7 +447,7 @@ def register(app):
                       "Phòng đã có nhân sự hoặc số liệu thì nên đổi sang “Ngừng dùng”.")
 
     # --- lưu / thêm / xoá danh mục bầy
-    @app.callback(Output("st-bay-msg", "children"), Output("st-modal-bay-msg", "children"),
+    @cb(Output("st-bay-msg", "children"), Output("st-modal-bay-msg", "children"),
                   Input("st-bay-luu", "n_clicks"), Input("st-modal-bay-ok", "n_clicks"),
                   Input("st-bay-xacnhan", "submit_n_clicks"),
                   State("st-bay-grid", "rowData"), State("st-bay-grid", "selectedRows"),
@@ -498,7 +478,7 @@ def register(app):
         return alert(f"Đã lưu danh mục Bầy: {k} bản ghi.", "ok"), ""
 
     # --- lưu / thêm / xoá danh mục phòng
-    @app.callback(Output("st-phong-msg", "children"), Output("st-modal-phong-msg", "children"),
+    @cb(Output("st-phong-msg", "children"), Output("st-modal-phong-msg", "children"),
                   Input("st-phong-luu", "n_clicks"), Input("st-modal-phong-ok", "n_clicks"),
                   Input("st-phong-xacnhan", "submit_n_clicks"),
                   State("st-phong-grid", "rowData"), State("st-phong-grid", "selectedRows"),
@@ -536,7 +516,7 @@ def register(app):
                       "“Tính lại việc gán phòng”."], "ok"), ""
 
     # --- cơ cấu theo tháng
-    @app.callback(Output("st-cocau-msg", "children"),
+    @cb(Output("st-cocau-msg", "children"),
                   Input("st-cocau-luu", "n_clicks"), Input("st-cocau-copy", "n_clicks"),
                   Input("st-cocau-xoa", "n_clicks"),
                   State("st-cocau-grid", "rowData"), State("st-thang", "value"),
@@ -564,7 +544,7 @@ def register(app):
         return alert(f"Đã lưu cơ cấu Bầy kỳ {thang}: {k} phòng ({nguon}).", "ok")
 
     # --- chỉ tiêu
-    @app.callback(Output("st-target-msg", "children"),
+    @cb(Output("st-target-msg", "children"),
                   Input("st-luu-target", "n_clicks"), Input("st-target-copy", "n_clicks"),
                   State("st-target-grid", "rowData"), State("st-thang", "value"),
                   prevent_initial_call=True)
@@ -580,17 +560,10 @@ def register(app):
         return alert(f"Đã lưu {n} giá trị chỉ tiêu cho kỳ {thang}.", "ok")
 
     # --- khác
-    @app.callback(Output("st-recompute-msg", "children"), Input("st-recompute", "n_clicks"),
+    @cb(Output("st-recompute-msg", "children"), Input("st-recompute", "n_clicks"),
                   prevent_initial_call=True)
     def _recompute(n):
         with session_scope() as s:
             changed = recompute_phong(s)
         ghi_log("tinh_lai_phong", str(changed))
         return html.Span(f"Đã cập nhật {changed} hợp đồng.", className="badge ok")
-
-    @app.callback(Output("st-mk-msg", "children"), Input("st-doi-mk", "n_clicks"),
-                  State("st-mk-cu", "value"), State("st-mk-moi", "value"),
-                  prevent_initial_call=True)
-    def _doi_mk(n, cu, moi):
-        err = doi_mat_khau(current_user.username, cu or "", moi or "")
-        return alert(err, "bad") if err else alert("Đã đổi mật khẩu.", "ok")

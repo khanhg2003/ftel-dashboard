@@ -73,7 +73,7 @@ ROW_STYLE = {"styleConditions": [
 
 def topbar():
     return [html.Div([html.H1("Báo cáo Tổng"),
-                      html.Div("Kết quả kinh doanh luỹ kế tháng, theo phòng", className="sub")]),
+                      html.Div("Kết quả kinh doanh theo phòng, trong kỳ đã chọn", className="sub")]),
             html.Div(className="spacer"),
             html.Div(id="tq-badge")]
 

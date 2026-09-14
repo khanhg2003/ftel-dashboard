@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import text
 
+from app import canh_bao as cb
 from app import phan_tich as pt
 from app.db import engine
 from app.metrics import daily_counts, prev_month
@@ -19,7 +20,7 @@ from app.org import phong_order
 from app.overview import bang_tong_quan
 
 NHOM_KINH_DOANH = {"IBB", "DIABAN"}      # các phòng bán hàng trực tiếp được xếp hạng với nhau
-NGAY_LIEN_CANH_BAO = 3                  # từ 3 ngày liền chưa có số online thì nhắc
+NGAY_LIEN_CANH_BAO = cb.NGAY_THEO_DOI    # quy tắc cần chú ý dùng chung: app/canh_bao.py
 TON_LAU_CANH_BAO = 3                    # từ 3 hợp đồng chờ online từ 7 ngày thì nhắc
 
 
@@ -128,6 +129,7 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     for c in ("ho_ten", "vi_tri", "tham_nien_bucket", "nhom_tham_nien", "trang_thai", "diem_tong",
               "ket_luan"):
         out[c] = hr[c].reindex(out.index) if not hr.empty else None
+    out["thang_nsld"] = hr.thang.reindex(out.index) if not hr.empty else None
     ten_emp = _q("SELECT acc_norm, ho_ten FROM dim_employee")
     if not ten_emp.empty:
         ten_emp = ten_emp.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten
@@ -142,7 +144,9 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     out["chenh_ck"] = out.online - out.ck_online
     out = out.sort_values(["online", "vvip", "camera"], ascending=False)
     out["hang"] = out.online.rank(method="min", ascending=False).astype(int)
-    out["chu_y"] = [_chu_y(r) for r in out.itertuples()]
+    xet = [_chu_y(r) for r in out.itertuples()]
+    out["muc_chu_y"] = [m for m, _ in xet]
+    out["chu_y"] = [y for _, y in xet]
     out["loai_dong"] = "data"
     out = out.reset_index()
 
@@ -153,22 +157,22 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     return kq.replace({np.nan: None})
 
 
-def _chu_y(r) -> str:
-    y = []
-    n = r.ngay_lien_chua_co_so
-    if n is None or pd.isna(n):
-        y.append("Chưa có số online trong 2 tháng")
-    elif n >= NGAY_LIEN_CANH_BAO:
-        y.append(f"{int(n)} ngày liền chưa có số")
-    if r.tuan_truoc >= 3 and r.tuan_nay <= r.tuan_truoc * 0.5:
-        y.append(f"Tuần này giảm ({r.tuan_truoc} → {r.tuan_nay})")
+def _chu_y(r) -> tuple[str, str]:
+    """(mức theo quy tắc chung, lý do). Tồn lâu / chưa bán kèm chỉ là lưu ý, không nâng mức."""
+    muc, y = cb.xet(r.ngay_lien_chua_co_so, r.tuan_nay, r.tuan_truoc,
+                    nsld_chua_dat=r.ket_luan == "NOT OK", thang_nsld=_thang_nsld(r.thang_nsld),
+                    khong_co_so="Chưa có số online trong 2 tháng")
     if r.ton_qua_7 >= TON_LAU_CANH_BAO:
         y.append(f"{r.ton_qua_7} HĐ chờ online từ 7 ngày")
     if r.online >= 3 and r.vvip == 0:
         y.append("Chưa bán kèm V.VIP")
     if r.online >= 3 and r.camera == 0:
         y.append("Chưa bán kèm Camera")
-    return " · ".join(y)
+    return muc, " · ".join(y)
+
+
+def _thang_nsld(t) -> str:
+    return str(t)[5:7] if isinstance(t, str) and len(t) >= 7 else ""
 
 
 def _dong_tong(out: pd.DataFrame, hd: pd.DataFrame, ton: pd.DataFrame) -> dict:
@@ -177,7 +181,7 @@ def _dong_tong(out: pd.DataFrame, hd: pd.DataFrame, ton: pd.DataFrame) -> dict:
               "tuan_nay", "tuan_truoc", "ton", "ton_qua_7", "chenh_ck"]
     tong = {k: int(out[k].sum()) for k in so_cot}
     ty_le = (lambda a: round(a / tong["online"] * 100, 0) if tong["online"] else None)
-    tong.update(acc_norm="TOTAL", acc="", ho_ten="TỔNG PHÒNG", loai_dong="total", hang=None,
+    tong.update(acc_norm="TOTAL", acc="", ho_ten="TỔNG PHÒNG", loai_dong="total", hang=None, muc_chu_y="",
                 kem_vvip=ty_le(tong["vvip"]), kem_camera=ty_le(tong["camera"]), du_3=c["du_3"],
                 tra_truoc=c["tra_truoc"], onl_1_ngay=c["onl_1_ngay"],
                 so_ngay_co_so=int(hd.ngay_online.nunique()) if len(hd) else 0,

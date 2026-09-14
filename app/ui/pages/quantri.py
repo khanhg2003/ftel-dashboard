@@ -16,7 +16,7 @@ from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.org import phong_order
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
-from app.ui.components import (MAU_LOAI_THAY_DOI, alert, card, field, gan_import, modal, nhac_chua_luu,
+from app.ui.components import (callback_can_quyen, MAU_LOAI_THAY_DOI, alert, card, field, gan_import, modal, nhac_chua_luu,
                                nut_import)
 from app.ui.icons import icon
 
@@ -208,6 +208,7 @@ def _staff_cols():
 
 
 def register(app):
+    cb = callback_can_quyen(app, "duoc_cau_hinh")   # mọi thao tác ở trang này chỉ dành cho Quản trị
     nhac_chua_luu(app, "qt-user-grid", "qt-user-nhac", "qt-user-msg")
     nhac_chua_luu(app, "qt-staff-grid", "qt-staff-nhac", "qt-staff-msg")
     gan_import(app, "qt-ns", ham_mau=mau_nhan_su, ten_file_mau="Mau_DanhMucNhanSu.xlsx",
@@ -227,26 +228,26 @@ def register(app):
                    f"{d.get('Lỗi', 0)} dòng lỗi. Đã tính lại phòng cho "
                    f"{d.get('gan_lai_hop_dong', 0)} hợp đồng."])
 
-    @app.callback(Output("qt-staff-grid", "dashGridOptions"), Input("qt-staff-tim", "value"),
+    @cb(Output("qt-staff-grid", "dashGridOptions"), Input("qt-staff-tim", "value"),
                   prevent_initial_call=True)
     def _tim_staff(chu):
         p = Patch()
         p["quickFilterText"] = chu or ""
         return p
 
-    @app.callback(Output("qt-staff-dem", "children"), Input("qt-staff-grid", "rowData"))
+    @cb(Output("qt-staff-dem", "children"), Input("qt-staff-grid", "rowData"))
     def _dem_staff(rows):
         rows = rows or []
         nghi = sum(1 for r in rows if "nghỉ" in str(r.get("ghi_chu") or "").lower())
         return f"{len(rows)} acc · {nghi} ghi chú Nghỉ"
 
-    @app.callback(Output("qt-pane-user", "style"), Output("qt-pane-staff", "style"),
+    @cb(Output("qt-pane-user", "style"), Output("qt-pane-staff", "style"),
                   Input("qt-tab", "value"))
     def _tab(tab):
         an = {"display": "none"}
         return {} if tab == "user" else an, {} if tab == "staff" else an
 
-    @app.callback(Output("qt-user-grid", "columnDefs"), Output("qt-user-grid", "rowData"),
+    @cb(Output("qt-user-grid", "columnDefs"), Output("qt-user-grid", "rowData"),
                   Output("qt-staff-grid", "columnDefs"), Output("qt-staff-grid", "rowData"),
                   Input("qt-user-msg", "children"), Input("qt-staff-msg", "children"))
     def _nap(*_):
@@ -256,14 +257,14 @@ def register(app):
                 _staff_cols(), [] if s.empty else s.to_dict("records"))
 
     # ------------------------------------------------------------ tài khoản
-    @app.callback(Output("qt-modal-user", "className"),
+    @cb(Output("qt-modal-user", "className"),
                   Input("qt-user-them", "n_clicks"), Input("qt-modal-user-dong", "n_clicks"),
                   Input("qt-modal-user-huy", "n_clicks"), Input("qt-user-msg", "children"),
                   prevent_initial_call=True)
     def _mo_dong_user(_a, _b, _c, _d):
         return "modal mo" if ctx.triggered_id == "qt-user-them" else "modal"
 
-    @app.callback(Output("qt-user-msg", "children"), Output("qt-modal-user-msg", "children"),
+    @cb(Output("qt-user-msg", "children"), Output("qt-modal-user-msg", "children"),
                   Input("qt-modal-user-ok", "n_clicks"), Input("qt-user-luu", "n_clicks"),
                   Input("qt-user-reset", "n_clicks"), Input("qt-user-xacnhan", "submit_n_clicks"),
                   State("qt-user-grid", "rowData"), State("qt-user-grid", "selectedRows"),
@@ -301,7 +302,7 @@ def register(app):
                             + ", ".join(c.split(":")[0] for c in canh_bao))
         return alert(noi_dung, "ok"), ""
 
-    @app.callback(Output("qt-user-xacnhan", "displayed"), Output("qt-user-xacnhan", "message"),
+    @cb(Output("qt-user-xacnhan", "displayed"), Output("qt-user-xacnhan", "message"),
                   Input("qt-user-xoa", "n_clicks"), State("qt-user-grid", "selectedRows"),
                   prevent_initial_call=True)
     def _hoi_xoa_user(n, chon):
@@ -311,14 +312,14 @@ def register(app):
         return True, f"Xoá {len(chon)} tài khoản ({ten})? Thao tác này không hoàn tác được."
 
     # ------------------------------------------------------ danh mục nhân sự
-    @app.callback(Output("qt-modal-staff", "className"),
+    @cb(Output("qt-modal-staff", "className"),
                   Input("qt-staff-them", "n_clicks"), Input("qt-modal-staff-dong", "n_clicks"),
                   Input("qt-modal-staff-huy", "n_clicks"), Input("qt-staff-msg", "children"),
                   prevent_initial_call=True)
     def _mo_dong_staff(_a, _b, _c, _d):
         return "modal mo" if ctx.triggered_id == "qt-staff-them" else "modal"
 
-    @app.callback(Output("qt-staff-xacnhan", "displayed"), Output("qt-staff-xacnhan", "message"),
+    @cb(Output("qt-staff-xacnhan", "displayed"), Output("qt-staff-xacnhan", "message"),
                   Input("qt-staff-xoa", "n_clicks"), State("qt-staff-grid", "selectedRows"),
                   prevent_initial_call=True)
     def _hoi_xoa_staff(n, chon):
@@ -327,7 +328,7 @@ def register(app):
         return True, (f"Xoá {len(chon)} dòng khỏi danh mục nhân sự? "
                       "Hợp đồng của các acc này sẽ về “Chưa gán phòng”.")
 
-    @app.callback(Output("qt-staff-msg", "children"), Output("qt-modal-staff-msg", "children"),
+    @cb(Output("qt-staff-msg", "children"), Output("qt-modal-staff-msg", "children"),
                   Input("qt-modal-staff-ok", "n_clicks"), Input("qt-staff-luu", "n_clicks"),
                   Input("qt-staff-xacnhan", "submit_n_clicks"),
                   Input("qt-staff-tinhlai", "n_clicks"),

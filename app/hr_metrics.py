@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import text
 
+from app import canh_bao
 from app.db import engine
 from app.metrics import month_range
 from app.org import phong_order
@@ -23,7 +24,7 @@ LOAI_KINH_DOANH = {"IBB", "DIABAN"}
 MOC_THAM_NIEN = ["1", "2", "3", "4", "5", "6", "7-12", "13+"]
 TEN_NHOM = {"MOI": "Mới", "DANG_LEN": "Đang lên", "ON_DINH": "Ổn định", "LAU_NAM": "Lâu năm"}
 TEN_NSLD = {"OK": "Đạt", "NOT OK": "Chưa đạt", "KHONG XET": "Không xét", "KHÔNG XÉT": "Không xét"}
-NGAY_KHONG_SO_CAO = 7          # 7 ngày gần nhất không có số online nào -> cần trao đổi ngay
+NGAY_KHONG_SO_CAO = 7          # giữ tên cũ; quy tắc cần chú ý dùng chung ở app/canh_bao.py
 NGAY_HOAT_DONG = 60            # acc không có số, không có NSLĐ quá chừng này ngày -> không tính
 SUT_TUAN = 0.5                 # tuần này giảm từ một nửa so với tuần trước (tuần trước từ 3 số)
 
@@ -206,26 +207,15 @@ def canh_bao_nhan_su(thang: str, chi_phong=None, ngay: int | None = None,
     thang_nsld = nv.hr_thang.dropna().iloc[0][5:7] if nv.hr_thang.notna().any() else ""
 
     def _xet(r) -> tuple[str, str]:
-        ly_do, muc = [], ""
-        if r.tuan_nay == 0:
-            muc = "Cao"
-            ly_do.append("Chưa có số trong 4 tuần" if r.so_ngay_khong_so is None
-                         else f"{r.so_ngay_khong_so} ngày chưa có số")
-        elif r.tuan_truoc >= 3 and r.tuan_nay <= r.tuan_truoc * SUT_TUAN:
-            muc = "Trung bình"
-            ly_do.append(f"Tuần này {r.tuan_nay}, tuần trước {r.tuan_truoc} "
-                         f"(−{round((1 - r.tuan_nay / r.tuan_truoc) * 100)}%)")
-        if r.nsld == "Chưa đạt":
-            muc = muc or "Trung bình"
-            ly_do.append(f"NSLĐ T{thang_nsld} chưa đạt")
+        muc, ly_do = canh_bao.xet(r.so_ngay_khong_so, r.tuan_nay, r.tuan_truoc,
+                                  nsld_chua_dat=r.nsld == "Chưa đạt", thang_nsld=thang_nsld)
         return muc, " · ".join(ly_do)
 
     xet = [_xet(r) for r in out.itertuples()]
     out["muc_rui_ro"] = [m for m, _ in xet]
     out["ly_do"] = [l for _, l in xet]
     out = out[out.muc_rui_ro != ""]
-    thu_tu = {"Cao": 0, "Trung bình": 1}
-    return (out.assign(_o=out.muc_rui_ro.map(thu_tu),
+    return (out.assign(_o=out.muc_rui_ro.map(canh_bao.THU_TU_MUC),
                        _n=out.so_ngay_khong_so.fillna(99))
             .sort_values(["_o", "_n", "tuan_truoc"], ascending=[True, False, False])
             .drop(columns=["_o", "_n"]).reset_index(drop=True))

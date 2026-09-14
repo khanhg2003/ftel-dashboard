@@ -4,6 +4,42 @@ from __future__ import annotations
 from dash import dcc, html
 
 
+def callback_can_quyen(app, quyen: str):
+    """Như app.callback nhưng máy chủ kiểm tra quyền trước khi chạy (quyen: tên thuộc tính của
+    current_user, VD "duoc_cau_hinh"). Ẩn nút trên giao diện là chưa đủ: callback vẫn gọi được
+    thẳng qua /_dash-update-component."""
+    import functools
+
+    from dash.exceptions import PreventUpdate
+    from flask_login import current_user
+
+    def dang_ky(*args, **kwargs):
+        dk = app.callback(*args, **kwargs)
+
+        def boc(ham):
+            @functools.wraps(ham)
+            def chay(*a, **k):
+                if not getattr(current_user, quyen, False):
+                    raise PreventUpdate
+                return ham(*a, **k)
+            return dk(chay)
+        return boc
+    return dang_ky
+
+
+def so_vn(v, chu_so: int = 0, dau: bool = False, trong: str = "–") -> str:
+    """Số kiểu Việt Nam: 1.438 · 8,6 · +12. dau=True luôn ghi dấu + / -."""
+    if v is None or v != v:
+        return trong
+    chu = f"{v:{'+' if dau else ''},.{chu_so}f}"
+    return chu.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def pct_vn(v, dau: bool = False, trong: str = "–") -> str:
+    """Tỷ lệ làm tròn số nguyên như Báo cáo Tổng: 32% · -5%."""
+    return trong if v is None or v != v else f"{so_vn(v, 0, dau)}%"
+
+
 def card(children, title: str | None = None, desc: str | None = None, **kw):
     head = []
     if title:

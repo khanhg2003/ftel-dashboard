@@ -5,16 +5,19 @@ from datetime import date, timedelta
 
 import dash_ag_grid as dag
 import plotly.graph_objects as go
-from dash import Input, Output, State, ctx, dcc, html
+from dash import Input, Output, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
-from app.auth import loc_nhan_su
+from app.auth import ghi_log, loc_nhan_su
+from app.export_phan_tich import xuat_phan_tich
 from app.metrics import METRIC_LABEL, cac_ngay_co_du_lieu, so_sanh_acc, so_sanh_ky
 from app.org import loc_chi_nhanh, phong_order
-from app.ui.components import card, chi_nhanh_control, field, kpi, seg_control
+from app.ui.components import card, chi_nhanh_control, field, kpi, pct_vn, seg_control, so_vn
 from app.ui.icons import icon
 
 TOP_N = 15
+SO1 = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
+                   "{minimumFractionDigits: 1, maximumFractionDigits: 1})"}
 
 
 def topbar():
@@ -53,7 +56,11 @@ def layout():
                 html.Div(style={"width": "1px", "background": "#E4E9F0",
                                 "alignSelf": "stretch", "margin": "0 10px"}),
                 chi_nhanh_control("ss-cn"),
+                html.Button([icon("download", 14), html.Span("Excel")], id="ss-export", className="btn",
+                            title="Tải bảng theo phòng, Top giảm và Top tăng (mỗi bảng một sheet)",
+                            style={"marginLeft": "10px"}),
             ], className="toolbar", style={"marginBottom": "10px"}),
+            dcc.Download(id="ss-tai-xuong"),
             # Hàng 2: Khoảng thời gian compact (2 pickers/kỳ gộp chung) + Nhóm phòng
             html.Div([
                 html.Div([
@@ -106,10 +113,6 @@ def layout():
 
         html.Div([
             html.Div(card([
-                html.Div([html.Div(className="grow"),
-                          html.Button([icon("download", 14), html.Span("Xuất CSV")],
-                                      id="ss-export-hut", className="btn")], className="toolbar",
-                         style={"marginBottom": "10px"}),
                 dcc.Loading(dag.AgGrid(
                     id="ss-hut", className="ag-theme-quartz ag-theme-ftel", columnDefs=[],
                     rowData=[], defaultColDef={"resizable": True, "sortable": True},
@@ -119,10 +122,6 @@ def layout():
                 desc="Giảm nhiều nhất so với kỳ 1 - ưu tiên trao đổi trước"),
                 className="chart-col"),
             html.Div(card([
-                html.Div([html.Div(className="grow"),
-                          html.Button([icon("download", 14), html.Span("Xuất CSV")],
-                                      id="ss-export-tang", className="btn")], className="toolbar",
-                         style={"marginBottom": "10px"}),
                 dcc.Loading(dag.AgGrid(
                     id="ss-tang", className="ag-theme-quartz ag-theme-ftel", columnDefs=[],
                     rowData=[], defaultColDef={"resizable": True, "sortable": True},
@@ -149,14 +148,13 @@ def _cols_phong():
              {"condition": "params.value > 0",
               "style": {"color": "#04843F", "fontWeight": "700"}}]}},
         {"field": "ty_le", "headerName": "%", "flex": 1, "minWidth": 72, "type": "numericColumn",
-         "valueFormatter": {"function": "params.value == null ? '' : params.value + '%'"}},
-        {"field": "tb1", "headerName": "TB1/ng", "flex": 1, "minWidth": 80,
-         "type": "numericColumn",
-         "valueFormatter": {"function": "params.value == null ? '' : params.value"},
+         "valueFormatter": {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + "
+                                        "Math.round(params.value) + '%'"}},
+        {"field": "tb1", "headerName": "TB/ngày kỳ 1", "flex": 1, "minWidth": 80,
+         "type": "numericColumn", "valueFormatter": SO1,
          "headerTooltip": "Trung bình số/ngày của Kỳ 1"},
-        {"field": "tb2", "headerName": "TB2/ng", "flex": 1, "minWidth": 80,
-         "type": "numericColumn",
-         "valueFormatter": {"function": "params.value == null ? '' : params.value"},
+        {"field": "tb2", "headerName": "TB/ngày kỳ 2", "flex": 1, "minWidth": 80,
+         "type": "numericColumn", "valueFormatter": SO1,
          "headerTooltip": "Trung bình số/ngày của Kỳ 2"},
     ]
 
@@ -216,34 +214,22 @@ def register(app):
                   Input("ss-metric", "value"), Input("ss-nhom", "value"),
                   Input("ss-cn", "value"))
     def _cap_nhat(k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh):
-        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh)
-        if nhom == "kd":
-            kd = [p["code"] for p in phong_order() if p["loai"] in ("IBB", "DIABAN")]
-            scope = kd if scope is None else [c for c in scope if c in set(kd)]
-        ky1, ky2 = (k1_tu, k1_den), (k2_tu, k2_den)
-        dfp = so_sanh_ky(ky1, ky2, metric, chi_phong=scope)
-        dfa = so_sanh_acc(ky1, ky2, metric,
-                          chi_phong=loc_nhan_su(scope, current_user.phong_nhan_su()))
-
+        dfp, dfa, hut, tang, so_ngay1, so_ngay2 = _tinh(k1_tu, k1_den, k2_tu, k2_den, metric, nhom,
+                                                        chi_nhanh)
         t1, t2 = int(dfp.ky1.sum()), int(dfp.ky2.sum())
         chenh = t2 - t1
         pct = (chenh / t1 * 100) if t1 else None
-        so_ngay1 = (date.fromisoformat(k1_den) - date.fromisoformat(k1_tu)).days + 1
-        so_ngay2 = (date.fromisoformat(k2_den) - date.fromisoformat(k2_tu)).days + 1
         giam = dfp[dfp.chenh < 0]
         tang_phong = dfp[dfp.chenh > 0]
-        # TB/ngày cho từng kỳ
-        dfp["tb1"] = (dfp.ky1 / so_ngay1).round(1)
-        dfp["tb2"] = (dfp.ky2 / so_ngay2).round(1)
         kpis = [
-            kpi(f"Kỳ 1 ({so_ngay1} ngày)", f"{t1:,}".replace(",", "."),
+            kpi(f"Kỳ 1 ({so_ngay1} ngày)", so_vn(t1),
                 f"{k1_tu[8:10]}/{k1_tu[5:7]} → {k1_den[8:10]}/{k1_den[5:7]} · TB "
-                f"{t1 / so_ngay1:.1f}/ngày"),
-            kpi(f"Kỳ 2 ({so_ngay2} ngày)", f"{t2:,}".replace(",", "."),
+                f"{so_vn(t1 / so_ngay1, 1)}/ngày"),
+            kpi(f"Kỳ 2 ({so_ngay2} ngày)", so_vn(t2),
                 f"{k2_tu[8:10]}/{k2_tu[5:7]} → {k2_den[8:10]}/{k2_den[5:7]} · TB "
-                f"{t2 / so_ngay2:.1f}/ngày"),
-            kpi("Chênh lệch", f"{chenh:+,}".replace(",", "."),
-                f"{pct:+.1f}%" if pct is not None else "", "ok" if chenh >= 0 else "bad"),
+                f"{so_vn(t2 / so_ngay2, 1)}/ngày"),
+            kpi("Chênh lệch", so_vn(chenh, dau=True),
+                pct_vn(pct, dau=True, trong=""), "ok" if chenh >= 0 else "bad"),
             kpi("Phòng tăng", f"{len(tang_phong)}/{len(dfp)}",
                 ", ".join(tang_phong.phong.head(3)) if len(tang_phong) else "Không có phòng nào tăng",
                 "ok" if len(tang_phong) else ""),
@@ -254,14 +240,6 @@ def register(app):
                 f"Tăng: {int((dfa.chenh > 0).sum())} người"),
         ]
 
-        hut = dfa[dfa.chenh < 0].head(TOP_N).copy()
-        hut.insert(0, "stt", range(1, len(hut) + 1))
-        hut["chenh_txt"] = ["▼" + str(abs(int(c))) for c in hut.chenh]
-        hut["pct"] = [f"{c/k*100:+.0f}%" if k else "" for c, k in zip(hut.chenh, hut.ky1)]
-        tang = dfa[dfa.chenh > 0].sort_values("chenh", ascending=False).head(TOP_N).copy()
-        tang.insert(0, "stt", range(1, len(tang) + 1))
-        tang["chenh_txt"] = ["▲" + str(int(c)) for c in tang.chenh]
-        tang["pct"] = [f"{c/k*100:+.0f}%" if k else "" for c, k in zip(tang.chenh, tang.ky1)]
 
         d = dfp[dfp.chenh != 0].sort_values("chenh")
         fig = go.Figure(go.Bar(
@@ -281,12 +259,54 @@ def register(app):
         return (kpis, _cols_phong(), dfp.to_dict("records"), _cols_acc(),
                 hut.to_dict("records"), _cols_acc(), tang.to_dict("records"), fig, badge)
 
-    @app.callback(Output("ss-hut", "exportDataAsCsv"), Input("ss-export-hut", "n_clicks"),
+    @app.callback(Output("ss-tai-xuong", "data"), Input("ss-export", "n_clicks"),
+                  State("ss-k1-tu", "date"), State("ss-k1-den", "date"),
+                  State("ss-k2-tu", "date"), State("ss-k2-den", "date"),
+                  State("ss-metric", "value"), State("ss-nhom", "value"), State("ss-cn", "value"),
                   prevent_initial_call=True)
-    def _export(n):
-        return bool(n)
+    def _export(n, k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh):
+        if not n or not all((k1_tu, k1_den, k2_tu, k2_den)):
+            return no_update
+        dfp, _, hut, tang, _, _ = _tinh(k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh)
+        ky = f"{_dd(k1_tu)}-{_dd(k1_den)} so với {_dd(k2_tu)}-{_dd(k2_den)}"
+        cot_phong = [("phong", "Phòng", "text"), ("bay", "Bầy", "text"), ("ky1", "Kỳ 1", "so"),
+                     ("ky2", "Kỳ 2", "so"), ("chenh", "Chênh", "so"), ("ty_le", "Chênh %", "pct"),
+                     ("tb1", "TB/ngày kỳ 1", "so"), ("tb2", "TB/ngày kỳ 2", "so")]
+        cot_acc = [("stt", "#", "so"), ("acc", "Acc nhân viên", "text"), ("phong", "Phòng", "text"),
+                   ("ky1", "Kỳ 1", "so"), ("ky2", "Kỳ 2", "so"), ("chenh", "Chênh", "so"),
+                   ("pct", "Chênh %", "text")]
+        bang = [("Theo phòng", dfp, cot_phong)]
+        if current_user.duoc_xem_nhan_su:
+            bang += [(f"Top {TOP_N} giảm", hut, cot_acc), (f"Top {TOP_N} tăng", tang, cot_acc)]
+        noi_dung = xuat_phan_tich("", f"SO SÁNH KỲ · {METRIC_LABEL[metric].upper()} · {ky}", bang)
+        ghi_log("xuat_so_sanh_ky", f"{metric} {ky} {chi_nhanh}")
+        return dcc.send_bytes(noi_dung, f"SoSanhKy_{metric}_{k2_den.replace('-', '')}.xlsx")
 
-    @app.callback(Output("ss-tang", "exportDataAsCsv"), Input("ss-export-tang", "n_clicks"),
-                  prevent_initial_call=True)
-    def _export_tang(n):
-        return bool(n)
+
+def _dd(iso: str) -> str:
+    return f"{iso[8:10]}/{iso[5:7]}"
+
+
+def _tinh(k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh):
+    """(bảng phòng, bảng acc, top giảm, top tăng, số ngày kỳ 1, số ngày kỳ 2) trong phạm vi quyền."""
+    scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh)
+    if nhom == "kd":
+        kd = [p["code"] for p in phong_order() if p["loai"] in ("IBB", "DIABAN")]
+        scope = kd if scope is None else [c for c in scope if c in set(kd)]
+    ky1, ky2 = (k1_tu, k1_den), (k2_tu, k2_den)
+    dfp = so_sanh_ky(ky1, ky2, metric, chi_phong=scope)
+    dfa = so_sanh_acc(ky1, ky2, metric, chi_phong=loc_nhan_su(scope, current_user.phong_nhan_su()))
+    so_ngay1 = (date.fromisoformat(k1_den) - date.fromisoformat(k1_tu)).days + 1
+    so_ngay2 = (date.fromisoformat(k2_den) - date.fromisoformat(k2_tu)).days + 1
+    dfp["tb1"] = (dfp.ky1 / so_ngay1).round(1)
+    dfp["tb2"] = (dfp.ky2 / so_ngay2).round(1)
+
+    hut = dfa[dfa.chenh < 0].head(TOP_N).copy()
+    hut.insert(0, "stt", range(1, len(hut) + 1))
+    hut["chenh_txt"] = ["▼" + str(abs(int(c))) for c in hut.chenh]
+    hut["pct"] = [f"{c/k*100:+.0f}%" if k else "" for c, k in zip(hut.chenh, hut.ky1)]
+    tang = dfa[dfa.chenh > 0].sort_values("chenh", ascending=False).head(TOP_N).copy()
+    tang.insert(0, "stt", range(1, len(tang) + 1))
+    tang["chenh_txt"] = ["▲" + str(int(c)) for c in tang.chenh]
+    tang["pct"] = [f"{c/k*100:+.0f}%" if k else "" for c, k in zip(tang.chenh, tang.ky1)]
+    return dfp, dfa, hut, tang, so_ngay1, so_ngay2

@@ -193,15 +193,26 @@ def summary_phong(thang: str, den_ngay: int | None = None,
     return out.reset_index(names="phong_code")
 
 
-def tien_do_thang(thang: str, den_ngay: int | None = None) -> dict:
-    """Tiến độ tháng: đã chạy bao nhiêu ngày, cần bao nhiêu số/ngày cho phần còn lại."""
+def tien_do_thang(thang: str, den_ngay: int | None = None, chi_phong=None) -> dict:
+    """Tiến độ tháng: đã chạy bao nhiêu ngày, cần bao nhiêu số/ngày cho phần còn lại.
+
+    Chỉ tiêu cộng như dòng tổng của Báo cáo Tổng: bỏ phòng không cộng vào tổng (ANCS).
+    """
+    from app.overview import phong_khong_cong_tong
     _, _, days = month_range(thang)
     den_ngay = den_ngay or days
-    hien_tai = int(daily_counts(thang, "online").loc[:, :den_ngay].to_numpy().sum())
-    tgt = pd.read_sql(text("""SELECT SUM(gia_tri) g FROM target_monthly
+    daily = daily_counts(thang, "online")
+    if chi_phong is not None:
+        daily = daily.loc[[c for c in daily.index if c in set(chi_phong)]]
+    hien_tai = int(daily.loc[:, :den_ngay].to_numpy().sum())
+    tgt = pd.read_sql(text("""SELECT ma_doi_tuong, gia_tri FROM target_monthly
                               WHERE thang = :t AND doi_tuong = 'PHONG' AND chi_tieu = 'internet'"""),
                       engine, params={"t": thang})
-    muc_tieu = float(tgt.iloc[0, 0] or 0)
+    bo = phong_khong_cong_tong()
+    tgt = tgt[~tgt.ma_doi_tuong.isin(bo)]
+    if chi_phong is not None:
+        tgt = tgt[tgt.ma_doi_tuong.isin(set(chi_phong))]
+    muc_tieu = float(tgt.gia_tri.fillna(0).sum())
     con_lai_ngay = max(days - den_ngay, 0)
     return {
         "ngay_da_chay": den_ngay,
