@@ -236,3 +236,22 @@ def test_bao_cao_tong_khop_google_sheet_goc_ngay_11():
         assert len(dong), ten
         for c in kiem:
             assert so(r[c]) == float(dong.iloc[0][c]), (ten, c, r[c], dong.iloc[0][c])
+
+
+def test_tong_chi_nhanh_khong_cong_nhan_su_muc_tieu_ancs_nhu_sheet():
+    from app.overview import bang_tong_quan
+    df, _ = bang_tong_quan("2026-09", 11)
+    data = df[df.loai_dong == "data"].set_index("phong_code")
+    tong = df[df.loai_dong == "total"].iloc[0]
+    assert tong.mt_internet == 4530 == data.mt_internet.sum() - data.loc["ANCS", "mt_internet"]
+    assert tong.nhan_su == data.nhan_su.sum() - data.loc["ANCS", "nhan_su"]
+    assert tong.online == data.online.sum() == 1394          # số thực hiện vẫn tính đủ
+    assert tong.so_ton == data.so_ton.sum()
+
+
+def test_ket_luan_dat_khi_online_bang_muc_tieu_ngay():
+    from app.overview import bang_tong_quan
+    df, _ = bang_tong_quan("2026-09", 11)
+    d = df[df.loai_dong == "data"]
+    assert (d[d.ngay_online >= d.mt_ngay].ket_luan == "Đạt").all()
+    assert (d[d.ngay_online < d.mt_ngay].ket_luan == "Không đạt").all()

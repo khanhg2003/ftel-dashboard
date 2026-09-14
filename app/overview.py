@@ -25,6 +25,7 @@ CN_NOI_BO = ("DNG_01", "DNG_02", "QNM")
 
 TEN_PHAM_VI = {"all": "Toàn chi nhánh", "DNG": "Đà Nẵng", "QNM": "Quảng Nam"}
 TEN_DONG_TONG = {"all": "TỔNG TOÀN CHI NHÁNH", "DNG": "TỔNG ĐÀ NẴNG", "QNM": "TỔNG QUẢNG NAM"}
+COT_KHONG_CONG = ["nhan_su", "mt_internet", "mt_camera", "mt_ngay"]
 LECH_GIO_VN = timedelta(hours=7)          # database lưu giờ UTC
 
 
@@ -145,16 +146,20 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
                      "phong": binfo.get("ten_tong", f"TỔNG {binfo['ten']}"), **tong.to_dict()})
     # Xem toàn chi nhánh: thêm dòng tổng riêng Đà Nẵng / Quảng Nam ngay trên dòng tổng
     # (bầy trộn phòng của cả hai tỉnh nên không đọc được từ các dòng tổng bầy)
+    # Như Google Sheet: phòng trong `tong_chi_nhanh.khong_cong` (ANCS) không cộng NHÂN SỰ và MỤC TIÊU
+    # vào dòng tổng; số thực hiện (online, tồn, V.VIP...) vẫn tính đủ toàn chi nhánh.
+    df_tong = df.copy()
+    df_tong.loc[df_tong.index.isin(phong_khong_cong_tong()), COT_KHONG_CONG] = 0
     if chi_nhanh == "all":
         cn_cua = pd.Series({c: meta[c].get("chi_nhanh") for c in codes})
         if cn_cua.nunique() > 1:
             for cn in ("DNG", "QNM"):
-                sub = df[cn_cua.reindex(df.index) == cn]
+                sub = df_tong[cn_cua.reindex(df_tong.index) == cn]
                 if len(sub):
                     rows.append({"phong_code": f"CN_{cn}", "loai_dong": "chinhanh",
                                  "phong": f"TỔNG {cn}",
                                  **sub.drop(columns=["phong", "bay"]).sum().to_dict()})
-    tong_all = df.drop(columns=["phong", "bay"]).sum()
+    tong_all = df_tong.drop(columns=["phong", "bay"]).sum()
     rows.append({"phong_code": "TOTAL", "loai_dong": "total",
                  "phong": TEN_DONG_TONG.get(chi_nhanh, TEN_DONG_TONG["all"]),
                  **tong_all.to_dict()})
@@ -162,6 +167,12 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
     out = pd.DataFrame(rows)
     out = _them_ty_le(out, tam_tinh)
     return out, ngay
+
+
+def phong_khong_cong_tong() -> set[str]:
+    """Phòng hiện dòng riêng nhưng không cộng vào dòng tổng chi nhánh (config/rules.yml)."""
+    from app.config import rules_config
+    return set((rules_config().get("tong_chi_nhanh") or {}).get("khong_cong") or [])
 
 
 def _vvip_tao_trong_ngay(thang: str, ngay: int) -> pd.Series:
@@ -184,9 +195,12 @@ def _them_ty_le(out: pd.DataFrame, tam_tinh: bool = False) -> pd.DataFrame:
     out["cnql_ty_le"] = _ty_le(out.cnql, out.online)
     out["vvip_ty_le"] = _ty_le(out.vvip, out.online)
     out["htkh_camera"] = _ty_le(out.camera, out.mt_camera)
-    out["ket_luan"] = np.where(out.ngay_online >= out.mt_ngay.replace(0, np.nan).fillna(10 ** 9),
-                               "Đạt", "Chưa đạt" if tam_tinh else "Không đạt")
-    out.loc[out.mt_ngay == 0, "ket_luan"] = "—"
+    # Đạt khi online trong ngày >= mục tiêu ngày (BGĐ chốt 14/09/2026). Phòng mục tiêu 0 thì đạt;
+    # chỉ ghi "—" khi cả tháng chưa nhập mục tiêu ngày cho phòng nào.
+    out["ket_luan"] = np.where(out.ngay_online >= out.mt_ngay, "Đạt",
+                               "Chưa đạt" if tam_tinh else "Không đạt")
+    if not (out[out.loai_dong == "data"].mt_ngay > 0).any():
+        out["ket_luan"] = "—"
     return out.replace({np.nan: None})
 
 
