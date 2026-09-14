@@ -6,7 +6,7 @@ Mọi thao tác thêm đều qua hộp thoại (điền đủ thông tin rồi m
 from __future__ import annotations
 
 import dash_ag_grid as dag
-from dash import Input, Output, State, ctx, dcc, html, no_update
+from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
 from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau,
@@ -15,7 +15,9 @@ from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_m
 from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.org import phong_order
-from app.ui.components import alert, card, field, modal, nhac_chua_luu
+from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
+from app.ui.components import (MAU_LOAI_THAY_DOI, alert, card, field, gan_import, modal, nhac_chua_luu,
+                               nut_import)
 from app.ui.icons import icon
 
 TRANG_THAI = ["Đang dùng", "Ngừng dùng", "Đang khoá"]
@@ -130,11 +132,12 @@ def layout():
         html.Div(id="qt-pane-staff", children=[
             card([
                 html.Div([
-                    html.Div("Bảng ghép acc người bán với phòng. Sửa xong bấm “Tính lại việc "
-                             "gán phòng” để áp cho dữ liệu đã nạp.",
-                             className="desc", style={"margin": 0}),
+                    dcc.Input(id="qt-staff-tim", type="search", className="o-tim",
+                              placeholder="Tìm acc, mã NV, phòng…"),
+                    html.Div(id="qt-staff-dem", className="desc", style={"margin": 0}),
                     html.Div(id="qt-staff-nhac", style={"marginLeft": "10px"}),
                     html.Div(className="grow"),
+                    nut_import("qt-ns"),
                     html.Button([icon("trash", 14), html.Span("Xoá")], id="qt-staff-xoa",
                                 className="btn nguy-hiem"),
                     html.Button([icon("refresh", 14), html.Span("Tính lại việc gán phòng")],
@@ -152,6 +155,10 @@ def layout():
                                             "paginationPageSize": 20,
                                             "paginationPageSizeSelector": False},
                            getRowStyle=ROW_STYLE, style={"width": "100%", "height": "460px"}),
+                html.Div("Sửa trực tiếp trong bảng khi thay đổi ít, rồi bấm “Tính lại việc gán phòng”. "
+                         "Thay đổi nhiều: Tải file mẫu (điền sẵn danh mục hiện tại) → sửa → Import "
+                         "Excel. Acc không có trong file sẽ được ghi chú “Nghỉ”.",
+                         className="desc", style={"marginTop": "10px"}),
             ], title="Danh mục nhân sự theo phòng"),
         ]),
 
@@ -202,6 +209,35 @@ def _staff_cols():
 def register(app):
     nhac_chua_luu(app, "qt-user-grid", "qt-user-nhac", "qt-user-msg")
     nhac_chua_luu(app, "qt-staff-grid", "qt-staff-nhac", "qt-staff-msg")
+    gan_import(app, "qt-ns", ham_mau=mau_nhan_su, ten_file_mau="Mau_DanhMucNhanSu.xlsx",
+               ham_xem=xem_truoc_nhan_su, ham_ap=ap_dung_nhan_su, out_msg="qt-staff-msg",
+               cot=[{"field": "loai", "headerName": "Thay đổi", "width": 130, "pinned": "left",
+                     "cellStyle": MAU_LOAI_THAY_DOI},
+                    {"field": "acc", "headerName": "Acc inside", "width": 170},
+                    {"field": "phong_cu", "headerName": "Phòng hiện tại", "width": 130},
+                    {"field": "phong_moi", "headerName": "Phòng trong file", "width": 130},
+                    {"field": "chi_tiet", "headerName": "Chi tiết", "flex": 1, "minWidth": 220,
+                     "tooltipField": "chi_tiet"},
+                    {"field": "dong", "headerName": "Dòng", "width": 76}],
+               mo_ta_ket_qua=lambda d: [
+                   html.B("Đã import danh mục nhân sự. "),
+                   f"Thêm mới {d.get('Thêm mới', 0)}, đổi phòng {d.get('Đổi phòng', 0)}, cập nhật "
+                   f"{d.get('Cập nhật', 0)}, đánh dấu nghỉ {d.get('Đánh dấu nghỉ', 0)}, bỏ qua "
+                   f"{d.get('Lỗi', 0)} dòng lỗi. Đã tính lại phòng cho "
+                   f"{d.get('gan_lai_hop_dong', 0)} hợp đồng."])
+
+    @app.callback(Output("qt-staff-grid", "dashGridOptions"), Input("qt-staff-tim", "value"),
+                  prevent_initial_call=True)
+    def _tim_staff(chu):
+        p = Patch()
+        p["quickFilterText"] = chu or ""
+        return p
+
+    @app.callback(Output("qt-staff-dem", "children"), Input("qt-staff-grid", "rowData"))
+    def _dem_staff(rows):
+        rows = rows or []
+        nghi = sum(1 for r in rows if "nghỉ" in str(r.get("ghi_chu") or "").lower())
+        return f"{len(rows)} acc · {nghi} ghi chú Nghỉ"
 
     @app.callback(Output("qt-pane-user", "style"), Output("qt-pane-staff", "style"),
                   Input("qt-tab", "value"))

@@ -182,6 +182,19 @@ LOCALE_VI = {
     "equals": "Bằng", "notEqual": "Khác", "lessThan": "Nhỏ hơn", "greaterThan": "Lớn hơn",
     "andCondition": "Và", "orCondition": "Hoặc", "pageSizeSelectorLabel": "Số dòng:",
     "ariaPageSizeSelectorLabel": "Số dòng",
+    "notContains": "Không chứa", "startsWith": "Bắt đầu bằng", "endsWith": "Kết thúc bằng",
+    "blank": "Trống", "notBlank": "Không trống", "lessThanOrEqual": "Nhỏ hơn hoặc bằng",
+    "greaterThanOrEqual": "Lớn hơn hoặc bằng", "inRange": "Trong khoảng", "inRangeStart": "Từ",
+    "inRangeEnd": "Đến", "before": "Trước", "after": "Sau", "applyFilter": "Áp dụng",
+    "resetFilter": "Đặt lại", "clearFilter": "Xoá lọc", "cancelFilter": "Huỷ",
+    "searchOoo": "Tìm...", "selectAll": "(Chọn tất cả)", "selectAllSearchResults": "(Chọn tất cả kết quả)",
+    "noMatches": "Không có kết quả", "dateFormatOoo": "dd/mm/yyyy", "empty": "Chọn một",
+    "pinColumn": "Ghim cột", "pinLeft": "Ghim trái", "pinRight": "Ghim phải", "noPin": "Bỏ ghim",
+    "autosizeThiscolumn": "Tự giãn cột này", "autosizeAllColumns": "Tự giãn mọi cột",
+    "resetColumns": "Đặt lại cột", "sortAscending": "Xếp tăng dần", "sortDescending": "Xếp giảm dần",
+    "sortUnSort": "Bỏ sắp xếp", "columns": "Cột", "filters": "Bộ lọc", "copy": "Sao chép",
+    "ariaChecked": "đã chọn", "ariaUnchecked": "chưa chọn", "ariaRowSelect": "Chọn dòng",
+    "ariaSearch": "Tìm", "ariaFilterValue": "Giá trị lọc", "filterOoo": "Lọc...",
 }
 
 
@@ -200,3 +213,113 @@ GRID_STYLE_CONDITIONS = {
          "style": {"backgroundColor": "var(--row-total)", "fontWeight": "700"}},
     ]
 }
+
+
+# ------------------------------------------------------------ import Excel
+MAU_LOAI_THAY_DOI = {"styleConditions": [
+    {"condition": "params.value == 'Lỗi'", "style": {"color": "#B42318", "fontWeight": "700"}},
+    {"condition": "params.value == 'Thêm mới'", "style": {"color": "#0A7A3E", "fontWeight": "650"}},
+    {"condition": "params.value == 'Đổi phòng' || params.value == 'Cập nhật'",
+     "style": {"color": "#0B5CAD", "fontWeight": "650"}},
+    {"condition": "params.value == 'Đánh dấu nghỉ'", "style": {"color": "#8A5709", "fontWeight": "650"}},
+]}
+
+
+def nut_import(prefix: str, ten_mau: str = "Tải file mẫu"):
+    """Cụm nút: tải file Excel mẫu + chọn file để import (kèm hộp thoại xem trước)."""
+    from dash_ag_grid import AgGrid
+
+    from app.ui.icons import icon
+    return html.Div([
+        dcc.Download(id=f"{prefix}-mau-tai"),
+        dcc.Store(id=f"{prefix}-nhap-file"),
+        html.Button([icon("download", 14), html.Span(ten_mau)], id=f"{prefix}-mau", className="btn",
+                    title="File Excel điền sẵn dữ liệu đang có - sửa trên đó rồi import lại"),
+        dcc.Upload(html.Button([icon("upload", 14), html.Span("Import Excel")], className="btn"),
+                   id=f"{prefix}-nhap", accept=".xlsx", multiple=False, className="upload-nut"),
+        html.Div(modal(f"{prefix}-modal-nhap", "Xem trước trước khi import", [
+            html.Div(id=f"{prefix}-nhap-tom-tat"),
+            AgGrid(id=f"{prefix}-nhap-grid", className="ag-theme-quartz ag-theme-ftel",
+                   columnDefs=[], rowData=[],
+                   defaultColDef={"resizable": True, "sortable": True, "filter": True},
+                   dashGridOptions={"suppressCellFocus": True, "pagination": True,
+                                    "paginationPageSize": 12, "paginationPageSizeSelector": False,
+                                    "tooltipShowDelay": 200},
+                   style={"width": "100%", "height": "440px"}),
+        ], nut_chinh="Áp dụng"), className="modal-rong"),
+    ], className="cum-import")
+
+
+def gan_import(app, prefix: str, *, ham_mau, ten_file_mau: str, ham_xem, ham_ap, cot: list[dict],
+               out_msg: str, mo_ta_ket_qua) -> None:
+    """Nối callback cho `nut_import`: tải mẫu, đọc file -> xem trước, Áp dụng -> ghi + báo vào `out_msg`."""
+    import base64
+
+    from dash import Input, Output, State, ctx, no_update
+    from flask_login import current_user
+
+    from app.auth import ghi_log
+
+    @app.callback(Output(f"{prefix}-mau-tai", "data"), Input(f"{prefix}-mau", "n_clicks"),
+                  prevent_initial_call=True)
+    def _tai_mau(n):
+        if not n:
+            return no_update
+        ghi_log(f"tai_mau_{prefix}")
+        return dcc.send_bytes(ham_mau(), ten_file_mau)
+
+    @app.callback(Output(f"{prefix}-nhap-file", "data"), Output(f"{prefix}-nhap-grid", "columnDefs"),
+                  Output(f"{prefix}-nhap-grid", "rowData"), Output(f"{prefix}-nhap-tom-tat", "children"),
+                  Output(f"{prefix}-modal-nhap-ok", "disabled"),
+                  Input(f"{prefix}-nhap", "contents"), State(f"{prefix}-nhap", "filename"),
+                  prevent_initial_call=True)
+    def _doc(noi_dung, ten):
+        if not noi_dung:
+            return no_update, no_update, no_update, no_update, no_update
+        try:
+            kq = ham_xem(base64.b64decode(noi_dung.split(",", 1)[1]))
+        except Exception as e:  # noqa: BLE001
+            return ({"ten": ten, "noi_dung": None}, cot, [],
+                    alert([html.B("Không đọc được file: "), str(e)], "bad"), True)
+        if kq.empty:
+            return {"ten": ten, "noi_dung": None}, cot, [], alert("File không có dòng dữ liệu.", "warn"), True
+        dem = kq.loai.value_counts()
+        co_doi = int(sum(v for k, v in dem.items() if k not in ("Lỗi", "Không đổi")))
+        chip = [html.Span(f"{k}: {v}", className="badge " + {"Lỗi": "bad", "Không đổi": "muted"}.get(k, "ok"))
+                for k, v in dem.items()]
+        tom_tat = html.Div([
+            html.Div([html.B(ten), " · "] + chip, style={"display": "flex", "gap": "6px",
+                                                        "flexWrap": "wrap", "alignItems": "center"}),
+            html.Div("Dòng lỗi sẽ bị bỏ qua. Kiểm tra kỹ các dòng “Đánh dấu nghỉ” trước khi áp dụng."
+                     if co_doi else "Không có thay đổi nào để áp dụng.", className="desc",
+                     style={"margin": "8px 0 10px"}),
+        ])
+        hien = kq[kq.loai != "Không đổi"] if co_doi or (dem.get("Lỗi", 0)) else kq
+        rows = hien.drop(columns=[c for c in hien.columns if c.startswith("_")]).astype(object)
+        rows = rows.where(rows.notna(), None)
+        for c in rows.columns:
+            rows[c] = [v.strftime("%d/%m/%Y") if hasattr(v, "strftime") else v for v in rows[c]]
+        return {"ten": ten, "noi_dung": noi_dung}, cot, rows.to_dict("records"), tom_tat, not co_doi
+
+    @app.callback(Output(f"{prefix}-modal-nhap", "className"),
+                  Input(f"{prefix}-nhap-file", "data"), Input(f"{prefix}-modal-nhap-dong", "n_clicks"),
+                  Input(f"{prefix}-modal-nhap-huy", "n_clicks"), Input(f"{prefix}-modal-nhap-ok", "n_clicks"),
+                  prevent_initial_call=True)
+    def _mo_dong(du_lieu, *_):
+        return "modal mo" if ctx.triggered_id == f"{prefix}-nhap-file" and du_lieu else "modal"
+
+    @app.callback(Output(out_msg, "children", allow_duplicate=True),
+                  Output(f"{prefix}-nhap", "contents"),
+                  Input(f"{prefix}-modal-nhap-ok", "n_clicks"), State(f"{prefix}-nhap-file", "data"),
+                  prevent_initial_call=True)
+    def _ap_dung(n, du_lieu):
+        if not n or not du_lieu or not du_lieu.get("noi_dung"):
+            return no_update, no_update
+        if not current_user.duoc_cau_hinh:
+            return alert("Tài khoản này không có quyền import.", "bad"), None
+        try:
+            dem = ham_ap(base64.b64decode(du_lieu["noi_dung"].split(",", 1)[1]), du_lieu["ten"],
+                         current_user.username)
+        except Exception as e:  # noqa: BLE001
+            return alert([html.B("Import không thành công: "), str(e)], "bad"), None
+        return alert(mo_ta_ket_qua(dem), "ok"), None

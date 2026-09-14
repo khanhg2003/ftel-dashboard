@@ -19,7 +19,9 @@ from app.models import Target
 from app.org import (LOAI_PHONG, bay_info, bay_options, co_cau_rieng, luu_bay, luu_co_cau_thang,
                      luu_phong, phong_order, xoa_bay, xoa_cache_org, xoa_co_cau_thang, xoa_phong)
 from app.thoi_gian import chu_gio_vn
-from app.ui.components import alert, card, chon_ky, field, gan_dieu_huong_ky, modal, nhac_chua_luu
+from app.mau_nhap import ap_dung_co_cau, mau_co_cau, xem_truoc_co_cau
+from app.ui.components import (MAU_LOAI_THAY_DOI, alert, card, chon_ky, field, gan_dieu_huong_ky,
+                               gan_import, modal, nhac_chua_luu, nut_import)
 from app.ui.icons import icon
 
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
@@ -125,6 +127,14 @@ def layout():
 
         # ------------------------------------------------ tab Cơ cấu tổ chức
         html.Div(id="st-pane-cocau", children=[
+            html.Div([
+                html.Div([html.H3("Nhập nhanh bằng Excel"),
+                          html.Div("Tải file mẫu (điền sẵn bầy, phòng hiện có) → sửa hoặc thêm dòng → "
+                                   "Import Excel. App cho xem trước từng thay đổi rồi mới ghi. Bầy, "
+                                   "phòng không có trong file giữ nguyên.", className="desc")],
+                         className="the-ten"),
+                html.Div(nut_import("st-cc", "Tải file mẫu"), className="the-nut"),
+            ], className="card the-dau"),
             card([
                 html.Div([
                     html.Div("Đổi tên, thêm bầy mới hoặc ngừng dùng một bầy.",
@@ -357,6 +367,20 @@ def register(app):
     nhac_chua_luu(app, "st-bay-grid", "st-bay-nhac", "st-bay-msg")
     nhac_chua_luu(app, "st-phong-grid", "st-phong-nhac", "st-phong-msg")
     nhac_chua_luu(app, "st-target-grid", "st-target-nhac", "st-target-msg")
+    gan_import(app, "st-cc", ham_mau=mau_co_cau, ten_file_mau="Mau_CoCau_Bay_Phong.xlsx",
+               ham_xem=xem_truoc_co_cau, ham_ap=ap_dung_co_cau, out_msg="st-phong-msg",
+               cot=[{"field": "loai", "headerName": "Thay đổi", "width": 120, "pinned": "left",
+                     "cellStyle": MAU_LOAI_THAY_DOI},
+                    {"field": "doi_tuong", "headerName": "Loại", "width": 86},
+                    {"field": "ten", "headerName": "Tên", "width": 170},
+                    {"field": "ma", "headerName": "Mã", "width": 120},
+                    {"field": "chi_tiet", "headerName": "Chi tiết", "flex": 1, "minWidth": 240,
+                     "tooltipField": "chi_tiet"},
+                    {"field": "dong", "headerName": "Dòng", "width": 76}],
+               mo_ta_ket_qua=lambda d: [
+                   html.B("Đã import cơ cấu. "),
+                   f"Thêm mới {d.get('Thêm mới', 0)}, cập nhật {d.get('Cập nhật', 0)}, bỏ qua "
+                   f"{d.get('Lỗi', 0)} dòng lỗi. Phòng mới cần gán nhân sự ở Quản trị → Danh mục nhân sự."])
 
     @app.callback(Output("st-pane-cocau", "style"), Output("st-pane-chitieu", "style"),
                   Output("st-pane-khac", "style"), Input("st-tab", "value"))

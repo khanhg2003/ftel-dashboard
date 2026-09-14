@@ -704,3 +704,9 @@ table.simple tr:last-child td { border-bottom: none; }
 .chu-mau { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: -2px 0 6px; font-size: 12px; color: var(--text-muted); }
 .mau-chip { display: inline-flex; align-items: center; gap: 6px; }
 .mau-chip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.tab-lon .seg { padding: 4px; }
+.tab-lon .seg-item { font-size: 14px !important; padding: 9px 20px !important; font-weight: 600; }
+/* cụm tải mẫu + import Excel */
+.cum-import { display: flex; gap: 8px; align-items: center; }
+.upload-nut { display: inline-block; }
+.modal-rong .modal-hop { width: min(1040px, calc(100vw - 40px)); }

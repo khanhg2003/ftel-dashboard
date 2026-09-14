@@ -74,10 +74,27 @@ Chọn hai khoảng ngày (có ba nút gợi ý sẵn). App chỉ ra phòng nào
 danh sách **người bán sụt nhiều nhất** để biết cần hỏi thăm ai trước.
 
 ### Hiệu suất nhân sự — *Ai đang bán tốt, ai đang đuối?*
-Số online luỹ kế đến ngày chọn của từng người, ghép với thâm niên và NSLĐ (mặc định chỉ phòng
-kinh doanh). Xem trước mục **Cần trao đổi sớm**: mỗi người có sẵn lý do (7 ngày chưa có số,
+Thanh lọc: Ngày · Chi nhánh · **Phòng** (mặc định tất cả phòng kinh doanh). Trang có 2 tab:
+
+- **1 · Bán hàng trong kỳ**: số online luỹ kế đến ngày chọn của từng người, ghép với thâm niên và NSLĐ.
+- **2 · Năng suất lao động (NSLĐ)**: lấy từ các file NSLĐ hằng tháng.
+  - *NSLĐ ITN theo tháng*: mỗi phòng mỗi tháng = tổng ITN cả phòng / số NVKD; dòng Total tính
+    cùng cách cho toàn chi nhánh. Chuyển "Từng nhân sự" để xem ITN từng người.
+  - *NSLĐ tân binh*: người vào làm trong năm; số lượng, đã nghỉ, tỷ lệ out, ITN bình quân ở
+    tháng làm việc thứ 1, 2, 3… Chuyển "Từng tân binh" để xem từng người.
+  - Cần nạp đủ file NSLĐ các tháng (tên file có tháng, VD "NSLĐ T8.2026"); nạp nhiều file một lượt được.
+
+Ở tab 1, Xem trước mục **Cần trao đổi sớm**: mỗi người có sẵn lý do (7 ngày chưa có số,
 tuần này giảm từ một nửa, NSLĐ chưa đạt). Cột **So với cùng thâm niên** so với trung vị người
-cùng mốc thâm niên. Bảng chi tiết có ô tìm, lọc phòng / thâm niên / tình trạng và nút Excel.
+cùng mốc thâm niên. Bảng chi tiết có ô tìm, lọc thâm niên / tình trạng và nút Excel.
+
+### Import danh mục nhân sự và cơ cấu bằng Excel
+- **Nhân sự**: Quản trị → Danh mục nhân sự → *Tải file mẫu* (điền sẵn danh mục hiện tại) → sửa →
+  *Import Excel* → xem trước → *Áp dụng*. File là danh sách **đầy đủ**: acc không có trong file
+  được ghi chú "Nghỉ" (không xoá). App tự tính lại phòng cho hợp đồng đã nạp.
+- **Bầy / phòng**: Cấu hình → Cơ cấu tổ chức → *Nhập nhanh bằng Excel*. Bầy, phòng không có trong
+  file giữ nguyên; muốn ngừng dùng thì ghi "Không" ở cột Đang dùng.
+- Thay đổi ít thì vẫn sửa trực tiếp trong bảng như cũ. Ô tìm ở Danh mục nhân sự tìm theo acc, mã NV, phòng.
 
 ### Chất lượng dữ liệu — *Số liệu có chỗ nào sai không?*
 Nên xem trước khi gửi báo cáo. Kiểm 5 thứ: hợp đồng chưa biết tính cho phòng nào, acc lạ chưa

@@ -1,11 +1,11 @@
-"""Trang Hiệu suất nhân sự - nhìn năng suất theo người, đối chiếu thâm niên và NSLĐ.
+"""Trang Hiệu suất nhân sự - năng suất theo người và theo phòng, đối chiếu thâm niên và NSLĐ.
 
-Khác Báo cáo phòng (một phòng, dùng buổi sáng), trang này nhìn ngang nhiều phòng:
-1. Ngày (luỹ kế tháng như Báo cáo Tổng) + chi nhánh + phạm vi phòng.
-2. Năm chỉ số: quân số, bình quân, chưa có số, cần trao đổi, NSLĐ chưa đạt.
-3. "Cần trao đổi sớm" đặt trước tiên vì là việc cần làm ngay, mỗi người có sẵn lý do.
-4. Năng suất theo thâm niên + xếp hạng, xếp đôi trên laptop.
-5. Bảng chi tiết: tìm, lọc phòng / thâm niên / tình trạng, hai góc nhìn vừa màn hình, xuất Excel.
+Thanh lọc chung: Ngày (luỹ kế tháng như Báo cáo Tổng) · Chi nhánh · Phòng.
+Hai tab tách theo nguồn số để không lẫn kỳ:
+1. Bán hàng trong kỳ (số online hằng ngày): 5 chỉ số → Cần trao đổi sớm (có lý do) →
+   năng suất theo thâm niên + xếp hạng → bảng chi tiết (tìm, lọc, Excel).
+2. Năng suất lao động (file NSLĐ hằng tháng): 5 chỉ số → NSLĐ ITN theo tháng → NSLĐ tân binh
+   theo tháng làm việc. Mỗi bảng xem theo phòng hoặc từng nhân sự của phòng đang chọn.
 
 Quyền: Quản trị xem mọi phòng, Trưởng phòng chỉ phòng mình phụ trách, Nhập liệu không vào được.
 """
@@ -18,12 +18,13 @@ import plotly.graph_objects as go
 from dash import Input, Output, Patch, State, dcc, html, no_update
 from flask_login import current_user
 
-from app.auth import ghi_log, loc_nhan_su
+from app import nsld
+from app.auth import ghi_log
 from app.export_phan_tich import xuat_phan_tich
-from app.hr_metrics import (MOC_THAM_NIEN, NGAY_KHONG_SO_CAO, TEN_NHOM, canh_bao_nhan_su,
-                            hieu_suat_nhan_su, tong_hop_tham_nien)
+from app.hr_metrics import (LOAI_KINH_DOANH, MOC_THAM_NIEN, NGAY_KHONG_SO_CAO, TEN_NHOM,
+                            canh_bao_nhan_su, hieu_suat_nhan_su, tong_hop_tham_nien)
 from app.metrics import cac_ngay_co_du_lieu
-from app.org import loc_chi_nhanh
+from app.org import phong_order
 from app.ui.components import (LOCALE_VI, alert, chi_nhanh_control, chon_ngay, chu_giai, field,
                                gan_chon_ngay, kpi, seg_control)
 from app.ui.icons import icon
@@ -87,69 +88,163 @@ def _dau_the(tieu_de, mo_ta_id=None, mo_ta=None, nut=None):
     ], className="the-dau")
 
 
+DINH_NGHIA_NSLD = [
+    ("NSLĐ ITN của phòng", "Tổng điểm ITN của cả phòng trong tháng chia số NVKD của phòng trong file "
+                           "NSLĐ tháng đó. Dòng Total tính cùng cách cho toàn bộ các phòng."),
+    ("TB", "Bình quân các tháng đã có file NSLĐ."),
+    ("Phòng", "Theo cột Phòng (theo PS) trong file NSLĐ, đổi sang tên phòng trên app (DNGB1 = IBB1…)."),
+    ("Tân binh", "Người có Ngày tính lương trong năm đang xem, cả NVKD và CTV."),
+    ("Tháng 1, 2, 3…", "Tháng làm việc thứ mấy: tháng vào làm là tháng 1. Ô là ITN bình quân của "
+                       "các tân binh ở tháng làm việc đó."),
+    ("Đã nghỉ · Tỷ lệ out", "Đã nghỉ khi file gần nhất ghi Nghỉ việc, hoặc không còn trong file "
+                            "NSLĐ tháng mới nhất. Tỷ lệ out = đã nghỉ / số tân binh."),
+]
+TAT_CA_KD, TAT_CA = "__kd", "__all"
+
+
 def layout():
     ngays = cac_ngay_co_du_lieu()
     return html.Div([
         html.Div([
             field("Ngày báo cáo", chon_ngay("hr", ngays)),
             field("Chi nhánh", chi_nhanh_control("hr-cn")),
-            field("Phạm vi", seg_control("hr-pham-vi", [("kd", "Phòng kinh doanh"),
-                                                        ("tat_ca", "Tất cả phòng")], "kd")),
+            field("Phòng", dcc.Dropdown(id="hr-phong", clearable=False, searchable=True,
+                                        placeholder="Tất cả phòng kinh doanh",
+                                        style={"width": "240px"})),
         ], className="toolbar loc-trang"),
         dcc.Download(id="hr-tai-xuong"),
+        html.Div(seg_control("hr-tab", [("ban", "1 · Bán hàng trong kỳ"),
+                                        ("nsld", "2 · Năng suất lao động (NSLĐ)")], "ban"),
+                 className="tab-lon"),
+        html.Div(style={"height": "14px"}),
 
-        html.Div(id="hr-thong-bao"),
-        dcc.Loading(html.Div(id="hr-kpi", className="kpi-row"), type="dot"),
+        # ------------------------------------------------------ tab bán hàng
+        html.Div(id="hr-pane-ban", children=[
+            html.Div(id="hr-thong-bao"),
+            dcc.Loading(html.Div(id="hr-kpi", className="kpi-row"), type="dot"),
 
-        html.Div([
-            _dau_the("Cần trao đổi sớm", "hr-cb-mo-ta"),
-            html.Div(id="hr-cb-tom-tat"),
-            _grid("hr-canhbao", cao=360),
-        ], className="card"),
-
-        html.Div([
-            html.Div(html.Div([
-                _dau_the("Năng suất theo thâm niên", "hr-tn-mo-ta"),
-                dcc.Graph(id="hr-bar-nhom", config={"displayModeBar": False, "responsive": True},
-                          style={"width": "100%", "height": "360px"}),
-            ], className="card"), className="chart-col"),
-            html.Div(html.Div([
-                _dau_the("Xếp hạng online", mo_ta="15 người đang làm, theo số online trong kỳ",
-                         nut=seg_control("hr-xep", [("cao", "Cao nhất"), ("thap", "Thấp nhất")],
-                                         "cao")),
-                _chu_mau(),
-                dcc.Graph(id="hr-scatter", config={"displayModeBar": False, "responsive": True},
-                          style={"width": "100%", "height": "420px"}),
-            ], className="card"), className="chart-col"),
-        ], className="chart-row doi"),
-
-        html.Div([
-            _dau_the("Chi tiết theo nhân sự", "hr-tom-tat",
-                     nut=html.Button([icon("download", 14), html.Span("Excel")], id="hr-export",
-                                     className="btn", title="Tải đủ cột của các dòng đang lọc")),
             html.Div([
-                dcc.Input(id="hr-tim", type="search", placeholder="Tìm tên hoặc acc…",
-                          className="o-tim", debounce=False),
-                dcc.Dropdown(id="hr-phong", multi=True, placeholder="Mọi phòng",
-                             style={"minWidth": "190px"}),
-                dcc.Dropdown(id="hr-nhom", multi=True, placeholder="Mọi thâm niên",
-                             options=[{"label": v, "value": k} for k, v in TEN_NHOM.items()],
-                             style={"minWidth": "170px"}),
-                dcc.Dropdown(id="hr-loc", clearable=False, value="all", searchable=False,
-                             style={"width": "170px"},
-                             options=[{"label": "Mọi tình trạng", "value": "all"},
-                                      {"label": "Chưa có số", "value": "zero"},
-                                      {"label": "NSLĐ chưa đạt", "value": "notok"},
-                                      {"label": "Chưa có NSLĐ", "value": "chua_nsld"}]),
-                html.Div(className="grow"),
-                seg_control("hr-xem", [("ban", "Bán hàng"), ("nsld", "Hồ sơ NSLĐ")], "ban"),
-            ], className="the-thanh"),
-            _grid("hr-grid", cao=520, getRowId="params.data.acc_norm",
-                  dashGridOptions={"pagination": True, "paginationPageSize": 12,
-                                   "paginationPageSizeSelector": False, "rowHeight": 34}),
-            chu_giai("Cách tính", DINH_NGHIA),
-        ], className="card"),
+                _dau_the("Cần trao đổi sớm", "hr-cb-mo-ta"),
+                html.Div(id="hr-cb-tom-tat"),
+                _grid("hr-canhbao", cao=360),
+            ], className="card"),
+
+            html.Div([
+                html.Div(html.Div([
+                    _dau_the("Năng suất theo thâm niên", "hr-tn-mo-ta"),
+                    dcc.Graph(id="hr-bar-nhom", config={"displayModeBar": False, "responsive": True},
+                              style={"width": "100%", "height": "360px"}),
+                ], className="card"), className="chart-col"),
+                html.Div(html.Div([
+                    _dau_the("Xếp hạng online", mo_ta="15 người đang làm, theo số online trong kỳ",
+                             nut=seg_control("hr-xep", [("cao", "Cao nhất"), ("thap", "Thấp nhất")],
+                                             "cao")),
+                    _chu_mau(),
+                    dcc.Graph(id="hr-scatter", config={"displayModeBar": False, "responsive": True},
+                              style={"width": "100%", "height": "420px"}),
+                ], className="card"), className="chart-col"),
+            ], className="chart-row doi"),
+
+            html.Div([
+                _dau_the("Chi tiết theo nhân sự", "hr-tom-tat",
+                         nut=html.Button([icon("download", 14), html.Span("Excel")], id="hr-export",
+                                         className="btn", title="Tải đủ cột của các dòng đang lọc")),
+                html.Div([
+                    dcc.Input(id="hr-tim", type="search", placeholder="Tìm tên hoặc acc…",
+                              className="o-tim", debounce=False),
+                    dcc.Dropdown(id="hr-nhom", multi=True, placeholder="Mọi thâm niên",
+                                 options=[{"label": v, "value": k} for k, v in TEN_NHOM.items()],
+                                 style={"minWidth": "180px"}),
+                    dcc.Dropdown(id="hr-loc", clearable=False, value="all", searchable=False,
+                                 style={"width": "170px"},
+                                 options=[{"label": "Mọi tình trạng", "value": "all"},
+                                          {"label": "Chưa có số", "value": "zero"},
+                                          {"label": "NSLĐ chưa đạt", "value": "notok"},
+                                          {"label": "Chưa có NSLĐ", "value": "chua_nsld"}]),
+                    html.Div(className="grow"),
+                    seg_control("hr-xem", [("ban", "Bán hàng"), ("nsld", "Hồ sơ NSLĐ")], "ban"),
+                ], className="the-thanh"),
+                _grid("hr-grid", cao=520, getRowId="params.data.acc_norm",
+                      dashGridOptions={"pagination": True, "paginationPageSize": 12,
+                                       "paginationPageSizeSelector": False, "rowHeight": 34}),
+                chu_giai("Cách tính", DINH_NGHIA),
+            ], className="card"),
+        ]),
+
+        # ----------------------------------------------------------- tab NSLĐ
+        html.Div(id="hr-pane-nsld", hidden=True, children=[
+            html.Div(id="hr-ns-thong-bao"),
+            dcc.Loading(html.Div(id="hr-ns-kpi", className="kpi-row"), type="dot"),
+            html.Div([
+                _dau_the("NSLĐ ITN theo tháng", "hr-ns-mo-ta", nut=[
+                    seg_control("hr-ns-xem", [("phong", "Các phòng"), ("nhan_su", "Từng nhân sự")],
+                                "phong"),
+                    html.Button([icon("download", 14), html.Span("Excel")], id="hr-ns-export",
+                                className="btn", title="Hai bảng NSLĐ, mỗi bảng một sheet"),
+                ]),
+                html.Div(id="hr-ns-chu"),
+                _grid("hr-ns-grid", cao=None, getRowStyle=DONG_TONG,
+                      dashGridOptions={"rowHeight": 34, "pagination": True, "paginationPageSize": 20,
+                                       "paginationPageSizeSelector": False}),
+            ], className="card"),
+            html.Div([
+                _dau_the("NSLĐ tân binh theo tháng làm việc", "hr-tb-mo-ta", nut=[
+                    seg_control("hr-tb-xem", [("phong", "Các phòng"), ("nhan_su", "Từng tân binh")],
+                                "phong")]),
+                html.Div(id="hr-tb-chu"),
+                _grid("hr-tb-grid", cao=None, getRowStyle=DONG_TONG,
+                      dashGridOptions={"rowHeight": 34, "pagination": True, "paginationPageSize": 20,
+                                       "paginationPageSizeSelector": False}),
+                chu_giai("Cách tính", DINH_NGHIA_NSLD),
+            ], className="card"),
+        ]),
     ])
+
+
+# ------------------------------------------------------------ chọn phòng
+def _phong_trong_quyen(chi_nhanh: str | None) -> list[dict]:
+    pham_vi = current_user.phong_nhan_su()
+    ds = [p for p in phong_order() if not chi_nhanh or chi_nhanh == "all"
+          or p.get("chi_nhanh") == chi_nhanh]
+    if pham_vi is not None:
+        ds = [p for p in ds if p["code"] in set(pham_vi)]
+    return ds
+
+
+def _phong_opts(chi_nhanh: str | None) -> list[dict]:
+    ds = _phong_trong_quyen(chi_nhanh)
+    kd = [p for p in ds if p["loai"] in LOAI_KINH_DOANH]
+    khac = [p for p in ds if p["loai"] not in LOAI_KINH_DOANH]
+    if current_user.phong_nhan_su() is not None and len(ds) <= 1:
+        return [{"label": p["ten"], "value": p["code"]} for p in ds]
+    dau = [{"label": "Tất cả phòng kinh doanh", "value": TAT_CA_KD}]
+    if khac:
+        dau.append({"label": "Tất cả phòng", "value": TAT_CA})
+    return (dau + [{"label": p["ten"], "value": p["code"]} for p in kd]
+            + [{"label": f"{p['ten']} (không phải KD)", "value": p["code"]} for p in khac])
+
+
+def _phong_mac_dinh(chi_nhanh: str | None) -> str | None:
+    opts = _phong_opts(chi_nhanh)
+    return opts[0]["value"] if opts else None
+
+
+def _ma_phong(chon: str | None, chi_nhanh: str | None) -> list[str]:
+    """Giá trị ô Phòng -> danh sách mã phòng (đã giới hạn theo quyền)."""
+    ds = _phong_trong_quyen(chi_nhanh)
+    if chon == TAT_CA:
+        return [p["code"] for p in ds]
+    if chon in (None, TAT_CA_KD):
+        return [p["code"] for p in ds if p["loai"] in LOAI_KINH_DOANH]
+    return [p["code"] for p in ds if p["code"] == chon]
+
+
+def _ten_pham_vi(chon: str | None) -> str:
+    if chon == TAT_CA:
+        return "tất cả phòng"
+    if chon in (None, TAT_CA_KD):
+        return "các phòng kinh doanh"
+    return next((p["ten"] for p in phong_order() if p["code"] == chon), chon)
 
 
 def _chu_mau():
@@ -294,22 +389,16 @@ def _ky(ngay_iso):
     return d, f"{d.year}-{d.month:02d}", d.day
 
 
-def _du_lieu(ngay_iso, chi_nhanh, pham_vi):
-    """(ngày, tháng, bảng nhân sự trong phạm vi quyền + bộ lọc trang)."""
+def _du_lieu(ngay_iso, chi_nhanh, chon_phong):
+    """(ngày, tháng, bảng nhân sự trong phạm vi quyền + phòng đang chọn)."""
     d, thang, ngay = _ky(ngay_iso)
     if d is None:
         return None, None, None
-    scope = loc_nhan_su(loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang),
-                        current_user.phong_nhan_su())
-    df = hieu_suat_nhan_su(thang, chi_phong=scope, ngay=ngay)
-    if pham_vi != "tat_ca":
-        df = df[df.kd]
+    df = hieu_suat_nhan_su(thang, chi_phong=_ma_phong(chon_phong, chi_nhanh), ngay=ngay)
     return d, thang, df
 
 
-def _loc_bang(df, phong, nhom, loc):
-    if phong:
-        df = df[df.phong.isin(phong)]
+def _loc_bang(df, nhom, loc):
     if nhom:
         df = df[df.nhom_tham_nien.isin(nhom)]
     if loc == "zero":
@@ -325,22 +414,132 @@ def _ban_ghi(df):
     return df.astype(object).where(df.notna(), None).to_dict("records")
 
 
+# ---------------------------------------------------------------- bảng NSLĐ
+MAU_THAP, MAU_GIUA, MAU_CAO = (244, 166, 166), (255, 255, 255), (150, 208, 160)
+
+
+def _pha(a, b, t):
+    return "#%02X%02X%02X" % tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+
+def _to_mau(rows: list[dict], cot: list[str]) -> None:
+    """Thang màu từng cột như báo cáo gốc: thấp đỏ, giữa trắng, cao xanh (theo trung vị cột)."""
+    for c in cot:
+        gt = sorted(r[c] for r in rows if isinstance(r.get(c), (int, float)) and r[c] == r[c])
+        if len(gt) < 2:
+            continue
+        thap, cao, giua = gt[0], gt[-1], gt[len(gt) // 2]
+        for r in rows:
+            v = r.get(c)
+            if not isinstance(v, (int, float)) or v != v:
+                continue
+            if v <= giua:
+                r[f"_m_{c}"] = _pha(MAU_THAP, MAU_GIUA, (v - thap) / (giua - thap) if giua > thap else 1)
+            else:
+                r[f"_m_{c}"] = _pha(MAU_GIUA, MAU_CAO, (v - giua) / (cao - giua) if cao > giua else 1)
+
+
+O_MAU = {"function": "params.data && params.data['_m_' + params.colDef.field] ? "
+                     "{backgroundColor: params.data['_m_' + params.colDef.field]} : null"}
+SO2 = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
+                   "{minimumFractionDigits: 2, maximumFractionDigits: 2})"}
+SO1 = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
+                   "{minimumFractionDigits: 1, maximumFractionDigits: 1})"}
+DONG_TONG = {"styleConditions": [{"condition": "params.node.rowPinned",
+                                  "style": {"backgroundColor": "#FDE9B8", "fontWeight": "700"}}]}
+
+
+def _cot_thang(tien_to: str, den: int, nhan, fmt) -> list[dict]:
+    return [{"field": f"{tien_to}{i}", "headerName": nhan(i), "minWidth": 62, "flex": .6,
+             "type": "numericColumn", "valueFormatter": fmt, "cellStyle": O_MAU} for i in range(1, den + 1)]
+
+
+def _cols_ns(xem: str, nam: int, den: int) -> list[dict]:
+    thang = _cot_thang("t", den, lambda i: f"NSLĐ {i:02d}/{nam}", SO2)
+    tb = {"field": "tb", "headerName": "TB NSLĐ ITN", "minWidth": 90, "flex": .7,
+          "type": "numericColumn", "valueFormatter": SO2, "cellStyle": O_MAU}
+    if xem == "nhan_su":
+        return [{"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "minWidth": 170,
+                 "flex": 1.3, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}},
+                {"field": "phong", "headerName": "Phòng", "minWidth": 84, "flex": .5},
+                {"field": "vi_tri", "headerName": "Vị trí", "minWidth": 64, "flex": .4},
+                {"field": "tham_nien_bucket", "headerName": "Thâm niên", "minWidth": 80, "flex": .5}
+                ] + thang + [tb]
+    return [{"field": "phong", "headerName": "Phòng", "pinned": "left", "minWidth": 110, "flex": .8,
+             "cellStyle": {"fontWeight": "650"}},
+            {"field": "so_nvkd", "headerName": "Số NVKD", "minWidth": 76, "flex": .5,
+             "type": "numericColumn", "headerTooltip": "Số NVKD trong file NSLĐ tháng gần nhất"}
+            ] + thang + [tb]
+
+
+def _cols_tb(xem: str, den: int) -> list[dict]:
+    thang = _cot_thang("k", den, lambda i: f"Tháng {i}", SO1)
+    tb = {"field": "tb", "headerName": "Trung bình", "minWidth": 86, "flex": .6,
+          "type": "numericColumn", "valueFormatter": SO1, "cellStyle": O_MAU}
+    if xem == "nhan_su":
+        return [{"field": "ho_ten", "headerName": "Tân binh", "pinned": "left", "minWidth": 170,
+                 "flex": 1.3, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}},
+                {"field": "phong", "headerName": "Phòng", "minWidth": 80, "flex": .5},
+                {"field": "vi_tri", "headerName": "Vị trí", "minWidth": 64, "flex": .4},
+                {"field": "ngay_vao", "headerName": "Ngày vào", "minWidth": 96, "flex": .6},
+                {"field": "tinh_trang", "headerName": "Tình trạng", "minWidth": 90, "flex": .6,
+                 "cellStyle": {"styleConditions": [{"condition": "params.value == 'Đã nghỉ'",
+                                                    "style": {"color": "#B42318", "fontWeight": "650"}}]}},
+                ] + thang + [tb]
+    return [{"field": "phong", "headerName": "Phòng", "pinned": "left", "minWidth": 96, "flex": .7,
+             "cellStyle": {"fontWeight": "650"}},
+            {"field": "so_moi", "headerName": "Tân binh", "minWidth": 76, "flex": .5,
+             "type": "numericColumn"},
+            {"field": "da_nghi", "headerName": "Đã nghỉ", "minWidth": 70, "flex": .5,
+             "type": "numericColumn"},
+            {"field": "con_lai", "headerName": "Còn lại", "minWidth": 70, "flex": .5,
+             "type": "numericColumn"},
+            {"field": "ty_le_out", "headerName": "Tỷ lệ out", "minWidth": 78, "flex": .5,
+             "type": "numericColumn", "valueFormatter": PCT},
+            ] + thang + [tb]
+
+
+def _du_lieu_nsld(ngay_iso, chi_nhanh):
+    """(năm, tháng NSLĐ cuối, dữ liệu mọi phòng trong chi nhánh) hoặc None nếu chưa có file."""
+    d, _, _ = _ky(ngay_iso)
+    d = d or date.today()
+    den = nsld.thang_nsld_den(d.year, d.month)
+    if not den:
+        return d.year, None, None
+    df = nsld.du_lieu(d.year, den)
+    if chi_nhanh and chi_nhanh != "all":
+        cn = {p["code"] for p in phong_order() if p.get("chi_nhanh") == chi_nhanh}
+        df = df[df.phong_code.isin(cn)]
+    return d.year, den, df
+
+
 def register(app):
     gan_chon_ngay(app, "hr")
+
+    @app.callback(Output("hr-phong", "options"), Output("hr-phong", "value"),
+                  Input("hr-cn", "value"), State("hr-phong", "value"))
+    def _ds_phong(chi_nhanh, dang_chon):
+        opts = _phong_opts(chi_nhanh)
+        giu = dang_chon if dang_chon in {o["value"] for o in opts} else _phong_mac_dinh(chi_nhanh)
+        return opts, giu
+
+    @app.callback(Output("hr-pane-ban", "hidden"), Output("hr-pane-nsld", "hidden"),
+                  Input("hr-tab", "value"))
+    def _doi_tab(tab):
+        return tab == "nsld", tab != "nsld"
 
     @app.callback(Output("hr-kpi", "children"), Output("hr-nguon-hr", "children"),
                   Output("hr-thong-bao", "children"),
                   Output("hr-canhbao", "columnDefs"), Output("hr-canhbao", "rowData"),
                   Output("hr-cb-tom-tat", "children"), Output("hr-cb-mo-ta", "children"),
                   Output("hr-bar-nhom", "figure"), Output("hr-tn-mo-ta", "children"),
-                  Output("hr-phong", "options"),
-                  Input("hr-date", "date"), Input("hr-cn", "value"), Input("hr-pham-vi", "value"))
-    def _cap_nhat(ngay_iso, chi_nhanh, pham_vi):
-        d, thang, df = _du_lieu(ngay_iso, chi_nhanh, pham_vi)
+                  Input("hr-date", "date"), Input("hr-cn", "value"), Input("hr-phong", "value"))
+    def _cap_nhat(ngay_iso, chi_nhanh, chon_phong):
+        d, thang, df = _du_lieu(ngay_iso, chi_nhanh, chon_phong)
         if d is None:
             trong = _fig(_trong(go.Figure(), "Chưa có số liệu"))
             return ([], "", alert("Chưa có số liệu. Nạp file Internet để bắt đầu.", "info"),
-                    _cols_canh_bao(), [], "", "", trong, "", [])
+                    _cols_canh_bao(), [], "", "", trong, "")
 
         hr_thang = df.hr_thang.dropna().iloc[0] if df.hr_thang.notna().any() else None
         nsld_nhan = f"NSLĐ T{hr_thang[5:7]}/{hr_thang[:4]}" if hr_thang else "Chưa có NSLĐ"
@@ -359,9 +558,8 @@ def register(app):
         cao = int((cb.muc_rui_ro == "Cao").sum()) if len(cb) else 0
         theo_doi = len(cb) - cao
         moi = int(dang_lam.nhom_tham_nien.eq("MOI").sum())
-        ten_nv = "Nhân sự kinh doanh" if pham_vi != "tat_ca" else "Nhân sự"
         kpis = [
-            kpi(ten_nv, f"{n}", f"{moi} người mới, 1-3 tháng" if hr_thang else "Đang làm"),
+            kpi("Nhân sự", f"{n}", f"{moi} người mới, 1-3 tháng" if hr_thang else "Đang làm"),
             kpi("Online bình quân", f"{tong / n:.1f}".replace(".", ",") if n else "–",
                 f"mỗi người · tổng {tong:,} online".replace(",", ".")),
             kpi("Chưa có số", f"{zero}", f"{zero / n * 100:.0f}% nhân sự" if n else "",
@@ -379,35 +577,33 @@ def register(app):
             html.Span(f"{theo_doi} theo dõi", className="badge warn" if theo_doi else "badge muted"),
         ], style={"display": "flex", "gap": "8px", "marginBottom": "10px"}) if len(cb) else html.Div(
             "Không có ai cần trao đổi trong phạm vi này.", className="desc")
-        mo_ta_cb = (f"Tính đến {d:%d/%m}: {NGAY_KHONG_SO_CAO} ngày chưa có số, tuần này giảm từ "
-                    "một nửa, hoặc NSLĐ chưa đạt")
+        mo_ta_cb = (f"{_ten_pham_vi(chon_phong).capitalize()} · tính đến {d:%d/%m}: "
+                    f"{NGAY_KHONG_SO_CAO} ngày chưa có số, tuần này giảm từ một nửa, NSLĐ chưa đạt")
         mo_ta_tn = (f"Online bình quân mỗi người, luỹ kế 01-{d:%d/%m} · thâm niên theo "
                     f"{nsld_nhan}" if hr_thang else "Cần file NSLĐ để chia theo thâm niên")
-        phong_opts = [{"label": p, "value": p} for p in sorted(df.phong.dropna().unique())]
         return (kpis, nguon, thong_bao, _cols_canh_bao(), _ban_ghi(cb) if len(cb) else [],
-                tom_tat, mo_ta_cb, _bieu_do_tham_nien(df[df.kd] if pham_vi != "tat_ca" else df),
-                mo_ta_tn, phong_opts)
+                tom_tat, mo_ta_cb, _bieu_do_tham_nien(df), mo_ta_tn)
 
     @app.callback(Output("hr-scatter", "figure"),
-                  Input("hr-date", "date"), Input("hr-cn", "value"), Input("hr-pham-vi", "value"),
+                  Input("hr-date", "date"), Input("hr-cn", "value"), Input("hr-phong", "value"),
                   Input("hr-xep", "value"))
-    def _xep_hang(ngay_iso, chi_nhanh, pham_vi, xep):
-        d, _, df = _du_lieu(ngay_iso, chi_nhanh, pham_vi)
+    def _xep_hang(ngay_iso, chi_nhanh, chon_phong, xep):
+        d, _, df = _du_lieu(ngay_iso, chi_nhanh, chon_phong)
         if d is None:
             return _fig(_trong(go.Figure(), "Chưa có số liệu"), 420)
         return _bieu_do_xep_hang(df, xep)
 
     @app.callback(Output("hr-grid", "columnDefs"), Output("hr-grid", "rowData"),
                   Output("hr-tom-tat", "children"),
-                  Input("hr-date", "date"), Input("hr-cn", "value"), Input("hr-pham-vi", "value"),
-                  Input("hr-phong", "value"), Input("hr-nhom", "value"), Input("hr-loc", "value"),
-                  Input("hr-xem", "value"))
-    def _bang(ngay_iso, chi_nhanh, pham_vi, phong, nhom, loc, xem):
-        d, _, df = _du_lieu(ngay_iso, chi_nhanh, pham_vi)
+                  Input("hr-date", "date"), Input("hr-cn", "value"), Input("hr-phong", "value"),
+                  Input("hr-nhom", "value"), Input("hr-loc", "value"), Input("hr-xem", "value"))
+    def _bang(ngay_iso, chi_nhanh, chon_phong, nhom, loc, xem):
+        d, _, df = _du_lieu(ngay_iso, chi_nhanh, chon_phong)
         if d is None:
             return _cols(xem), [], ""
-        df = _loc_bang(df, phong, nhom, loc)
-        return _cols(xem), _ban_ghi(df), f"{len(df)} người · luỹ kế 01-{d:%d/%m/%Y}"
+        df = _loc_bang(df, nhom, loc)
+        return (_cols(xem), _ban_ghi(df),
+                f"{len(df)} người · {_ten_pham_vi(chon_phong)} · luỹ kế 01-{d:%d/%m/%Y}")
 
     @app.callback(Output("hr-grid", "dashGridOptions"), Input("hr-tim", "value"),
                   prevent_initial_call=True)
@@ -416,17 +612,139 @@ def register(app):
         p["quickFilterText"] = chu or ""
         return p
 
-    @app.callback(Output("hr-tai-xuong", "data"), Input("hr-export", "n_clicks"),
-                  State("hr-date", "date"), State("hr-cn", "value"), State("hr-pham-vi", "value"),
-                  State("hr-phong", "value"), State("hr-nhom", "value"), State("hr-loc", "value"),
+    # ------------------------------------------------------------ tab NSLĐ
+    @app.callback(Output("hr-ns-kpi", "children"), Output("hr-ns-thong-bao", "children"),
+                  Output("hr-ns-grid", "columnDefs"), Output("hr-ns-grid", "rowData"),
+                  Output("hr-ns-grid", "pinnedBottomRowData"), Output("hr-ns-mo-ta", "children"),
+                  Output("hr-ns-chu", "children"),
+                  Output("hr-tb-grid", "columnDefs"), Output("hr-tb-grid", "rowData"),
+                  Output("hr-tb-grid", "pinnedBottomRowData"), Output("hr-tb-mo-ta", "children"),
+                  Output("hr-tb-chu", "children"),
+                  Input("hr-tab", "value"), Input("hr-date", "date"), Input("hr-cn", "value"),
+                  Input("hr-phong", "value"), Input("hr-ns-xem", "value"), Input("hr-tb-xem", "value"))
+    def _nsld(tab, ngay_iso, chi_nhanh, chon_phong, xem_ns, xem_tb):
+        if tab != "nsld":
+            return (no_update,) * 12
+        nam, den, df = _du_lieu_nsld(ngay_iso, chi_nhanh)
+        if not den or df is None or df.empty:
+            bao = alert([html.B(f"Chưa có file NSLĐ năm {nam}. "),
+                         "Vào Nạp dữ liệu, chọn các file NSLĐ từng tháng (tên file có tháng, VD "
+                         "“NSLĐ T8.2026”) rồi lưu một lần."], "warn")
+            return [], bao, [], [], [], "", "", [], [], [], "", ""
+
+        co_thang = sorted(df.so_thang.unique())
+        thieu = [t for t in range(1, den + 1) if t not in co_thang]
+        bao = (alert([html.B("Còn thiếu file NSLĐ "),
+                      ", ".join(f"T{t}" for t in thieu),
+                      f"/{nam} - các cột tháng đó để trống. Nạp bổ sung ở trang Nạp dữ liệu."], "warn")
+               if thieu else "")
+
+        ma = _ma_phong(chon_phong, chi_nhanh)
+        pham_vi = df[df.phong_code.isin(ma)]
+        tt = nsld.tom_tat(pham_vi, nam, den) if len(pham_vi) else {}
+        ten_pv = _ten_pham_vi(chon_phong)
+        if tt:
+            tc = tt["thang_cuoi"]
+            chenh = (tt["nsld"] - tt["nsld_truoc"]) if tt["nsld"] is not None and tt["nsld_truoc"] else None
+            kpis = [
+                kpi(f"NSLĐ ITN T{tc}", _so2(tt["nsld"]),
+                    f"{'+' if chenh >= 0 else ''}{_so2(chenh)} so với T{tc - 1}" if chenh is not None
+                    else ten_pv.capitalize(),
+                    "" if chenh is None else ("ok" if chenh >= 0 else "bad")),
+                kpi(f"Bình quân T1-T{den}", _so2(tt["nsld_tb"]), "Bình quân các tháng có file"),
+                kpi("Số NVKD", f"{tt['so_nvkd']}", f"Theo file NSLĐ T{tc}"),
+                kpi("NSLĐ chưa đạt", f"{tt['chua_dat']}", f"Kết luận NOT OK · T{tc}",
+                    "warn" if tt["chua_dat"] else "ok"),
+                kpi(f"Tân binh {nam}", f"{tt['tan_binh']}",
+                    f"{tt['tan_binh_nghi']} đã nghỉ · out "
+                    f"{round(tt['tan_binh_nghi'] / tt['tan_binh'] * 100) if tt['tan_binh'] else 0}%",
+                    "bad" if tt["tan_binh"] and tt["tan_binh_nghi"] / tt["tan_binh"] >= .3 else ""),
+            ]
+        else:
+            kpis = []
+
+        # --- bảng 1: NSLĐ ITN theo tháng
+        xem_duoc = current_user.duoc_xem_nhan_su
+        cot_t = [f"t{i}" for i in range(1, den + 1)] + ["tb"]
+        if xem_ns == "nhan_su" and xem_duoc:
+            bang = nsld.nsld_nhan_su(pham_vi, den)
+            rows, pin = (_ban_ghi(bang) if len(bang) else []), []
+            _to_mau(rows, cot_t)
+            chu_ns = "" if rows else html.Div("Không có nhân sự trong phạm vi này.", className="desc")
+            mo_ta_ns = f"ITN từng tháng của từng người · {ten_pv}"
+        else:
+            bang = nsld.nsld_theo_phong(df, den)
+            du = bang[bang.loai_dong == "data"]
+            rows = _ban_ghi(du)
+            _to_mau(rows, cot_t)
+            pin = _ban_ghi(bang[bang.loai_dong == "total"])
+            chu_ns = ""
+            mo_ta_ns = f"Tổng ITN / số NVKD của phòng, năm {nam}"
+
+        # --- bảng 2: tân binh
+        cot_k = [f"k{i}" for i in range(1, den + 1)] + ["tb"]
+        if xem_tb == "nhan_su" and xem_duoc:
+            bang_tb = nsld.tan_binh_nhan_su(pham_vi, nam, den)
+            rows_tb, pin_tb = (_ban_ghi(bang_tb) if len(bang_tb) else []), []
+            _to_mau(rows_tb, cot_k)
+            mo_ta_tb = f"ITN từng tháng làm việc của tân binh {nam} · {ten_pv}"
+        else:
+            bang_tb = nsld.tan_binh_theo_phong(df, nam, den)
+            rows_tb = _ban_ghi(bang_tb[bang_tb.loai_dong == "data"]) if len(bang_tb) else []
+            _to_mau(rows_tb, cot_k)
+            pin_tb = _ban_ghi(bang_tb[bang_tb.loai_dong == "total"]) if len(bang_tb) else []
+            mo_ta_tb = f"Tân binh vào làm năm {nam}: số lượng, tỷ lệ out, ITN bình quân theo tháng làm việc"
+        chu_tb = "" if rows_tb else html.Div(f"Chưa có tân binh năm {nam} trong phạm vi này.",
+                                             className="desc")
+
+        return (kpis, bao, _cols_ns(xem_ns if xem_duoc else "phong", nam, den), rows, pin, mo_ta_ns,
+                chu_ns, _cols_tb(xem_tb if xem_duoc else "phong", den), rows_tb, pin_tb, mo_ta_tb,
+                chu_tb)
+
+    @app.callback(Output("hr-tai-xuong", "data", allow_duplicate=True),
+                  Input("hr-ns-export", "n_clicks"),
+                  State("hr-date", "date"), State("hr-cn", "value"), State("hr-phong", "value"),
                   prevent_initial_call=True)
-    def _excel(n, ngay_iso, chi_nhanh, pham_vi, phong, nhom, loc):
+    def _excel_nsld(n, ngay_iso, chi_nhanh, chon_phong):
+        if not n:
+            return no_update
+        nam, den, df = _du_lieu_nsld(ngay_iso, chi_nhanh)
+        if not den or df is None or df.empty:
+            return no_update
+        pham_vi = df[df.phong_code.isin(_ma_phong(chon_phong, chi_nhanh))]
+        thang = [(f"t{i}", f"NSLĐ {i:02d}/{nam}", "so") for i in range(1, den + 1)]
+        thang_k = [(f"k{i}", f"Tháng {i}", "so") for i in range(1, den + 1)]
+        bang = [("NSLĐ theo phòng", nsld.nsld_theo_phong(df, den),
+                 [("phong", "Phòng", "text"), ("so_nvkd", "Số NVKD", "so")] + thang
+                 + [("tb", "TB NSLĐ ITN", "so")]),
+                ("Tân binh theo phòng", nsld.tan_binh_theo_phong(df, nam, den),
+                 [("phong", "Phòng", "text"), ("so_moi", "Tân binh", "so"), ("da_nghi", "Đã nghỉ", "so"),
+                  ("con_lai", "Còn lại", "so"), ("ty_le_out", "Tỷ lệ out", "pct")] + thang_k
+                 + [("tb", "Trung bình", "so")])]
+        if current_user.duoc_xem_nhan_su:
+            bang += [("NSLĐ từng nhân sự", nsld.nsld_nhan_su(pham_vi, den),
+                      [("ho_ten", "Nhân sự", "text"), ("acc", "Acc", "text"), ("phong", "Phòng", "text"),
+                       ("vi_tri", "Vị trí", "text"), ("tham_nien_bucket", "Thâm niên", "text")]
+                      + thang + [("tb", "TB NSLĐ ITN", "so")]),
+                     ("Từng tân binh", nsld.tan_binh_nhan_su(pham_vi, nam, den),
+                      [("ho_ten", "Tân binh", "text"), ("acc", "Acc", "text"), ("phong", "Phòng", "text"),
+                       ("vi_tri", "Vị trí", "text"), ("ngay_vao", "Ngày vào", "text"),
+                       ("tinh_trang", "Tình trạng", "text")] + thang_k + [("tb", "Trung bình", "so")])]
+        noi_dung = xuat_phan_tich("", f"NĂNG SUẤT LAO ĐỘNG {nam} · đến T{den}", bang)
+        ghi_log("xuat_nsld", f"{nam}-T{den} · {_ten_pham_vi(chon_phong)}")
+        return dcc.send_bytes(noi_dung, f"NSLD_{nam}_T{den:02d}.xlsx")
+
+    @app.callback(Output("hr-tai-xuong", "data"), Input("hr-export", "n_clicks"),
+                  State("hr-date", "date"), State("hr-cn", "value"), State("hr-phong", "value"),
+                  State("hr-nhom", "value"), State("hr-loc", "value"),
+                  prevent_initial_call=True)
+    def _excel(n, ngay_iso, chi_nhanh, chon_phong, nhom, loc):
         if not n or not current_user.duoc_xem_nhan_su:
             return no_update
-        d, thang, df = _du_lieu(ngay_iso, chi_nhanh, pham_vi)
+        d, thang, df = _du_lieu(ngay_iso, chi_nhanh, chon_phong)
         if d is None:
             return no_update
-        df = _loc_bang(df, phong, nhom, loc)
+        df = _loc_bang(df, nhom, loc)
         cot = [("ho_ten", "Nhân sự", "text"), ("acc", "Acc", "text"), ("phong", "Phòng", "text"),
                ("chi_nhanh", "Chi nhánh", "text"), ("vi_tri", "Vị trí", "text"),
                ("tham_nien", "Thâm niên", "text"), ("online", "Online", "so"),
@@ -440,3 +758,7 @@ def register(app):
                                   [("Nhân sự", df, cot)])
         ghi_log("xuat_hieu_suat_nhan_su", f"{d:%Y-%m-%d} · {len(df)} dòng")
         return dcc.send_bytes(noi_dung, f"HieuSuatNhanSu_{d:%Y%m%d}.xlsx")
+
+
+def _so2(v) -> str:
+    return "–" if v is None else f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")

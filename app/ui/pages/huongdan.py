@@ -71,7 +71,9 @@ def layout():
                     "Chọn hai khoảng ngày (có ba nút gợi ý). Kết quả gồm chênh lệch theo phòng và ",
                     html.B("Top giảm sâu nhất"), " - danh sách cần trao đổi trước."]),
                 _muc("Hiệu suất nhân sự", "Năng suất theo từng người", [
-                    "Luỹ kế đến ngày chọn, mặc định chỉ phòng kinh doanh. Mục ",
+                    "Chọn phòng ở thanh lọc. Tab 1 Bán hàng trong kỳ: luỹ kế đến ngày chọn. "
+                    "Tab 2 NSLĐ: NSLĐ ITN theo tháng (tổng ITN / số NVKD) và NSLĐ tân binh theo "
+                    "tháng làm việc, xem theo phòng hoặc từng người. Mục ",
                     html.B("Cần trao đổi sớm"), " ghi sẵn lý do từng người: 7 ngày chưa có số, "
                     "tuần này giảm từ một nửa, NSLĐ chưa đạt. Cột ", html.B("So với cùng thâm niên"),
                     " cho biết người đó bán hơn hay kém người cùng mốc thâm niên."]),
@@ -84,7 +86,8 @@ def layout():
                      "nhật, tháng nào tự về tháng đó theo Ngày online. Cuối trang là lịch sử nạp - "
                      "nạp nhầm thì gỡ bỏ ở đây."),
                 _muc("Quản trị", "Tài khoản, danh mục nhân sự",
-                     "Cấp tài khoản theo vai trò (Trưởng phòng chọn phòng phụ trách), khai acc người bán thuộc phòng nào."),
+                     "Cấp tài khoản theo vai trò (Trưởng phòng chọn phòng phụ trách), khai acc người bán thuộc phòng nào. "
+                     "Thay đổi nhiều thì Tải file mẫu → sửa → Import Excel."),
                 _muc("Cấu hình", "Cơ cấu tổ chức và chỉ tiêu",
                      "Thêm bầy, thêm phòng, xếp lại cơ cấu theo từng tháng, nhập chỉ tiêu - "
                      "không cần can thiệp phần mềm."),

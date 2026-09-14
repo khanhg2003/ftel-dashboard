@@ -54,12 +54,13 @@ def layout():
             html.Div(id="up-dung-luong", className="desc", style={"marginTop": "8px"}),
             html.Div(style={"height": "6px"}),
             html.Div([
-                html.Div([html.Label("Tháng của file nhân sự"),
+                html.Div([html.Label("Tháng NSLĐ (khi tên file không ghi tháng)"),
                           dcc.Dropdown(id="up-thang", options=_thang_options(), value=None,
                                        placeholder="Chọn tháng", clearable=True,
                                        style={"width": "190px"})],
                          className="field"),
-                html.Div("Ba file bán hàng tự lấy ngày trong file, không cần chọn tháng.",
+                html.Div("File bán hàng tự lấy ngày trong file. File NSLĐ tự lấy tháng theo tên "
+                         "file (VD NSLĐ T8.2026), nạp nhiều tháng một lượt được.",
                          className="desc", style={"margin": 0, "alignSelf": "center",
                                                   "maxWidth": "42ch"}),
                 html.Div(className="grow"),
@@ -319,12 +320,17 @@ def register(app):
                         if not res.ok:
                             continue
                         ten = TEN_DE_HIEU.get(res.dataset, res.ten_hien_thi)
-                        if res.dataset == "nhan_su" and not thang:
-                            dong.append(html.Li([html.B(ten), ": bỏ qua vì chưa chọn tháng - "
-                                                              "chọn tháng rồi lưu lại."]))
+                        # nạp nhiều file NSLĐ một lượt: mỗi file lấy tháng theo tên file
+                        thang_file = (thang_tu_ten_file(muc["filename"]) or thang
+                                      if res.dataset == "nhan_su" else thang)
+                        if res.dataset == "nhan_su" and not thang_file:
+                            dong.append(html.Li([html.B(ten), ": bỏ qua vì tên file không có tháng "
+                                                              "(VD NSLĐ T8.2026) - chọn tháng rồi lưu lại."]))
                             continue
+                        if res.dataset == "nhan_su":
+                            ten = f"{ten} tháng {thang_file[5:7]}/{thang_file[:4]}"
                         st = commit_result(s, res, nguon_file=muc["filename"], hash_file=h,
-                                           user=current_user.username, thang=thang or None)
+                                           user=current_user.username, thang=thang_file or None)
                         dong.append(html.Li([
                             html.B(ten), ": thêm mới ", html.B(f"{st.get('them_moi', 0):,}"
                                                               .replace(",", ".")),

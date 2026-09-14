@@ -132,6 +132,7 @@ def test_canh_bao_co_ly_do_va_chi_xet_phong_kinh_doanh():
 def test_trang_hieu_suat_dung_duoc():
     from app.ui.pages import hr
     goc = hr.layout()
-    for id_ in ("hr-date", "hr-cn", "hr-pham-vi", "hr-canhbao", "hr-grid", "hr-tim", "hr-export"):
+    for id_ in ("hr-date", "hr-cn", "hr-phong", "hr-tab", "hr-canhbao", "hr-grid", "hr-tim",
+                "hr-export", "hr-ns-grid", "hr-tb-grid", "hr-ns-export"):
         assert _tim(goc, id_) is not None, id_
     assert hr._cols("ban") and hr._cols("nsld")

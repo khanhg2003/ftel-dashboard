@@ -26,3 +26,17 @@ heatmap:
 phan_tich:
   tot: 5          # cao hơn mức chung từ 5 điểm % -> xanh
   kem: 10         # thấp hơn mức chung từ 10 điểm % -> đỏ (5-10 điểm -> vàng)
+
+# Năng suất lao động (file NSLĐ hằng tháng)
+nsld:
+  # Phòng trong file NSLĐ (theo PS) -> phòng trên app. Phòng chưa khai ở đây thì app tự đoán
+  # theo danh mục nhân sự (phòng có nhiều acc trùng nhất); vẫn không đoán được thì giữ mã PS.
+  phong_ps:
+    DNGB1: IBB1
+    DNGB2: IBB2
+    DNGB3: IBB3
+    DNGB4: IBB4
+    DNGB5: IBB5
+    DNGB6: IBB6
+    DNGB7: IBB7
+  vi_tri_tinh_binh_quan: NVKD   # NSLĐ ITN phòng = tổng ITN cả phòng / số NVKD trong file tháng đó

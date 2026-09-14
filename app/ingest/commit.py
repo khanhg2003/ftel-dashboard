@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
@@ -157,12 +157,17 @@ def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
             if not ma_nv:
                 continue
             emp = session.get(Employee, ma_nv) or Employee(ma_nv=ma_nv)
-            emp.ho_ten, emp.acc = r.get("ho_ten"), r.get("acc")
-            emp.acc_norm = norm_acc(r.get("acc"))
-            emp.vi_tri, emp.vi_tri_inside = r.get("vi_tri"), r.get("vi_tri_inside")
-            emp.don_vi_ps, emp.phong_ps = r.get("don_vi_ps"), r.get("phong_ps")
-            emp.khu_vuc, emp.ngay_tinh_luong = r.get("khu_vuc"), r.get("ngay_tinh_luong")
-            emp.trang_thai, emp.ngay_nghi_viec = r.get("trang_thai"), r.get("ngay_nghi_viec")
+            # nạp bù file tháng cũ thì không ghi đè hồ sơ mới hơn - chỉ bổ sung ngày vào làm
+            thang_moi_nhat = session.execute(
+                select(func.max(HrMonthly.thang)).where(HrMonthly.ma_nv == ma_nv)).scalar()
+            if not thang_moi_nhat or thang >= thang_moi_nhat:
+                emp.ho_ten, emp.acc = r.get("ho_ten"), r.get("acc")
+                emp.acc_norm = norm_acc(r.get("acc"))
+                emp.vi_tri, emp.vi_tri_inside = r.get("vi_tri"), r.get("vi_tri_inside")
+                emp.don_vi_ps, emp.phong_ps = r.get("don_vi_ps"), r.get("phong_ps")
+                emp.khu_vuc = r.get("khu_vuc")
+                emp.trang_thai, emp.ngay_nghi_viec = r.get("trang_thai"), r.get("ngay_nghi_viec")
+            emp.ngay_tinh_luong = r.get("ngay_tinh_luong") or emp.ngay_tinh_luong
             session.merge(emp)
 
             hr = session.execute(select(HrMonthly).where(HrMonthly.ma_nv == ma_nv,
