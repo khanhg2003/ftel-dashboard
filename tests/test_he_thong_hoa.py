@@ -432,3 +432,76 @@ def test_chua_co_du_lieu_thi_huong_dan_nap(tai_khoan, monkeypatch):
         assert "Nạp dữ liệu ngay" in str(noi_dung)
         noi_dung, _ = _router("/quantri", "", None)          # trang quản trị vẫn mở bình thường
         assert "qt-tab" in str(noi_dung)
+
+
+# ------------------------------------------------------- sửa tài khoản, danh mục bằng hộp thoại
+def test_sua_tai_khoan_va_cac_chot_chan(tai_khoan):
+    from app.admin_service import lay_user, sua_user
+    ok, msg = sua_user("zz_ht_phong", {"ho_ten": "Trưởng phòng mới", "role": "phong", "pham_vi": ["IBB2", "IBB6"],
+                                        "ma_nv": "123", "email": "tp@fpt.vn", "trang_thai": "Đang dùng"},
+                       "zz_ht_admin")
+    assert ok, msg
+    u = lay_user("zz_ht_phong")
+    assert u["ho_ten"] == "Trưởng phòng mới" and u["pham_vi"] == ["IBB2", "IBB6"] and u["email"] == "tp@fpt.vn"
+    assert not sua_user("zz_ht_phong", {"role": "phong", "pham_vi": []}, "zz_ht_admin")[0]      # thiếu phòng
+    assert not sua_user("zz_ht_phong", {"role": "phong", "pham_vi": ["IBB2"], "email": "sai"}, "x")[0]
+    assert not sua_user("zz_ht_admin", {"role": "operator"}, "zz_ht_admin")[0]           # tự hạ quyền
+    ok, _ = sua_user("zz_ht_phong", {"role": "operator", "pham_vi": ["IBB2"]}, "zz_ht_admin")
+    assert ok and lay_user("zz_ht_phong")["pham_vi"] == []                                # nhập liệu: bỏ phòng
+    _tao("zz_ht_phong", "phong", ["IBB2"])
+
+
+def test_dat_lai_mat_khau_ngau_nhien(tai_khoan):
+    from app.admin_service import dat_lai_mat_khau
+    a, b = dat_lai_mat_khau("zz_ht_phong", "zz_ht_admin"), dat_lai_mat_khau("zz_ht_phong", "zz_ht_admin")
+    assert a.startswith("Ftel@") and len(a) == 11 and a != b
+    _tao("zz_ht_phong", "phong", ["IBB2"])
+
+
+def test_luu_mot_dong_danh_muc_chan_khai_trung():
+    from sqlalchemy import delete
+
+    from app.admin_service import lay_staff, luu_mot_staff
+    from app.db import session_scope
+    from app.models import StaffMap
+    acc = "ZZ.KiemThuDanhMuc"
+    try:
+        ok, msg, tinh = luu_mot_staff(None, {"acc": acc, "phong_code": "IBB2"}, "zz_ht_admin")
+        assert ok and tinh, msg
+        with session_scope() as s:
+            id_ = s.query(StaffMap).filter(StaffMap.acc == acc).one().id
+        ok, msg, _ = luu_mot_staff(None, {"acc": acc, "phong_code": "IBB6"}, "zz_ht_admin")
+        assert not ok and "đã có trong danh mục" in msg                              # trùng thời gian hiệu lực
+        ok, msg, _ = luu_mot_staff(None, {"acc": acc, "phong_code": "IBB6", "hieu_luc_tu": "2026-09-10",
+                                          "hieu_luc_den": "2026-09-05"}, "zz_ht_admin")
+        assert not ok and "trước" in msg
+        ok, _, tinh = luu_mot_staff(id_, {"acc": acc, "phong_code": "IBB2", "ma_nv": "999", "da_nghi": True,
+                                         "ghi_chu": "chuyển công tác"}, "zz_ht_admin")
+        r = lay_staff(id_)
+        assert ok and not tinh and r["da_nghi"] and "chuyển công tác" in r["ghi_chu"]   # không đổi phòng: không tính lại
+        ok, _, tinh = luu_mot_staff(id_, {"acc": acc, "phong_code": "IBB6", "ghi_chu": "chuyển công tác"},
+                                    "zz_ht_admin")
+        assert ok and tinh and not lay_staff(id_)["da_nghi"]
+    finally:
+        with session_scope() as s:
+            s.execute(delete(StaffMap).where(StaffMap.acc == acc))
+
+
+def test_bam_sua_mo_hop_thoai_dien_san(tai_khoan):
+    from flask_login import login_user
+
+    from app.ui.app import server
+    ham = _callback_theo_output_input("qt-modal-user.className", "qt-user-grid")
+    from unittest import mock
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        with mock.patch("app.ui.pages.quantri.ctx") as c:
+            c.triggered_id = "qt-user-grid"
+            c.triggered = [{"prop_id": "qt-user-grid.cellClicked"}]
+            kq = ham(None, {"colId": "_sua", "rowId": "zz_ht_phong"}, None, None, None, None)
+            assert kq[0] == "modal mo" and kq[4] == "zz_ht_phong" and kq[5] is True and kq[8] == ["IBB2"]
+            kq = ham(None, {"colId": "ho_ten", "rowId": "zz_ht_phong"}, None, None, None, None)
+            assert kq[0] != "modal mo"                                           # bấm ô thường: không mở
+            c.triggered = [{"prop_id": "qt-user-grid.cellDoubleClicked"}]
+            kq = ham(None, None, {"colId": "ho_ten", "rowId": "zz_ht_phong"}, None, None, None)
+            assert kq[0] == "modal mo"                                           # bấm đúp: mở

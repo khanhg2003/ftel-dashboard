@@ -150,8 +150,78 @@ def xoa_user(usernames: list[str], nguoi_thuc_hien: str) -> tuple[int, list[str]
     return n, bo_qua
 
 
+def lay_user(username: str) -> dict | None:
+    """Thông tin một tài khoản để điền sẵn vào hộp thoại Sửa."""
+    df = danh_sach_user()
+    if df.empty:
+        return None
+    r = df[df.username == norm_text(username).lower()]
+    if r.empty:
+        return None
+    r = r.iloc[0]
+    try:
+        pham_vi = json.loads(r.scope) if r.scope else []
+    except (TypeError, ValueError):
+        pham_vi = []
+    return {"username": r.username, "ho_ten": r.ho_ten or "", "role": r.role, "pham_vi": pham_vi,
+            "ma_nv": r.ma_nv or "", "email": r.email or "", "active": bool(r.active),
+            "dang_khoa": r.trang_thai == "Đang khoá", "trang_thai": r.trang_thai, "lan_cuoi": r.lan_cuoi}
+
+
+def sua_user(username: str, d: dict, nguoi_thuc_hien: str) -> tuple[bool, str]:
+    """Sửa tài khoản từ hộp thoại. Không cho tự hạ quyền / tự ngừng dùng tài khoản đang đăng nhập,
+    và luôn phải còn ít nhất một Quản trị đang dùng."""
+    username = norm_text(username).lower()
+    role = d.get("role") or ""
+    if role not in dict(ROLES):
+        return False, "Vai trò không hợp lệ."
+    ma_phong = {p["code"] for p in phong_order()}
+    pham_vi = [x for x in (d.get("pham_vi") or []) if x in ma_phong]
+    if role == "phong" and not pham_vi:
+        return False, "Trưởng phòng bắt buộc chọn phòng phụ trách."
+    if role != "phong":
+        pham_vi = []
+    active = d.get("trang_thai", "Đang dùng") != "Ngừng dùng"
+    email = norm_text(d.get("email"))
+    if email and ("@" not in email or " " in email):
+        return False, "Email không đúng định dạng."
+    ban_than = username == norm_text(nguoi_thuc_hien).lower()
+    with session_scope() as s:
+        row = s.execute(select(User).where(User.username == username)).scalars().first()
+        if row is None:
+            return False, f"Không tìm thấy tài khoản “{username}”."
+        if ban_than and (role != row.role or not active):
+            return False, "Không tự đổi vai trò hoặc ngừng dùng tài khoản đang đăng nhập."
+        if row.role == "admin" and row.active and (role != "admin" or not active):
+            con = s.query(User).filter(User.role == "admin", User.active.is_(True)).count()
+            if con <= 1:
+                return False, "Phải còn ít nhất một tài khoản Quản trị đang dùng."
+        truoc = (row.role, row.scope, row.active)
+        row.ho_ten = norm_text(d.get("ho_ten")) or username
+        row.email = email or None
+        row.ma_nv = norm_manv(d.get("ma_nv")) or None
+        row.role = role
+        row.scope = json.dumps(pham_vi, ensure_ascii=False) if pham_vi else None
+        row.active = active
+        if d.get("mo_khoa"):
+            row.locked_until = None
+            row.failed_logins = 0
+        doi = []
+        if truoc[0] != row.role:
+            doi.append(f"vai trò {ROLE_TEN.get(truoc[0], truoc[0])} → {ROLE_TEN[role]}")
+        if truoc[1] != row.scope:
+            doi.append("phòng phụ trách")
+        if truoc[2] != row.active:
+            doi.append("đang dùng" if active else "ngừng dùng")
+        s.add(AuditLog(username=nguoi_thuc_hien, action="sua_tai_khoan",
+                       detail=f"{username}: {', '.join(doi) or 'thông tin'}"))
+    return True, f"Đã lưu tài khoản “{username}”."
+
+
 def dat_lai_mat_khau(username: str, nguoi_thuc_hien: str) -> str:
-    mk = "Ftel@" + datetime.now().strftime("%d%m")
+    import secrets
+    # mật khẩu tạm ngẫu nhiên (trước là Ftel@ + ngày tháng - đoán được)
+    mk = "Ftel@" + "".join(secrets.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(6))
     with session_scope() as s:
         row = s.execute(select(User).where(User.username == username)).scalars().first()
         if row is None:
@@ -202,6 +272,71 @@ def luu_staff(rows: list[dict], nguoi_thuc_hien: str) -> tuple[int, list[str]]:
             n += 1
         s.add(AuditLog(username=nguoi_thuc_hien, action="luu_danh_muc_nv", detail=f"{n} dòng"))
     return n, loi
+
+
+def lay_staff(id_: int) -> dict | None:
+    with session_scope() as s:
+        r = s.get(StaffMap, int(id_))
+        if r is None:
+            return None
+        return {"id": r.id, "acc": r.acc, "phong_code": r.phong_code, "ma_nv": r.ma_nv or "",
+                "hieu_luc_tu": r.hieu_luc_tu.isoformat() if r.hieu_luc_tu else None,
+                "hieu_luc_den": r.hieu_luc_den.isoformat() if r.hieu_luc_den else None,
+                "ghi_chu": r.ghi_chu or "", "da_nghi": "nghỉ" in (r.ghi_chu or "").lower()}
+
+
+def _ghi_chu_nghi(ghi_chu: str, da_nghi: bool) -> str | None:
+    """Tình trạng nghỉ lưu trong ghi chú (chữ "Nghỉ", như import danh mục) - giữ phần ghi chú khác."""
+    phan = [x.strip() for x in (ghi_chu or "").split("·") if x.strip()]
+    khac = [x for x in phan if "nghỉ" not in x.lower()]
+    cu_nghi = [x for x in phan if "nghỉ" in x.lower()]
+    if da_nghi:
+        khac = (cu_nghi[:1] or [f"Nghỉ ({gio_viet_nam():%d/%m/%Y})"]) + khac
+    return " · ".join(khac) or None
+
+
+def luu_mot_staff(id_: int | None, d: dict, nguoi_thuc_hien: str) -> tuple[bool, str, bool]:
+    """Thêm (id_ None) hoặc sửa một dòng danh mục từ hộp thoại.
+
+    Trả (thành công, thông báo, cần tính lại gán phòng). Chặn khai trùng: cùng acc đã có dòng khác mà
+    khoảng hiệu lực chồng nhau - số sẽ không biết về phòng nào.
+    """
+    acc = norm_text(d.get("acc"))
+    code = d.get("phong_code")
+    if not acc or " " in acc:
+        return False, "Acc inside bắt buộc và không chứa dấu cách.", False
+    if code not in {p["code"] for p in phong_order()}:
+        return False, "Chưa chọn phòng hợp lệ.", False
+    tu, den = parse_date(d.get("hieu_luc_tu")), parse_date(d.get("hieu_luc_den"))
+    if tu and den and tu > den:
+        return False, "Ngày “Hiệu lực từ” phải trước ngày “Hiệu lực đến”.", False
+    ten = {p["code"]: p["ten"] for p in phong_order()}
+    with session_scope() as s:
+        khac = [r for r in s.execute(select(StaffMap).where(StaffMap.acc_norm == norm_acc(acc))).scalars()
+                if r.id != id_]
+        for r in khac:
+            if (tu or date.min) <= (r.hieu_luc_den or date.max) and (r.hieu_luc_tu or date.min) <= (den or date.max):
+                return False, (f"{r.acc} đã có trong danh mục ở {ten.get(r.phong_code, r.phong_code)} cùng "
+                               "thời gian hiệu lực. Sửa dòng đó, hoặc ghi ngày hiệu lực để tách hai giai đoạn "
+                               "(vd chuyển phòng giữa tháng)."), False
+        row = s.get(StaffMap, int(id_)) if id_ else None
+        if id_ and row is None:
+            return False, "Dòng này không còn trong danh mục (có thể vừa bị xoá).", False
+        moi = row is None
+        if moi:
+            row = StaffMap(acc=acc, acc_norm=norm_acc(acc))
+            s.add(row)
+        doi_gan = moi or (row.acc_norm, row.phong_code, row.hieu_luc_tu, row.hieu_luc_den) !=             (norm_acc(acc), code, tu, den)
+        cu = ten.get(row.phong_code, row.phong_code) if not moi else ""
+        row.acc, row.acc_norm, row.phong_code = acc, norm_acc(acc), code
+        row.ma_nv = norm_manv(d.get("ma_nv")) or None
+        row.hieu_luc_tu, row.hieu_luc_den = tu, den
+        row.ghi_chu = _ghi_chu_nghi(norm_text(d.get("ghi_chu")), bool(d.get("da_nghi")))
+        row.nguon = "giao diện"
+        chi_tiet = acc + (f": {cu} → {ten[code]}" if not moi and cu != ten[code] else f" ({ten[code]})")
+        s.add(AuditLog(username=nguoi_thuc_hien, action="them_danh_muc_nv" if moi else "sua_danh_muc_nv",
+                       detail=chi_tiet))
+    return True, (f"Đã thêm {acc} vào {ten[code]}." if moi else f"Đã lưu {acc} ({ten[code]})."), doi_gan
 
 
 def xoa_staff(ids: list[int], nguoi_thuc_hien: str) -> int:

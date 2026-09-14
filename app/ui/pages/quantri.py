@@ -2,8 +2,9 @@
 
 Ba tab sau do settings.py dựng (trước là trang Cấu hình riêng). Lịch sử nạp nằm ở trang Nạp dữ liệu.
 
-Mọi thao tác thêm đều qua hộp thoại (điền đủ thông tin rồi mới tạo), thao tác xoá
-đều hỏi lại, và dòng chưa lưu được tô vàng để không ai bấm nhầm rồi quên lưu.
+Tài khoản và danh mục nhân sự không sửa trực tiếp trong ô nữa: bấm "Sửa" ở cuối dòng (hoặc bấm đúp
+vào dòng) mở hộp thoại điền sẵn thông tin, kiểm tra hợp lệ rồi mới lưu. Thêm mới dùng chung hộp thoại
+đó. Thao tác xoá đều hỏi lại. Đổi phòng của một acc thì app tự tính lại việc gán phòng.
 """
 from __future__ import annotations
 
@@ -11,29 +12,25 @@ import dash_ag_grid as dag
 from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
-from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau,
-                               luu_staff, luu_user, pham_vi_options,
-                               them_user, xoa_staff, xoa_user)
+from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau, lay_staff,
+                               lay_user, luu_mot_staff, pham_vi_options, sua_user, them_user,
+                               xoa_staff, xoa_user)
 from app.db import session_scope
 from app.ingest.commit import recompute_phong
-from app.org import phong_order
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
-from app.ui.components import (callback_can_quyen, MAU_LOAI_THAY_DOI, alert, card, gan_import, modal, nhac_chua_luu,
+from app.ui.components import (MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card, gan_import, modal,
                                nut_import)
 from app.ui.icons import icon
 
-TRANG_THAI = ["Đang dùng", "Ngừng dùng", "Đang khoá"]
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
         "checkboxSelection": True, "headerCheckboxSelection": True, "sortable": False,
-        "editable": False, "resizable": False}
-# bấm đúp mới sửa ô: bấm một lần là sửa dễ lỡ tay đổi phòng / vai trò khi chỉ định chọn dòng
-GRID = {"domLayout": "autoHeight", "stopEditingWhenCellsLoseFocus": True, "singleClickEdit": False,
-        "rowSelection": "multiple", "suppressRowClickSelection": True}
-# dòng mới thêm hoặc vừa sửa mà chưa bấm Lưu -> nền vàng nhạt
-ROW_STYLE = {"styleConditions": [
-    {"condition": "params.data._moi === true",
-     "style": {"backgroundColor": "#FFF7E0", "fontWeight": "600"}}]}
-
+        "resizable": False}
+GRID = {"rowSelection": "multiple", "suppressRowClickSelection": True, "suppressCellFocus": True,
+        "tooltipShowDelay": 300}
+COT_SUA = {"field": "_sua", "headerName": "", "pinned": "right", "width": 84, "maxWidth": 84,
+           "sortable": False, "resizable": False, "filter": False, "cellClass": "o-sua",
+           "valueGetter": {"function": "'✎ Sửa'"}}
+TRANG_THAI_TK = ["Đang dùng", "Ngừng dùng"]
 
 TAB = [("user", "Tài khoản"), ("staff", "Danh mục nhân sự"), ("cocau", "Cơ cấu tổ chức"),
        ("chitieu", "Chỉ tiêu"), ("nhatky", "Nhật ký")]
@@ -45,12 +42,18 @@ def topbar():
                                className="sub")])]
 
 
-def _o(label, control):
-    return html.Div([html.Label(label), control], className="field rong")
+AN = {"display": "none"}
+
+
+def _o(label, control, id_=None, an=False):
+    """Ô nhập có nhãn. Ẩn bằng style (lớp .field đặt display nên thuộc tính hidden không có tác dụng)."""
+    kw = {"id": id_, "style": AN if an else {}} if id_ else {}
+    return html.Div([html.Label(label), control], className="field rong", **kw)
 
 
 def _hop_thoai_user():
-    return modal("qt-modal-user", "Thêm tài khoản", [
+    return modal("qt-modal-user", html.Span("Thêm tài khoản", id="qt-user-tieu-de"), [
+        dcc.Store(id="qt-user-dang-sua"),
         html.Div([
             _o("Tên đăng nhập *", dcc.Input(id="qt-f-username", type="text",
                                             placeholder="vd: truongphong.ibb2", className="inp")),
@@ -58,36 +61,47 @@ def _hop_thoai_user():
             _o("Vai trò *", dcc.Dropdown(id="qt-f-role", clearable=False, value="phong",
                                          options=[{"label": t, "value": v} for v, t in ROLES])),
             _o("Phòng phụ trách", dcc.Dropdown(id="qt-f-phamvi", multi=True,
-                                               placeholder="Chỉ chọn cho Trưởng phòng",
-                                               options=pham_vi_options())),
+                                               placeholder="Chọn phòng", options=pham_vi_options())),
             _o("Mã NV", dcc.Input(id="qt-f-manv", type="text", className="inp")),
-            _o("Email", dcc.Input(id="qt-f-email", type="text", className="inp")),
+            _o("Email", dcc.Input(id="qt-f-email", type="email", className="inp")),
             _o("Mật khẩu khởi tạo *", dcc.Input(id="qt-f-matkhau", type="text", value="Ftel@2026",
-                                                className="inp")),
+                                                className="inp"), id_="qt-f-matkhau-o"),
+            _o("Trạng thái", dcc.Dropdown(id="qt-f-trangthai", clearable=False, value="Đang dùng",
+                                          searchable=False, options=TRANG_THAI_TK),
+               id_="qt-f-trangthai-o", an=True),
         ], className="form-grid"),
-        html.Div("Quản trị và Nhập liệu không cần chọn phòng. Trưởng phòng chọn phòng mình "
-                 "phụ trách (kiêm nhiệm thì chọn nhiều phòng).", className="desc"),
+        dcc.Checklist(id="qt-f-mokhoa", options=[{"label": " Mở khoá (tài khoản đang bị khoá do nhập sai "
+                                                            "mật khẩu nhiều lần)", "value": "mo"}],
+                      value=[], style={"display": "none"}),
+        html.Div(id="qt-user-goi-y", className="desc", style={"marginTop": "12px"}),
         html.Div(id="qt-modal-user-msg"),
     ], nut_chinh="Tạo tài khoản")
 
 
 def _hop_thoai_staff():
-    ten_phong = [{"label": p["ten"], "value": p["ten"]} for p in phong_order()]
-    return modal("qt-modal-staff", "Thêm nhân sự vào danh mục", [
+    return modal("qt-modal-staff", html.Span("Thêm nhân sự vào danh mục", id="qt-staff-tieu-de"), [
+        dcc.Store(id="qt-staff-dang-sua"),
         html.Div([
             _o("Acc inside *", dcc.Input(id="qt-s-acc", type="text", placeholder="vd: DNG.AnhNV1",
                                          className="inp")),
-            _o("Phòng kinh doanh *", dcc.Dropdown(id="qt-s-phong", options=ten_phong,
-                                                  value=ten_phong[0]["value"] if ten_phong else None,
-                                                  clearable=False)),
+            _o("Phòng *", dcc.Dropdown(id="qt-s-phong", clearable=False, searchable=True,
+                                       placeholder="Chọn phòng", options=pham_vi_options())),
             _o("Mã NV", dcc.Input(id="qt-s-manv", type="text", className="inp")),
-            _o("Hiệu lực từ", dcc.Input(id="qt-s-tu", type="text", placeholder="2026-09-01",
-                                        className="inp")),
-            _o("Hiệu lực đến", dcc.Input(id="qt-s-den", type="text", className="inp")),
-            _o("Ghi chú", dcc.Input(id="qt-s-ghichu", type="text", className="inp")),
+            _o("Tình trạng", dcc.Dropdown(id="qt-s-nghi", clearable=False, searchable=False, value="lam",
+                                          options=[{"label": "Đang làm", "value": "lam"},
+                                                   {"label": "Đã nghỉ", "value": "nghi"}])),
+            _o("Hiệu lực từ", dcc.DatePickerSingle(id="qt-s-tu", display_format="DD/MM/YYYY",
+                                                   placeholder="Không giới hạn", clearable=True,
+                                                   first_day_of_week=1, className="date-pick")),
+            _o("Hiệu lực đến", dcc.DatePickerSingle(id="qt-s-den", display_format="DD/MM/YYYY",
+                                                    placeholder="Không giới hạn", clearable=True,
+                                                    first_day_of_week=1, className="date-pick")),
         ], className="form-grid"),
-        html.Div("Acc inside quyết định hợp đồng thuộc phòng nào - gõ đúng như trên hệ thống. "
-                 "Ngày hiệu lực chỉ cần khi nhân sự chuyển phòng giữa kỳ.", className="desc"),
+        html.Div(_o("Ghi chú", dcc.Input(id="qt-s-ghichu", type="text", className="inp")),
+                 style={"marginTop": "14px"}),
+        html.Div("Acc inside quyết định hợp đồng thuộc phòng nào - gõ đúng như trên hệ thống. Ngày hiệu lực "
+                 "chỉ cần khi nhân sự chuyển phòng giữa kỳ (mỗi phòng một dòng). Lưu xong app tự tính lại "
+                 "việc gán phòng cho dữ liệu đã nạp.", className="desc"),
         html.Div(id="qt-modal-staff-msg"),
     ], nut_chinh="Thêm vào danh mục")
 
@@ -108,31 +122,28 @@ def layout(tab: str | None = None):
         _hop_thoai_user(),
         _hop_thoai_staff(),
         dcc.ConfirmDialog(id="qt-user-xacnhan", message="Xoá các tài khoản đã chọn?"),
+        dcc.ConfirmDialog(id="qt-reset-xacnhan", message="Đặt lại mật khẩu?"),
         dcc.ConfirmDialog(id="qt-staff-xacnhan", message="Xoá các dòng đã chọn khỏi danh mục?"),
 
         html.Div(id="qt-pane-user", style={} if tab == "user" else an, children=[
             card([
                 html.Div([
-                    html.Div("Bấm đúp vào ô để sửa rồi bấm Lưu thay đổi. Chọn dòng bằng ô "
-                             "tích trước khi xoá hoặc đặt lại mật khẩu.",
+                    html.Div("Bấm ✎ Sửa ở cuối dòng (hoặc bấm đúp vào dòng) để chỉnh tài khoản. Tích chọn "
+                             "dòng trước khi xoá hoặc đặt lại mật khẩu.",
                              className="desc", style={"margin": 0}),
-                    html.Div(id="qt-user-nhac", style={"marginLeft": "10px"}),
                     html.Div(className="grow"),
                     html.Button([icon("trash", 14), html.Span("Xoá")], id="qt-user-xoa",
                                 className="btn nguy-hiem"),
                     html.Button([icon("refresh", 14), html.Span("Đặt lại mật khẩu")],
                                 id="qt-user-reset", className="btn"),
                     html.Button([icon("plus", 14), html.Span("Thêm tài khoản")], id="qt-user-them",
-                                className="btn"),
-                    html.Button([icon("save", 14), html.Span("Lưu thay đổi")], id="qt-user-luu",
                                 className="btn primary"),
                 ], className="toolbar"),
                 html.Div(id="qt-user-msg"),
                 dag.AgGrid(id="qt-user-grid", className="ag-theme-quartz ag-theme-ftel",
-                           columnDefs=[], rowData=[],
+                           columnDefs=[], rowData=[], getRowId="params.data.username",
                            defaultColDef={"resizable": True, "sortable": True},
-                           dashGridOptions={**GRID, "domLayout": "normal"},
-                           getRowStyle=ROW_STYLE, style={"width": "100%", "height": "340px"}),
+                           dashGridOptions=GRID, style={"width": "100%", "height": "340px"}),
                 html.Div("Quản trị (BGĐ): toàn quyền, xem chi tiết nhân sự mọi phòng · Nhập liệu: "
                          "nạp dữ liệu và xem số chung, không xem nhân sự · Trưởng phòng: xem số "
                          "chung toàn chi nhánh, chi tiết nhân sự chỉ của phòng phụ trách.",
@@ -146,29 +157,26 @@ def layout(tab: str | None = None):
                     dcc.Input(id="qt-staff-tim", type="search", className="o-tim",
                               placeholder="Tìm acc, mã NV, phòng…"),
                     html.Div(id="qt-staff-dem", className="desc", style={"margin": 0}),
-                    html.Div(id="qt-staff-nhac", style={"marginLeft": "10px"}),
                     html.Div(className="grow"),
                     nut_import("qt-ns"),
                     html.Button([icon("trash", 14), html.Span("Xoá")], id="qt-staff-xoa",
                                 className="btn nguy-hiem"),
                     html.Button([icon("refresh", 14), html.Span("Tính lại việc gán phòng")],
-                                id="qt-staff-tinhlai", className="btn"),
+                                id="qt-staff-tinhlai", className="btn",
+                                title="Thường không cần: lưu hoặc import là app tự tính lại"),
                     html.Button([icon("plus", 14), html.Span("Thêm nhân sự")], id="qt-staff-them",
-                                className="btn"),
-                    html.Button([icon("save", 14), html.Span("Lưu thay đổi")], id="qt-staff-luu",
                                 className="btn primary"),
                 ], className="toolbar"),
                 html.Div(id="qt-staff-msg"),
                 dag.AgGrid(id="qt-staff-grid", className="ag-theme-quartz ag-theme-ftel",
-                           columnDefs=[], rowData=[],
+                           columnDefs=[], rowData=[], getRowId="params.data.id + ''",
                            defaultColDef={"resizable": True, "sortable": True, "filter": True},
-                           dashGridOptions={**GRID, "domLayout": "normal", "pagination": True,
-                                            "paginationPageSize": 20,
+                           dashGridOptions={**GRID, "pagination": True, "paginationPageSize": 20,
                                             "paginationPageSizeSelector": False},
-                           getRowStyle=ROW_STYLE, style={"width": "100%", "height": "460px"}),
-                html.Div("Sửa trực tiếp trong bảng khi thay đổi ít, rồi bấm “Tính lại việc gán phòng”. "
-                         "Thay đổi nhiều: Tải file mẫu (điền sẵn danh mục hiện tại) → sửa → Import "
-                         "Excel. Acc không có trong file sẽ được ghi chú “Nghỉ”.",
+                           style={"width": "100%", "height": "480px"}),
+                html.Div("Bấm ✎ Sửa ở cuối dòng (hoặc bấm đúp) để đổi phòng, mã NV, ngày hiệu lực, tình trạng. "
+                         "Thay đổi nhiều: Tải file mẫu (điền sẵn danh mục hiện tại) → sửa → Import Excel. "
+                         "Acc không có trong file sẽ được ghi chú “Nghỉ”.",
                          className="desc", style={"marginTop": "10px"}),
             ], title="Danh mục nhân sự theo phòng"),
         ]),
@@ -179,48 +187,53 @@ def layout(tab: str | None = None):
 def _user_cols():
     return [
         CHON,
-        {"field": "username", "headerName": "Tài khoản", "editable": False, "minWidth": 140,
-         "flex": 1.3, "pinned": "left"},
-        {"field": "ho_ten", "headerName": "Họ tên", "editable": True, "minWidth": 150, "flex": 1.6},
-        {"field": "vai_tro", "headerName": "Vai trò", "editable": True, "minWidth": 140,
-         "flex": 1.3, "cellEditor": "agSelectCellEditor",
-         "cellEditorParams": {"values": [t for _, t in ROLES]}},
-        {"field": "pham_vi", "headerName": "Phòng phụ trách", "editable": True, "minWidth": 180,
-         "flex": 2, "tooltipField": "pham_vi",
-         "headerTooltip": "Chỉ dùng cho Trưởng phòng. Nhiều phòng thì cách nhau dấu phẩy"},
-        {"field": "ma_nv", "headerName": "Mã NV", "editable": True, "minWidth": 90, "flex": .8},
-        {"field": "email", "headerName": "Email", "editable": True, "minWidth": 150, "flex": 1.4},
-        {"field": "trang_thai", "headerName": "Trạng thái", "editable": True, "minWidth": 120,
-         "flex": 1, "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": TRANG_THAI}},
-        {"field": "lan_cuoi", "headerName": "Đăng nhập gần nhất", "editable": False,
-         "minWidth": 150, "flex": 1.2},
+        {"field": "username", "headerName": "Tài khoản", "minWidth": 140, "flex": 1.2, "pinned": "left"},
+        {"field": "ho_ten", "headerName": "Họ tên", "minWidth": 150, "flex": 1.5},
+        {"field": "vai_tro", "headerName": "Vai trò", "minWidth": 130, "flex": 1.1},
+        {"field": "pham_vi", "headerName": "Phòng phụ trách", "minWidth": 160, "flex": 1.8,
+         "tooltipField": "pham_vi"},
+        {"field": "ma_nv", "headerName": "Mã NV", "minWidth": 90, "flex": .7},
+        {"field": "email", "headerName": "Email", "minWidth": 150, "flex": 1.3},
+        {"field": "trang_thai", "headerName": "Trạng thái", "minWidth": 110, "flex": .9,
+         "cellStyle": {"styleConditions": [
+             {"condition": "params.value == 'Đang khoá'", "style": {"color": "#B42318", "fontWeight": "650"}},
+             {"condition": "params.value == 'Ngừng dùng'", "style": {"color": "#8A94A6"}}]}},
+        {"field": "lan_cuoi", "headerName": "Đăng nhập gần nhất", "minWidth": 140, "flex": 1.1},
+        COT_SUA,
     ]
 
 
 def _staff_cols():
-    ten_phong = [p["ten"] for p in phong_order()]
     return [
         CHON,
-        {"field": "acc", "headerName": "Acc inside", "editable": True, "minWidth": 150,
-         "flex": 1.4, "pinned": "left"},
-        {"field": "phong", "headerName": "Phòng kinh doanh", "editable": True, "minWidth": 160,
-         "flex": 1.6, "cellEditor": "agSelectCellEditor",
-         "cellEditorParams": {"values": ten_phong}},
-        {"field": "ma_nv", "headerName": "Mã NV", "editable": True, "minWidth": 100, "flex": .9},
-        {"field": "hieu_luc_tu", "headerName": "Hiệu lực từ", "editable": True, "minWidth": 120,
-         "flex": 1, "headerTooltip": "yyyy-mm-dd, để trống nếu áp dụng mọi thời điểm"},
-        {"field": "hieu_luc_den", "headerName": "Hiệu lực đến", "editable": True, "minWidth": 120,
-         "flex": 1},
-        {"field": "ghi_chu", "headerName": "Ghi chú", "editable": True, "minWidth": 140,
-         "flex": 1.6},
-        {"field": "id", "headerName": "ID", "editable": False, "width": 80, "maxWidth": 80},
+        {"field": "acc", "headerName": "Acc inside", "minWidth": 150, "flex": 1.4, "pinned": "left"},
+        {"field": "phong", "headerName": "Phòng", "minWidth": 150, "flex": 1.4},
+        {"field": "ma_nv", "headerName": "Mã NV", "minWidth": 100, "flex": .9},
+        {"field": "hieu_luc_tu", "headerName": "Hiệu lực từ", "minWidth": 110, "flex": .9},
+        {"field": "hieu_luc_den", "headerName": "Hiệu lực đến", "minWidth": 110, "flex": .9},
+        {"field": "ghi_chu", "headerName": "Ghi chú", "minWidth": 160, "flex": 1.8, "tooltipField": "ghi_chu",
+         "cellStyle": {"styleConditions": [
+             {"condition": "params.value && params.value.toLowerCase().indexOf('nghỉ') >= 0",
+              "style": {"color": "#8A94A6"}}]}},
+        COT_SUA,
     ]
+
+
+def _ngay_vn(v) -> str:
+    v = str(v or "")[:10]
+    return f"{v[8:10]}/{v[5:7]}/{v[:4]}" if len(v) == 10 else ""
+
+
+def _mo_theo_dong(o) -> str | None:
+    """rowId của dòng khi bấm cột Sửa (một lần) hoặc bấm đúp vào bất kỳ ô nào (trừ ô tích chọn)."""
+    o = o or {}
+    if ctx.triggered_id and "cellDoubleClicked" in (ctx.triggered[0].get("prop_id") or ""):
+        return o.get("rowId") if o.get("colId") != "_chon" else None
+    return o.get("rowId") if o.get("colId") == "_sua" else None
 
 
 def register(app):
     cb = callback_can_quyen(app, "duoc_cau_hinh")   # mọi thao tác ở trang này chỉ dành cho Quản trị
-    nhac_chua_luu(app, "qt-user-grid", "qt-user-nhac", "qt-user-msg")
-    nhac_chua_luu(app, "qt-staff-grid", "qt-staff-nhac", "qt-staff-msg")
     gan_import(app, "qt-ns", ham_mau=mau_nhan_su, ten_file_mau="Mau_DanhMucNhanSu.xlsx",
                ham_xem=xem_truoc_nhan_su, ham_ap=ap_dung_nhan_su, out_msg="qt-staff-msg",
                cot=[{"field": "loai", "headerName": "Thay đổi", "width": 130, "pinned": "left",
@@ -239,7 +252,7 @@ def register(app):
                    f"{d.get('gan_lai_hop_dong', 0)} hợp đồng."])
 
     @cb(Output("qt-staff-grid", "dashGridOptions"), Input("qt-staff-tim", "value"),
-                  prevent_initial_call=True)
+        prevent_initial_call=True)
     def _tim_staff(chu):
         p = Patch()
         p["quickFilterText"] = chu or ""
@@ -249,46 +262,91 @@ def register(app):
     def _dem_staff(rows):
         rows = rows or []
         nghi = sum(1 for r in rows if "nghỉ" in str(r.get("ghi_chu") or "").lower())
-        return f"{len(rows)} acc · {nghi} ghi chú Nghỉ"
+        return f"{len(rows)} acc · {nghi} đã nghỉ"
 
     @cb(Output("qt-pane-user", "style"), Output("qt-pane-staff", "style"),
-                  Input("qt-tab", "value"), prevent_initial_call=True)
+        Input("qt-tab", "value"), prevent_initial_call=True)
     def _tab(tab):
         an = {"display": "none"}
         return {} if tab == "user" else an, {} if tab == "staff" else an
 
     @cb(Output("qt-user-grid", "columnDefs"), Output("qt-user-grid", "rowData"),
-                  Output("qt-staff-grid", "columnDefs"), Output("qt-staff-grid", "rowData"),
-                  Input("qt-user-msg", "children"), Input("qt-staff-msg", "children"))
+        Output("qt-staff-grid", "columnDefs"), Output("qt-staff-grid", "rowData"),
+        Input("qt-user-msg", "children"), Input("qt-staff-msg", "children"))
     def _nap(*_):
         u = danh_sach_user()
         s = danh_sach_staff()
-        return (_user_cols(), [] if u.empty else u.to_dict("records"),
+        if not s.empty:
+            s = s.assign(hieu_luc_tu=[_ngay_vn(v) for v in s.hieu_luc_tu],
+                         hieu_luc_den=[_ngay_vn(v) for v in s.hieu_luc_den])
+        cot_u = ["username", "ho_ten", "vai_tro", "pham_vi", "ma_nv", "email", "trang_thai", "lan_cuoi"]
+        return (_user_cols(), [] if u.empty else u[cot_u].astype(object).where(u[cot_u].notna(), "")
+                .to_dict("records"),
                 _staff_cols(), [] if s.empty else s.to_dict("records"))
 
     # ------------------------------------------------------------ tài khoản
-    @cb(Output("qt-modal-user", "className"),
-                  Input("qt-user-them", "n_clicks"), Input("qt-modal-user-dong", "n_clicks"),
-                  Input("qt-modal-user-huy", "n_clicks"), Input("qt-user-msg", "children"),
-                  prevent_initial_call=True)
-    def _mo_dong_user(_a, _b, _c, _d):
-        return "modal mo" if ctx.triggered_id == "qt-user-them" else "modal"
+    @cb(Output("qt-modal-user", "className"), Output("qt-user-tieu-de", "children"),
+        Output("qt-modal-user-ok", "children"), Output("qt-user-dang-sua", "data"),
+        Output("qt-f-username", "value"), Output("qt-f-username", "disabled"),
+        Output("qt-f-hoten", "value"), Output("qt-f-role", "value"), Output("qt-f-phamvi", "value"),
+        Output("qt-f-manv", "value"), Output("qt-f-email", "value"), Output("qt-f-trangthai", "value"),
+        Output("qt-f-matkhau-o", "style"), Output("qt-f-trangthai-o", "style"),
+        Output("qt-f-mokhoa", "value"), Output("qt-f-mokhoa", "style"), Output("qt-user-goi-y", "children"),
+        Output("qt-modal-user-msg", "children", allow_duplicate=True),
+        Input("qt-user-them", "n_clicks"), Input("qt-user-grid", "cellClicked"),
+        Input("qt-user-grid", "cellDoubleClicked"), Input("qt-modal-user-dong", "n_clicks"),
+        Input("qt-modal-user-huy", "n_clicks"), Input("qt-user-msg", "children"),
+        prevent_initial_call=True)
+    def _mo_dong_user(_them, bam, bam_dup, *_):
+        giu = (no_update,) * 17
+        trig = ctx.triggered_id
+        if trig == "qt-user-them":
+            return ("modal mo", "Thêm tài khoản", "Tạo tài khoản", None, "", False, "", "phong", [], "", "",
+                    "Đang dùng", {}, AN, [], AN, "", "")
+        if trig == "qt-user-grid":
+            username = _mo_theo_dong(bam_dup if "cellDoubleClicked" in ctx.triggered[0]["prop_id"] else bam)
+            u = lay_user(username) if username else None
+            if not u:
+                return (no_update,) + giu
+            ban_than = u["username"] == current_user.username
+            goi_y = f"Đăng nhập gần nhất: {u['lan_cuoi'] or 'chưa đăng nhập'}."
+            if ban_than:
+                goi_y += " Đây là tài khoản bạn đang dùng: không đổi được vai trò và trạng thái."
+            return ("modal mo", f"Sửa tài khoản · {u['username']}", "Lưu thay đổi", u["username"],
+                    u["username"], True, u["ho_ten"], u["role"], u["pham_vi"], u["ma_nv"], u["email"],
+                    "Đang dùng" if u["active"] else "Ngừng dùng", AN, {}, [],
+                    {"marginTop": "10px"} if u["dang_khoa"] else AN, goi_y, "")
+        return ("modal",) + giu
+
+    @cb(Output("qt-f-phamvi", "disabled"), Output("qt-f-phamvi", "placeholder"),
+        Output("qt-f-role", "disabled"), Output("qt-f-trangthai", "disabled"),
+        Input("qt-f-role", "value"), Input("qt-user-dang-sua", "data"))
+    def _theo_vai_tro(role, dang_sua):
+        ban_than = bool(dang_sua) and dang_sua == current_user.username
+        la_tp = role == "phong"
+        return (not la_tp, "Chọn phòng (kiêm nhiệm chọn nhiều)" if la_tp else "Toàn chi nhánh - không cần chọn",
+                ban_than, ban_than)
 
     @cb(Output("qt-user-msg", "children"), Output("qt-modal-user-msg", "children"),
-                  Input("qt-modal-user-ok", "n_clicks"), Input("qt-user-luu", "n_clicks"),
-                  Input("qt-user-reset", "n_clicks"), Input("qt-user-xacnhan", "submit_n_clicks"),
-                  State("qt-user-grid", "rowData"), State("qt-user-grid", "selectedRows"),
-                  State("qt-f-username", "value"), State("qt-f-hoten", "value"),
-                  State("qt-f-role", "value"), State("qt-f-phamvi", "value"),
-                  State("qt-f-manv", "value"), State("qt-f-email", "value"),
-                  State("qt-f-matkhau", "value"), prevent_initial_call=True)
-    def _thao_tac_user(_a, _b, _c, _d, rows, chon, username, hoten, role, phamvi, manv, email,
-                       matkhau):
+        Input("qt-modal-user-ok", "n_clicks"), Input("qt-user-reset", "n_clicks"),
+        Input("qt-user-xacnhan", "submit_n_clicks"), Input("qt-reset-xacnhan", "submit_n_clicks"),
+        State("qt-user-grid", "selectedRows"), State("qt-user-dang-sua", "data"),
+        State("qt-f-username", "value"), State("qt-f-hoten", "value"),
+        State("qt-f-role", "value"), State("qt-f-phamvi", "value"),
+        State("qt-f-manv", "value"), State("qt-f-email", "value"),
+        State("qt-f-matkhau", "value"), State("qt-f-trangthai", "value"), State("qt-f-mokhoa", "value"),
+        prevent_initial_call=True)
+    def _thao_tac_user(_ok, _reset, _xoa, _xn_reset, chon, dang_sua, username, hoten, role, phamvi, manv,
+                       email, matkhau, trang_thai, mo_khoa):
         trig = ctx.triggered_id
         if trig == "qt-modal-user-ok":
-            ok, msg = them_user({"username": username, "ho_ten": hoten, "role": role,
-                                 "pham_vi": phamvi, "ma_nv": manv, "email": email,
-                                 "mat_khau": matkhau}, current_user.username)
+            d = {"username": username, "ho_ten": hoten, "role": role, "pham_vi": phamvi, "ma_nv": manv,
+                 "email": email}
+            if dang_sua:
+                ok, msg = sua_user(dang_sua, {**d, "trang_thai": trang_thai, "mo_khoa": bool(mo_khoa)},
+                                   current_user.username)
+            else:
+                ok, msg = them_user({**d, "mat_khau": matkhau}, current_user.username)
             return (alert(msg, "ok"), "") if ok else (no_update, alert(msg, "bad"))
 
         if trig == "qt-user-xacnhan":
@@ -296,25 +354,28 @@ def register(app):
             noi_dung = [html.B(f"Đã xoá {n} tài khoản. ")]
             if bo_qua:
                 noi_dung.append("Bỏ qua: " + "; ".join(bo_qua))
-            return alert(noi_dung, "warn" if bo_qua else "ok"), ""
+            return alert(noi_dung, "warn" if bo_qua else "ok"), no_update
 
-        if trig == "qt-user-reset":
-            if not chon:
-                return alert("Tick chọn một tài khoản trong bảng trước đã.", "warn"), ""
+        if trig == "qt-user-reset":                       # bấm nút: chỉ nhắc khi chưa chọn, hỏi lại ở hộp xác nhận
+            return (alert("Tích chọn một tài khoản trong bảng trước đã.", "warn"), no_update) if not chon \
+                else (no_update, no_update)
+
+        if trig == "qt-reset-xacnhan" and chon:
             mk = dat_lai_mat_khau(chon[0]["username"], current_user.username)
-            return alert([html.B(f"Mật khẩu mới của {chon[0]['username']}: {mk} "),
-                          "— báo người dùng đổi lại ngay sau khi đăng nhập."], "ok"), ""
+            return alert([html.B(f"Mật khẩu tạm của {chon[0]['username']}: {mk} "),
+                          "- báo người dùng đăng nhập rồi đổi ngay ở mục Tài khoản."], "ok"), no_update
+        return no_update, no_update
 
-        n, canh_bao = luu_user(rows, current_user.username)
-        noi_dung = [html.B(f"Đã lưu {n} tài khoản. ")]
-        if canh_bao:
-            noi_dung.append("Tài khoản mới dùng mật khẩu khởi tạo Ftel@2026: "
-                            + ", ".join(c.split(":")[0] for c in canh_bao))
-        return alert(noi_dung, "ok"), ""
+    @cb(Output("qt-reset-xacnhan", "displayed"), Output("qt-reset-xacnhan", "message"),
+        Input("qt-user-reset", "n_clicks"), State("qt-user-grid", "selectedRows"), prevent_initial_call=True)
+    def _hoi_reset(n, chon):
+        if not chon:
+            return False, ""
+        return True, f"Đặt lại mật khẩu cho {chon[0]['username']}? Mật khẩu cũ sẽ không dùng được nữa."
 
     @cb(Output("qt-user-xacnhan", "displayed"), Output("qt-user-xacnhan", "message"),
-                  Input("qt-user-xoa", "n_clicks"), State("qt-user-grid", "selectedRows"),
-                  prevent_initial_call=True)
+        Input("qt-user-xoa", "n_clicks"), State("qt-user-grid", "selectedRows"),
+        prevent_initial_call=True)
     def _hoi_xoa_user(n, chon):
         if not chon:
             return False, ""
@@ -322,16 +383,36 @@ def register(app):
         return True, f"Xoá {len(chon)} tài khoản ({ten})? Thao tác này không hoàn tác được."
 
     # ------------------------------------------------------ danh mục nhân sự
-    @cb(Output("qt-modal-staff", "className"),
-                  Input("qt-staff-them", "n_clicks"), Input("qt-modal-staff-dong", "n_clicks"),
-                  Input("qt-modal-staff-huy", "n_clicks"), Input("qt-staff-msg", "children"),
-                  prevent_initial_call=True)
-    def _mo_dong_staff(_a, _b, _c, _d):
-        return "modal mo" if ctx.triggered_id == "qt-staff-them" else "modal"
+    @cb(Output("qt-modal-staff", "className"), Output("qt-staff-tieu-de", "children"),
+        Output("qt-modal-staff-ok", "children"), Output("qt-staff-dang-sua", "data"),
+        Output("qt-s-acc", "value"), Output("qt-s-phong", "value"), Output("qt-s-manv", "value"),
+        Output("qt-s-nghi", "value"), Output("qt-s-tu", "date"), Output("qt-s-den", "date"),
+        Output("qt-s-ghichu", "value"), Output("qt-modal-staff-msg", "children", allow_duplicate=True),
+        Input("qt-staff-them", "n_clicks"), Input("qt-staff-grid", "cellClicked"),
+        Input("qt-staff-grid", "cellDoubleClicked"), Input("qt-modal-staff-dong", "n_clicks"),
+        Input("qt-modal-staff-huy", "n_clicks"), Input("qt-staff-msg", "children"),
+        prevent_initial_call=True)
+    def _mo_dong_staff(_them, bam, bam_dup, *_):
+        giu = (no_update,) * 11
+        trig = ctx.triggered_id
+        if trig == "qt-staff-them":
+            return ("modal mo", "Thêm nhân sự vào danh mục", "Thêm vào danh mục", None, "", None, "", "lam",
+                    None, None, "", "")
+        if trig == "qt-staff-grid":
+            id_ = _mo_theo_dong(bam_dup if "cellDoubleClicked" in ctx.triggered[0]["prop_id"] else bam)
+            r = lay_staff(int(id_)) if str(id_ or "").isdigit() else None
+            if not r:
+                return (no_update,) + giu
+            ghi_chu = " · ".join(x.strip() for x in r["ghi_chu"].split("·")
+                                 if x.strip() and "nghỉ" not in x.lower())
+            return ("modal mo", f"Sửa danh mục · {r['acc']}", "Lưu thay đổi", r["id"], r["acc"], r["phong_code"],
+                    r["ma_nv"], "nghi" if r["da_nghi"] else "lam", r["hieu_luc_tu"], r["hieu_luc_den"],
+                    ghi_chu, "")
+        return ("modal",) + giu
 
     @cb(Output("qt-staff-xacnhan", "displayed"), Output("qt-staff-xacnhan", "message"),
-                  Input("qt-staff-xoa", "n_clicks"), State("qt-staff-grid", "selectedRows"),
-                  prevent_initial_call=True)
+        Input("qt-staff-xoa", "n_clicks"), State("qt-staff-grid", "selectedRows"),
+        prevent_initial_call=True)
     def _hoi_xoa_staff(n, chon):
         if not chon:
             return False, ""
@@ -339,42 +420,41 @@ def register(app):
                       "Hợp đồng của các acc này sẽ về “Chưa gán phòng”.")
 
     @cb(Output("qt-staff-msg", "children"), Output("qt-modal-staff-msg", "children"),
-                  Input("qt-modal-staff-ok", "n_clicks"), Input("qt-staff-luu", "n_clicks"),
-                  Input("qt-staff-xacnhan", "submit_n_clicks"),
-                  Input("qt-staff-tinhlai", "n_clicks"),
-                  State("qt-staff-grid", "rowData"), State("qt-staff-grid", "selectedRows"),
-                  State("qt-s-acc", "value"), State("qt-s-phong", "value"),
-                  State("qt-s-manv", "value"), State("qt-s-tu", "value"),
-                  State("qt-s-den", "value"), State("qt-s-ghichu", "value"),
-                  prevent_initial_call=True)
-    def _thao_tac_staff(_a, _b, _c, _d, rows, chon, acc, phong, manv, tu, den, ghi_chu):
+        Input("qt-modal-staff-ok", "n_clicks"), Input("qt-staff-xacnhan", "submit_n_clicks"),
+        Input("qt-staff-tinhlai", "n_clicks"),
+        State("qt-staff-grid", "selectedRows"), State("qt-staff-dang-sua", "data"),
+        State("qt-s-acc", "value"), State("qt-s-phong", "value"), State("qt-s-manv", "value"),
+        State("qt-s-nghi", "value"), State("qt-s-tu", "date"), State("qt-s-den", "date"),
+        State("qt-s-ghichu", "value"), prevent_initial_call=True)
+    def _thao_tac_staff(_ok, _xoa, _tinh, chon, dang_sua, acc, phong, manv, nghi, tu, den, ghi_chu):
         trig = ctx.triggered_id
         if trig == "qt-modal-staff-ok":
-            if not (acc or "").strip():
-                return no_update, alert("Chưa nhập acc inside.", "bad")
-            n, loi = luu_staff([{"acc": acc, "phong": phong, "ma_nv": manv, "hieu_luc_tu": tu,
-                                 "hieu_luc_den": den, "ghi_chu": ghi_chu}], current_user.username)
-            if loi:
-                return no_update, alert("; ".join(loi), "bad")
-            return alert([html.B(f"Đã thêm {acc} vào {phong}. "),
-                          "Bấm “Tính lại việc gán phòng” để áp cho dữ liệu đã nạp."], "ok"), ""
+            ok, msg, tinh_lai = luu_mot_staff(dang_sua, {"acc": acc, "phong_code": phong, "ma_nv": manv,
+                                                         "hieu_luc_tu": tu, "hieu_luc_den": den,
+                                                         "ghi_chu": ghi_chu, "da_nghi": nghi == "nghi"},
+                                              current_user.username)
+            if not ok:
+                return no_update, alert(msg, "bad")
+            noi_dung = [html.B(msg + " ")]
+            if tinh_lai:
+                with session_scope() as s:
+                    doi = recompute_phong(s)
+                noi_dung.append(f"Đã tính lại việc gán phòng: {doi} hợp đồng đổi phòng.")
+            return alert(noi_dung, "ok"), ""
 
         if trig == "qt-staff-xacnhan":
             ids = [int(r["id"]) for r in (chon or []) if str(r.get("id") or "").isdigit()]
             if not ids:
-                return alert("Không có dòng hợp lệ để xoá.", "warn"), ""
+                return alert("Không có dòng hợp lệ để xoá.", "warn"), no_update
             xoa_staff(ids, current_user.username)
-            return alert(f"Đã xoá {len(ids)} dòng khỏi danh mục.", "ok"), ""
+            with session_scope() as s:
+                doi = recompute_phong(s)
+            return alert(f"Đã xoá {len(ids)} dòng khỏi danh mục và tính lại gán phòng ({doi} hợp đồng).",
+                         "ok"), no_update
 
         if trig == "qt-staff-tinhlai":
             with session_scope() as s:
                 doi = recompute_phong(s)
             return alert([html.B("Đã tính lại việc gán phòng. "),
-                          f"{doi} hợp đồng được gán lại."], "ok"), ""
-
-        n, loi = luu_staff(rows, current_user.username)
-        if loi:
-            return alert([html.B(f"Đã lưu {n} dòng, {len(loi)} dòng bị bỏ qua: "),
-                          "; ".join(loi[:5])], "warn"), ""
-        return alert([html.B(f"Đã lưu {n} dòng. "),
-                      "Bấm “Tính lại việc gán phòng” để áp cho dữ liệu đã nạp."], "ok"), ""
+                          f"{doi} hợp đồng được gán lại."], "ok"), no_update
+        return no_update, no_update

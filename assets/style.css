@@ -524,6 +524,10 @@ table.simple tr:last-child td { border-bottom: none; }
   white-space: nowrap; }
 .thanh-du-lieu a.thanh-dl:hover { filter: brightness(.96); }
 .ag-theme-ftel .o-lien-ket { cursor: pointer; }
+.ag-theme-ftel .o-sua { cursor: pointer; color: var(--fpt-blue); font-weight: 600; text-align: center; }
+.ag-theme-ftel .o-sua:hover { color: var(--fpt-orange); text-decoration: underline; }
+#qt-user-grid .ag-row, #qt-staff-grid .ag-row { cursor: default; }
+.modal .date-pick .SingleDatePickerInput { width: 100%; }
 .ag-theme-ftel .o-lien-ket:hover { text-decoration: underline; color: var(--fpt-blue); }
 .nut-menu, .menu-nen { display: none; }
 
