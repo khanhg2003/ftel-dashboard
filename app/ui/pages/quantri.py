@@ -18,8 +18,8 @@ from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_m
 from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
-from app.ui.components import (MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card, gan_import, modal,
-                               nut_import)
+from app.ui.components import (COT_SUA, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card, dong_can_sua,
+                               gan_import, modal, nut_import)
 from app.ui.icons import icon
 
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
@@ -27,9 +27,6 @@ CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned
         "resizable": False}
 GRID = {"rowSelection": "multiple", "suppressRowClickSelection": True, "suppressCellFocus": True,
         "tooltipShowDelay": 300}
-COT_SUA = {"field": "_sua", "headerName": "", "pinned": "right", "width": 84, "maxWidth": 84,
-           "sortable": False, "resizable": False, "filter": False, "cellClass": "o-sua",
-           "valueGetter": {"function": "'✎ Sửa'"}}
 TRANG_THAI_TK = ["Đang dùng", "Ngừng dùng"]
 
 TAB = [("user", "Tài khoản"), ("staff", "Danh mục nhân sự"), ("cocau", "Cơ cấu tổ chức"),
@@ -128,9 +125,6 @@ def layout(tab: str | None = None):
         html.Div(id="qt-pane-user", style={} if tab == "user" else an, children=[
             card([
                 html.Div([
-                    html.Div("Bấm ✎ Sửa ở cuối dòng (hoặc bấm đúp vào dòng) để chỉnh tài khoản. Tích chọn "
-                             "dòng trước khi xoá hoặc đặt lại mật khẩu.",
-                             className="desc", style={"margin": 0}),
                     html.Div(className="grow"),
                     html.Button([icon("trash", 14), html.Span("Xoá")], id="qt-user-xoa",
                                 className="btn nguy-hiem"),
@@ -174,8 +168,7 @@ def layout(tab: str | None = None):
                            dashGridOptions={**GRID, "pagination": True, "paginationPageSize": 20,
                                             "paginationPageSizeSelector": False},
                            style={"width": "100%", "height": "480px"}),
-                html.Div("Bấm ✎ Sửa ở cuối dòng (hoặc bấm đúp) để đổi phòng, mã NV, ngày hiệu lực, tình trạng. "
-                         "Thay đổi nhiều: Tải file mẫu (điền sẵn danh mục hiện tại) → sửa → Import Excel. "
+                html.Div("Thay đổi nhiều: Tải file mẫu (điền sẵn danh mục hiện tại) → sửa → Import Excel. "
                          "Acc không có trong file sẽ được ghi chú “Nghỉ”.",
                          className="desc", style={"marginTop": "10px"}),
             ], title="Danh mục nhân sự theo phòng"),
@@ -222,14 +215,6 @@ def _staff_cols():
 def _ngay_vn(v) -> str:
     v = str(v or "")[:10]
     return f"{v[8:10]}/{v[5:7]}/{v[:4]}" if len(v) == 10 else ""
-
-
-def _mo_theo_dong(o) -> str | None:
-    """rowId của dòng khi bấm cột Sửa (một lần) hoặc bấm đúp vào bất kỳ ô nào (trừ ô tích chọn)."""
-    o = o or {}
-    if ctx.triggered_id and "cellDoubleClicked" in (ctx.triggered[0].get("prop_id") or ""):
-        return o.get("rowId") if o.get("colId") != "_chon" else None
-    return o.get("rowId") if o.get("colId") == "_sua" else None
 
 
 def register(app):
@@ -304,7 +289,7 @@ def register(app):
             return ("modal mo", "Thêm tài khoản", "Tạo tài khoản", None, "", False, "", "phong", [], "", "",
                     "Đang dùng", {}, AN, [], AN, "", "")
         if trig == "qt-user-grid":
-            username = _mo_theo_dong(bam_dup if "cellDoubleClicked" in ctx.triggered[0]["prop_id"] else bam)
+            username = dong_can_sua(bam, bam_dup)
             u = lay_user(username) if username else None
             if not u:
                 return (no_update,) + giu
@@ -399,7 +384,7 @@ def register(app):
             return ("modal mo", "Thêm nhân sự vào danh mục", "Thêm vào danh mục", None, "", None, "", "lam",
                     None, None, "", "")
         if trig == "qt-staff-grid":
-            id_ = _mo_theo_dong(bam_dup if "cellDoubleClicked" in ctx.triggered[0]["prop_id"] else bam)
+            id_ = dong_can_sua(bam, bam_dup)
             r = lay_staff(int(id_)) if str(id_ or "").isdigit() else None
             if not r:
                 return (no_update,) + giu

@@ -27,6 +27,23 @@ def callback_can_quyen(app, quyen: str):
     return dang_ky
 
 
+# Cột "✎ Sửa" ở cuối dòng của các bảng danh mục: bấm mở hộp thoại sửa thay cho gõ thẳng vào ô
+COT_SUA = {"field": "_sua", "headerName": "", "pinned": "right", "width": 84, "maxWidth": 84,
+           "sortable": False, "resizable": False, "filter": False, "cellClass": "o-sua",
+           "valueGetter": {"function": "'✎ Sửa'"}}
+
+
+def dong_can_sua(bam: dict | None, bam_dup: dict | None) -> str | None:
+    """rowId của dòng cần mở hộp thoại: bấm vào cột Sửa, hoặc bấm đúp vào ô bất kỳ (trừ ô tích chọn)."""
+    from dash import ctx
+    prop = (ctx.triggered[0].get("prop_id") or "") if ctx.triggered else ""
+    if prop.endswith("cellDoubleClicked"):
+        o = bam_dup or {}
+        return o.get("rowId") if o.get("colId") != "_chon" else None
+    o = bam or {}
+    return o.get("rowId") if o.get("colId") == "_sua" else None
+
+
 def so_vn(v, chu_so: int = 0, dau: bool = False, trong: str = "–") -> str:
     """Số kiểu Việt Nam: 1.438 · 8,6 · +12. dau=True luôn ghi dấu + / -."""
     if v is None or v != v:
@@ -81,22 +98,6 @@ def seg_control(id: str, options: list[tuple[str, str]], value: str):
         children=[dcc.Tab(label=lb, value=v, className="seg-item",
                           selected_className="seg-item active") for v, lb in options],
     )
-
-
-def nhac_chua_luu(app, grid_id: str, out_id: str, reset_id: str):
-    """Hiện nhắc nhở khi người dùng sửa ô trong bảng mà chưa bấm Lưu.
-
-    `reset_id` là ô thông báo của thẻ đó - khi lưu xong thông báo đổi thì lời nhắc tắt.
-    """
-    from dash import Input, Output, ctx
-
-    @app.callback(Output(out_id, "children"),
-                  Input(grid_id, "cellValueChanged"), Input(reset_id, "children"),
-                  prevent_initial_call=True)
-    def _nhac(thay_doi, _da_luu):
-        if ctx.triggered_id == reset_id or not thay_doi:
-            return ""
-        return html.Span("● Có thay đổi chưa lưu", className="chip canh-bao")
 
 
 def modal(id: str, tieu_de: str, noi_dung: list, nut_chinh: str = "Lưu"):

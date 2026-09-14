@@ -495,7 +495,7 @@ def test_bam_sua_mo_hop_thoai_dien_san(tai_khoan):
     from unittest import mock
     with server.test_request_context("/"):
         login_user(_user("zz_ht_admin"))
-        with mock.patch("app.ui.pages.quantri.ctx") as c:
+        with mock.patch("app.ui.pages.quantri.ctx") as c, mock.patch("dash.ctx", c):
             c.triggered_id = "qt-user-grid"
             c.triggered = [{"prop_id": "qt-user-grid.cellClicked"}]
             kq = ham(None, {"colId": "_sua", "rowId": "zz_ht_phong"}, None, None, None, None)
@@ -505,3 +505,63 @@ def test_bam_sua_mo_hop_thoai_dien_san(tai_khoan):
             c.triggered = [{"prop_id": "qt-user-grid.cellDoubleClicked"}]
             kq = ham(None, None, {"colId": "ho_ten", "rowId": "zz_ht_phong"}, None, None, None)
             assert kq[0] == "modal mo"                                           # bấm đúp: mở
+
+
+# ------------------------------------------------------- cơ cấu tổ chức, chỉ tiêu: sửa bằng hộp thoại
+def test_hop_thoai_bay_phong_kiem_tra_hop_le():
+    from app.org import bay_info, phong_order
+    from app.ui.pages.settings import luu_bay_hop_thoai, luu_phong_hop_thoai
+    b = next(iter(bay_info().values()))
+    khac = [x for x in bay_info().values() if x["code"] != b["code"]][0]
+    assert not luu_bay_hop_thoai(None, "", "", 1, "Có")[0]
+    assert "Đã có bầy" in luu_bay_hop_thoai(None, khac["ten"], "", 1, "Có")[1]
+    assert not luu_bay_hop_thoai(b["code"], b["ten"], "", -1, "Có")[0]
+    assert "còn phòng" in luu_bay_hop_thoai(b["code"], b["ten"], "", 1, "Không")[1]
+    p, q = phong_order()[:2]
+    d = {"ten": q["ten"], "bay": p["bay"], "loai": p["loai"], "chi_nhanh": p["chi_nhanh"], "thu_tu": 1}
+    assert "Đã có phòng" in luu_phong_hop_thoai(p["code"], d)[1]
+    assert not luu_phong_hop_thoai(p["code"], {**d, "ten": p["ten"], "bay": "KHONG_CO"})[0]
+
+
+def test_luu_chi_tieu_mot_phong_va_xoa_o_trong():
+    from sqlalchemy import delete
+
+    from app.db import session_scope
+    from app.models import Target
+    from app.ui.pages.settings import _luu_target_rows, _target_rows
+    thang = "2030-01"
+    try:
+        _luu_target_rows(thang, [{"phong_code": "IBB2", "internet": 500, "camera": 120, "ngay": 20}], "test")
+        r = next(x for x in _target_rows(thang)[1] if x["phong_code"] == "IBB2")
+        assert (r["internet"], r["camera"], r["ngay"]) == (500, 120, 20)
+        _luu_target_rows(thang, [{"phong_code": "IBB2", "internet": 550, "camera": None, "ngay": ""}], "test",
+                         xoa_o_trong=True)
+        r = next(x for x in _target_rows(thang)[1] if x["phong_code"] == "IBB2")
+        assert (r["internet"], r["camera"], r["ngay"]) == (550, None, None)
+    finally:
+        with session_scope() as s:
+            s.execute(delete(Target).where(Target.thang == thang))
+
+
+@pytest.mark.parametrize("grid, out, rowid", [("st-bay-grid", "st-modal-bay.className", None),
+                                              ("st-phong-grid", "st-modal-phong.className", "IBB2"),
+                                              ("st-cocau-grid", "st-modal-cocau.className", "IBB2"),
+                                              ("st-target-grid", "st-modal-target.className", "IBB2")])
+def test_bam_sua_mo_hop_thoai_co_cau_chi_tieu(tai_khoan, grid, out, rowid):
+    from unittest import mock
+
+    from flask_login import login_user
+
+    from app.org import bay_info
+    from app.ui.app import server
+    rowid = rowid or next(iter(bay_info()))
+    ham = _callback_theo_output_input(out, grid)
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        with mock.patch("app.ui.pages.settings.ctx") as c, mock.patch("dash.ctx", c):
+            c.triggered_id = grid
+            c.triggered = [{"prop_id": f"{grid}.cellClicked"}]
+            o = {"colId": "_sua", "rowId": rowid}
+            kq = (ham(o, None, None, None, None, THANG) if grid in ("st-cocau-grid", "st-target-grid")
+                  else ham(None, o, None, None, None, None))
+            assert kq[0] == "modal mo"
