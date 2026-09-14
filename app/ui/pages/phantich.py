@@ -140,9 +140,7 @@ def layout():
                     dcc.Dropdown(id="pt-ton-phong-loc", options=lua_chon_phong, value="all",
                                  clearable=False, style={"width": "220px"}),
                 ], className="the-thanh"),
-                _grid("pt-ton-ds", cao=460,
-                      dashGridOptions={"pagination": True, "paginationPageSize": 15,
-                                       "paginationPageSizeSelector": False}),
+                _grid("pt-ton-ds", cao=520),
             ], id="pt-ton-ds-hop", hidden=True) if xem_nv else html.Div(
                 alert("Danh sách hợp đồng có tên nhân viên chỉ dành cho Quản trị và Trưởng phòng.",
                       "info"), id="pt-ton-ds-hop", hidden=True),
@@ -175,9 +173,7 @@ def layout():
                          options=[{"label": "Tất cả nhân viên có số", "value": "all"},
                                   {"label": "Chưa bán kèm V.VIP hoặc Camera", "value": "khong_kem"},
                                   {"label": "Có hợp đồng chờ từ 7 ngày", "value": "ton"}])),
-            dcc.Loading(_grid("pt-nv", cao=520,
-                              dashGridOptions={"pagination": True, "paginationPageSize": 15,
-                                               "paginationPageSizeSelector": False})),
+            dcc.Loading(_grid("pt-nv", cao=560)),
             html.Div("Tỷ lệ tính trên số online của chính nhân viên. Màu so với mức chung các phòng "
                      "kinh doanh; nhân viên dưới 5 hợp đồng online không tô vì mẫu quá nhỏ.",
                      className="desc", style={"margin": "10px 0 0"}),

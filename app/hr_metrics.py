@@ -63,7 +63,7 @@ def hieu_suat_nhan_su(thang: str, chi_phong: list[str] | None = None,
     cam = _dem("fact_camera", "ngay_online", tu, den)
     ban_moi = _dem("fact_internet", "ngay_tao_hd", tu, den)
 
-    staff = _q("SELECT acc, acc_norm, phong_code, ghi_chu, hieu_luc_tu FROM staff_map")
+    staff = _q("SELECT acc, acc_norm, phong_code, ghi_chu, hieu_luc_tu, hieu_luc_den FROM staff_map")
     hr_thang = hr_thang_gan_nhat(thang)
     hr = pd.DataFrame()
     if hr_thang:
@@ -73,7 +73,9 @@ def hieu_suat_nhan_su(thang: str, chi_phong: list[str] | None = None,
         hr["acc_norm"] = hr["acc"].fillna("").str.strip().str.lower()
         hr = hr[hr.acc_norm != ""].drop_duplicates("acc_norm").set_index("acc_norm")
 
-    base = staff[["acc", "acc_norm", "phong_code", "ghi_chu", "hieu_luc_tu"]].drop_duplicates("acc_norm")
+    # acc chuyển phòng có nhiều dòng: ưu tiên dòng còn hiệu lực (chưa có ngày kết thúc)
+    base = (staff.assign(_het=staff.hieu_luc_den.notna()) if "hieu_luc_den" in staff else staff.assign(_het=False))
+    base = base.sort_values("_het")[["acc", "acc_norm", "phong_code", "ghi_chu", "hieu_luc_tu"]].drop_duplicates("acc_norm")
     them = []
     if not hr.empty:                                   # có trong NSLĐ, chưa có trong danh mục
         them.append(pd.DataFrame({"acc": hr.loc[~hr.index.isin(base.acc_norm), "acc"]})
@@ -83,6 +85,17 @@ def hieu_suat_nhan_su(thang: str, chi_phong: list[str] | None = None,
     if thieu:                                          # có số bán nhưng chưa khai ở đâu cả
         them.append(pd.DataFrame({"acc_norm": thieu, "acc": thieu}))
     base = pd.concat([base, *them], ignore_index=True).set_index("acc_norm")
+    # acc không có trong danh mục (hợp đồng gán phòng theo quy tắc: KT, CUS, ECOM...) -> lấy phòng
+    # xuất hiện nhiều nhất trong số bán của kỳ, để tổng từng phòng khớp Báo cáo Tổng
+    theo_so = _q("""SELECT acc_norm, phong_code, COUNT(*) n FROM (
+                        SELECT acc_norm, phong_code FROM fact_internet WHERE ngay_online >= :tu AND ngay_online <= :den
+                        UNION ALL SELECT acc_norm, phong_code FROM fact_fptplay
+                                  WHERE ngay_online >= :tu AND ngay_online <= :den AND la_vvip = TRUE
+                        UNION ALL SELECT acc_norm, phong_code FROM fact_camera WHERE ngay_online >= :tu AND ngay_online <= :den
+                    ) x GROUP BY acc_norm, phong_code""", tu=tu, den=den)
+    if len(theo_so):
+        chinh = theo_so.sort_values("n", ascending=False).drop_duplicates("acc_norm").set_index("acc_norm").phong_code
+        base["phong_code"] = base.phong_code.where(base.phong_code.notna(), chinh.reindex(base.index))
 
     base["online"] = online["n"].reindex(base.index).fillna(0).astype(int)
     base["so_ngay_co_so"] = online["so_ngay"].reindex(base.index).fillna(0).astype(int)

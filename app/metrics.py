@@ -285,8 +285,14 @@ def so_sanh_acc(ky1: tuple[str, str], ky2: tuple[str, str], metric: str = "onlin
                 chi_phong: list[str] | None = None) -> pd.DataFrame:
     """Khối D2: từng acc nhân viên, kỳ 1 vs kỳ 2, sắp theo mức hụt."""
     meta = {p["code"]: p for p in phong_order()}
-    a = tong_theo_acc(*ky1, metric)
-    b = tong_theo_acc(*ky2, metric)
+    def _gop(df: pd.DataFrame) -> pd.DataFrame:
+        # một acc có số ở nhiều phòng -> gộp một dòng, phòng = nơi có nhiều số nhất
+        if df.empty:
+            return df
+        chinh = df.sort_values("n", ascending=False).drop_duplicates("acc_norm")
+        return chinh.drop(columns="n").merge(df.groupby("acc_norm", as_index=False).n.sum(), on="acc_norm")
+    a = _gop(tong_theo_acc(*ky1, metric))
+    b = _gop(tong_theo_acc(*ky2, metric))
     m = a.merge(b, on=["acc_norm"], how="outer", suffixes=("_1", "_2"))
     m["acc"] = m.acc_1.fillna(m.acc_2)
     m["phong_code"] = m.phong_code_2.fillna(m.phong_code_1)

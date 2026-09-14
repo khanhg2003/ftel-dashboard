@@ -45,7 +45,9 @@ MAU_KHONG = {"styleConditions": [
     {"condition": "params.value === 0", "style": {"color": "#B42318", "fontWeight": "700"}}]}
 
 DINH_NGHIA = [
-    ("Online", "Hợp đồng Internet online từ ngày 01 đến ngày chọn, theo acc người bán."),
+    ("Online", "Hợp đồng Internet online từ ngày 01 đến ngày chọn, theo acc người bán. Acc ngoài danh "
+               "mục (KT, CUS, ECOM) lấy phòng có nhiều số nhất; người bán cho nhiều phòng nên tổng theo "
+               "người có thể lệch vài số với Báo cáo Tổng (tính theo hợp đồng)."),
     ("Nhân sự kinh doanh", "Người đang làm ở phòng IBB và phòng địa bàn, theo danh mục acc → phòng. "
                            "Không tính người đã nghỉ, và acc 60 ngày không có số mà không có trong NSLĐ "
                            "(trưởng phòng, acc cũ)."),
@@ -77,6 +79,14 @@ def _grid(id, cao=None, **kw):
                       defaultColDef={"resizable": True, "sortable": True, "suppressMovable": True,
                                      "wrapHeaderText": True, "autoHeaderHeight": True},
                       dashGridOptions=opts, style=style, **kw)
+
+
+def khung_cuon(so_dong: int, co_dong_ghim: bool = False) -> dict:
+    """Bảng không chia trang: cao vừa đủ số dòng, tối đa bằng khung hình (trừ thanh lọc + tiêu đề thẻ),
+    dài hơn thì cuộn trong bảng - tiêu đề cột luôn thấy."""
+    can = 34 * (so_dong + (1 if co_dong_ghim else 0)) + 64
+    return {"width": "100%", "height": f"min({max(can, 140)}px, calc(100vh - 230px))",
+            "minHeight": "140px"}
 
 
 def _dau_the(tieu_de, mo_ta_id=None, mo_ta=None, nut=None):
@@ -165,8 +175,7 @@ def layout():
                     seg_control("hr-xem", [("ban", "Bán hàng"), ("nsld", "Hồ sơ NSLĐ")], "ban"),
                 ], className="the-thanh"),
                 _grid("hr-grid", cao=520, getRowId="params.data.acc_norm",
-                      dashGridOptions={"pagination": True, "paginationPageSize": 12,
-                                       "paginationPageSizeSelector": False, "rowHeight": 34}),
+                      dashGridOptions={"rowHeight": 34}),
                 chu_giai("Cách tính", DINH_NGHIA),
             ], className="card"),
         ]),
@@ -183,18 +192,14 @@ def layout():
                                 className="btn", title="Hai bảng NSLĐ, mỗi bảng một sheet"),
                 ]),
                 html.Div(id="hr-ns-chu"),
-                _grid("hr-ns-grid", cao=None, getRowStyle=DONG_TONG,
-                      dashGridOptions={"rowHeight": 34, "pagination": True, "paginationPageSize": 20,
-                                       "paginationPageSizeSelector": False}),
+                _grid("hr-ns-grid", cao=300, getRowStyle=DONG_TONG, dashGridOptions={"rowHeight": 34}),
             ], className="card"),
             html.Div([
                 _dau_the("NSLĐ tân binh theo tháng làm việc", "hr-tb-mo-ta", nut=[
                     seg_control("hr-tb-xem", [("phong", "Các phòng"), ("nhan_su", "Từng tân binh")],
                                 "phong")]),
                 html.Div(id="hr-tb-chu"),
-                _grid("hr-tb-grid", cao=None, getRowStyle=DONG_TONG,
-                      dashGridOptions={"rowHeight": 34, "pagination": True, "paginationPageSize": 20,
-                                       "paginationPageSizeSelector": False}),
+                _grid("hr-tb-grid", cao=300, getRowStyle=DONG_TONG, dashGridOptions={"rowHeight": 34}),
                 chu_giai("Cách tính", DINH_NGHIA_NSLD),
             ], className="card"),
         ]),
@@ -594,16 +599,17 @@ def register(app):
         return _bieu_do_xep_hang(df, xep)
 
     @app.callback(Output("hr-grid", "columnDefs"), Output("hr-grid", "rowData"),
-                  Output("hr-tom-tat", "children"),
+                  Output("hr-tom-tat", "children"), Output("hr-grid", "style"),
                   Input("hr-date", "date"), Input("hr-cn", "value"), Input("hr-phong", "value"),
                   Input("hr-nhom", "value"), Input("hr-loc", "value"), Input("hr-xem", "value"))
     def _bang(ngay_iso, chi_nhanh, chon_phong, nhom, loc, xem):
         d, _, df = _du_lieu(ngay_iso, chi_nhanh, chon_phong)
         if d is None:
-            return _cols(xem), [], ""
+            return _cols(xem), [], "", khung_cuon(0)
         df = _loc_bang(df, nhom, loc)
         return (_cols(xem), _ban_ghi(df),
-                f"{len(df)} người · {_ten_pham_vi(chon_phong)} · luỹ kế 01-{d:%d/%m/%Y}")
+                f"{len(df)} người · {_ten_pham_vi(chon_phong)} · luỹ kế 01-{d:%d/%m/%Y}",
+                khung_cuon(len(df)))
 
     @app.callback(Output("hr-grid", "dashGridOptions"), Input("hr-tim", "value"),
                   prevent_initial_call=True)
@@ -620,17 +626,18 @@ def register(app):
                   Output("hr-tb-grid", "columnDefs"), Output("hr-tb-grid", "rowData"),
                   Output("hr-tb-grid", "pinnedBottomRowData"), Output("hr-tb-mo-ta", "children"),
                   Output("hr-tb-chu", "children"),
+                  Output("hr-ns-grid", "style"), Output("hr-tb-grid", "style"),
                   Input("hr-tab", "value"), Input("hr-date", "date"), Input("hr-cn", "value"),
                   Input("hr-phong", "value"), Input("hr-ns-xem", "value"), Input("hr-tb-xem", "value"))
     def _nsld(tab, ngay_iso, chi_nhanh, chon_phong, xem_ns, xem_tb):
         if tab != "nsld":
-            return (no_update,) * 12
+            return (no_update,) * 14
         nam, den, df = _du_lieu_nsld(ngay_iso, chi_nhanh)
         if not den or df is None or df.empty:
             bao = alert([html.B(f"Chưa có file NSLĐ năm {nam}. "),
                          "Vào Nạp dữ liệu, chọn các file NSLĐ từng tháng (tên file có tháng, VD "
                          "“NSLĐ T8.2026”) rồi lưu một lần."], "warn")
-            return [], bao, [], [], [], "", "", [], [], [], "", ""
+            return [], bao, [], [], [], "", "", [], [], [], "", "", khung_cuon(0), khung_cuon(0)
 
         co_thang = sorted(df.so_thang.unique())
         thieu = [t for t in range(1, den + 1) if t not in co_thang]
@@ -699,7 +706,7 @@ def register(app):
 
         return (kpis, bao, _cols_ns(xem_ns if xem_duoc else "phong", nam, den), rows, pin, mo_ta_ns,
                 chu_ns, _cols_tb(xem_tb if xem_duoc else "phong", den), rows_tb, pin_tb, mo_ta_tb,
-                chu_tb)
+                chu_tb, khung_cuon(len(rows), bool(pin)), khung_cuon(len(rows_tb), bool(pin_tb)))
 
     @app.callback(Output("hr-tai-xuong", "data", allow_duplicate=True),
                   Input("hr-ns-export", "n_clicks"),

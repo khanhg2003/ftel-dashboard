@@ -163,3 +163,76 @@ def test_trang_hr_co_hai_tab_va_loc_phong():
     rows = [{"t1": 10.0}, {"t1": 20.0}, {"t1": 30.0}]
     hr._to_mau(rows, ["t1"])
     assert rows[0]["_m_t1"] != rows[2]["_m_t1"] and rows[1]["_m_t1"] == "#FFFFFF"
+
+
+# ------------------------------------------------------ đối chiếu số liệu giữa các trang
+def test_bao_cao_phong_tong_khop_bao_cao_tong_moi_phong():
+    """Người chỉ bán V.VIP/Camera (không có online) vẫn phải được cộng vào TỔNG PHÒNG."""
+    from app import bao_cao_phong as bp
+    from app.org import phong_order
+    from app.overview import bang_tong_quan
+    tq, _ = bang_tong_quan("2026-09", 11)
+    tq = tq[tq.loai_dong == "data"].set_index("phong_code")
+    for p in phong_order("2026-09"):
+        nv = bp.bang_nhan_su("2026-09", 11, p["code"])
+        t = nv[nv.loai_dong == "total"].iloc[0]
+        for k, kq in (("online", "online"), ("vvip", "vvip"), ("camera", "camera"), ("ton", "so_ton")):
+            assert int(t[k]) == int(tq.loc[p["code"], kq]), (p["code"], k)
+
+
+def test_so_sanh_acc_khong_nhan_doi_nguoi_ban_nhieu_phong():
+    from app.metrics import so_sanh_acc
+    ss = so_sanh_acc(("2026-09-01", "2026-09-11"), ("2026-09-01", "2026-09-11"))
+    assert not ss.acc.duplicated().any() and ss.ky2.sum() == 1394
+
+
+def test_hieu_suat_nhan_su_gan_phong_cho_acc_ngoai_danh_muc():
+    from app.hr_metrics import hieu_suat_nhan_su
+    df = hieu_suat_nhan_su("2026-09", ngay=11)
+    assert df.phong_code.notna().sum() >= (df.online > 0).sum() - 1
+    assert df[df.phong_code.str.startswith("KT_", na=False)].online.sum() > 0
+
+
+GOC = Path(__file__).resolve().parent.parent
+SHEET = GOC / "Báo cáo T9-2026 - T9.2026.csv"
+
+
+@pytest.mark.skipif(not SHEET.exists(), reason="Không có file Google Sheet gốc để đối chiếu")
+def test_bao_cao_tong_khop_google_sheet_goc_ngay_11():
+    """Đối chiếu từng ô với bảng tổng trong Google Sheet (chốt 11/09/2026).
+
+    Ngoại lệ đã biết, không phải lỗi app:
+    - IBB6 / Phòng CUS DNG2: BGĐ chốt TIN.MinhLH1 chỉ tính cho CUS DNG2 (sheet tính cả hai nơi).
+    - Nhân sự, Camera, Tăng trưởng/Kết luận của KT/CUS/ECOM: sheet đếm khác (xem báo cáo đối chiếu).
+    """
+    import re
+    import unicodedata
+
+    import pandas as pd
+
+    from app.overview import bang_tong_quan
+    d = pd.read_csv(SHEET, header=None, low_memory=False, dtype=str)
+    cot = ["phong", "nhan_su", "mt_internet", "so_ton", "online", "htkh_internet", "ck_online",
+           "tang_truong", "fpl_combo", "fpl_ty_le", "cnql", "cnql_ty_le", "vvip", "vvip_ty_le",
+           "mt_camera", "camera", "htkh_camera", "mt_ngay", "ngay_ban_moi", "ngay_online", "ngay_vvip"]
+    sheet = d.iloc[3:27, :21].copy()
+    sheet.columns = cot
+    app, _ = bang_tong_quan("2026-09", 11)
+    app["_k"] = [unicodedata.normalize("NFC", str(x)).upper() for x in app.phong]
+
+    def so(v):
+        s = str(v).replace("%", "").strip()
+        if re.fullmatch(r"-?\d{1,3}(\.\d{3})+", s):
+            s = s.replace(".", "")
+        return float(s.replace(",", "."))
+
+    kiem = ["mt_internet", "so_ton", "online", "ck_online", "fpl_combo", "cnql", "vvip", "mt_camera",
+            "mt_ngay", "ngay_ban_moi", "ngay_online"]
+    for _, r in sheet.iterrows():
+        ten = unicodedata.normalize("NFC", str(r.phong)).strip()
+        if ten in ("IBB6", "Phòng CUS DNG2", "ANCS") or ten.startswith("BẦY DNG_1"):
+            continue
+        dong = app[app._k == ten.upper()]
+        assert len(dong), ten
+        for c in kiem:
+            assert so(r[c]) == float(dong.iloc[0][c]), (ten, c, r[c], dong.iloc[0][c])

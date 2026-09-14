@@ -53,9 +53,19 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     ton = pt.hop_dong_ton([code])
 
     staff = _q("""SELECT acc, acc_norm, ghi_chu FROM staff_map WHERE phong_code = :c""", c=code)
-    ban_ra = set(hd.acc_norm) | set(ton.acc_norm)
+    vvip = _dem_theo_acc("fact_fptplay", "ngay_online", tu, den, code, " AND la_vvip = TRUE")
+    camera = _dem_theo_acc("fact_camera", "ngay_online", tu, den, code)
+    ban_moi = _dem_theo_acc("fact_internet", "ngay_tao_hd", tu, den, code)
+    # người chỉ bán V.VIP / Camera / hợp đồng mới (chưa có online) cũng phải có dòng,
+    # nếu không dòng TỔNG PHÒNG sẽ thiếu so với Báo cáo Tổng
+    ban_ra = set(hd.acc_norm) | set(ton.acc_norm) | set(vvip.index) | set(camera.index) | set(ban_moi.index)
     ds_acc = pd.DataFrame({"acc_norm": sorted(set(staff.acc_norm) | ban_ra)})
-    ten_acc = {**dict(zip(hd.acc_norm, hd.acc_nhan_vien)), **dict(zip(ton.acc_norm, ton.acc_nhan_vien)),
+    phu = _q(f"""SELECT DISTINCT acc_norm, acc_nhan_vien FROM fact_camera WHERE phong_code = :c
+                  AND ngay_online >= :tu AND ngay_online <= :den
+                  UNION SELECT DISTINCT acc_norm, acc_nhan_vien FROM fact_fptplay WHERE phong_code = :c
+                  AND ngay_online >= :tu AND ngay_online <= :den""", c=code, tu=tu, den=den)
+    ten_acc = {**dict(zip(phu.acc_norm, phu.acc_nhan_vien)),
+               **dict(zip(hd.acc_norm, hd.acc_nhan_vien)), **dict(zip(ton.acc_norm, ton.acc_nhan_vien)),
                **dict(zip(staff.acc_norm, staff.acc))}
     ds_acc["acc"] = ds_acc.acc_norm.map(ten_acc)
     ds_acc = ds_acc.set_index("acc_norm")
@@ -69,15 +79,12 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     out["online_ngay"] = (hd[hd.ngay_online.dt.date == d_den].groupby("acc_norm").size()
                           .reindex(out.index).fillna(0).astype(int))
     out["so_ngay_co_so"] = g.ngay_online.nunique().reindex(out.index).fillna(0).astype(int)
-    out["vvip"] = _dem_theo_acc("fact_fptplay", "ngay_online", tu, den, code,
-                                " AND la_vvip = TRUE").reindex(out.index).fillna(0).astype(int)
-    out["camera"] = _dem_theo_acc("fact_camera", "ngay_online", tu, den, code
-                                  ).reindex(out.index).fillna(0).astype(int)
+    out["vvip"] = vvip.reindex(out.index).fillna(0).astype(int)
+    out["camera"] = camera.reindex(out.index).fillna(0).astype(int)
     # cùng cách tính với cột "Tỷ lệ VVIP/PTTB" của Báo cáo Tổng: số V.VIP (Camera) / số online
     out["kem_vvip"] = (out.vvip / out.online.replace(0, np.nan) * 100).round(0)
     out["kem_camera"] = (out.camera / out.online.replace(0, np.nan) * 100).round(0)
-    out["ban_moi"] = _dem_theo_acc("fact_internet", "ngay_tao_hd", tu, den, code
-                                   ).reindex(out.index).fillna(0).astype(int)
+    out["ban_moi"] = ban_moi.reindex(out.index).fillna(0).astype(int)
     out["ban_moi_ngay"] = _dem_theo_acc("fact_internet", "ngay_tao_hd", den, den, code
                                         ).reindex(out.index).fillna(0).astype(int)
 
@@ -130,7 +137,7 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     # người đã nghỉ và không còn số, không còn tồn thì bỏ khỏi danh sách
     nghi = (out.trang_thai.fillna("").str.contains("Nghỉ việc")
             | out.index.isin(staff[staff.ghi_chu.fillna("").str.contains("Nghỉ")].acc_norm))
-    out = out[~nghi | (out.online > 0) | (out.ton > 0)].copy()
+    out = out[~nghi | (out.online + out.ton + out.vvip + out.camera + out.ban_moi > 0)].copy()
 
     out["chenh_ck"] = out.online - out.ck_online
     out = out.sort_values(["online", "vvip", "camera"], ascending=False)

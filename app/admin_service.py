@@ -329,15 +329,18 @@ def hd_bat_thuong(thang: str) -> pd.DataFrame:
 
 def ton_dong_lau(so_ngay: int = 7) -> pd.DataFrame:
     """Hợp đồng đã tạo nhưng chưa online quá N ngày - điểm nghẽn triển khai."""
-    from app.metrics import dieu_kien_ton
-    from app.sql_dialect import so_ngay_den_hom_nay
-    tuoi = so_ngay_den_hom_nay("f.ngay_tao_hd")
-    dk, p = dieu_kien_ton("f.")
-    return _sql_df(f"""SELECT p.ten AS phong, COUNT(*) AS so_hd,
-                              ROUND(CAST(AVG({tuoi}) AS NUMERIC), 1) AS tuoi_tb
-                       FROM fact_internet f LEFT JOIN dim_phong p ON p.code = f.phong_code
-                       WHERE {dk} AND {tuoi} >= :n
-                       GROUP BY p.ten ORDER BY so_hd DESC""", {"n": so_ngay, **p})
+    # cùng cách tính với trang Phân tích: tuổi hợp đồng tính đến ngày dữ liệu mới nhất
+    # (không tính đến hôm nay - chưa nạp file hôm nay thì mọi hợp đồng không bị "già" thêm)
+    from app.phan_tich import hop_dong_ton
+    ton = hop_dong_ton()
+    if ton.empty:
+        return pd.DataFrame(columns=["phong", "so_hd", "tuoi_tb"])
+    lau = ton[ton.so_ngay_cho >= so_ngay]
+    ten = {p["code"]: p["ten"] for p in phong_order()}
+    g = lau.groupby("phong_code").so_ngay_cho.agg(so_hd="count", tuoi_tb="mean").reset_index()
+    g["phong"] = [ten.get(c, c) for c in g.phong_code]
+    g["tuoi_tb"] = g.tuoi_tb.round(1)
+    return g[["phong", "so_hd", "tuoi_tb"]].sort_values("so_hd", ascending=False)
 
 
 def tom_tat_chat_luong(thang: str) -> dict:
