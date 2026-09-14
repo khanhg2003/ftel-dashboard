@@ -1,4 +1,4 @@
-"""Trang Hiệu suất nhân sự - năng suất theo người và theo phòng, đối chiếu thâm niên và NSLĐ.
+"""Trang Nhân sự & NSLĐ - năng suất theo người và theo phòng, đối chiếu thâm niên và NSLĐ.
 
 Thanh lọc chung: Ngày (luỹ kế tháng như Báo cáo Tổng) · Chi nhánh · Phòng.
 Hai tab tách theo nguồn số để không lẫn kỳ:
@@ -62,7 +62,7 @@ DINH_NGHIA = [
 
 
 def topbar():
-    return [html.Div([html.H1("Hiệu suất nhân sự"),
+    return [html.Div([html.H1("Nhân sự & NSLĐ"),
                       html.Div("Năng suất từng người, theo thâm niên và NSLĐ", className="sub")]),
             html.Div(className="spacer"),
             html.Div(id="hr-nguon-hr")]

@@ -18,7 +18,7 @@ from app.db import Base
 
 # ---------------------------------------------------------------- danh mục
 class Bay(Base):
-    """Danh mục Bầy - quản lý trong màn hình Cấu hình (YAML chỉ dùng để khởi tạo lần đầu)."""
+    """Danh mục Bầy - quản lý ở Quản trị → Cơ cấu tổ chức (YAML chỉ dùng để khởi tạo lần đầu)."""
     __tablename__ = "dim_bay"
     code: Mapped[str] = mapped_column(String(20), primary_key=True)
     ten: Mapped[str] = mapped_column(String(60))

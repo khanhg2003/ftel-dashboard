@@ -1,4 +1,6 @@
-"""Trang Quản trị: tài khoản, danh mục nhân sự (lịch sử nạp nằm ở trang Nạp dữ liệu).
+"""Trang Quản trị (chỉ Quản trị BGĐ): Tài khoản · Danh mục nhân sự · Cơ cấu tổ chức · Chỉ tiêu · Nhật ký.
+
+Ba tab sau do settings.py dựng (trước là trang Cấu hình riêng). Lịch sử nạp nằm ở trang Nạp dữ liệu.
 
 Mọi thao tác thêm đều qua hộp thoại (điền đủ thông tin rồi mới tạo), thao tác xoá
 đều hỏi lại, và dòng chưa lưu được tô vàng để không ai bấm nhầm rồi quên lưu.
@@ -16,7 +18,7 @@ from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.org import phong_order
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
-from app.ui.components import (callback_can_quyen, MAU_LOAI_THAY_DOI, alert, card, field, gan_import, modal, nhac_chua_luu,
+from app.ui.components import (callback_can_quyen, MAU_LOAI_THAY_DOI, alert, card, gan_import, modal, nhac_chua_luu,
                                nut_import)
 from app.ui.icons import icon
 
@@ -33,9 +35,13 @@ ROW_STYLE = {"styleConditions": [
      "style": {"backgroundColor": "#FFF7E0", "fontWeight": "600"}}]}
 
 
+TAB = [("user", "Tài khoản"), ("staff", "Danh mục nhân sự"), ("cocau", "Cơ cấu tổ chức"),
+       ("chitieu", "Chỉ tiêu"), ("nhatky", "Nhật ký")]
+
+
 def topbar():
     return [html.Div([html.H1("Quản trị"),
-                      html.Div("Tài khoản · danh mục nhân sự",
+                      html.Div("Tài khoản · danh mục nhân sự · cơ cấu tổ chức · chỉ tiêu · nhật ký",
                                className="sub")])]
 
 
@@ -86,21 +92,25 @@ def _hop_thoai_staff():
     ], nut_chinh="Thêm vào danh mục")
 
 
-def layout():
+def layout(tab: str | None = None):
+    from app.ui.pages import settings as st
+    tab = tab if tab in dict(TAB) else "user"
+    an = {"display": "none"}
     return html.Div([
-        dcc.Tabs(id="qt-tab", value="user", className="seg", children=[
-            dcc.Tab(label="Tài khoản", value="user", className="seg-item",
-                    selected_className="seg-item active"),
-            dcc.Tab(label="Danh mục nhân sự", value="staff", className="seg-item",
-                    selected_className="seg-item active"),
-        ]),
-        html.Div(style={"height": "16px"}),
+        html.Div([
+            dcc.Tabs(id="qt-tab", value=tab, className="seg", children=[
+                dcc.Tab(label=ten, value=ma, className="seg-item", selected_className="seg-item active")
+                for ma, ten in TAB]),
+            html.Div(className="grow"),
+            st.chon_ky_ap_dung(tab),
+        ], className="toolbar loc-trang"),
+        *st.hop_thoai(),
         _hop_thoai_user(),
         _hop_thoai_staff(),
         dcc.ConfirmDialog(id="qt-user-xacnhan", message="Xoá các tài khoản đã chọn?"),
         dcc.ConfirmDialog(id="qt-staff-xacnhan", message="Xoá các dòng đã chọn khỏi danh mục?"),
 
-        html.Div(id="qt-pane-user", children=[
+        html.Div(id="qt-pane-user", style={} if tab == "user" else an, children=[
             card([
                 html.Div([
                     html.Div("Bấm đúp vào ô để sửa rồi bấm Lưu thay đổi. Chọn dòng bằng ô "
@@ -130,7 +140,7 @@ def layout():
             ], title="Tài khoản người dùng"),
         ]),
 
-        html.Div(id="qt-pane-staff", children=[
+        html.Div(id="qt-pane-staff", style={} if tab == "staff" else an, children=[
             card([
                 html.Div([
                     dcc.Input(id="qt-staff-tim", type="search", className="o-tim",
@@ -162,7 +172,7 @@ def layout():
                          className="desc", style={"marginTop": "10px"}),
             ], title="Danh mục nhân sự theo phòng"),
         ]),
-
+        *st.cac_tab(tab),
     ])
 
 
@@ -242,7 +252,7 @@ def register(app):
         return f"{len(rows)} acc · {nghi} ghi chú Nghỉ"
 
     @cb(Output("qt-pane-user", "style"), Output("qt-pane-staff", "style"),
-                  Input("qt-tab", "value"))
+                  Input("qt-tab", "value"), prevent_initial_call=True)
     def _tab(tab):
         an = {"display": "none"}
         return {} if tab == "user" else an, {} if tab == "staff" else an

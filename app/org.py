@@ -1,7 +1,7 @@
 """Cơ cấu tổ chức: Bầy, Phòng kinh doanh và quy tắc gán phòng cho từng hợp đồng.
 
 Nguồn dữ liệu:
-- `dim_bay`, `dim_phong` trong database là NGUỒN CHÍNH, quản lý bằng màn hình Cấu hình.
+- `dim_bay`, `dim_phong` trong database là NGUỒN CHÍNH, quản lý ở Quản trị → Cơ cấu tổ chức.
 - `config/org.yml` chỉ dùng để khởi tạo lần đầu (seed) và làm quy tắc gán phòng dự phòng.
 - `phong_bay_thang` ghi đè cơ cấu Bầy cho từng tháng (mỗi tháng phòng có thể đổi bầy).
 

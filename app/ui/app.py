@@ -97,25 +97,29 @@ app = Dash(__name__, server=server, suppress_callback_exceptions=True,
            external_scripts=["https://cdn.jsdelivr.net/npm/date-fns@4.1.0/locale/vi/cdn.min.js"],
            title="FTEL · Sales & HR Dashboard")
 
+# Menu nhóm theo câu hỏi người xem đặt ra. Hướng dẫn và Tài khoản nằm ở chân menu.
 NAV = [
-    ("Báo cáo", [
+    ("Hằng ngày", [
         ("/", "Báo cáo Tổng", "dashboard", None),
+        ("/tracking", "Diễn biến & So sánh", "trend", None),
+    ]),
+    ("Phân tích", [
+        ("/phantich", "Phân tích bán hàng", "pie", None),
+    ]),
+    ("Phòng & nhân sự", [
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
-        ("/phantich", "Phân tích bán hàng", "compare", None),
-        ("/tracking", "Tracking ngày", "calendar", None),
-        ("/sosanh", "So sánh kỳ", "compare", None),
-        ("/hr", "Hiệu suất nhân sự", "users", "nhansu"),
+        ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
     ]),
-    ("Vận hành", [
-        ("/chatluong", "Chất lượng dữ liệu", "shield", None),
+    ("Dữ liệu", [
         ("/upload", "Nạp dữ liệu", "upload", "upload"),
-        ("/quantri", "Quản trị", "shield", "settings"),
-        ("/settings", "Cấu hình", "settings", "settings"),
+        ("/chatluong", "Chất lượng dữ liệu", "database", None),
     ]),
-    ("Trợ giúp", [
-        ("/huongdan", "Hướng dẫn sử dụng", "book", None),
+    ("Hệ thống", [
+        ("/quantri", "Quản trị", "settings", "settings"),
     ]),
 ]
+# đường dẫn cũ vẫn mở được, menu sáng đúng mục mới
+DUONG_DAN_CU = {"/sosanh": "/tracking", "/settings": "/quantri"}
 
 
 def _brand_dots():
@@ -133,7 +137,7 @@ def _sidebar(path: str):
                 continue
             if quyen == "nhansu" and not current_user.duoc_xem_nhan_su:
                 continue
-            cls = "nav-item active" if path == href else "nav-item"
+            cls = "nav-item active" if DUONG_DAN_CU.get(path, path) == href else "nav-item"
             muc_hien.append(dcc.Link([icon(ico), html.Span(label)], href=href, className=cls))
         if muc_hien:
             items.append(html.Div(nhom, className="nav-group"))
@@ -154,7 +158,10 @@ def _sidebar(path: str):
                       dcc.Link([icon("user", 14), html.Span("Tài khoản")], href="/taikhoan",
                                className="active" if path == "/taikhoan" else "",
                                title="Tài khoản của tôi · đổi mật khẩu"),
-                      html.A([icon("logout", 14), html.Span("Đăng xuất")], href="/logout"),
+                      dcc.Link([icon("help", 14), html.Span("Hướng dẫn")], href="/huongdan",
+                               className="active" if path == "/huongdan" else "",
+                               title="Hướng dẫn sử dụng"),
+                      html.A([icon("logout", 14), html.Span("Thoát")], href="/logout", title="Đăng xuất"),
                   ], className="foot-links")],
                  className="foot"),
         html.Button([icon("thu_gon", 17), html.Span("Thu gọn")], id="btn-thu-gon",
@@ -252,46 +259,43 @@ def _render_sidebar(path):
 
 
 @app.callback(Output("page-content", "children"), Output("topbar", "children"),
-              Input("url", "pathname"))
-def _router(path):
-    from app.ui.pages import chatluong, huongdan
+              Input("url", "pathname"), State("url", "search"))
+def _router(path, search=None):
+    from urllib.parse import parse_qs
+
+    from app.ui.pages import chatluong, dienbien, huongdan
     from app.ui.pages import hr as hr_page
     from app.ui.pages import quantri
-    from app.ui.pages import settings as settings_page
-    from app.ui.pages import phantich, phong, sosanh, taikhoan, tongquan, tracking, upload
+    from app.ui.pages import phantich, phong, taikhoan, tongquan, upload
 
     path = path or "/"
+    tab = (parse_qs((search or "").lstrip("?")).get("tab") or [None])[0]
     if path == "/taikhoan":
         return taikhoan.layout(), taikhoan.topbar()
     if path == "/huongdan":
         return huongdan.layout(), huongdan.topbar()
     if path in ("/phong", "/hr") and not current_user.duoc_xem_nhan_su:
         return (html.Div("Bạn không có quyền xem chi tiết nhân sự."),
-                _topbar_simple("Báo cáo phòng" if path == "/phong" else "Hiệu suất nhân sự"))
+                _topbar_simple("Báo cáo phòng" if path == "/phong" else "Nhân sự & NSLĐ"))
     if path == "/phong":
         return phong.layout(), phong.topbar()
     if path == "/phantich":
         return phantich.layout(), phantich.topbar()
-    if path == "/tracking":
-        return tracking.layout(), tracking.topbar()
-    if path == "/sosanh":
-        return sosanh.layout(), sosanh.topbar()
+    if path in ("/tracking", "/sosanh"):
+        tab = "sosanh" if path == "/sosanh" else (tab or "ngay")
+        return dienbien.layout(tab), dienbien.topbar(tab)
     if path == "/chatluong":
         return chatluong.layout(), chatluong.topbar()
-    if path == "/quantri":
+    if path in ("/quantri", "/settings"):
         if not current_user.duoc_cau_hinh:
             return html.Div("Bạn không có quyền vào mục Quản trị."), _topbar_simple("Quản trị")
-        return quantri.layout(), quantri.topbar()
+        return quantri.layout("cocau" if path == "/settings" and not tab else tab), quantri.topbar()
     if path == "/hr":
         return hr_page.layout(), hr_page.topbar()
     if path == "/upload":
         if not current_user.duoc_upload:
             return html.Div("Bạn không có quyền nạp dữ liệu."), _topbar_simple("Nạp dữ liệu")
         return upload.layout(), upload.topbar()
-    if path == "/settings":
-        if not current_user.duoc_cau_hinh:
-            return html.Div("Bạn không có quyền vào mục Cấu hình."), _topbar_simple("Cấu hình")
-        return settings_page.layout(), settings_page.topbar()
     if path not in ("/", ""):
         return _trang_khong_co(path), _topbar_simple("Không tìm thấy trang")
     return tongquan.layout(), tongquan.topbar()
@@ -313,14 +317,14 @@ def _topbar_simple(title: str, sub: str = ""):
 
 
 def _register_pages():
-    from app.ui.pages import chatluong, huongdan
+    from app.ui.pages import chatluong, dienbien, huongdan
     from app.ui.pages import hr as hr_page
     from app.ui.pages import quantri
     from app.ui.pages import settings as settings_page
     from app.ui.pages import phantich, phong, sosanh, taikhoan, tongquan, tracking, upload
 
-    for mod in (tongquan, phong, phantich, tracking, sosanh, hr_page, chatluong, upload, quantri, settings_page,
-                huongdan, taikhoan):
+    for mod in (tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
+                settings_page, huongdan, taikhoan):
         mod.register(app)
 
 

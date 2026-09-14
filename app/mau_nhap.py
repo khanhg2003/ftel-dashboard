@@ -141,7 +141,7 @@ def mau_co_cau() -> bytes:
     _o_chon(ws_p, "H", co_khong)
     _huong_dan(wb, [
         "HƯỚNG DẪN IMPORT CƠ CẤU BẦY / PHÒNG",
-        "File đã điền sẵn cơ cấu đang có. Sửa rồi import lại ở Cấu hình → Cơ cấu tổ chức → Import Excel.",
+        "File đã điền sẵn cơ cấu đang có. Sửa rồi import lại ở Quản trị → Cơ cấu tổ chức → Import Excel.",
         "• Sheet Bầy: Tên bầy * bắt buộc. Mã bầy để trống khi thêm bầy mới - app tự tạo mã.",
         "• Sheet Phòng: Tên phòng, Bầy (tên bầy), Loại, Chi nhánh bắt buộc. Mã phòng để trống khi "
         "thêm phòng mới.",

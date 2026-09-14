@@ -186,3 +186,83 @@ def test_callback_bao_cao_phong_va_nhan_su_chay_duoc(tai_khoan):
         assert "trao đổi ngay" in kq[3] and all(r["muc_chu_y"] for r in kq[5])
         kq = _callback("hr-kpi.children")("2026-09-11", "all", "__kd")
         assert kq[4] is not None and all(r["muc"] in ("Trao đổi ngay", "Theo dõi") for r in kq[4])
+
+
+# ------------------------------------------------------- đợt 2: menu, gộp trang
+def _cac_id(node, out=None):
+    out = [] if out is None else out
+    if getattr(node, "id", None) is not None:
+        out.append(node.id)
+    con = getattr(node, "children", None)
+    if con is not None and not isinstance(con, str):
+        for c in con if isinstance(con, (list, tuple)) else [con]:
+            _cac_id(c, out)
+    return out
+
+
+def test_menu_con_8_muc_theo_nhom():
+    from app.ui.app import NAV
+    muc = [href for _, ds in NAV for href, *_ in ds]
+    assert len(muc) == 8 and len(set(muc)) == 8
+    assert "/settings" not in muc and "/sosanh" not in muc
+    assert [n for n, _ in NAV] == ["Hằng ngày", "Phân tích", "Phòng & nhân sự", "Dữ liệu", "Hệ thống"]
+
+
+@pytest.mark.parametrize("duong_dan, tim_thay", [
+    ("/tracking", "db-pane-ngay"), ("/sosanh", "db-pane-sosanh"), ("/settings", "st-pane-cocau"),
+    ("/quantri", "qt-pane-user")])
+def test_trang_gop_khong_trung_id_va_mo_dung_tab(tai_khoan, duong_dan, tim_thay):
+    from flask_login import login_user
+
+    from app.ui.app import _router, server
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        noi_dung, thanh_tren = _router(duong_dan)
+    ids = _cac_id(noi_dung) + _cac_id(html_div(thanh_tren))
+    trung = {i for i in ids if ids.count(i) > 1}
+    assert not trung, trung
+    hien = [n for n in _cac_node(noi_dung) if getattr(n, "id", None) == tim_thay][0]
+    assert not getattr(hien, "hidden", False) and (getattr(hien, "style", None) or {}).get("display") != "none"
+
+
+def test_quantri_mo_tab_theo_duong_dan(tai_khoan):
+    from flask_login import login_user
+
+    from app.ui.app import _router, server
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        noi_dung, _ = _router("/quantri", "?tab=nhatky")
+    tab = [n for n in _cac_node(noi_dung) if getattr(n, "id", None) == "qt-tab"][0]
+    assert tab.value == "nhatky"
+
+
+def test_tab_an_khong_tinh(tai_khoan):
+    from dash import no_update
+    from flask_login import login_user
+
+    from app.ui.app import server
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        kq = _callback("tk-kpi.children")(THANG, "online", "ngay", "fit", "all", "bay", {}, "sosanh", {})
+        assert all(x is no_update for x in kq)
+        kq = _callback("ss-kpi.children")("2026-09-01", "2026-09-05", "2026-09-06", "2026-09-11",
+                                          "online", "kd", "all", "ngay")
+        assert all(x is no_update for x in kq)
+        kq = _callback("ss-kpi.children")("2026-09-01", "2026-09-05", "2026-09-06", "2026-09-11",
+                                          "online", "kd", "all", "sosanh")
+        assert len(kq[0]) == 6
+
+
+def html_div(children):
+    from dash import html
+    return html.Div(children)
+
+
+def _cac_node(node, out=None):
+    out = [] if out is None else out
+    out.append(node)
+    con = getattr(node, "children", None)
+    if con is not None and not isinstance(con, str):
+        for c in con if isinstance(con, (list, tuple)) else [con]:
+            _cac_node(c, out)
+    return out

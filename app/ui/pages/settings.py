@@ -1,7 +1,7 @@
-"""Trang Cấu hình: cơ cấu tổ chức, chỉ tiêu, danh mục nhân sự, tài khoản, nhật ký.
+"""Các tab Cơ cấu tổ chức, Chỉ tiêu, Nhật ký của trang Quản trị (trước là trang Cấu hình riêng).
 
 Toàn bộ cơ cấu (Bầy, Phòng, cơ cấu theo tháng) sửa được trên giao diện -
-không cần sửa file cấu hình hay code.
+không cần sửa file cấu hình hay code. Trang Quản trị (quantri.py) ghép các phần này vào.
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from sqlalchemy import select, text
 
 from app.auth import ghi_log
 from app.db import engine, session_scope
-from app.ingest.commit import recompute_phong
 from app.metrics import cac_thang_co_du_lieu, prev_month
 from app.models import Target
 from app.org import (LOAI_PHONG, bay_info, bay_options, co_cau_rieng, luu_bay, luu_co_cau_thang,
@@ -28,6 +27,7 @@ CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned
         "checkboxSelection": True, "headerCheckboxSelection": True, "sortable": False,
         "editable": False, "resizable": False}
 
+SO_DONG_NHAT_KY = 200
 CHI_TIEU = [("internet", "Chỉ tiêu Internet"), ("camera", "Chỉ tiêu Camera"),
             ("ngay", "Chỉ tiêu mỗi ngày")]
 CO_KHONG = ["Có", "Không"]
@@ -36,12 +36,6 @@ NHOM_KHAC = ["", "DNG", "QNM"]
 GRID_OPTS = {"domLayout": "autoHeight", "stopEditingWhenCellsLoseFocus": True,
              "singleClickEdit": True, "rowSelection": "multiple",
              "suppressRowClickSelection": True}
-
-
-def topbar():
-    return [html.Div([html.H1("Cấu hình"),
-                      html.Div("Cơ cấu tổ chức · chỉ tiêu tháng · danh mục hệ thống",
-                               className="sub")])]
 
 
 def _grid(gid, cao: int | None = None, **kw):
@@ -105,28 +99,27 @@ def _hop_thoai_phong():
     ], nut_chinh="Tạo phòng")
 
 
-def layout():
-    thangs = cac_thang_co_du_lieu() or ["2026-09"]
-    return html.Div([
-        _hop_thoai_bay(),
-        _hop_thoai_phong(),
-        dcc.ConfirmDialog(id="st-bay-xacnhan", message="Xoá các bầy đã chọn?"),
-        dcc.ConfirmDialog(id="st-phong-xacnhan", message="Xoá các phòng đã chọn?"),
-        html.Div([
-            dcc.Tabs(id="st-tab", value="cocau", className="seg", children=[
-                dcc.Tab(label="Cơ cấu tổ chức", value="cocau", className="seg-item",
-                        selected_className="seg-item active"),
-                dcc.Tab(label="Chỉ tiêu", value="chitieu", className="seg-item",
-                        selected_className="seg-item active"),
-                dcc.Tab(label="Nhân sự & hệ thống", value="khac", className="seg-item",
-                        selected_className="seg-item active"),
-            ]),
-            html.Div(className="grow"),
-            field("Kỳ áp dụng", chon_ky("st-thang", thangs)),
-        ], className="toolbar loc-trang"),
+TAB_CUA_TRANG = ("cocau", "chitieu", "nhatky")      # các tab của trang Quản trị do module này dựng
 
+
+def hop_thoai() -> list:
+    return [_hop_thoai_bay(), _hop_thoai_phong(),
+            dcc.ConfirmDialog(id="st-bay-xacnhan", message="Xoá các bầy đã chọn?"),
+            dcc.ConfirmDialog(id="st-phong-xacnhan", message="Xoá các phòng đã chọn?")]
+
+
+def chon_ky_ap_dung(tab: str):
+    """Ô Kỳ áp dụng - chỉ hiện ở tab Cơ cấu tổ chức và Chỉ tiêu."""
+    thangs = cac_thang_co_du_lieu() or ["2026-09"]
+    return html.Div(field("Kỳ áp dụng", chon_ky("st-thang", thangs)), id="st-ky-wrap",
+                    style={} if tab in ("cocau", "chitieu") else {"display": "none"})
+
+
+def cac_tab(tab: str) -> list:
+    an = {"display": "none"}
+    return [
         # ------------------------------------------------ tab Cơ cấu tổ chức
-        html.Div(id="st-pane-cocau", children=[
+        html.Div(id="st-pane-cocau", style={} if tab == "cocau" else an, children=[
             html.Div([
                 html.Div([html.H3("Nhập nhanh bằng Excel"),
                           html.Div("Tải file mẫu (điền sẵn bầy, phòng hiện có) → sửa hoặc thêm dòng → "
@@ -187,7 +180,7 @@ def layout():
         ]),
 
         # ------------------------------------------------ tab Chỉ tiêu
-        html.Div(id="st-pane-chitieu", children=[
+        html.Div(id="st-pane-chitieu", style={} if tab == "chitieu" else an, children=[
             card([
                 html.Div([
                     html.Div("Chỉ tiêu tháng của từng phòng - dùng để tính tỷ lệ hoàn thành "
@@ -206,25 +199,21 @@ def layout():
             ], title="Chỉ tiêu tháng"),
         ]),
 
-        # ------------------------------------------------ tab Nhân sự & hệ thống
-        html.Div(id="st-pane-khac", children=[
-            card([
-                html.Div([
-                    html.Button([icon("refresh", 14), html.Span("Tính lại việc gán phòng")],
-                                id="st-recompute", className="btn"),
-                    html.Div("Chạy sau khi cập nhật danh mục nhân sự hoặc thêm phòng mới.",
-                             style={"color": "var(--text-muted)", "fontSize": "12.5px",
-                                    "alignSelf": "center"}),
-                    html.Div(className="grow"),
-                    html.Div(id="st-recompute-msg"),
-                ], className="toolbar"),
-                html.Div(id="st-danhmuc"),
-            ], title="Danh mục nhân sự → Phòng kinh doanh",
-                desc="Sửa ở Quản trị → Danh mục nhân sự, hoặc nạp file danh mục"),
-
-            card([html.Div(id="st-log")], title="Nhật ký hệ thống", desc="20 thao tác gần nhất"),
+        # ------------------------------------------------ tab Nhật ký
+        html.Div(id="st-pane-nhatky", style={} if tab == "nhatky" else an, children=[
+            card([dag.AgGrid(id="st-log", className="ag-theme-quartz ag-theme-ftel", rowData=[],
+                             columnDefs=[{"field": "luc", "headerName": "Thời điểm", "width": 160},
+                                         {"field": "username", "headerName": "Người dùng", "width": 150},
+                                         {"field": "action", "headerName": "Thao tác", "width": 190},
+                                         {"field": "detail", "headerName": "Chi tiết", "flex": 1,
+                                          "minWidth": 240, "tooltipField": "detail"}],
+                             defaultColDef={"resizable": True, "sortable": True, "filter": True},
+                             dashGridOptions={"suppressCellFocus": True, "domLayout": "normal"},
+                             style={"width": "100%", "height": "560px"})],
+                 title="Nhật ký hệ thống",
+                 desc=f"{SO_DONG_NHAT_KY} thao tác gần nhất: đăng nhập, nạp, sửa, xoá, xuất file"),
         ]),
-    ])
+    ]
 
 
 # ----------------------------------------------------------------- dữ liệu bảng
@@ -363,18 +352,27 @@ def register(app):
                    f"{d.get('Lỗi', 0)} dòng lỗi. Phòng mới cần gán nhân sự ở Quản trị → Danh mục nhân sự."])
 
     @cb(Output("st-pane-cocau", "style"), Output("st-pane-chitieu", "style"),
-                  Output("st-pane-khac", "style"), Input("st-tab", "value"))
+        Output("st-pane-nhatky", "style"), Output("st-ky-wrap", "style"), Input("qt-tab", "value"),
+        prevent_initial_call=True)
     def _tab(tab):
         an = {"display": "none"}
         return ({} if tab == "cocau" else an, {} if tab == "chitieu" else an,
-                {} if tab == "khac" else an)
+                {} if tab == "nhatky" else an, {} if tab in ("cocau", "chitieu") else an)
+
+    @cb(Output("st-log", "rowData"), Input("qt-tab", "value"))
+    def _nhat_ky(tab):
+        if tab != "nhatky":
+            return no_update
+        log = pd.read_sql(text(f"""SELECT ts, username, action, detail FROM audit_log
+                                   ORDER BY id DESC LIMIT {SO_DONG_NHAT_KY}"""), engine)
+        return [{"luc": chu_gio_vn(r.ts, "%H:%M:%S %d/%m/%Y"), "username": r.username or "",
+                 "action": r.action, "detail": r.detail or ""} for r in log.itertuples()]
 
     @cb(Output("st-bay-grid", "columnDefs"), Output("st-bay-grid", "rowData"),
                   Output("st-phong-grid", "columnDefs"), Output("st-phong-grid", "rowData"),
                   Output("st-cocau-grid", "columnDefs"), Output("st-cocau-grid", "rowData"),
                   Output("st-cocau-trangthai", "children"),
                   Output("st-target-grid", "columnDefs"), Output("st-target-grid", "rowData"),
-                  Output("st-danhmuc", "children"), Output("st-log", "children"),
                   Input("st-thang", "value"), Input("st-bay-msg", "children"),
                   Input("st-phong-msg", "children"), Input("st-cocau-msg", "children"),
                   Input("st-target-msg", "children"))
@@ -387,31 +385,7 @@ def register(app):
                     if co_cau_rieng(thang) else
                     html.Span("Kỳ này đang dùng cơ cấu mặc định", className="badge muted"))
 
-        dm = pd.read_sql(text("""SELECT s.acc, p.ten AS phong, s.ma_nv, s.ghi_chu
-                                 FROM staff_map s LEFT JOIN dim_phong p ON p.code = s.phong_code
-                                 ORDER BY p.ten, s.acc"""), engine)
-        dm_ui = [html.Div(f"{len(dm)} tài khoản trong danh mục", className="badge",
-                          style={"marginBottom": "10px"}),
-                 dag.AgGrid(className="ag-theme-quartz ag-theme-ftel",
-                            columnDefs=[{"field": "acc", "headerName": "Acc inside", "width": 180},
-                                        {"field": "phong", "headerName": "Phòng", "width": 180},
-                                        {"field": "ma_nv", "headerName": "Mã NV", "width": 120},
-                                        {"field": "ghi_chu", "headerName": "Ghi chú", "flex": 1}],
-                            rowData=dm.astype(object).where(dm.notna(), "").to_dict("records"),
-                            defaultColDef={"resizable": True, "sortable": True, "filter": True},
-                            dashGridOptions={"suppressCellFocus": True, "pagination": True,
-                                             "paginationPageSize": 10,
-                                             "paginationPageSizeSelector": False},
-                            style={"width": "100%", "height": "420px"})]
-        log = pd.read_sql(text("""SELECT ts, username, action FROM audit_log
-                                  ORDER BY id DESC LIMIT 20"""), engine)
-        log_ui = html.Table([
-            html.Thead(html.Tr([html.Th("Thời điểm"), html.Th("Người dùng"), html.Th("Thao tác")])),
-            html.Tbody([html.Tr([html.Td(chu_gio_vn(r.ts, "%H:%M:%S %d/%m/%Y")), html.Td(r.username or ""),
-                                 html.Td(r.action)]) for r in log.itertuples()])
-        ], className="simple")
-        return (b_cols, b_rows, p_cols, p_rows, c_cols, c_rows, cc_badge, t_cols, t_rows,
-                dm_ui, log_ui)
+        return (b_cols, b_rows, p_cols, p_rows, c_cols, c_rows, cc_badge, t_cols, t_rows)
 
     # --- thêm bầy / phòng bằng hộp thoại
     @cb(Output("st-modal-bay", "className"),
@@ -558,12 +532,3 @@ def register(app):
         n = _luu_target_rows(thang, rows, f"Cập nhật bởi {current_user.username}")
         ghi_log("luu_chi_tieu", f"{thang}: {n} giá trị")
         return alert(f"Đã lưu {n} giá trị chỉ tiêu cho kỳ {thang}.", "ok")
-
-    # --- khác
-    @cb(Output("st-recompute-msg", "children"), Input("st-recompute", "n_clicks"),
-                  prevent_initial_call=True)
-    def _recompute(n):
-        with session_scope() as s:
-            changed = recompute_phong(s)
-        ghi_log("tinh_lai_phong", str(changed))
-        return html.Span(f"Đã cập nhật {changed} hợp đồng.", className="badge ok")

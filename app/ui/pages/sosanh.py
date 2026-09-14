@@ -1,4 +1,4 @@
-"""Trang So sánh kỳ: báo cáo theo khoảng ngày tự chọn + Top sale hụt số (Khối D2)."""
+"""Tab 2 "So sánh hai kỳ" của trang Diễn biến & So sánh (dienbien.py): khoảng ngày tự chọn + Top hụt số."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -18,14 +18,6 @@ from app.ui.icons import icon
 TOP_N = 15
 SO1 = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
                    "{minimumFractionDigits: 1, maximumFractionDigits: 1})"}
-
-
-def topbar():
-    return [html.Div([html.H1("So sánh kỳ"),
-                      html.Div("Đối chiếu hai khoảng thời gian: phòng nào, ai tăng hay giảm",
-                               className="sub")]),
-            html.Div(className="spacer"),
-            html.Div(id="ss-badge")]
 
 
 def _dp(gid, ngays, mac_dinh):
@@ -94,7 +86,7 @@ def layout():
         ], title="Khoảng so sánh",
             desc="Kỳ 1 là mốc cũ, Kỳ 2 là mốc mới. Dùng nút gợi ý hoặc tự chọn ngày."),
 
-        html.Div(id="ss-kpi", className="kpi-row"),
+        html.Div(id="ss-kpi", className="kpi-row kpi-6"),
 
         html.Div([
             html.Div(card([dcc.Loading(dcc.Graph(
@@ -212,8 +204,10 @@ def register(app):
                   Input("ss-k1-tu", "date"), Input("ss-k1-den", "date"),
                   Input("ss-k2-tu", "date"), Input("ss-k2-den", "date"),
                   Input("ss-metric", "value"), Input("ss-nhom", "value"),
-                  Input("ss-cn", "value"))
-    def _cap_nhat(k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh):
+                  Input("ss-cn", "value"), Input("db-tab", "value"))
+    def _cap_nhat(k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh, tab):
+        if tab != "sosanh":                  # đang xem tab Theo từng ngày: không tính phần này
+            return (no_update,) * 9
         dfp, dfa, hut, tang, so_ngay1, so_ngay2 = _tinh(k1_tu, k1_den, k2_tu, k2_den, metric, nhom,
                                                         chi_nhanh)
         t1, t2 = int(dfp.ky1.sum()), int(dfp.ky2.sum())

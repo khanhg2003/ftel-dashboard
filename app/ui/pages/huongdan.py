@@ -67,14 +67,12 @@ def layout():
                     "Tỷ lệ bán kèm V.VIP / Camera, trả trước, online trong 1 ngày theo từng phòng và "
                     "nhân viên - màu so với mức chung chi nhánh. Mục ", html.B("Số tồn theo thời "
                     "gian chờ"), " có danh sách hợp đồng chờ từ 7 ngày để đôn đốc."]),
-                _muc("Tracking ngày", "Diễn biến từng ngày của từng phòng", [
-                    "Mỗi cột là một ngày. Màu ô so với mức trung bình của chính phòng đó: xanh là "
-                    "ngày tốt, đỏ là ngày hụt. Đọc ngang một dòng thấy ngay phòng đang lên hay "
-                    "xuống."]),
-                _muc("So sánh kỳ", "Đối chiếu hai khoảng thời gian", [
-                    "Chọn hai khoảng ngày (có ba nút gợi ý). Kết quả gồm chênh lệch theo phòng và ",
-                    html.B("Top giảm sâu nhất"), " - danh sách cần trao đổi trước."]),
-                _muc("Hiệu suất nhân sự", "Năng suất theo từng người", [
+                _muc("Diễn biến & So sánh", "Số đi thế nào theo thời gian", [
+                    html.B("Tab 1 Theo từng ngày"), ": mỗi cột là một ngày, màu ô so với mức trung bình "
+                    "của chính phòng đó (xanh ngày tốt, đỏ ngày hụt). ", html.B("Tab 2 So sánh hai kỳ"),
+                    ": chọn hai khoảng ngày (có nút gợi ý), xem chênh lệch theo phòng và Top giảm sâu "
+                    "nhất - danh sách cần trao đổi trước."]),
+                _muc("Nhân sự & NSLĐ", "Năng suất theo từng người", [
                     "Chọn phòng ở thanh lọc. Tab 1 Bán hàng trong kỳ: luỹ kế đến ngày chọn. "
                     "Tab 2 NSLĐ: NSLĐ ITN theo tháng (tổng ITN / số người được xét) và NSLĐ tân binh "
                     "theo tháng làm việc (Tháng thứ 1, 2, 3…). Để tất cả phòng thì xem theo phòng, chọn "
@@ -92,12 +90,11 @@ def layout():
                      "tháng nạp lại bao nhiêu lần cũng không nhân đôi số: hợp đồng đã có được cập "
                      "nhật, tháng nào tự về tháng đó theo Ngày online. Cuối trang là lịch sử nạp - "
                      "nạp nhầm thì gỡ bỏ ở đây."),
-                _muc("Quản trị", "Tài khoản, danh mục nhân sự",
-                     "Cấp tài khoản theo vai trò (Trưởng phòng chọn phòng phụ trách), khai acc người bán thuộc phòng nào. "
-                     "Thay đổi nhiều thì Tải file mẫu → sửa → Import Excel."),
-                _muc("Cấu hình", "Cơ cấu tổ chức và chỉ tiêu",
-                     "Thêm bầy, thêm phòng, xếp lại cơ cấu theo từng tháng, nhập chỉ tiêu - "
-                     "không cần can thiệp phần mềm."),
+                _muc("Quản trị", "Chỉ Quản trị (BGĐ)",
+                     "5 tab: Tài khoản (cấp theo vai trò, Trưởng phòng chọn phòng phụ trách) · Danh mục "
+                     "nhân sự (acc người bán thuộc phòng nào) · Cơ cấu tổ chức (bầy, phòng, cơ cấu theo "
+                     "tháng) · Chỉ tiêu tháng · Nhật ký thao tác. Thay đổi nhiều thì Tải file mẫu → sửa → "
+                     "Import Excel."),
             ], className="hd-list"),
         ], title="Các màn hình chính"),
 

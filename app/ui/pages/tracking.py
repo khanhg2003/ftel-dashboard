@@ -1,4 +1,4 @@
-"""Trang Tracking ngày - thay thế báo cáo Google Sheet đang dùng."""
+"""Tab 1 "Theo từng ngày" của trang Diễn biến & So sánh (dienbien.py) - thay báo cáo Google Sheet."""
 from __future__ import annotations
 
 import dash_ag_grid as dag
@@ -48,14 +48,6 @@ def _thang_mac_dinh() -> str:
     return ds[0] if ds else "2026-09"
 
 
-def topbar():
-    return [html.Div([html.H1("Tracking ngày"),
-                      html.Div("Số bán của từng phòng theo từng ngày trong tháng",
-                               className="sub")]),
-            html.Div(className="spacer"),
-            html.Div(id="tracking-cap-nhat")]
-
-
 def layout():
     thangs = cac_thang_co_du_lieu() or [_thang_mac_dinh()]
     return html.Div([
@@ -70,7 +62,7 @@ def layout():
                                                       ("congdon", "Cộng dồn")], "ngay")),
         ], className="toolbar loc-trang"),
 
-        html.Div(id="tk-kpi", className="kpi-row"),
+        html.Div(id="tk-kpi", className="kpi-row kpi-6"),
 
         card([
             html.Div([
@@ -155,8 +147,10 @@ def register(app):
         Output("tk-zoom-wrap", "style"), Output("tk-grid", "style"),
         Input("tk-thang", "value"), Input("tk-metric", "value"), Input("tk-view", "value"),
         Input("tk-zoom", "value"), Input("tk-cn", "value"), Input("tk-nhom", "value"),
-        Input("ui-vw", "data"), State("ui-sidebar", "data"))
-    def _cap_nhat(thang, metric, view, zoom, chi_nhanh, nhom, vw, sidebar):
+        Input("ui-vw", "data"), Input("db-tab", "value"), State("ui-sidebar", "data"))
+    def _cap_nhat(thang, metric, view, zoom, chi_nhanh, nhom, vw, tab, sidebar):
+        if tab == "sosanh":                  # đang xem tab So sánh hai kỳ: không tính phần này
+            return (no_update,) * 8
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         cong_don = view == "congdon"
         den_ngay = ngay_co_du_lieu(thang) or month_range(thang)[2]
@@ -221,7 +215,7 @@ def register(app):
                 "warn" if ton else ""),
             kpi("Hoàn thành kế hoạch", pct_vn(htkh) if htkh else "—",
                 f"Chỉ tiêu tháng {so_vn(mt)}" if mt
-                else "Chưa nhập chỉ tiêu (mục Cấu hình)", trang_thai),
+                else "Chưa nhập chỉ tiêu (Quản trị → Chỉ tiêu)", trang_thai),
             kpi("Tiến độ tháng", f"{td['ngay_da_chay']}/{td['so_ngay_trong_thang']} ngày",
                 (f"Cần {so_vn(td['can_moi_ngay'])} số/ngày trong {td['con_lai_ngay']} ngày còn lại"
                  if td["can_moi_ngay"] else f"Bình quân {so_vn(td['tb_ngay_hien_tai'], 1)} số/ngày")),
