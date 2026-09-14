@@ -34,15 +34,56 @@ def file_hash(path: str | Path) -> str:
     return h.hexdigest()[:32]
 
 
-def thang_tu_ten_file(name: str) -> str | None:
-    """'NSLĐ T8.2026.xlsx' -> '2026-08'."""
-    m = re.search(r"[Tt](\d{1,2})[.\-_ ]?(\d{4})", name)
-    if m:
+def _bo_dau(chu: str) -> str:
+    import unicodedata
+    chu = unicodedata.normalize("NFD", chu)
+    return "".join(c for c in chu if not unicodedata.combining(c)).replace("đ", "d").replace("Đ", "D")
+
+
+def thang_tu_ten_file(name: str, hom_nay: datetime | None = None) -> str | None:
+    """Tháng ghi trong tên file: 'NSLĐ T8.2026' / 'Tháng 7.2026' / '2026-05' -> 'YYYY-MM'.
+
+    Chỉ ghi tháng ('T5.xlsx', 'NSLĐ tháng 5') thì lấy năm hiện tại; tháng lớn hơn tháng hiện tại
+    thì hiểu là năm trước (đầu năm nạp bù file tháng 12).
+    """
+    ten = _bo_dau(Path(name).stem).lower()
+    m = re.search(r"(?:^|[^a-z])(?:t|thang)\s*0?(\d{1,2})\s*[.\-_/ ]\s*(\d{4})", ten)
+    if m and 1 <= int(m.group(1)) <= 12:
         return f"{int(m.group(2)):04d}-{int(m.group(1)):02d}"
-    m = re.search(r"(\d{4})[-_](\d{1,2})", name)
-    if m:
+    m = re.search(r"(\d{4})[-_.](\d{1,2})(?!\d)", ten)
+    if m and 1 <= int(m.group(2)) <= 12:
         return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}"
+    m = re.search(r"(?:^|[^a-z])(?:t|thang)\s*0?(\d{1,2})(?!\d)", ten)
+    if m and 1 <= int(m.group(1)) <= 12:
+        from app.thoi_gian import gio_viet_nam
+        nay = hom_nay or gio_viet_nam()
+        thang = int(m.group(1))
+        nam = nay.year if thang <= nay.month else nay.year - 1
+        return f"{nam:04d}-{thang:02d}"
     return None
+
+
+def thang_nsld_tu_noi_dung(df: pd.DataFrame) -> tuple[str | None, float]:
+    """Tháng của file NSLĐ suy ra từ chính dữ liệu, không cần tên file.
+
+    Người có "Tháng NSLĐ" ghi số (1-12) và có Ngày tính lương: tháng của file = tháng vào làm + số
+    tháng NSLĐ - 1 (đã đối chiếu khớp 100% với file thật). Trả về (tháng, tỷ lệ người đồng thuận).
+    """
+    from collections import Counter
+    dem: Counter = Counter()
+    if df is None or "tham_nien_bucket" not in df or "ngay_tinh_luong" not in df:
+        return None, 0.0
+    for b, vao in zip(df["tham_nien_bucket"], df["ngay_tinh_luong"]):
+        k = str(b).strip()
+        if not k.isdigit() or not (1 <= int(k) <= 12) or vao is None or pd.isna(vao):
+            continue
+        vao = pd.Timestamp(vao)
+        chi_so = vao.year * 12 + vao.month - 1 + int(k) - 1
+        dem[f"{chi_so // 12:04d}-{chi_so % 12 + 1:02d}"] += 1
+    if not dem:
+        return None, 0.0
+    thang, n = dem.most_common(1)[0]
+    return thang, n / sum(dem.values())
 
 
 def _insert_stmt(table):
@@ -152,14 +193,27 @@ def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
         if not thang:
             raise ValueError("Cần chọn tháng cho file nhân sự.")
         new = upd = 0
-        for r in res.df.to_dict("records"):
+        records = [r for r in res.df.to_dict("records") if r.get("ma_nv")]
+        # đọc sẵn một lần cho cả file (Supabase ở xa, mỗi câu truy vấn mất vài chục ms)
+        ds_ma = sorted({r["ma_nv"] for r in records})
+        emps, hrs, moi_nhat = {}, {}, {}
+        for i in range(0, len(ds_ma), 500):
+            lo = ds_ma[i:i + 500]
+            emps.update({e.ma_nv: e for e in session.execute(
+                select(Employee).where(Employee.ma_nv.in_(lo))).scalars()})
+            hrs.update({h.ma_nv: h for h in session.execute(
+                select(HrMonthly).where(HrMonthly.thang == thang, HrMonthly.ma_nv.in_(lo))).scalars()})
+            moi_nhat.update(dict(session.execute(
+                select(HrMonthly.ma_nv, func.max(HrMonthly.thang)).where(HrMonthly.ma_nv.in_(lo))
+                .group_by(HrMonthly.ma_nv)).all()))
+        for r in records:
             ma_nv = r["ma_nv"]
-            if not ma_nv:
-                continue
-            emp = session.get(Employee, ma_nv) or Employee(ma_nv=ma_nv)
+            emp = emps.get(ma_nv)
+            if emp is None:
+                emp = emps[ma_nv] = Employee(ma_nv=ma_nv)
+                session.add(emp)
             # nạp bù file tháng cũ thì không ghi đè hồ sơ mới hơn - chỉ bổ sung ngày vào làm
-            thang_moi_nhat = session.execute(
-                select(func.max(HrMonthly.thang)).where(HrMonthly.ma_nv == ma_nv)).scalar()
+            thang_moi_nhat = moi_nhat.get(ma_nv)
             if not thang_moi_nhat or thang >= thang_moi_nhat:
                 emp.ho_ten, emp.acc = r.get("ho_ten"), r.get("acc")
                 emp.acc_norm = norm_acc(r.get("acc"))
@@ -168,12 +222,10 @@ def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
                 emp.khu_vuc = r.get("khu_vuc")
                 emp.trang_thai, emp.ngay_nghi_viec = r.get("trang_thai"), r.get("ngay_nghi_viec")
             emp.ngay_tinh_luong = r.get("ngay_tinh_luong") or emp.ngay_tinh_luong
-            session.merge(emp)
 
-            hr = session.execute(select(HrMonthly).where(HrMonthly.ma_nv == ma_nv,
-                                                         HrMonthly.thang == thang)).scalar_one_or_none()
+            hr = hrs.get(ma_nv)
             if hr is None:
-                hr = HrMonthly(ma_nv=ma_nv, thang=thang)
+                hr = hrs[ma_nv] = HrMonthly(ma_nv=ma_nv, thang=thang)
                 session.add(hr)
                 new += 1
             else:

@@ -725,3 +725,13 @@ table.simple tr:last-child td { border-bottom: none; }
 /* ô chọn mức phóng to bảng Báo cáo Tổng */
 .zoom-box .zoom-chon { width: 150px; }
 .zoom-box .zoom-chon .dash-dropdown, .zoom-box .zoom-chon > div { border: none !important; box-shadow: none !important; min-height: 30px; }
+
+/* ---------- Nạp dữ liệu: trạng thái đang lưu + kết quả ---------- */
+.xoay { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff;
+        border-radius: 50%; display: inline-block; animation: xoay .8s linear infinite; }
+@keyframes xoay { to { transform: rotate(360deg); } }
+.ds-ket-qua { margin: 8px 0 0; padding-left: 4px; list-style: none; }
+.ds-ket-qua li { margin: 4px 0; }
+.dau-ok { color: #0A7A3E; font-weight: 800; }
+.dau-bad { color: #B42318; font-weight: 800; }
+#up-commit:disabled { opacity: .75; cursor: progress; }

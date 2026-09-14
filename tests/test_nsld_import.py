@@ -292,3 +292,28 @@ def test_anh_va_excel_theo_khoang_ngay():
     assert ten == "BaoCaoTong_ToanCN_20260905_den20260911.png"
     _, ten2 = xuat_tong_quan("2026-09", 11)
     assert ten2 == "BaoCaoTong_ToanCN_202609_ngay11.xlsx"
+
+
+# ------------------------------------------------------ nạp file NSLĐ: nhận tháng
+def test_nhan_thang_tu_ten_file_nsld():
+    from datetime import datetime
+
+    from app.ingest.commit import thang_tu_ten_file
+    nay = datetime(2026, 9, 14)
+    assert thang_tu_ten_file("T5.xlsx", nay) == "2026-05"
+    assert thang_tu_ten_file("NSLĐ tháng 5.xlsx", nay) == "2026-05"
+    assert thang_tu_ten_file("NSLĐ Tháng 7.2026.xlsx", nay) == "2026-07"
+    assert thang_tu_ten_file("NSLĐ T8.2026.xlsx", nay) == "2026-08"
+    assert thang_tu_ten_file("NSLĐ T12.xlsx", nay) == "2025-12"          # tháng sau hiện tại -> năm trước
+    assert thang_tu_ten_file("Chi tiết báo cáo PTTB NET(47).xlsx", nay) is None
+
+
+@pytest.mark.skipif(not (Path(__file__).resolve().parent.parent / "NSLĐ T8.2026.xlsx - DNG.csv").exists(),
+                    reason="Không có file NSLĐ mẫu")
+def test_nhan_thang_nsld_tu_noi_dung_file_uu_tien_hon_ten_file():
+    from app.ingest.loader import load_file
+    from app.ui.pages.upload import thang_nsld
+    goc = Path(__file__).resolve().parent.parent
+    res = [r for r in load_file(goc / "NSLĐ T8.2026.xlsx - DNG.csv") if r.dataset == "nhan_su"][0]
+    thang, cach = thang_nsld(res, "T5.xlsx")          # tên file ghi nhầm T5
+    assert thang == "2026-08" and "dữ liệu" in cach

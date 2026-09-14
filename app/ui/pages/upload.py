@@ -17,7 +17,7 @@ from app.admin_service import go_bo_lan_nap, lich_su_nap
 from app.auth import ghi_log
 from app.config import GIOI_HAN_NAP_MB, UPLOAD_DIR
 from app.db import session_scope
-from app.ingest.commit import commit_result, file_hash, thang_tu_ten_file
+from app.ingest.commit import commit_result, file_hash, thang_nsld_tu_noi_dung, thang_tu_ten_file
 from app.ingest.loader import load_file
 from app.metrics import cac_thang_co_du_lieu
 from app.ui.components import LOCALE_VI, alert, badge, card
@@ -54,13 +54,13 @@ def layout():
             html.Div(id="up-dung-luong", className="desc", style={"marginTop": "8px"}),
             html.Div(style={"height": "6px"}),
             html.Div([
-                html.Div([html.Label("Tháng NSLĐ (khi tên file không ghi tháng)"),
+                html.Div([html.Label("Tháng NSLĐ (chỉ khi app không tự nhận được)"),
                           dcc.Dropdown(id="up-thang", options=_thang_options(), value=None,
                                        placeholder="Chọn tháng", clearable=True,
                                        style={"width": "190px"})],
                          className="field"),
-                html.Div("File bán hàng tự lấy ngày trong file. File NSLĐ tự lấy tháng theo tên "
-                         "file (VD NSLĐ T8.2026), nạp nhiều tháng một lượt được.",
+                html.Div("File bán hàng tự lấy ngày trong file. File NSLĐ tự nhận tháng từ dữ liệu "
+                         "(Ngày tính lương + Tháng NSLĐ) hoặc tên file - nạp nhiều tháng một lượt được.",
                          className="desc", style={"margin": 0, "alignSelf": "center",
                                                   "maxWidth": "42ch"}),
                 html.Div(className="grow"),
@@ -70,8 +70,9 @@ def layout():
         ], title="Bước 1 · Chọn file",
             desc="Loại dữ liệu được nhận diện theo tên cột, nên đổi thứ tự hay thêm bớt cột "
                  "vẫn đọc đúng."),
+        # kết quả lưu đặt ngay dưới nút Lưu (trước các bảng xem trước) để bấm là thấy
+        dcc.Loading(html.Div(id="up-commit-ketqua"), type="default"),
         dcc.Loading(html.Div(id="up-ketqua")),
-        html.Div(id="up-commit-ketqua"),
         _the_lich_su(),
     ])
 
@@ -157,6 +158,26 @@ def _luu_tam(filename: str, content: str) -> Path:
     return path
 
 
+def thang_nsld(res, ten_file: str, thang_chon: str | None = None) -> tuple[str | None, str]:
+    """(tháng của file NSLĐ, cách nhận ra). Ưu tiên dữ liệu trong file, rồi tên file, rồi ô chọn tháng."""
+    theo_dl, ty_le = thang_nsld_tu_noi_dung(res.df)
+    theo_ten = thang_tu_ten_file(ten_file)
+    if theo_dl and ty_le >= 0.8:
+        ghi = "tự nhận từ Ngày tính lương + Tháng NSLĐ"
+        if theo_ten and theo_ten != theo_dl:
+            ghi += f" (tên file ghi {theo_ten[5:7]}/{theo_ten[:4]} - đang dùng tháng theo dữ liệu)"
+        return theo_dl, ghi
+    if theo_ten:
+        return theo_ten, "lấy theo tên file"
+    if thang_chon:
+        return thang_chon, "lấy theo ô Tháng NSLĐ bạn chọn"
+    return None, ""
+
+
+def _ten_thang(t: str) -> str:
+    return f"{t[5:7]}/{t[:4]}"
+
+
 def _khoi_ui(res, ten_file: str) -> html.Div:
     ten = TEN_DE_HIEU.get(res.dataset, res.ten_hien_thi)
     if res.thieu_cot:
@@ -174,8 +195,14 @@ def _khoi_ui(res, ten_file: str) -> html.Div:
                              if c in res.df.columns])
     preview = df.head(MAX_PREVIEW)
     cols = [{"field": c, "headerName": c, "minWidth": 120, "flex": 1} for c in preview.columns]
+    thang_ghi = []
+    if res.dataset == "nhan_su":
+        t, cach = thang_nsld(res, ten_file)
+        ten = f"{ten} tháng {_ten_thang(t)}" if t else ten
+        thang_ghi = [badge(f"Tháng {_ten_thang(t)} · {cach}", "ok") if t else
+                     badge("Chưa nhận ra tháng - chọn ở ô Tháng NSLĐ trước khi lưu", "bad")]
     body = [
-        html.Div([
+        html.Div(thang_ghi + [
             badge(f"{res.rows_valid:,} dòng hợp lệ".replace(",", "."), "ok"),
             badge(f"{res.rows_invalid} dòng bị loại", "bad" if res.rows_invalid else "muted"),
             badge(f"{len(res.cols)} cột được dùng"),
@@ -266,8 +293,8 @@ def register(app):
                   Output("up-badge", "children"),
                   Input("up-hang-doi", "data"), prevent_initial_call=True)
     def _doc_file(hang_doi):
-        if not hang_doi:
-            return [], True, no_update, ""
+        if not hang_doi:                     # vừa lưu xong (hàng đợi được xoá) - giữ kết quả đang hiện
+            return no_update, True, no_update, no_update
 
         ui, kho, thang_nhan_su, so_ok = [], [], None, 0
         for muc_file in hang_doi:
@@ -289,65 +316,89 @@ def register(app):
                 ui.append(_khoi_ui(r, ten_file))
                 if r.ok:
                     so_ok += 1
-                if r.dataset == "nhan_su":
-                    thang_nhan_su = thang_tu_ten_file(ten_file) or thang_nhan_su
             kho.append(ten_file)
 
         tom_tat = html.Div([badge(f"{len(kho)} file đã đọc"),
                             badge(f"{so_ok} bảng sẵn sàng lưu", "ok" if so_ok else "muted")],
                            style={"display": "flex", "gap": "8px", "marginBottom": "14px"})
-        badge_top = html.Span(f"{so_ok} bảng chờ lưu", className="badge muted")
-        return [tom_tat] + ui, not so_ok, thang_nhan_su or no_update, badge_top
+        badge_top = html.Span(f"{so_ok} bảng chờ lưu", className="badge warn" if so_ok else "badge muted")
+        huong_dan = alert([html.B(f"Đã đọc {len(kho)} file. "),
+                           "Kiểm tra nhanh các bảng bên dưới rồi bấm ", html.B("Lưu tất cả vào hệ thống"),
+                           " ở trên - dữ liệu chỉ vào báo cáo sau khi lưu."], "info") if so_ok else ""
+        return [tom_tat, huong_dan] + ui, not so_ok, no_update, badge_top
 
     @app.callback(Output("up-commit-ketqua", "children"),
+                  Output("up-hang-doi", "data", allow_duplicate=True),
+                  Output("up-ketqua", "children", allow_duplicate=True),
+                  Output("up-badge", "children", allow_duplicate=True),
                   Input("up-commit", "n_clicks"), State("up-hang-doi", "data"),
-                  State("up-thang", "value"), prevent_initial_call=True)
+                  State("up-thang", "value"), prevent_initial_call=True,
+                  running=[(Output("up-commit", "disabled"), True, False),
+                           (Output("up-commit", "children"),
+                            [html.Span(className="xoay"), html.Span("Đang lưu, vui lòng chờ…")],
+                            [icon("save", 14), html.Span("Lưu tất cả vào hệ thống")])])
     def _luu(n, hang_doi, thang):
         if not n or not hang_doi:
-            return no_update
+            return no_update, no_update, no_update, no_update
         if not current_user.duoc_upload:
-            return alert("Tài khoản này không có quyền nạp dữ liệu.", "bad")
+            return alert("Tài khoản này không có quyền nạp dữ liệu.", "bad"), no_update, no_update, no_update
 
-        dong, loi_chung = [], []
+        dong, so_luu, so_bo = [], 0, 0
         for muc_file in hang_doi:
-            muc = {"filename": muc_file["name"]}
+            ten_file = muc_file["name"]
             try:
-                path = _luu_tam(muc_file["name"], muc_file["content"])
+                path = _luu_tam(ten_file, muc_file["content"])
                 results = load_file(path)
                 h = file_hash(path)
+                if not any(r.ok for r in results):
+                    so_bo += 1
+                    dong.append(("bad", ten_file, "Không đọc được dữ liệu hợp lệ - đã bỏ qua."))
+                    continue
                 with session_scope() as s:
                     for res in results:
                         if not res.ok:
                             continue
                         ten = TEN_DE_HIEU.get(res.dataset, res.ten_hien_thi)
-                        # nạp nhiều file NSLĐ một lượt: mỗi file lấy tháng theo tên file
-                        thang_file = (thang_tu_ten_file(muc["filename"]) or thang
-                                      if res.dataset == "nhan_su" else thang)
-                        if res.dataset == "nhan_su" and not thang_file:
-                            dong.append(html.Li([html.B(ten), ": bỏ qua vì tên file không có tháng "
-                                                              "(VD NSLĐ T8.2026) - chọn tháng rồi lưu lại."]))
-                            continue
+                        thang_file = thang
                         if res.dataset == "nhan_su":
-                            ten = f"{ten} tháng {thang_file[5:7]}/{thang_file[:4]}"
-                        st = commit_result(s, res, nguon_file=muc["filename"], hash_file=h,
+                            thang_file, cach = thang_nsld(res, ten_file, thang)
+                            if not thang_file:
+                                so_bo += 1
+                                dong.append(("bad", f"{ten} · {ten_file}",
+                                             "Chưa lưu: không nhận ra tháng. Chọn ô Tháng NSLĐ rồi lưu lại."))
+                                continue
+                            ten = f"{ten} tháng {_ten_thang(thang_file)}"
+                        st = commit_result(s, res, nguon_file=ten_file, hash_file=h,
                                            user=current_user.username, thang=thang_file or None)
-                        dong.append(html.Li([
-                            html.B(ten), ": thêm mới ", html.B(f"{st.get('them_moi', 0):,}"
-                                                              .replace(",", ".")),
-                            ", cập nhật ", f"{st.get('cap_nhat', 0):,}".replace(",", "."),
-                            f", trùng trong file {st.get('trung_trong_file', 0)}"
-                            f", bỏ vì lỗi {st.get('loi', 0)}"]))
-                ghi_log("upload", muc["filename"])
+                        so_luu += 1
+                        chi_tiet = (f"thêm mới {st.get('them_moi', 0):,}, cập nhật {st.get('cap_nhat', 0):,}"
+                                    .replace(",", "."))
+                        if st.get("trung_trong_file"):
+                            chi_tiet += f", bỏ {st['trung_trong_file']} dòng trùng trong file"
+                        if st.get("loi"):
+                            chi_tiet += f", bỏ {st['loi']} dòng lỗi"
+                        dong.append(("ok", f"{ten} · {ten_file}", chi_tiet))
+                ghi_log("upload", ten_file)
             except Exception as e:  # noqa: BLE001
-                loi_chung.append(f"{muc['filename']}: {e}")
+                so_bo += 1
+                dong.append(("bad", ten_file, f"Lỗi khi lưu: {e}"))
 
-        noi_dung = [html.B("Đã lưu vào hệ thống."), html.Ul(dong)]
-        if loi_chung:
-            noi_dung.append(alert([html.B("Có file lỗi: "), "; ".join(loi_chung)], "bad"))
-        noi_dung.append(html.Div([
-            dcc.Link([icon("dashboard", 14), html.Span("Xem Báo cáo Tổng")], href="/",
-                     className="btn primary"),
-            dcc.Link([icon("shield", 14), html.Span("Kiểm tra chất lượng dữ liệu")],
-                     href="/chatluong", className="btn"),
-        ], style={"display": "flex", "gap": "8px", "marginTop": "12px"}))
-        return alert(noi_dung, "warn" if loi_chung else "ok")
+        muc = "ok" if so_luu and not so_bo else ("warn" if so_luu else "bad")
+        tieu_de = (f"Đã lưu {so_luu} bảng vào hệ thống." if not so_bo else
+                   f"Đã lưu {so_luu} bảng, {so_bo} bảng chưa lưu được - xem lý do bên dưới.")
+        noi_dung = [
+            html.B(tieu_de),
+            html.Ul([html.Li([html.Span("✓ " if m == "ok" else "✗ ", className=f"dau-{m}"),
+                              html.B(t), f": {c}"]) for m, t, c in dong], className="ds-ket-qua"),
+            html.Div([
+                dcc.Link([icon("dashboard", 14), html.Span("Xem Báo cáo Tổng")], href="/",
+                         className="btn primary"),
+                dcc.Link([icon("users", 14), html.Span("Xem NSLĐ")], href="/hr", className="btn"),
+                dcc.Link([icon("shield", 14), html.Span("Kiểm tra chất lượng dữ liệu")],
+                         href="/chatluong", className="btn"),
+            ], style={"display": "flex", "gap": "8px", "marginTop": "12px", "flexWrap": "wrap"}),
+        ]
+        xong = html.Span(f"Đã lưu {so_luu} bảng", className="badge ok" if so_luu else "badge bad")
+        if so_bo:                            # còn bảng chưa lưu: giữ nguyên file để chọn tháng rồi lưu lại
+            return alert(noi_dung, muc), no_update, no_update, xong
+        return alert(noi_dung, muc), None, [], xong
