@@ -235,10 +235,17 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
             else:
                 _giua(d, x, y, rong[i], h, chu, font, mau_chu)
             x += rong[i]
-        if loai in ("subtotal", "total"):          # kẻ đậm ngăn cách từng bầy như bảng tính
+        if loai in ("subtotal", "total", "chinhanh"):   # kẻ đậm ngăn cách từng bầy như bảng tính
             d.line([x0, y + h, x0 + rong_bang, y + h], fill=VIEN_DAM, width=max(2, bo.px(1.5)))
         y += h
 
+    # đường dọc đậm giữa các khối cột (INTERNET, TĂNG TRƯỞNG, FPT PLAY...) như trên web
+    x, i = x0, 0
+    for ten_nhom, nhom in ct:
+        if i:
+            d.line([x, cao_dau, x, y], fill=VIEN_DAM, width=max(2, bo.px(1.5)))
+        x += sum(rong[i:i + len(nhom)])
+        i += len(nhom)
     d.rectangle([x0, cao_dau, x0 + rong_bang, y], outline=VIEN_DAM, width=max(2, bo.px(1.2)))
     d.text((x0, y + bo.px(9)),
            f"Nguồn: Sales & HR Dashboard · luỹ kế từ 01/{thang[5:7]} đến {ngay:02d}/{thang[5:7]}"

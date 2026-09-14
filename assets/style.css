@@ -710,3 +710,15 @@ table.simple tr:last-child td { border-bottom: none; }
 .cum-import { display: flex; gap: 8px; align-items: center; }
 .upload-nut { display: inline-block; }
 .modal-rong .modal-hop { width: min(1040px, calc(100vw - 40px)); }
+
+/* ---------- Báo cáo Tổng: đường phân khối cột và phân bầy ---------- */
+#tq-grid .ag-cell.khoi-dau,
+#tq-grid .ag-header-cell.khoi-dau,
+#tq-grid .ag-header-group-cell.khoi-dau { border-left: 2px solid #8FB0D0 !important; }
+#tq-grid .ag-pinned-left-cols-container .ag-cell:last-child,
+#tq-grid .ag-pinned-left-header .ag-header-cell:last-child { border-right: 2px solid #8FB0D0 !important; }
+#tq-grid .ag-row.dong-tong-bay { border-bottom: 2px solid #6F93B8 !important; }
+#tq-grid .ag-row.dong-tong-cn { border-top: 2px solid #6F93B8 !important; }
+#tq-grid .ag-row.dong-tong { border-top: 2px solid #3E6E9E !important; }
+#tq-grid .ag-header-group-cell { border-right: 0 !important; }
+#tq-grid .ag-header-cell-resize::after { display: none; }

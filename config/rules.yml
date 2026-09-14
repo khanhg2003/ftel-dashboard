@@ -39,7 +39,7 @@ nsld:
     DNGB5: IBB5
     DNGB6: IBB6
     DNGB7: IBB7
-  vi_tri_tinh_binh_quan: NVKD   # NSLĐ ITN phòng = tổng ITN cả phòng / số NVKD trong file tháng đó
+  vi_tri_tinh_binh_quan: NVKD   # chỉ dùng để đếm "Số NVKD"; NSLĐ phòng = tổng ITN / số người được xét (NVKD + CTV)
 
 # Dòng TỔNG TOÀN CHI NHÁNH (và Tổng DNG / Tổng QNM) không cộng NHÂN SỰ và MỤC TIÊU của các phòng này,
 # làm như Google Sheet (chốt 14/09/2026). ANCS vẫn hiện dòng riêng; số thực hiện vẫn tính đủ.

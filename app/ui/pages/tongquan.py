@@ -141,7 +141,12 @@ def layout():
                 dashGridOptions={"suppressCellFocus": True, "headerHeight": 42,
                                  "groupHeaderHeight": 30, "rowHeight": 32,
                                  "domLayout": "autoHeight", "suppressColumnVirtualisation": True,
-                                 "tooltipShowDelay": 300},
+                                 "tooltipShowDelay": 300,
+                                 # kẻ đậm dưới dòng tổng mỗi bầy để các bầy tách bạch
+                                 "rowClassRules": {
+                                     "dong-tong-bay": "params.data.loai_dong == 'subtotal'",
+                                     "dong-tong-cn": "params.data.loai_dong == 'chinhanh'",
+                                     "dong-tong": "params.data.loai_dong == 'total'"}},
                 getRowStyle=ROW_STYLE, style={"width": "100%"})),
                 id="tq-zoom-wrap", className="zoom-wrap"),
         ], className="card"),
@@ -262,6 +267,17 @@ def _cols(thang: str, ngay: int, gon: bool = False):
             ket_luan,
         ]},
     ]
+
+
+def _ke_khoi(cols: list[dict]) -> list[dict]:
+    """Kẻ đường dọc đậm ở đầu mỗi khối cột (INTERNET, TĂNG TRƯỞNG, FPT PLAY...) cho dễ dò theo cột."""
+    for c in cols:
+        if "children" in c and c["children"]:
+            c["headerClass"] = "khoi-dau"
+            dau = c["children"][0]
+            dau["cellClass"] = (dau.get("cellClass", "o-giua") + " khoi-dau").strip()
+            dau["headerClass"] = (dau.get("headerClass", "tieu-de-giua") + " khoi-dau").strip()
+    return cols
 
 
 def _rong_bang(cols) -> int:
@@ -406,7 +422,7 @@ def register(app):
 
         df, ngay = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=chi_nhanh,
                                   tam_tinh=tam_tinh)
-        cols = _cols(thang, ngay, gon=kieu_cot == "gon")
+        cols = _ke_khoi(_cols(thang, ngay, gon=kieu_cot == "gon"))
         tong = df[df.loai_dong == "total"].iloc[0]
 
         if zoom == "fit":

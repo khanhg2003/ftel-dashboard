@@ -1,8 +1,8 @@
 """Năng suất lao động (NSLĐ) theo tháng, lấy từ các file NSLĐ đã nạp.
 
 Hai bảng giống báo cáo phòng Nhân sự đang gửi:
-1. NSLĐ ITN theo tháng: mỗi phòng mỗi tháng = tổng ITN cả phòng / số NVKD trong file tháng đó.
-   Dòng Total tính cùng cách trên toàn bộ phòng (không phải trung bình các phòng).
+1. NSLĐ ITN theo tháng: mỗi phòng mỗi tháng = tổng ITN của người được xét / số người được xét
+   (NVKD + CTV, bỏ "Không xét"). Dòng Total = trung bình cộng các phòng.
 2. NSLĐ tân binh: tân binh = người có Ngày tính lương trong năm đang xem (cả NVKD và CTV).
    "Tháng k" = ITN bình quân của các tân binh ở tháng làm việc thứ k (tháng vào làm là tháng 1).
    Tỷ lệ out = số đã nghỉ / số tân binh.
@@ -91,28 +91,49 @@ def _thu_tu_phong(codes) -> list[str]:
 
 
 # ------------------------------------------------------------ NSLĐ ITN theo tháng
+def _duoc_xet(d: pd.DataFrame) -> pd.Series:
+    """Người được xét NSLĐ: cột Điều kiện khác "Không xét" (Xét NSLĐ, Xét 50%), cả NVKD và CTV."""
+    dk = d.dieu_kien.fillna("").str.strip().str.lower()
+    return ~dk.isin(["không xét", "khong xet"])
+
+
 def nsld_theo_phong(df: pd.DataFrame, den_thang: int) -> pd.DataFrame:
-    """Dòng = phòng, cột t1..tN = tổng ITN / số NVKD, cột tb = bình quân các tháng có số."""
+    """Dòng = phòng, cột t1..tN, tb.
+
+    Đã đối chiếu khớp tuyệt đối 20/21 ô T5-T7/2026 với bảng "Tình hình NSLĐ" phòng Nhân sự gửi:
+    - Ô phòng = tổng ITN của người được xét / số người được xét (NVKD + CTV, bỏ "Không xét").
+    - Dòng Total = trung bình cộng các phòng trong tháng.
+    - TB = trung bình các tháng đã có file.
+    """
     thang = list(range(1, den_thang + 1))
     if df.empty:
         return pd.DataFrame()
 
     def _gia_tri(nhom: pd.DataFrame) -> dict:
         r = {}
+        xet = nhom[_duoc_xet(nhom)]
         for t in thang:
-            d = nhom[nhom.so_thang == t]
-            so_nvkd = int(d.nvkd.sum())
-            r[f"t{t}"] = round(float(d.diem_itn.sum()) / so_nvkd, 2) if so_nvkd else None
+            d = xet[xet.so_thang == t]
+            r[f"t{t}"] = round(float(d.diem_itn.sum()) / len(d), 2) if len(d) else None
         co = [v for v in r.values() if v is not None]
         r["tb"] = round(float(np.mean(co)), 2) if co else None
         cuoi = nhom[nhom.so_thang == nhom.so_thang.max()]
+        r["so_nguoi"] = int(_duoc_xet(cuoi).sum())
         r["so_nvkd"] = int(cuoi.nvkd.sum())
         return r
 
     rows = [{"phong_code": c, "phong": df[df.phong_code == c].phong.iloc[0], "loai_dong": "data",
              **_gia_tri(df[df.phong_code == c])}
             for c in _thu_tu_phong(df.phong_code.unique())]
-    rows.append({"phong_code": "TOTAL", "phong": "Total", "loai_dong": "total", **_gia_tri(df)})
+    tong = {"phong_code": "TOTAL", "phong": "Total", "loai_dong": "total"}
+    for t in thang:
+        co = [r[f"t{t}"] for r in rows if r[f"t{t}"] is not None]
+        tong[f"t{t}"] = round(float(np.mean(co)), 2) if co else None
+    co = [tong[f"t{t}"] for t in thang if tong[f"t{t}"] is not None]
+    tong["tb"] = round(float(np.mean(co)), 2) if co else None
+    tong["so_nguoi"] = sum(r["so_nguoi"] for r in rows)
+    tong["so_nvkd"] = sum(r["so_nvkd"] for r in rows)
+    rows.append(tong)
     return pd.DataFrame(rows)
 
 
@@ -222,7 +243,7 @@ def tom_tat(df: pd.DataFrame, nam: int, den_thang: int) -> dict:
     return {
         "thang_cuoi": thang_cuoi,
         "nsld": tong.get(f"t{thang_cuoi}"), "nsld_truoc": truoc, "nsld_tb": tong.get("tb"),
-        "so_nvkd": int(cuoi.nvkd.sum()),
+        "so_nvkd": int(cuoi.nvkd.sum()), "so_nguoi": int(_duoc_xet(cuoi).sum()),
         "chua_dat": int(cuoi.ket_luan.fillna("").str.upper().eq("NOT OK").sum()),
         "tan_binh": int(tb.ma_nv.nunique()), "tan_binh_nghi": int(nghi.sum()),
     }

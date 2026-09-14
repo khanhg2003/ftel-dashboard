@@ -99,13 +99,14 @@ def _dau_the(tieu_de, mo_ta_id=None, mo_ta=None, nut=None):
 
 
 DINH_NGHIA_NSLD = [
-    ("NSLĐ ITN của phòng", "Tổng điểm ITN của cả phòng trong tháng chia số NVKD của phòng trong file "
-                           "NSLĐ tháng đó. Dòng Total tính cùng cách cho toàn bộ các phòng."),
-    ("TB", "Bình quân các tháng đã có file NSLĐ."),
+    ("NSLĐ ITN của phòng", "Tổng điểm ITN của người được xét NSLĐ trong phòng / số người được xét "
+                           "(NVKD + CTV, bỏ người “Không xét”). Cách tính của bảng Tình hình NSLĐ."),
+    ("Total · TB", "Total = trung bình cộng các phòng trong tháng. TB = trung bình các tháng đã có file."),
     ("Phòng", "Theo cột Phòng (theo PS) trong file NSLĐ, đổi sang tên phòng trên app (DNGB1 = IBB1…)."),
-    ("Tân binh", "Người có Ngày tính lương trong năm đang xem, cả NVKD và CTV."),
-    ("Tháng 1, 2, 3…", "Tháng làm việc thứ mấy: tháng vào làm là tháng 1. Ô là ITN bình quân của "
-                       "các tân binh ở tháng làm việc đó."),
+    ("Tân binh", "Người có Ngày tính lương trong năm đang xem (vào làm từ 01/01), cả NVKD và CTV, "
+                 "có trong ít nhất một file NSLĐ đã nạp."),
+    ("Tháng thứ 1, 2, 3…", "Tháng làm việc thứ mấy của người đó: tháng vào làm là tháng thứ 1 (vào ngày "
+                           "15 cũng tính tháng đó). Ô = ITN bình quân các tân binh ở tháng làm việc đó."),
     ("Đã nghỉ · Tỷ lệ out", "Đã nghỉ khi file gần nhất ghi Nghỉ việc, hoặc không còn trong file "
                             "NSLĐ tháng mới nhất. Tỷ lệ out = đã nghỉ / số tân binh."),
 ]
@@ -466,28 +467,29 @@ def _cols_ns(xem: str, nam: int, den: int) -> list[dict]:
     if xem == "nhan_su":
         return [{"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "minWidth": 170,
                  "flex": 1.3, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}},
-                {"field": "phong", "headerName": "Phòng", "minWidth": 84, "flex": .5},
-                {"field": "vi_tri", "headerName": "Vị trí", "minWidth": 64, "flex": .4},
+                {"field": "phong", "headerName": "Phòng", "minWidth": 64, "maxWidth": 84},
+                {"field": "vi_tri", "headerName": "Vị trí", "minWidth": 70, "maxWidth": 80},
                 {"field": "tham_nien_bucket", "headerName": "Thâm niên", "minWidth": 80, "flex": .5}
                 ] + thang + [tb]
     return [{"field": "phong", "headerName": "Phòng", "pinned": "left", "minWidth": 110, "flex": .8,
              "cellStyle": {"fontWeight": "650"}},
-            {"field": "so_nvkd", "headerName": "Số NVKD", "minWidth": 76, "flex": .5,
-             "type": "numericColumn", "headerTooltip": "Số NVKD trong file NSLĐ tháng gần nhất"}
+            {"field": "so_nguoi", "headerName": "Số người xét", "minWidth": 84, "flex": .5,
+             "type": "numericColumn",
+             "headerTooltip": "NVKD + CTV được xét NSLĐ (bỏ Không xét) trong file tháng gần nhất"}
             ] + thang + [tb]
 
 
 def _cols_tb(xem: str, den: int) -> list[dict]:
-    thang = _cot_thang("k", den, lambda i: f"Tháng {i}", SO1)
+    thang = _cot_thang("k", den, lambda i: f"Tháng thứ {i}", SO1)
     tb = {"field": "tb", "headerName": "Trung bình", "minWidth": 86, "flex": .6,
           "type": "numericColumn", "valueFormatter": SO1, "cellStyle": O_MAU}
     if xem == "nhan_su":
         return [{"field": "ho_ten", "headerName": "Tân binh", "pinned": "left", "minWidth": 170,
                  "flex": 1.3, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}},
-                {"field": "phong", "headerName": "Phòng", "minWidth": 80, "flex": .5},
-                {"field": "vi_tri", "headerName": "Vị trí", "minWidth": 64, "flex": .4},
-                {"field": "ngay_vao", "headerName": "Ngày vào", "minWidth": 96, "flex": .6},
-                {"field": "tinh_trang", "headerName": "Tình trạng", "minWidth": 90, "flex": .6,
+                {"field": "phong", "headerName": "Phòng", "minWidth": 64, "maxWidth": 80},
+                {"field": "vi_tri", "headerName": "Vị trí", "minWidth": 70, "maxWidth": 80},
+                {"field": "ngay_vao", "headerName": "Ngày vào", "minWidth": 104, "maxWidth": 110},
+                {"field": "tinh_trang", "headerName": "Tình trạng", "minWidth": 92, "maxWidth": 100,
                  "cellStyle": {"styleConditions": [{"condition": "params.value == 'Đã nghỉ'",
                                                     "style": {"color": "#B42318", "fontWeight": "650"}}]}},
                 ] + thang + [tb]
@@ -659,7 +661,7 @@ def register(app):
                     else ten_pv.capitalize(),
                     "" if chenh is None else ("ok" if chenh >= 0 else "bad")),
                 kpi(f"Bình quân T1-T{den}", _so2(tt["nsld_tb"]), "Bình quân các tháng có file"),
-                kpi("Số NVKD", f"{tt['so_nvkd']}", f"Theo file NSLĐ T{tc}"),
+                kpi("Số người xét NSLĐ", f"{tt['so_nguoi']}", f"{tt['so_nvkd']} NVKD · file T{tc}"),
                 kpi("NSLĐ chưa đạt", f"{tt['chua_dat']}", f"Kết luận NOT OK · T{tc}",
                     "warn" if tt["chua_dat"] else "ok"),
                 kpi(f"Tân binh {nam}", f"{tt['tan_binh']}",
@@ -686,7 +688,7 @@ def register(app):
             _to_mau(rows, cot_t)
             pin = _ban_ghi(bang[bang.loai_dong == "total"])
             chu_ns = ""
-            mo_ta_ns = f"Tổng ITN / số NVKD của phòng, năm {nam}"
+            mo_ta_ns = f"Tổng ITN / số người được xét (NVKD + CTV), năm {nam}"
 
         # --- bảng 2: tân binh
         cot_k = [f"k{i}" for i in range(1, den + 1)] + ["tb"]
@@ -720,9 +722,9 @@ def register(app):
             return no_update
         pham_vi = df[df.phong_code.isin(_ma_phong(chon_phong, chi_nhanh))]
         thang = [(f"t{i}", f"NSLĐ {i:02d}/{nam}", "so") for i in range(1, den + 1)]
-        thang_k = [(f"k{i}", f"Tháng {i}", "so") for i in range(1, den + 1)]
+        thang_k = [(f"k{i}", f"Tháng thứ {i}", "so") for i in range(1, den + 1)]
         bang = [("NSLĐ theo phòng", nsld.nsld_theo_phong(df, den),
-                 [("phong", "Phòng", "text"), ("so_nvkd", "Số NVKD", "so")] + thang
+                 [("phong", "Phòng", "text"), ("so_nguoi", "Số người xét", "so")] + thang
                  + [("tb", "TB NSLĐ ITN", "so")]),
                 ("Tân binh theo phòng", nsld.tan_binh_theo_phong(df, nam, den),
                  [("phong", "Phòng", "text"), ("so_moi", "Tân binh", "so"), ("da_nghi", "Đã nghỉ", "so"),

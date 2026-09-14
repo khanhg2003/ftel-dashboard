@@ -31,15 +31,16 @@ def test_thang_lam_viec_khop_cot_thang_nsld_trong_file():
     assert (df[df.tham_nien_bucket == "13+"].thang_lam_viec >= 13).all()
 
 
-def test_nsld_phong_bang_tong_itn_chia_so_nvkd():
+def test_nsld_phong_bang_tong_itn_nguoi_duoc_xet_chia_so_nguoi_duoc_xet():
     nsld, den, df = _nsld()
     bang = nsld.nsld_theo_phong(df, den)
-    thang = df[df.so_thang == den]
-    for r in bang[bang.loai_dong == "data"].itertuples():
+    thang = df[(df.so_thang == den) & ~df.dieu_kien.fillna("").isin(["Không xét"])]
+    du = bang[bang.loai_dong == "data"]
+    for r in du.itertuples():
         d = thang[thang.phong_code == r.phong_code]
-        assert getattr(r, f"t{den}") == round(d.diem_itn.sum() / d.nvkd.sum(), 2)
+        assert getattr(r, f"t{den}") == round(d.diem_itn.sum() / len(d), 2)
     tong = bang[bang.loai_dong == "total"].iloc[0]
-    assert tong[f"t{den}"] == round(thang.diem_itn.sum() / thang.nvkd.sum(), 2)   # không phải TB các phòng
+    assert tong[f"t{den}"] == round(du[f"t{den}"].mean(), 2)          # Total = TB cộng các phòng
     assert list(bang.phong.iloc[:3]) == sorted(bang.phong.iloc[:3], key=lambda x: int(x[3:]))
 
 
