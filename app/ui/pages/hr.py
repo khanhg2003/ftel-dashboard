@@ -530,6 +530,13 @@ def register(app):
         giu = dang_chon if dang_chon in {o["value"] for o in opts} else _phong_mac_dinh(chi_nhanh)
         return opts, giu
 
+    @app.callback(Output("hr-ns-xem", "value"), Output("hr-tb-xem", "value"),
+                  Input("hr-phong", "value"), prevent_initial_call=True)
+    def _xem_mac_dinh(chon_phong):
+        """Xem nhiều phòng -> bảng theo phòng; chọn một phòng cụ thể -> từng nhân sự của phòng đó."""
+        xem = "phong" if chon_phong in (None, TAT_CA_KD, TAT_CA) else "nhan_su"
+        return xem, xem
+
     @app.callback(Output("hr-pane-ban", "hidden"), Output("hr-pane-nsld", "hidden"),
                   Input("hr-tab", "value"))
     def _doi_tab(tab):

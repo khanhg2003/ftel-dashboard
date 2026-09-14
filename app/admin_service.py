@@ -273,36 +273,78 @@ def _khoang(thang: str) -> dict:
     return {"tu": tu.isoformat(), "den": den.isoformat()}
 
 
+BANG_SO = [("Internet", "fact_internet"), ("Truyền hình", "fact_fptplay"), ("Camera", "fact_camera")]
+LOAI_KINH_DOANH = ("IBB", "DIABAN")
+
+
+def do_moi_du_lieu() -> list[dict]:
+    """Ngày có số mới nhất của từng loại file - lệch nhau nghĩa là quên nạp một file."""
+    out = []
+    for ten, bang in BANG_SO:
+        v = _sql_df(f"SELECT MAX(ngay_online) AS d FROM {bang}").iloc[0, 0]
+        out.append({"loai": ten, "ngay": str(v)[:10] if v is not None and str(v) != "None" else None})
+    return out
+
+
 def chua_gan_phong(thang: str) -> pd.DataFrame:
-    return _sql_df("""SELECT acc_nhan_vien AS acc, ma_nhan_vien AS ma_nv, phong_he_thong,
-                             cn_ban, COUNT(*) AS so_hd, MIN(ngay_online) AS tu_ngay,
-                             MAX(ngay_online) AS den_ngay
-                      FROM fact_internet
-                      WHERE phong_code = 'CHUA_GAN'
-                        AND ngay_online >= :tu AND ngay_online <= :den
-                      GROUP BY acc_nhan_vien, ma_nhan_vien, phong_he_thong, cn_ban
-                      ORDER BY so_hd DESC""", _khoang(thang))
+    """Hợp đồng online trong tháng chưa về phòng nào - cả Internet, Truyền hình, Camera."""
+    phan = []
+    for ten, bang in BANG_SO:
+        phan.append(f"""SELECT '{ten}' AS loai, acc_nhan_vien AS acc, ma_nhan_vien AS ma_nv,
+                               phong_he_thong, cn_ban, COUNT(*) AS so_hd,
+                               MIN(ngay_online) AS tu_ngay, MAX(ngay_online) AS den_ngay
+                        FROM {bang}
+                        WHERE phong_code = 'CHUA_GAN' AND ngay_online >= :tu AND ngay_online <= :den
+                        GROUP BY acc_nhan_vien, ma_nhan_vien, phong_he_thong, cn_ban""")
+    df = _sql_df(" UNION ALL ".join(phan), _khoang(thang))
+    return df.sort_values("so_hd", ascending=False).reset_index(drop=True) if len(df) else df
 
 
 def acc_la(thang: str) -> pd.DataFrame:
-    """Acc có phát sinh số nhưng không có trong danh mục NV và cũng không có trong hồ sơ NSLĐ."""
-    return _sql_df("""SELECT f.acc_nhan_vien AS acc, COUNT(*) AS so_hd,
-                             MAX(f.ngay_online) AS gan_nhat
-                      FROM fact_internet f
-                      LEFT JOIN staff_map s ON s.acc_norm = f.acc_norm
-                      LEFT JOIN dim_employee e ON e.acc_norm = f.acc_norm
-                      WHERE f.ngay_online >= :tu AND f.ngay_online <= :den
-                        AND s.id IS NULL AND e.ma_nv IS NULL AND f.la_ecom = FALSE
-                      GROUP BY f.acc_nhan_vien ORDER BY so_hd DESC""", _khoang(thang))
+    """Acc có số trong tháng nhưng không có trong danh mục nhân sự (bỏ hợp đồng ECOM).
+
+    Phần lớn là nhân viên kỹ thuật / CUS: app vẫn gán đúng phòng KT/CUS theo quy tắc nên KHÔNG
+    phải lỗi. Cột "Đang tính cho" để soát nhanh có nhân viên kinh doanh nào lọt vào đây không.
+    """
+    df = _sql_df("""SELECT f.acc_nhan_vien AS acc, f.phong_code, COUNT(*) AS so_hd,
+                           MAX(f.ngay_online) AS gan_nhat,
+                           MAX(CASE WHEN e.ma_nv IS NULL THEN 0 ELSE 1 END) AS co_nsld
+                    FROM fact_internet f
+                    LEFT JOIN staff_map s ON s.acc_norm = f.acc_norm
+                    LEFT JOIN dim_employee e ON e.acc_norm = f.acc_norm
+                    WHERE f.ngay_online >= :tu AND f.ngay_online <= :den
+                      AND s.id IS NULL AND f.la_ecom = FALSE
+                    GROUP BY f.acc_nhan_vien, f.phong_code""", _khoang(thang))
+    if df.empty:
+        return pd.DataFrame(columns=["acc", "dang_tinh_cho", "so_hd", "gan_nhat", "co_nsld", "nhom"])
+    ten = {p["code"]: p for p in phong_order()}
+    df["dang_tinh_cho"] = [ten.get(c, {}).get("ten", c) for c in df.phong_code]
+    loai = [ten.get(c, {}).get("loai") for c in df.phong_code]
+    df["nhom"] = ["Cần xem" if (lo in LOAI_KINH_DOANH or c == "CHUA_GAN" or nsld) else "Kỹ thuật / CUS"
+                  for lo, c, nsld in zip(loai, df.phong_code, df.co_nsld)]
+    df["co_nsld"] = df.co_nsld.map({1: "Có", 0: ""})
+    return (df.sort_values(["nhom", "so_hd"], ascending=[True, False])
+            [["acc", "dang_tinh_cho", "so_hd", "gan_nhat", "co_nsld", "nhom"]].reset_index(drop=True))
 
 
 def nv_thieu_ho_so(thang: str) -> pd.DataFrame:
-    """Có trong danh mục nhưng chưa có hồ sơ NSLĐ (thường là nhân sự QNM chưa nạp)."""
-    return _sql_df("""SELECT s.acc, p.ten AS phong, s.ma_nv
-                      FROM staff_map s
-                      LEFT JOIN dim_phong p ON p.code = s.phong_code
-                      LEFT JOIN dim_employee e ON e.acc_norm = s.acc_norm
-                      WHERE e.ma_nv IS NULL ORDER BY p.thu_tu, s.acc""")
+    """Nhân sự phòng kinh doanh (đang làm) không có trong file NSLĐ gần nhất của kỳ."""
+    df = _sql_df("""SELECT s.acc, s.acc_norm, s.ma_nv, p.ten AS phong, p.chi_nhanh, p.thu_tu
+                    FROM staff_map s JOIN dim_phong p ON p.code = s.phong_code
+                    WHERE p.loai IN ('IBB', 'DIABAN') AND COALESCE(s.ghi_chu, '') NOT LIKE '%Nghỉ%'""")
+    t = _sql_df("SELECT MAX(thang) AS t FROM hr_monthly WHERE thang <= :t", {"t": thang}).iloc[0, 0]
+    if df.empty:
+        return pd.DataFrame(columns=["acc", "phong", "ma_nv", "chi_nhanh"])
+    co = set()
+    if t:
+        hr = _sql_df("SELECT acc, ma_nv FROM hr_monthly WHERE thang = :t", {"t": t})
+        co = set(hr.acc.fillna("").str.strip().str.lower())
+        ma = set(hr.ma_nv.fillna("").astype(str).str.lstrip("0"))
+        df = df[~(df.acc_norm.isin(co) | df.ma_nv.fillna("").astype(str).str.lstrip("0").isin(ma - {""}))]
+    else:
+        df = df.copy()
+    df["thang_nsld"] = t
+    return df.sort_values(["thu_tu", "acc"])[["acc", "phong", "ma_nv", "chi_nhanh", "thang_nsld"]]
 
 
 def ngay_thieu_du_lieu(thang: str) -> list[str]:
@@ -319,12 +361,47 @@ def ngay_thieu_du_lieu(thang: str) -> list[str]:
 
 
 def hd_bat_thuong(thang: str) -> pd.DataFrame:
-    """Hợp đồng đã hủy hoặc ngưng nhưng vẫn nằm trong số liệu tháng."""
-    return _sql_df("""SELECT hop_dong, acc_nhan_vien AS acc, tinh_trang, ngay_online, ngay_huy
-                      FROM fact_internet
-                      WHERE ngay_online >= :tu AND ngay_online <= :den
-                        AND (ngay_huy IS NOT NULL OR tinh_trang <> 'Bình thường')
-                      ORDER BY ngay_online DESC""", _khoang(thang))
+    """Hợp đồng online trong tháng nhưng tình trạng hiện tại không còn "Bình thường"
+    (ngưng vì thanh toán, chấm dứt, đi vắng) - vẫn đang được tính vào số online."""
+    df = _sql_df("""SELECT hop_dong, acc_nhan_vien AS acc, phong_code, tinh_trang, ngay_online, ngay_huy
+                    FROM fact_internet
+                    WHERE ngay_online >= :tu AND ngay_online <= :den
+                      AND (ngay_huy IS NOT NULL OR COALESCE(tinh_trang, '') <> 'Bình thường')
+                    ORDER BY ngay_online DESC""", _khoang(thang))
+    ten = {p["code"]: p["ten"] for p in phong_order()}
+    df["phong"] = [ten.get(c, c) for c in df.phong_code]
+    return df.drop(columns="phong_code")
+
+
+def acc_trung_danh_muc() -> pd.DataFrame:
+    """Danh mục có vấn đề làm số về sai phòng:
+    - một acc có nhiều dòng mà không phân biệt được ngày hiệu lực;
+    - acc đang khai khác phòng đã chốt trong config/staff_overrides.yml (VD TIN.MinhLH1 -> CUS DNG2).
+    """
+    from app.config import load_yaml
+    df = _sql_df("""SELECT s.acc, s.acc_norm, s.phong_code, p.ten AS phong, s.hieu_luc_tu, s.hieu_luc_den
+                    FROM staff_map s LEFT JOIN dim_phong p ON p.code = s.phong_code""")
+    cot = ["acc", "van_de", "dang_khai"]
+    if df.empty:
+        return pd.DataFrame(columns=cot)
+    out = []
+    for a, x in df.groupby("acc_norm"):
+        if len(x) > 1 and (x.hieu_luc_den.isna().sum() > 1 or x.hieu_luc_tu.isna().all()):
+            out.append({"acc": x.acc.iloc[0], "van_de": f"Khai {len(x)} dòng, không rõ ngày hiệu lực",
+                        "dang_khai": ", ".join(map(str, x.phong))})
+    try:
+        chot = load_yaml("staff_overrides.yml").get("overrides") or []
+    except FileNotFoundError:
+        chot = []
+    ten = {p["code"]: p["ten"] for p in phong_order()}
+    for o in chot:
+        x = df[df.acc_norm == norm_acc(o.get("acc"))]
+        if len(x) and not (x.phong_code == o.get("phong")).any():
+            out.append({"acc": x.acc.iloc[0],
+                        "van_de": f"Đã chốt tính cho {ten.get(o.get('phong'), o.get('phong'))}"
+                                  + (f" ({o['ghi_chu']})" if o.get("ghi_chu") else ""),
+                        "dang_khai": ", ".join(map(str, x.phong))})
+    return pd.DataFrame(out, columns=cot)
 
 
 def ton_dong_lau(so_ngay: int = 7) -> pd.DataFrame:

@@ -24,7 +24,8 @@ TRANG_THAI = ["Đang dùng", "Ngừng dùng", "Đang khoá"]
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
         "checkboxSelection": True, "headerCheckboxSelection": True, "sortable": False,
         "editable": False, "resizable": False}
-GRID = {"domLayout": "autoHeight", "stopEditingWhenCellsLoseFocus": True, "singleClickEdit": True,
+# bấm đúp mới sửa ô: bấm một lần là sửa dễ lỡ tay đổi phòng / vai trò khi chỉ định chọn dòng
+GRID = {"domLayout": "autoHeight", "stopEditingWhenCellsLoseFocus": True, "singleClickEdit": False,
         "rowSelection": "multiple", "suppressRowClickSelection": True}
 # dòng mới thêm hoặc vừa sửa mà chưa bấm Lưu -> nền vàng nhạt
 ROW_STYLE = {"styleConditions": [
@@ -102,7 +103,7 @@ def layout():
         html.Div(id="qt-pane-user", children=[
             card([
                 html.Div([
-                    html.Div("Sửa trực tiếp trong ô rồi bấm Lưu thay đổi. Chọn dòng bằng ô "
+                    html.Div("Bấm đúp vào ô để sửa rồi bấm Lưu thay đổi. Chọn dòng bằng ô "
                              "tích trước khi xoá hoặc đặt lại mật khẩu.",
                              className="desc", style={"margin": 0}),
                     html.Div(id="qt-user-nhac", style={"marginLeft": "10px"}),

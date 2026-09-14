@@ -317,3 +317,27 @@ def test_nhan_thang_nsld_tu_noi_dung_file_uu_tien_hon_ten_file():
     res = [r for r in load_file(goc / "NSLĐ T8.2026.xlsx - DNG.csv") if r.dataset == "nhan_su"][0]
     thang, cach = thang_nsld(res, "T5.xlsx")          # tên file ghi nhầm T5
     assert thang == "2026-08" and "dữ liệu" in cach
+
+
+# ------------------------------------------------------ chất lượng dữ liệu
+def test_chat_luong_du_lieu_cac_muc_kiem_tra():
+    from app.admin_service import (acc_la, acc_trung_danh_muc, chua_gan_phong, do_moi_du_lieu,
+                                   hd_bat_thuong, nv_thieu_ho_so)
+    moi = do_moi_du_lieu()
+    assert [m["loai"] for m in moi] == ["Internet", "Truyền hình", "Camera"] and moi[0]["ngay"]
+    cg = chua_gan_phong("2026-09")
+    assert set(cg.columns) >= {"loai", "acc", "so_hd"}
+    al = acc_la("2026-09")
+    assert set(al.nhom) <= {"Cần xem", "Kỹ thuật / CUS"}
+    assert not al[al.nhom == "Kỹ thuật / CUS"].dang_tinh_cho.str.startswith("IBB").any()
+    th = nv_thieu_ho_so("2026-09")
+    assert set(th.chi_nhanh) <= {"DNG", "QNM"}
+    trung = acc_trung_danh_muc()
+    assert "tin.minhlh1" not in set(trung.acc.str.lower())        # DB kiểm thử đã khai đúng CUS DNG2
+    assert "phong" in hd_bat_thuong("2026-09").columns
+
+
+def test_trang_chat_luong_dung_duoc():
+    from app.ui.pages import chatluong
+    goc = chatluong.layout()
+    assert goc is not None and chatluong.topbar()
