@@ -19,9 +19,36 @@ TEN_FILE = {"all": "ToanCN", "DNG": "DaNang", "QNM": "QuangNam"}
 MAU_KET_LUAN = {"Đạt": "DCF5E6", "Không đạt": "FBE3E1", "Chưa đạt": "FDF1D8"}
 
 
-def tieu_de_bao_cao(thang: str, ngay: int, chi_nhanh: str = "all") -> str:
+def _khoang(thang: str, ngay: int, tu: str | None):
+    from datetime import date
+    den = date.fromisoformat(f"{thang}-{ngay:02d}")
+    return (date.fromisoformat(tu) if tu else den.replace(day=1)), den
+
+
+def la_luy_ke(thang: str, ngay: int, tu: str | None) -> bool:
+    a, b = _khoang(thang, ngay, tu)
+    return a == b.replace(day=1)
+
+
+def tieu_de_bao_cao(thang: str, ngay: int, chi_nhanh: str = "all", tu: str | None = None) -> str:
     pham_vi = TEN_PHAM_VI.get(chi_nhanh, TEN_PHAM_VI["all"]).upper()
-    return f"BÁO CÁO TỔNG · {pham_vi} · NGÀY {ngay:02d}/{thang[5:7]}/{thang[:4]}"
+    if la_luy_ke(thang, ngay, tu):
+        return f"BÁO CÁO TỔNG · {pham_vi} · NGÀY {ngay:02d}/{thang[5:7]}/{thang[:4]}"
+    a, b = _khoang(thang, ngay, tu)
+    return f"BÁO CÁO TỔNG · {pham_vi} · TỪ {a:%d/%m} ĐẾN {b:%d/%m/%Y}"
+
+
+def mo_ta_ky(thang: str, ngay: int, tu: str | None = None) -> str:
+    a, b = _khoang(thang, ngay, tu)
+    return (f"luỹ kế từ {a:%d/%m} đến {b:%d/%m/%Y}" if la_luy_ke(thang, ngay, tu)
+            else f"từ {a:%d/%m/%Y} đến {b:%d/%m/%Y}")
+
+
+def hau_to_ky(thang: str, ngay: int, tu: str | None = None) -> str:
+    """Phần tên file theo kỳ: 202609_ngay14 (luỹ kế) hoặc 20260908_den20260914."""
+    a, b = _khoang(thang, ngay, tu)
+    return (f"{thang.replace('-', '')}_ngay{ngay:02d}" if la_luy_ke(thang, ngay, tu)
+            else f"{a:%Y%m%d}_den{b:%Y%m%d}")
 
 
 def dong_trang_thai(tam_tinh: bool, luc: datetime | None) -> str:
@@ -31,16 +58,19 @@ def dong_trang_thai(tam_tinh: bool, luc: datetime | None) -> str:
 
 
 # (tiêu đề nhóm, [(tiêu đề cột, khoá dữ liệu, kiểu)]) - kiểu: so | pct:<ngưỡng> | text
-def cau_truc(thang: str, ngay: int):
+def cau_truc(thang: str, ngay: int, tu: str | None = None):
+    from app.overview import ten_khoang
     thang_so = int(thang[5:7])
     thang_truoc = 12 if thang_so == 1 else thang_so - 1
+    a, b = _khoang(thang, ngay, tu)
     return [
         ("", [("PKD", "phong", "text"), ("Nhân sự", "nhan_su", "so")]),
-        (f"INTERNET THÁNG {thang_so}", [("Mục tiêu", "mt_internet", "so"),
+        (f"INTERNET {ten_khoang(a, b)}", [("Mục tiêu", "mt_internet", "so"),
                                         ("Số tồn", "so_ton", "so"),
                                         ("Số online", "online", "so"),
                                         ("Tỷ lệ HTKH", "htkh_internet", "pct:htkh")]),
-        ("TĂNG TRƯỞNG", [(f"Cùng kỳ T{thang_truoc}", "ck_online", "so"), ("Tỷ lệ", "tang_truong",
+        ("TĂNG TRƯỞNG", [(f"Cùng kỳ T{thang_truoc}" if a == b.replace(day=1) else "Cùng kỳ tháng trước",
+                          "ck_online", "so"), ("Tỷ lệ", "tang_truong",
                                                             "pct:tang_truong")]),
         ("FPT PLAY", [("Combo", "fpl_combo", "so"), ("Tỷ lệ FPL/NET", "fpl_ty_le", "pct:ty_le")]),
         ("PTTB CNQL", [("Số online", "cnql", "so"), ("Tỷ lệ", "cnql_ty_le", "pct:ty_le")]),
@@ -69,17 +99,18 @@ def mau_heat(kind: str, gia_tri) -> str | None:
 
 def xuat_tong_quan(thang: str, ngay: int | None = None,
                    chi_phong: list[str] | None = None, chi_nhanh: str = "all",
-                   tam_tinh: bool = False, luc: datetime | None = None) -> tuple[bytes, str]:
+                   tam_tinh: bool = False, luc: datetime | None = None,
+                   tu: str | None = None) -> tuple[bytes, str]:
     """Trả về (nội dung file xlsx, tên file)."""
     df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong, chi_nhanh=chi_nhanh,
-                              tam_tinh=tam_tinh)
-    ct = cau_truc(thang, ngay)
+                              tam_tinh=tam_tinh, tu=tu)
+    ct = cau_truc(thang, ngay, tu)
 
     wb = Workbook()
     ws = wb.active
     ws.title = f"Tong quan {thang}"
 
-    ws["A1"] = tieu_de_bao_cao(thang, ngay, chi_nhanh)
+    ws["A1"] = tieu_de_bao_cao(thang, ngay, chi_nhanh, tu)
     ws["A1"].font = Font(bold=True, size=14, color=XANH_DAM)
     ws["A2"] = " · ".join(x for x in (dong_trang_thai(tam_tinh, luc),
                                       "FPT Telecom - Chi nhánh Đà Nẵng & Quảng Nam") if x)
@@ -107,9 +138,9 @@ def xuat_tong_quan(thang: str, ngay: int | None = None,
         r = r_dau + i
         col = 1
         la_tong = row.get("loai_dong") in ("subtotal", "total", "nhomkhac", "chinhanh")
-        nen = {"subtotal": "EDF3F9", "total": "DCE8F4", "nhomkhac": "FFF6EC",
-               "chinhanh": "E4EDF7"}.get(row.get("loai_dong"))
-        chu = {"subtotal": "C8372D", "total": "003057", "nhomkhac": "8A4B08",
+        nen = {"subtotal": "D5E3F1", "total": "A9C6E3", "nhomkhac": "FCE7CC",
+               "chinhanh": "C3D8EC"}.get(row.get("loai_dong"))
+        chu = {"subtotal": "B01E14", "total": "002B4E", "nhomkhac": "7A3F06",
                "chinhanh": "003057"}.get(
             row.get("loai_dong"), "17212E")
         for _, cot in ct:
@@ -144,5 +175,5 @@ def xuat_tong_quan(thang: str, ngay: int | None = None,
 
     buf = io.BytesIO()
     wb.save(buf)
-    ten_file = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{thang.replace('-', '')}_ngay{ngay:02d}.xlsx"
+    ten_file = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{hau_to_ky(thang, ngay, tu)}.xlsx"
     return buf.getvalue(), ten_file

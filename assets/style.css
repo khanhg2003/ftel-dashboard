@@ -722,3 +722,6 @@ table.simple tr:last-child td { border-bottom: none; }
 #tq-grid .ag-row.dong-tong { border-top: 2px solid #3E6E9E !important; }
 #tq-grid .ag-header-group-cell { border-right: 0 !important; }
 #tq-grid .ag-header-cell-resize::after { display: none; }
+/* ô chọn mức phóng to bảng Báo cáo Tổng */
+.zoom-box .zoom-chon { width: 150px; }
+.zoom-box .zoom-chon .dash-dropdown, .zoom-box .zoom-chon > div { border: none !important; box-shadow: none !important; min-height: 30px; }

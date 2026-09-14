@@ -256,3 +256,39 @@ def test_ket_luan_dat_khi_online_bang_muc_tieu_ngay():
     d = df[df.loai_dong == "data"]
     assert (d[d.ngay_online >= d.mt_ngay].ket_luan == "Đạt").all()
     assert (d[d.ngay_online < d.mt_ngay].ket_luan == "Không đạt").all()
+
+
+# ------------------------------------------------------ Báo cáo Tổng theo khoảng ngày
+def test_khoang_ngay_luy_ke_giong_cach_cu_va_khoang_tu_chon_cong_dung():
+    from app.metrics import tong_theo_phong
+    from app.overview import bang_tong_quan
+    a, _ = bang_tong_quan("2026-09", 11)
+    b, _ = bang_tong_quan("2026-09", 11, tu="2026-09-01")
+    ta, tb = a[a.loai_dong == "total"].iloc[0], b[b.loai_dong == "total"].iloc[0]
+    assert ta.online == tb.online == 1394 and ta.ck_online == tb.ck_online == 1381
+    c, _ = bang_tong_quan("2026-09", 11, tu="2026-09-05")
+    tc = c[c.loai_dong == "total"].iloc[0]
+    assert tc.online == int(tong_theo_phong("2026-09-05", "2026-09-11").n.sum())
+    assert tc.ck_online == int(tong_theo_phong("2026-08-05", "2026-08-11").n.sum())
+    assert tc.ngay_online == ta.ngay_online and tc.mt_internet == ta.mt_internet   # ngày cuối, mục tiêu tháng
+
+
+def test_nut_chon_ky_bao_cao_tong():
+    from app.ui.pages.tongquan import doi_ky
+    ngays = [f"2026-09-{i:02d}" for i in range(1, 15)]
+    assert doi_ky("tq-lui", None, "2026-09-01", "2026-09-14", ngays) == ("2026-09-01", "2026-09-13")
+    assert doi_ky("tq-lui", None, "2026-09-08", "2026-09-14", ngays) == ("2026-09-07", "2026-09-13")
+    assert doi_ky("tq-nhanh", "7ngay", None, None, ngays) == ("2026-09-08", "2026-09-14")
+    assert doi_ky("tq-nhanh", "tuan", None, None, ngays) == ("2026-09-14", "2026-09-14")   # 14/09/2026 là thứ 2
+    assert doi_ky("tq-nhanh", "cungky", "2026-09-01", "2026-09-14", ngays) == ("2026-08-01", "2026-08-14")
+    assert doi_ky("tq-nhanh", "thangtruoc", "2026-09-01", "2026-09-14", ngays) == ("2026-08-01", "2026-08-31")
+    assert doi_ky("tq-p-moinhat", None, "2026-09-05", "2026-09-06", ngays) == ("2026-09-01", "2026-09-14")
+
+
+def test_anh_va_excel_theo_khoang_ngay():
+    from app.export_excel import xuat_tong_quan
+    from app.export_png import anh_tong_quan
+    _, ten = anh_tong_quan("2026-09", 11, tu="2026-09-05")
+    assert ten == "BaoCaoTong_ToanCN_20260905_den20260911.png"
+    _, ten2 = xuat_tong_quan("2026-09", 11)
+    assert ten2 == "BaoCaoTong_ToanCN_202609_ngay11.xlsx"

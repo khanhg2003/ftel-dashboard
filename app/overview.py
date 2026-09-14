@@ -11,7 +11,7 @@ PTTB CNQL = hợp đồng có CN Quản lý thuộc chi nhánh (DNG_01/DNG_02/QN
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -27,11 +27,6 @@ TEN_PHAM_VI = {"all": "Toàn chi nhánh", "DNG": "Đà Nẵng", "QNM": "Quảng 
 TEN_DONG_TONG = {"all": "TỔNG TOÀN CHI NHÁNH", "DNG": "TỔNG ĐÀ NẴNG", "QNM": "TỔNG QUẢNG NAM"}
 COT_KHONG_CONG = ["nhan_su", "mt_internet", "mt_camera", "mt_ngay"]
 LECH_GIO_VN = timedelta(hours=7)          # database lưu giờ UTC
-
-
-def _sum_den_ngay(thang: str, metric: str, ngay: int) -> pd.Series:
-    d = daily_counts(thang, metric)
-    return d.loc[:, [c for c in d.columns if c <= ngay]].sum(axis=1)
 
 
 def _ngay_don(thang: str, metric: str, ngay: int) -> pd.Series:
@@ -52,9 +47,8 @@ def _nhan_su() -> pd.Series:
     return _sql_series(sql, {})
 
 
-def _pttb_cnql(thang: str, ngay: int) -> pd.Series:
-    start, _, _ = month_range(thang)
-    den = f"{thang}-{ngay:02d}"
+def _pttb_cnql(tu: str, den: str) -> pd.Series:
+    start = date.fromisoformat(tu)
     sql = f"""SELECT phong_code, COUNT(*) n FROM fact_internet
               WHERE ngay_online >= :start AND ngay_online <= :den
                 AND cn_quan_ly IN ({','.join(repr(c) for c in CN_NOI_BO)})
@@ -78,15 +72,37 @@ def _targets(thang: str) -> pd.DataFrame:
     return df.pivot_table(index="ma_doi_tuong", columns="chi_tieu", values="gia_tri")
 
 
+def lui_mot_thang(d: date) -> date:
+    """Cùng ngày tháng trước (31/10 -> 30/09)."""
+    dau = d.replace(day=1) - timedelta(days=1)
+    return dau.replace(day=min(d.day, dau.day))
+
+
+def ten_khoang(tu: date, den: date) -> str:
+    """Nhãn kỳ ngắn: "tháng 9" khi luỹ kế từ ngày 01, còn lại "08/09-14/09"."""
+    if tu == den.replace(day=1):
+        return f"THÁNG {den.month}"
+    if tu.year != den.year:
+        return f"{tu:%d/%m/%Y}-{den:%d/%m/%Y}"
+    return f"{tu:%d/%m}-{den:%d/%m}"
+
+
 def bang_tong_quan(thang: str, ngay: int | None = None,
                    chi_phong: list[str] | None = None, chi_nhanh: str = "all",
-                   tam_tinh: bool = False) -> tuple[pd.DataFrame, int]:
+                   tam_tinh: bool = False, tu: str | None = None) -> tuple[pd.DataFrame, int]:
     """Trả về (bảng đã có dòng tổng bầy + dòng tổng, ngày dữ liệu được dùng).
 
+    Kỳ xem: từ `tu` (mặc định ngày 01 của tháng) đến ngày `ngay` của `thang`. Khoảng có thể
+    vắt qua nhiều tháng. Cùng kỳ = cùng khoảng ngày lùi một tháng. Khối "Kết quả ngày" là ngày cuối.
+    Mục tiêu: tháng của ngày cuối; khoảng vắt nhiều tháng thì cộng mục tiêu các tháng đó.
     `chi_nhanh` chỉ đổi tên dòng tổng (TỔNG ĐÀ NẴNG...). `tam_tinh` = ngày còn đang nạp số:
     phòng chưa đủ mục tiêu ghi "Chưa đạt" thay vì "Không đạt".
     """
+    from app.metrics import tong_theo_phong
     ngay = ngay or ngay_co_du_lieu(thang) or month_range(thang)[2]
+    d_den = date.fromisoformat(f"{thang}-{ngay:02d}")
+    d_tu = date.fromisoformat(tu) if tu else d_den.replace(day=1)
+    d_tu = min(d_tu, d_den)
     codes = [p["code"] for p in phong_order(thang)]
     if chi_phong is not None:
         codes = [c for c in codes if c in set(chi_phong)]
@@ -94,24 +110,33 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
     def s(series: pd.Series) -> pd.Series:
         return series.reindex(codes).fillna(0).astype(int)
 
-    online = s(_sum_den_ngay(thang, "online", ngay))
-    vvip = s(_sum_den_ngay(thang, "vvip", ngay))
-    fpl = s(_sum_den_ngay(thang, "fptplay", ngay))
-    camera = s(_sum_den_ngay(thang, "camera", ngay))
-    ck = s(_sum_den_ngay(prev_month(thang), "online", ngay))
-    cnql = s(_pttb_cnql(thang, ngay))
+    def khoang(metric: str, a: date, b: date) -> pd.Series:
+        return s(tong_theo_phong(a.isoformat(), b.isoformat(), metric).set_index("phong_code")["n"])
+
+    online = khoang("online", d_tu, d_den)
+    vvip = khoang("vvip", d_tu, d_den)
+    fpl = khoang("fptplay", d_tu, d_den)
+    camera = khoang("camera", d_tu, d_den)
+    ck = khoang("online", lui_mot_thang(d_tu), lui_mot_thang(d_den))
+    cnql = s(_pttb_cnql(d_tu.isoformat(), d_den.isoformat()))
     ton = s(_so_ton())
     nhan_su = s(_nhan_su())
     ngay_ban_moi = s(_ngay_don(thang, "ban_moi", ngay))
     ngay_online = s(_ngay_don(thang, "online", ngay))
     ngay_vvip_tao = _vvip_tao_trong_ngay(thang, ngay).reindex(codes).fillna(0).astype(int)
 
-    tgt = _targets(thang)
+    so_thang = (d_den.year - d_tu.year) * 12 + d_den.month - d_tu.month
+    cac_thang = [f"{(d_tu.year * 12 + d_tu.month - 1 + i) // 12}-{(d_tu.month - 1 + i) % 12 + 1:02d}"
+                 for i in range(so_thang + 1)]
+    ds_tgt = [t for t in (_targets(m) for m in cac_thang) if not t.empty]
+    tgt = pd.concat(ds_tgt).groupby(level=0).sum() if len(ds_tgt) > 1 else (ds_tgt[0] if ds_tgt else pd.DataFrame())
+    tgt_thang = _targets(thang)                  # mục tiêu ngày luôn lấy của tháng ngày cuối
 
-    def target(col: str) -> pd.Series:
-        if tgt.empty or col not in tgt.columns:
+    def target(col: str, bang: pd.DataFrame | None = None) -> pd.Series:
+        bang = tgt if bang is None else bang
+        if bang.empty or col not in bang.columns:
             return pd.Series(0, index=codes)
-        return tgt[col].reindex(codes).fillna(0)
+        return bang[col].reindex(codes).fillna(0)
 
     meta = {p["code"]: p for p in phong_order(thang)}
     df = pd.DataFrame({
@@ -127,7 +152,7 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         "vvip": vvip,
         "mt_camera": target("camera"),
         "camera": camera,
-        "mt_ngay": target("ngay"),
+        "mt_ngay": target("ngay", tgt_thang),
         "ngay_ban_moi": ngay_ban_moi,
         "ngay_online": ngay_online,
         "ngay_vvip": ngay_vvip_tao,

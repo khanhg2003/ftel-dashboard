@@ -19,8 +19,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from app.export_excel import (MAU_KET_LUAN, TEN_FILE, cau_truc, dong_trang_thai, mau_heat,
-                              tieu_de_bao_cao)
+from app.export_excel import (MAU_KET_LUAN, TEN_FILE, cau_truc, dong_trang_thai, hau_to_ky, mau_heat,
+                              mo_ta_ky, tieu_de_bao_cao)
 from app.overview import LECH_GIO_VN, bang_tong_quan
 
 RONG_MUC_TIEU = 2400          # bề ngang ảnh mong muốn (px)
@@ -33,12 +33,12 @@ XAM_CHU = "#5B6B7C"
 VIEN = "#C5CFDA"
 VIEN_DAM = "#8FA0B3"
 NEN_COT = "#E3EEF8"
-NEN_SUB = "#E9EFF6"
-NEN_TOTAL = "#D4E3F1"
-NEN_KHAC = "#FFF3E3"
-NEN_CN = "#E2EBF5"
+NEN_SUB = "#D5E3F1"
+NEN_TOTAL = "#A9C6E3"
+NEN_KHAC = "#FCE7CC"
+NEN_CN = "#C3D8EC"
 CHU_THUONG = "#141C26"
-CHU_SUB = "#C0322A"
+CHU_SUB = "#B01E14"
 CHU_TOTAL = "#002B4E"
 CHU_KHAC = "#8A4B08"
 
@@ -149,11 +149,12 @@ def _noi_rong_theo_nhom(ct, rong: list[int], bo: _Bo) -> None:
 
 def anh_tong_quan(thang: str, ngay: int | None = None,
                   chi_phong: list[str] | None = None, chi_nhanh: str = "all",
-                  tam_tinh: bool = False, luc: datetime | None = None) -> tuple[bytes, str]:
+                  tam_tinh: bool = False, luc: datetime | None = None,
+                  tu: str | None = None) -> tuple[bytes, str]:
     """Trả về (nội dung PNG, tên file) - toàn bộ bảng Báo cáo Tổng trong một ảnh."""
     df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong, chi_nhanh=chi_nhanh,
-                              tam_tinh=tam_tinh)
-    ct = cau_truc(thang, ngay)
+                              tam_tinh=tam_tinh, tu=tu)
+    ct = cau_truc(thang, ngay, tu)
     cols: list[tuple[str, str, str]] = [c for _, nhom in ct for c in nhom]
     rows = df.to_dict("records")
 
@@ -174,7 +175,7 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
 
     # ---- tiêu đề + trạng thái số liệu
     x0 = le
-    d.text((x0, bo.px(12)), tieu_de_bao_cao(thang, ngay, chi_nhanh), font=bo.tieu_de,
+    d.text((x0, bo.px(12)), tieu_de_bao_cao(thang, ngay, chi_nhanh, tu), font=bo.tieu_de,
            fill=XANH_DAM)
     y_phu = bo.px(42)
     trang_thai = dong_trang_thai(tam_tinh, luc)
@@ -248,12 +249,12 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
         i += len(nhom)
     d.rectangle([x0, cao_dau, x0 + rong_bang, y], outline=VIEN_DAM, width=max(2, bo.px(1.2)))
     d.text((x0, y + bo.px(9)),
-           f"Nguồn: Sales & HR Dashboard · luỹ kế từ 01/{thang[5:7]} đến {ngay:02d}/{thang[5:7]}"
+           f"Nguồn: Sales & HR Dashboard · {mo_ta_ky(thang, ngay, tu)}"
            f" · xuất lúc {gio_viet_nam():%H:%M %d/%m/%Y}", font=bo.phu, fill=XAM_CHU)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
-    ten = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{thang.replace('-', '')}_ngay{ngay:02d}.png"
+    ten = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{hau_to_ky(thang, ngay, tu)}.png"
     return buf.getvalue(), ten
 
 

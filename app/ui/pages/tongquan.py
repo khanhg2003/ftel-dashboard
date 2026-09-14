@@ -23,7 +23,7 @@ from app.export_excel import xuat_tong_quan
 from app.export_png import anh_tong_quan
 from app.metrics import cac_ngay_co_du_lieu
 from app.org import loc_chi_nhanh
-from app.overview import TEN_PHAM_VI, bang_tong_quan, trang_thai_ngay
+from app.overview import TEN_PHAM_VI, bang_tong_quan, lui_mot_thang, trang_thai_ngay
 from app.ui.components import chi_nhanh_control, field, kpi, seg_control
 from app.ui.icons import icon
 
@@ -63,11 +63,11 @@ KET_LUAN_STYLE = {"styleConditions": [
 
 ROW_STYLE = {"styleConditions": [
     {"condition": "params.data.loai_dong == 'subtotal'",
-     "style": {"backgroundColor": "#EDF3F9", "fontWeight": "700", "color": "#C8372D"}},
+     "style": {"backgroundColor": "#D5E3F1", "fontWeight": "700", "color": "#B01E14"}},
     {"condition": "params.data.loai_dong == 'chinhanh'",
-     "style": {"backgroundColor": "#E4EDF7", "fontWeight": "700", "color": "#003057"}},
+     "style": {"backgroundColor": "#C3D8EC", "fontWeight": "700", "color": "#002B4E"}},
     {"condition": "params.data.loai_dong == 'total'",
-     "style": {"backgroundColor": "#DCE8F4", "fontWeight": "700", "color": "#003057"}},
+     "style": {"backgroundColor": "#A9C6E3", "fontWeight": "800", "color": "#002B4E"}},
 ]}
 
 
@@ -81,28 +81,33 @@ def topbar():
 def layout():
     ngays = cac_ngay_co_du_lieu()
     moi_nhat = ngays[-1] if ngays else None
-    thieu = [d for d in _khoang_ngay(ngays) if d not in set(ngays)]
     return html.Div([
         html.Div([
-            field("Ngày báo cáo", html.Div([
-                html.Button("‹", id="tq-lui", className="nut-ky", title="Ngày trước đó"),
-                dcc.DatePickerSingle(
-                    id="tq-date", date=moi_nhat, display_format="DD/MM/YYYY",
-                    min_date_allowed=ngays[0] if ngays else None,
+            field("Kỳ báo cáo (từ ngày - đến ngày)", html.Div([
+                html.Button("‹", id="tq-lui", className="nut-ky", title="Lùi một ngày"),
+                dcc.DatePickerRange(
+                    id="tq-khoang", start_date=(moi_nhat[:8] + "01") if moi_nhat else None,
+                    end_date=moi_nhat, display_format="DD/MM/YYYY",
+                    min_date_allowed=(ngays[0][:8] + "01") if ngays else None,
                     max_date_allowed=ngays[-1] if ngays else None,
-                    initial_visible_month=moi_nhat, disabled_days=thieu,
-                    first_day_of_week=1, clearable=False, className="date-pick"),
-                html.Button("›", id="tq-toi", className="nut-ky", title="Ngày sau đó"),
-                html.Button("Mới nhất", id="tq-p-moinhat", className="btn nho"),
+                    initial_visible_month=moi_nhat, first_day_of_week=1, clearable=False,
+                    minimum_nights=0, start_date_placeholder_text="Từ ngày",
+                    end_date_placeholder_text="Đến ngày", className="date-pick khoang"),
+                html.Button("›", id="tq-toi", className="nut-ky", title="Tới một ngày"),
+                html.Button("Mới nhất", id="tq-p-moinhat", className="btn nho",
+                            title="Luỹ kế từ ngày 01 đến ngày có số mới nhất"),
                 dcc.Dropdown(id="tq-nhanh", placeholder="Chọn nhanh", searchable=False,
                              clearable=False, className="chon-nhanh", options=[
-                                 {"label": "Cùng ngày tháng trước", "value": "cungky"},
-                                 {"label": "Cuối tháng trước", "value": "cuoithang"}]),
+                                 {"label": "Luỹ kế tháng này", "value": "luyke"},
+                                 {"label": "Riêng ngày mới nhất", "value": "motngay"},
+                                 {"label": "7 ngày gần nhất", "value": "7ngay"},
+                                 {"label": "Tuần này (từ thứ 2)", "value": "tuan"},
+                                 {"label": "Cùng kỳ tháng trước", "value": "cungky"},
+                                 {"label": "Cả tháng trước", "value": "thangtruoc"}]),
             ], className="chon-ngay")),
             field("Chi nhánh", chi_nhanh_control("tq-cn")),
         ], className="toolbar loc-trang"),
         dcc.Download(id="tq-tai-xuong"),
-        dcc.Store(id="tq-zoom", data="fit"),
         dcc.Store(id="tq-ty-le", data=1),
 
         html.Div([
@@ -121,8 +126,10 @@ def layout():
                              title="Gọn: chỉ giữ các cột chính, hợp xem trên điện thoại"),
                     html.Div([
                         html.Button("−", id="tq-nho", className="btn", title="Thu nhỏ bảng"),
-                        html.Button(id="tq-zoom-nhan", className="btn zoom-nhan",
-                                    title="Về cỡ vừa màn hình"),
+                        dcc.Dropdown(id="tq-zoom-chon", value="fit", clearable=False,
+                                     searchable=False, className="zoom-chon",
+                                     options=[{"label": "Vừa màn hình", "value": "fit"}]
+                                     + [{"label": f"{z}%", "value": z} for z in ZOOM_STEPS]),
                         html.Button("+", id="tq-to", className="btn", title="Phóng to bảng"),
                     ], className="zoom-box"),
                     html.Button([icon("camera", 14), html.Span("Chụp ảnh")], id="tq-png",
@@ -183,6 +190,62 @@ def _chu_giai():
     ], className="chu-giai")
 
 
+def _tu_hop_le(tu_iso: str | None, den: date) -> str:
+    """Ngày bắt đầu hợp lệ: trống hoặc sau ngày cuối thì lấy ngày 01 của tháng ngày cuối."""
+    tu = (tu_iso or "")[:10]
+    if not tu or tu > den.isoformat():
+        return den.replace(day=1).isoformat()
+    return tu
+
+
+def doi_ky(nut: str | None, nhanh: str | None, tu: str | None, den: str | None,
+           ngays: list[str]) -> tuple[str, str] | None:
+    """(từ ngày, đến ngày) mới khi bấm ‹ ›, Mới nhất, Xem ngày đã chốt hoặc Chọn nhanh.
+
+    ‹ ›: dời ngày cuối sang ngày có số liền trước/sau. Đang xem luỹ kế (từ ngày 01) thì giữ luỹ kế
+    của tháng mới; đang xem khoảng tự chọn thì dời cả khoảng, giữ nguyên số ngày.
+    """
+    moi = ngays[-1]
+    den = (den or moi)[:10]
+    d_den = date.fromisoformat(den)
+    tu = _tu_hop_le(tu, d_den)
+    d_tu = date.fromisoformat(tu)
+    luy_ke = d_tu == d_den.replace(day=1)
+
+    def _luy_ke(ngay_cuoi: str) -> tuple[str, str]:
+        return ngay_cuoi[:8] + "01", ngay_cuoi
+
+    if nut in ("tq-lui", "tq-toi"):
+        ds = [x for x in ngays if x < den] if nut == "tq-lui" else [x for x in ngays if x > den]
+        if not ds:
+            return None
+        moi_den = ds[-1] if nut == "tq-lui" else ds[0]
+        if luy_ke:
+            return _luy_ke(moi_den)
+        return (d_tu + (date.fromisoformat(moi_den) - d_den)).isoformat(), moi_den
+    if nut == "tq-p-moinhat":
+        return _luy_ke(moi)
+    if nut == "tq-xem-chot":
+        truoc = [x for x in ngays if x < moi]
+        return _luy_ke(truoc[-1]) if truoc else None
+    if nut == "tq-nhanh" and nhanh:
+        d_moi = date.fromisoformat(moi)
+        if nhanh == "luyke":
+            return _luy_ke(moi)
+        if nhanh == "motngay":
+            return moi, moi
+        if nhanh == "7ngay":
+            return (d_moi - timedelta(days=6)).isoformat(), moi
+        if nhanh == "tuan":
+            return (d_moi - timedelta(days=d_moi.weekday())).isoformat(), moi
+        if nhanh == "cungky":
+            return lui_mot_thang(d_tu).isoformat(), lui_mot_thang(d_den).isoformat()
+        if nhanh == "thangtruoc":
+            cuoi = d_den.replace(day=1) - timedelta(days=1)
+            return cuoi.replace(day=1).isoformat(), cuoi.isoformat()
+    return None
+
+
 def _khoang_ngay(ngays):
     """Mọi ngày trong khoảng dữ liệu - dùng để chặn ngày chưa có số trên lịch."""
     if not ngays:
@@ -191,9 +254,15 @@ def _khoang_ngay(ngays):
     return [(d0 + timedelta(days=i)).isoformat() for i in range((d1 - d0).days + 1)]
 
 
-def _cols(thang: str, ngay: int, gon: bool = False):
+def _cols(thang: str, ngay: int, gon: bool = False, tu: str | None = None):
+    from app.overview import ten_khoang
     thang_so = int(thang[5:7])
     thang_truoc = 12 if thang_so == 1 else thang_so - 1
+    d_den = date.fromisoformat(f"{thang}-{ngay:02d}")
+    d_tu = date.fromisoformat(tu) if tu else d_den.replace(day=1)
+    luy_ke = d_tu == d_den.replace(day=1)
+    nhan_ky = ten_khoang(d_tu, d_den)
+    nhan_gon = f"T{thang_so}" if luy_ke else nhan_ky
     w = 72
     phong = {"headerName": "PKD", "field": "phong", "pinned": "left", "width": 172,
              "cellClass": "", "headerClass": "",
@@ -204,7 +273,7 @@ def _cols(thang: str, ngay: int, gon: bool = False):
     if gon:
         return [
             {**phong, "width": 124},
-            {"headerName": f"INTERNET T{thang_so}", "children": [
+            {"headerName": f"INTERNET {nhan_gon}", "children": [
                 {"headerName": "Online", "field": "online", "width": 64, "valueFormatter": SO,
                  "cellStyle": {"textAlign": "center", "fontWeight": "700"}},
                 {"headerName": "HTKH", "field": "htkh_internet", "width": 60,
@@ -222,7 +291,7 @@ def _cols(thang: str, ngay: int, gon: bool = False):
         phong,
         {"headerName": "Nhân sự", "field": "nhan_su", "pinned": "left", "width": 70,
          "valueFormatter": SO},
-        {"headerName": f"INTERNET THÁNG {thang_so}", "children": [
+        {"headerName": f"INTERNET {nhan_ky}", "children": [
             {"headerName": "Mục tiêu", "field": "mt_internet", "width": w, "valueFormatter": SO},
             {"headerName": "Số tồn", "field": "so_ton", "width": w, "valueFormatter": SO},
             {"headerName": "Số online", "field": "online", "width": 78, "valueFormatter": SO,
@@ -231,9 +300,9 @@ def _cols(thang: str, ngay: int, gon: bool = False):
              "valueFormatter": PCT, "cellStyle": _heat("htkh")},
         ]},
         {"headerName": "TĂNG TRƯỞNG", "children": [
-            {"headerName": f"Cùng kỳ T{thang_truoc}", "field": "ck_online", "width": 78,
-             "valueFormatter": SO,
-             "headerTooltip": f"Số online từ 01 đến ngày {ngay:02d} của tháng {thang_truoc}"},
+            {"headerName": f"Cùng kỳ T{thang_truoc}" if luy_ke else "Cùng kỳ th. trước",
+             "field": "ck_online", "width": 78, "valueFormatter": SO,
+             "headerTooltip": "Số online cùng khoảng ngày của tháng trước"},
             {"headerName": "Tỷ lệ", "field": "tang_truong", "width": w, "valueFormatter": PCT,
              "cellStyle": _heat("tang_truong")},
         ]},
@@ -310,17 +379,18 @@ def _pct(v) -> str:
     return "–" if v is None else f"{v:.0f}%"
 
 
-def _kpis(tong, ngay: int, thang: str, tam_tinh: bool) -> list:
+def _kpis(tong, ngay: int, thang: str, tam_tinh: bool, luy_ke: bool = True) -> list:
     thang_so = int(thang[5:7])
     thang_truoc = 12 if thang_so == 1 else thang_so - 1
     tt = tong.tang_truong
     dat_ngay = tong.mt_ngay and tong.ngay_online >= tong.mt_ngay
     return [
-        kpi("Online tháng", _so(tong.online),
+        kpi("Online tháng" if luy_ke else "Online trong kỳ", _so(tong.online),
             f"Chỉ tiêu {_so(tong.mt_internet)} · HTKH {_pct(tong.htkh_internet)}"
             if tong.mt_internet else "Chưa nhập chỉ tiêu tháng"),
         kpi("Tăng trưởng", "–" if tt is None else f"{tt:+.0f}%",
-            f"Cùng kỳ T{thang_truoc}: {_so(tong.ck_online)} online",
+            (f"Cùng kỳ T{thang_truoc}" if luy_ke else "Cùng kỳ tháng trước")
+            + f": {_so(tong.ck_online)} online",
             trang_thai="" if tt is None else ("ok" if tt >= 0 else "bad")),
         kpi("Tỷ lệ VVIP/PTTB", _pct(tong.vvip_ty_le), f"{_so(tong.vvip)} hợp đồng VVIP"),
         kpi("Camera", _so(tong.camera),
@@ -351,47 +421,24 @@ def register(app):
         % MAN_HINH_NHO,
         Output("tq-cot", "value"), Input("tq-cot", "id"))
 
-    @app.callback(Output("tq-date", "date"), Output("tq-nhanh", "value"),
+    @app.callback(Output("tq-khoang", "start_date"), Output("tq-khoang", "end_date"),
+                  Output("tq-nhanh", "value"),
                   Input("tq-lui", "n_clicks"), Input("tq-toi", "n_clicks"),
                   Input("tq-p-moinhat", "n_clicks"), Input("tq-nhanh", "value"),
                   Input("tq-xem-chot", "n_clicks"),
-                  State("tq-date", "date"), prevent_initial_call=True)
-    def _chon_ngay(_a, _b, _c, nhanh, _d, hien_tai):
+                  State("tq-khoang", "start_date"), State("tq-khoang", "end_date"),
+                  prevent_initial_call=True)
+    def _chon_ky(_a, _b, _c, nhanh, _d, tu, den):
         ngays = cac_ngay_co_du_lieu()
         if not ngays:
-            return no_update, None
-        d = hien_tai or ngays[-1]
-        trig = ctx.triggered_id
-        if trig == "tq-lui":
-            truoc = [x for x in ngays if x < d]
-            return (truoc[-1] if truoc else no_update), None
-        if trig == "tq-toi":
-            sau = [x for x in ngays if x > d]
-            return (sau[0] if sau else no_update), None
-        if trig == "tq-p-moinhat":
-            return ngays[-1], None
-        if trig == "tq-xem-chot":
-            truoc = [x for x in ngays if x < ngays[-1]]
-            return (truoc[-1] if truoc else no_update), None
-        if trig == "tq-nhanh" and nhanh:
-            dd = date.fromisoformat(d)
-            cuoi_thang_truoc = dd.replace(day=1) - timedelta(days=1)
-            if nhanh == "cungky":
-                ngay = min(dd.day, cuoi_thang_truoc.day)
-                muc_tieu = cuoi_thang_truoc.replace(day=ngay).isoformat()
-            else:
-                muc_tieu = cuoi_thang_truoc.isoformat()
-            hop_le = [x for x in ngays if x <= muc_tieu]
-            return (hop_le[-1] if hop_le else ngays[0]), None
-        return no_update, no_update
+            return no_update, no_update, None
+        kq = doi_ky(ctx.triggered_id, nhanh, tu, den, ngays)
+        return (kq[0], kq[1], None) if kq else (no_update, no_update, None)
 
-    @app.callback(Output("tq-zoom", "data"),
+    @app.callback(Output("tq-zoom-chon", "value"),
                   Input("tq-nho", "n_clicks"), Input("tq-to", "n_clicks"),
-                  Input("tq-zoom-nhan", "n_clicks"),
-                  State("tq-zoom", "data"), State("tq-ty-le", "data"), prevent_initial_call=True)
-    def _doi_co(_a, _b, _c, zoom, ty_le):
-        if ctx.triggered_id == "tq-zoom-nhan":
-            return "fit"
+                  State("tq-ty-le", "data"), prevent_initial_call=True)
+    def _doi_co(_a, _b, ty_le):
         hien = round((ty_le or 1) * 100)
         if ctx.triggered_id == "tq-nho":
             nho_hon = [z for z in ZOOM_STEPS if z < hien]
@@ -401,39 +448,46 @@ def register(app):
 
     @app.callback(Output("tq-grid", "columnDefs"), Output("tq-grid", "rowData"),
                   Output("tq-kpi", "children"), Output("tq-badge", "children"),
-                  Output("tq-zoom-wrap", "style"), Output("tq-zoom-nhan", "children"),
-                  Output("tq-ty-le", "data"),
+                  Output("tq-zoom-wrap", "style"), Output("tq-ty-le", "data"),
                   Output("tq-tieu-de", "children"), Output("tq-mo-ta", "children"),
                   Output("tq-canh-bao", "hidden"), Output("tq-canh-bao-chu", "children"),
                   Output("tq-xem-chot", "hidden"), Output("tq-xem-chot", "children"),
-                  Input("tq-date", "date"), Input("tq-zoom", "data"), Input("tq-cn", "value"),
+                  Input("tq-khoang", "start_date"), Input("tq-khoang", "end_date"),
+                  Input("tq-zoom-chon", "value"), Input("tq-cn", "value"),
                   Input("tq-cot", "value"), Input("ui-vw", "data"), State("ui-sidebar", "data"))
-    def _cap_nhat(ngay_iso, zoom, chi_nhanh, kieu_cot, vw, sidebar):
+    def _cap_nhat(tu_iso, ngay_iso, zoom, chi_nhanh, kieu_cot, vw, sidebar):
         ngays = cac_ngay_co_du_lieu()
-        ngay_iso = ngay_iso or (ngays[-1] if ngays else None)
+        ngay_iso = (ngay_iso or (ngays[-1] if ngays else ""))[:10] or None
         if not ngay_iso:
-            return ([], [], [], "", {}, "Vừa màn hình", 1, "Chưa có số liệu",
+            return ([], [], [], "", {}, 1, "Chưa có số liệu",
                     "Nạp file Internet để bắt đầu.", True, "", True, "")
         d = date.fromisoformat(ngay_iso)
+        tu_iso = _tu_hop_le(tu_iso, d)
+        luy_ke = tu_iso == d.replace(day=1).isoformat()
         thang = f"{d.year}-{d.month:02d}"
         chi_nhanh = chi_nhanh or "all"
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         tam_tinh, luc = trang_thai_ngay(ngay_iso)
 
         df, ngay = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=chi_nhanh,
-                                  tam_tinh=tam_tinh)
-        cols = _ke_khoi(_cols(thang, ngay, gon=kieu_cot == "gon"))
+                                  tam_tinh=tam_tinh, tu=tu_iso)
+        cols = _ke_khoi(_cols(thang, ngay, gon=kieu_cot == "gon", tu=tu_iso))
         tong = df[df.loai_dong == "total"].iloc[0]
 
-        if zoom == "fit":
+        if zoom in (None, "fit"):
             ty_le = ty_le_vua_man_hinh(cols, vw, (sidebar or {}).get("thu_gon", False))
-            nhan_zoom = "Vừa màn hình"
         else:
-            ty_le = (zoom or 100) / 100
-            nhan_zoom = f"{zoom}%"
+            ty_le = int(zoom) / 100
 
         tieu_de = f"Kết quả theo phòng · {TEN_PHAM_VI.get(chi_nhanh, TEN_PHAM_VI['all'])}"
-        mo_ta = f"Luỹ kế từ 01/{d.month:02d} đến {ngay:02d}/{d.month:02d}/{d.year}"
+        d_tu = date.fromisoformat(tu_iso)
+        if luy_ke:
+            mo_ta = f"Luỹ kế từ 01/{d.month:02d} đến {ngay:02d}/{d.month:02d}/{d.year}"
+        else:
+            cung_thang = (d_tu.year, d_tu.month) == (d.year, d.month)
+            mo_ta = (f"Từ {d_tu:%d/%m/%Y} đến {d:%d/%m/%Y} ({(d - d_tu).days + 1} ngày) · cùng kỳ "
+                     f"{lui_mot_thang(d_tu):%d/%m}-{lui_mot_thang(d):%d/%m} · mục tiêu "
+                     + (f"tháng {d.month}" if cung_thang else "cộng các tháng trong kỳ"))
 
         truoc = [x for x in ngays if x < ngay_iso]
         if tam_tinh:
@@ -446,19 +500,22 @@ def register(app):
             canh_bao = (True, "", True, "")
 
         style = {"zoom": ty_le} if ty_le != 1 else {}
-        return (cols, df.to_dict("records"), _kpis(tong, ngay, thang, tam_tinh),
-                _huy_hieu(tam_tinh, luc), style, nhan_zoom, ty_le, tieu_de, mo_ta, *canh_bao)
+        return (cols, df.to_dict("records"), _kpis(tong, ngay, thang, tam_tinh, luy_ke),
+                _huy_hieu(tam_tinh, luc), style, ty_le, tieu_de, mo_ta, *canh_bao)
 
     @app.callback(Output("tq-tai-xuong", "data"),
                   Input("tq-xls", "n_clicks"), Input("tq-png", "n_clicks"),
-                  State("tq-date", "date"), State("tq-cn", "value"), prevent_initial_call=True)
-    def _tai_ve(_a, _b, ngay_iso, chi_nhanh):
+                  State("tq-khoang", "start_date"), State("tq-khoang", "end_date"),
+                  State("tq-cn", "value"), prevent_initial_call=True)
+    def _tai_ve(_a, _b, tu_iso, ngay_iso, chi_nhanh):
+        ngay_iso = (ngay_iso or "")[:10] or None
         d = date.fromisoformat(ngay_iso) if ngay_iso else None
+        tu_iso = _tu_hop_le(tu_iso, d) if d else None
         thang = f"{d.year}-{d.month:02d}" if d else None
         chi_nhanh = chi_nhanh or "all"
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         tam_tinh, luc = trang_thai_ngay(ngay_iso) if ngay_iso else (False, None)
         ham = anh_tong_quan if ctx.triggered_id == "tq-png" else xuat_tong_quan
         noi_dung, ten = ham(thang, d.day if d else None, chi_phong=scope, chi_nhanh=chi_nhanh,
-                            tam_tinh=tam_tinh, luc=luc)
+                            tam_tinh=tam_tinh, luc=luc, tu=tu_iso)
         return dcc.send_bytes(noi_dung, ten)
