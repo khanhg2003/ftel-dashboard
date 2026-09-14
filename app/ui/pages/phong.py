@@ -31,6 +31,7 @@ from app.overview import trang_thai_ngay
 from app.ui.components import (LOCALE_VI, alert, card, chon_ngay, chu_giai, field, gan_chon_ngay,
                                kpi, seg_control)
 from app.ui import ky_chung as kc
+from app.ui import lien_ket as lk
 from app.ui.icons import icon
 
 SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
@@ -410,6 +411,8 @@ def _ngan_noi_dung(thang: str, ngay: int, code: str, r: dict):
             _o("Tuần này", _so(r.get("tuan_nay")), f"Tuần trước {_so(r.get('tuan_truoc'))} · NSLĐ kỳ "
                                                    f"trước {r.get('ket_luan') or '–'}"),
         ], className="ct-luoi"),
+        dcc.Link([icon("users", 14), html.Span("Xem NSLĐ và thâm niên của phòng")], href="/hr",
+                 className="btn nho", style={"marginTop": "10px"}),
         html.H4("Online và bán mới từng ngày"),
         dcc.Graph(figure=_bieu_do(ds, height=250), config={"displayModeBar": False,
                                                            "responsive": True}),
@@ -480,7 +483,7 @@ def register(app):
         mo_ta_ss = (f"Hạng trong {so_phong} phòng kinh doanh (IBB và địa bàn). Mức chung với tỷ lệ "
                     "là của toàn chi nhánh, với số lượng là bình quân một phòng.")
         return (_kpis(thang, ngay, dong, ss, tam_tinh), badge, canh_bao, mo_ta,
-                _cot_nv(thang, ngay, tong, xem or "ban"), hien.to_dict("records"), [tong],
+                lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), hien.to_dict("records"), [tong],
                 COT_SO_SANH, _dong_so_sanh(ss), mo_ta_ss,
                 _bieu_do(bp.dien_bien_ngay(thang, ngay, code), dong.get("mt_ngay")))
 

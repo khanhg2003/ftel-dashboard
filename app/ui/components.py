@@ -55,6 +55,10 @@ def kpi(label: str, value, hint=None, trang_thai: str = "", id: str | None = Non
     if hint is not None:
         body.append(html.Div(hint, className="hint"))
     kw = {"id": id} if id else {}
+    from app.ui.lien_ket import giai_thich
+    gt = giai_thich(label) if isinstance(label, str) else None
+    if gt:
+        kw["title"] = gt
     return html.Div(body, className=f"kpi {trang_thai}".strip(), **kw)
 
 

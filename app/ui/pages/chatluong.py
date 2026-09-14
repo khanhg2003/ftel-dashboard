@@ -52,7 +52,7 @@ def layout(ky: dict | None = None):
             html.Div(className="grow"),
             field(" ", html.Div([
                 dcc.Link([icon("upload", 14), html.Span("Nạp dữ liệu")], href="/upload", className="btn"),
-                dcc.Link([icon("users", 14), html.Span("Sửa danh mục nhân sự")], href="/quantri",
+                dcc.Link([icon("users", 14), html.Span("Sửa danh mục nhân sự")], href="/quantri?tab=staff",
                          className="btn"),
             ], style={"display": "flex", "gap": "8px"})),
         ], className="toolbar loc-trang"),

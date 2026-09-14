@@ -139,7 +139,8 @@ def test_dang_nhap_sai_va_dung(tai_khoan):
     r = c.post("/login", data={"username": "zz_test_phong", "password": "sai-mat-khau"})
     assert r.status_code == 200 and "Sai tài khoản" in r.get_data(as_text=True)
     r = c.post("/login", data={"username": "zz_test_phong", "password": MK})
-    assert r.status_code == 302 and r.headers["Location"].endswith("/")
+    # trưởng phòng vào thẳng Báo cáo phòng của mình
+    assert r.status_code == 302 and r.headers["Location"].endswith("/phong")
     assert c.get("/").status_code == 200          # đã vào được app
 
 

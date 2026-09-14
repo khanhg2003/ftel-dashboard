@@ -29,6 +29,7 @@ from app.overview import TEN_DONG_TONG, TEN_PHAM_VI
 from app.ui.components import (LOCALE_VI, alert, card, chi_nhanh_control, chon_ngay, chu_giai, field,
                                gan_chon_ngay, kpi, seg_control)
 from app.ui import ky_chung as kc
+from app.ui import lien_ket as lk
 from app.ui.icons import icon
 
 MAU_TOT, MAU_VUA, MAU_KEM = ("#D3EBD4", "#14532D"), ("#FCEBB4", "#6B5104"), ("#F7BDBD", "#7F1D1D")
@@ -124,7 +125,7 @@ def layout(ky: dict | None = None):
             _dau_the("Chất lượng bán theo phòng", "pt-mo-ta-phong",
                      seg_control("pt-nhom", [("tat_ca", "Tất cả phòng"), ("kd", "Phòng kinh doanh")],
                                  "tat_ca")),
-            dcc.Loading(_grid("pt-phong", getRowStyle=ROW_STYLE, dashGridOptions={
+            dcc.Loading(_grid("pt-phong", getRowStyle=ROW_STYLE, getRowId=lk.ROW_ID, dashGridOptions={
                 "rowClassRules": {"dong-phu": "params.data.loai_dong == 'data' && "
                                               "!params.data.nhom_kd"}})),
             html.Div(id="pt-chu-giai", className="desc", style={"margin": "10px 0 0"}),
@@ -227,8 +228,9 @@ def _cot_phong(chung: dict, nguong: dict, ton_qua_7: pd.Series) -> list:
                 "type": "numericColumn", "valueFormatter": PCT,
                 "cellStyle": _mau_so_voi_chung(chung.get(field_), nguong, cao_la_tot)}
 
-    return [
-        {"field": "phong", "headerName": "Phòng", "pinned": "left", "minWidth": 160, "flex": 1.6},
+    return lk.them_giai_thich([
+        lk.cot_phong_bam_duoc({"field": "phong", "headerName": "Phòng", "pinned": "left", "minWidth": 160,
+                               "flex": 1.6}),
         {"field": "online", "headerName": "Online", "minWidth": 78, "flex": .8,
          "type": "numericColumn", "valueFormatter": SO},
         {"headerName": "BÁN KÈM", "children": [
@@ -248,7 +250,7 @@ def _cot_phong(chung: dict, nguong: dict, ton_qua_7: pd.Series) -> list:
             {"field": "ton_qua_7", "headerName": "Chờ từ 7 ngày", "minWidth": 92, "flex": .9,
              "type": "numericColumn", "valueFormatter": SO, "cellStyle": _mau_ton(ton_qua_7)},
         ]},
-    ]
+    ])
 
 
 def _cot_ton() -> list:
@@ -467,6 +469,7 @@ def _nhan_vien(df, ton, thang, pham_vi_nv, phong_loc, loc) -> pd.DataFrame:
 
 # ------------------------------------------------------------------ callback
 def register(app):
+    lk.gan_mo_phong(app, "pt-phong")
     kc.ghi(app, ("pt-date", "date"), ("pt-cn", "value"),
            chuyen=lambda den, cn: {**kc.luy_ke(den), "cn": cn})
     gan_chon_ngay(app, "pt")

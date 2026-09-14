@@ -100,6 +100,25 @@ def layout():
 
         card([
             html.Div([
+                _muc("Bộ lọc đi theo khi chuyển trang", "", [
+                    "Chọn kỳ báo cáo, chi nhánh, phòng ở trang nào thì sang trang khác vẫn giữ. Đường "
+                    "dẫn trên trình duyệt ghi sẵn lựa chọn đó - ", html.B("gửi link"),
+                    " là người nhận mở đúng kỳ bạn đang xem (vẫn theo quyền của người nhận)."]),
+                _muc("Bấm tên phòng để xem chi tiết", "", [
+                    "Ở Báo cáo Tổng, Diễn biến & So sánh, Phân tích bán hàng: bấm tên một phòng để mở ",
+                    html.B("Báo cáo phòng"), " của phòng đó. Trong Báo cáo phòng, bấm một nhân sự để mở "
+                    "chi tiết người đó."]),
+                _muc("Dòng tình trạng dữ liệu", "", [
+                    "Góc trên bên phải mọi trang ghi số đến ngày nào. Hiện ô vàng khi có file nạp thiếu "
+                    "ngày (vd Camera mới đến hôm qua) - bấm vào để mở Chất lượng dữ liệu."]),
+                _muc("Rê chuột lên chữ viết tắt", "", "Tiêu đề cột và ô chỉ số có HTKH, PTTB, V.VIP, CNQL, "
+                                                      "NSLĐ... hiện giải thích khi rê chuột."),
+                _muc("Trưởng phòng", "", "Đăng nhập là vào thẳng Báo cáo phòng của mình."),
+            ], className="hd-list"),
+        ], title="Mẹo dùng nhanh"),
+
+        card([
+            html.Div([
                 _muc("Số online", "", "Hợp đồng đã online, khách bắt đầu sử dụng - cơ sở "
                                           "tính thành tích."),
                 _muc("Số tồn", "", "Đã ký hợp đồng nhưng chưa online, và còn nằm trong file mới nhất."),

@@ -26,6 +26,7 @@ from app.org import loc_chi_nhanh
 from app.overview import TEN_PHAM_VI, bang_tong_quan, lui_mot_thang, trang_thai_ngay
 from app.ui.components import chi_nhanh_control, field, kpi, seg_control
 from app.ui import ky_chung as kc
+from app.ui import lien_ket as lk
 from app.ui.icons import icon
 
 # thang màu giống bảng tính: đỏ nhạt -> cam -> vàng -> xanh nhạt -> xanh
@@ -148,6 +149,7 @@ def layout(ky: dict | None = None):
             _chu_giai(),
             html.Div(dcc.Loading(dag.AgGrid(
                 id="tq-grid", className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
+                getRowId=lk.ROW_ID,
                 defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True,
                                "wrapHeaderText": True, "autoHeaderHeight": True,
                                "cellClass": "o-giua", "headerClass": "tieu-de-giua"},
@@ -421,6 +423,7 @@ def _huy_hieu(tam_tinh: bool, luc) -> html.Span:
 
 
 def register(app):
+    lk.gan_mo_phong(app, "tq-grid")
     kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),
            chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     # Điện thoại: mở trang là dùng bảng Gọn luôn
@@ -479,7 +482,8 @@ def register(app):
 
         df, ngay = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=chi_nhanh,
                                   tam_tinh=tam_tinh, tu=tu_iso)
-        cols = _ke_khoi(_cols(thang, ngay, gon=kieu_cot == "gon", tu=tu_iso))
+        cols = lk.them_giai_thich(_ke_khoi(_cols(thang, ngay, gon=kieu_cot == "gon", tu=tu_iso)))
+        cols[0] = lk.cot_phong_bam_duoc(cols[0])
         tong = df[df.loai_dong == "total"].iloc[0]
 
         if zoom in (None, "fit"):

@@ -28,6 +28,7 @@ from app.org import phong_order
 from app.ui.components import (LOCALE_VI, alert, chi_nhanh_control, chon_ngay, chu_giai, field,
                                gan_chon_ngay, kpi, seg_control)
 from app.ui import ky_chung as kc
+from app.ui import lien_ket as lk
 from app.ui.icons import icon
 
 MAU_NHOM = {"MOI": "#F37021", "DANG_LEN": "#37A5E6", "ON_DINH": "#0072BC", "LAU_NAM": "#00A650"}
@@ -626,7 +627,7 @@ def register(app):
         nghi = int((~df.dang_lam).sum())
         so_nguoi = f"{len(df)} người" + (f" ({len(df) - nghi} đang làm, {nghi} đã nghỉ còn số trong kỳ)"
                                          if nghi else "")
-        return (_cols(xem), _ban_ghi(df),
+        return (lk.them_giai_thich(_cols(xem)), _ban_ghi(df),
                 f"{so_nguoi} · {_ten_pham_vi(chon_phong)} · luỹ kế 01-{d:%d/%m/%Y}",
                 khung_cuon(len(df)))
 

@@ -16,6 +16,7 @@ from app.ui.components import (GRID_STYLE_CONDITIONS, card, chi_nhanh_control, c
                                gan_dieu_huong_ky, kpi, pct_vn, seg_control, so_vn)
 from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
 from app.ui import ky_chung as kc
+from app.ui import lien_ket as lk
 from app.ui.icons import icon
 
 ZOOM_STEPS = [50, 75, 90, 100, 125, 150, 200]
@@ -82,10 +83,10 @@ def layout(ky: dict | None = None):
             dcc.Download(id="tk-tai-xuong"),
             html.Div(dcc.Loading(dag.AgGrid(
                 id="tk-grid", className="ag-theme-quartz ag-theme-ftel",
-                columnDefs=[], rowData=[],
+                columnDefs=[], rowData=[], getRowId=lk.ROW_ID,
                 defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True},
                 dashGridOptions={"suppressCellFocus": True, "headerHeight": 38, "rowHeight": 32,
-                                 "domLayout": "normal"},
+                                 "domLayout": "normal", "tooltipShowDelay": 300},
                 getRowStyle=GRID_STYLE_CONDITIONS,
                 style={"width": "100%", "height": "560px"})),
                 id="tk-zoom-wrap", className="zoom-wrap")],
@@ -123,6 +124,7 @@ def _fig(fig: go.Figure, height: int = 320) -> go.Figure:
 
 
 def register(app):
+    lk.gan_mo_phong(app, "tk-grid")
     kc.ghi(app, ("tk-thang", "value"), ("tk-cn", "value"),
            chuyen=lambda thang, cn: {**kc.ca_thang(thang, _cac_ngay()), "cn": cn})
     gan_dieu_huong_ky(app, "tk-thang")
@@ -169,7 +171,8 @@ def register(app):
 
         cols = [{"field": "bay", "headerName": "Bầy", "pinned": "left", "width": 165,
                  "cellStyle": {"fontWeight": "600"}},
-                {"field": "phong", "headerName": "Phòng kinh doanh", "pinned": "left", "width": 165}]
+                lk.cot_phong_bam_duoc({"field": "phong", "headerName": "Phòng kinh doanh", "pinned": "left",
+                                       "width": 165})]
         # flex để các cột ngày giãn đều lấp hết bề ngang, không chừa khoảng trắng bên phải
         cols += [{"field": c, "headerName": c.zfill(2), "minWidth": RONG_NGAY, "flex": 1,
                   "type": "numericColumn", "cellStyle": HEAT_NGAY} for c in day_cols]

@@ -127,6 +127,9 @@ function(ky, path) {
     const KHONG_GHI = ['/quantri', '/settings', '/upload', '/taikhoan', '/huongdan'];
     try {
         const u = new URL(window.location.href);
+        // callback đổi trang (bấm tên phòng) có thể chạy trước khi thanh địa chỉ kịp đổi: lấy đường dẫn từ app
+        const doiTrang = path && path !== u.pathname;
+        if (doiTrang) { u.pathname = path; u.search = ''; }
         ['tu', 'den', 'cn', 'phong'].forEach(function (k) { u.searchParams.delete(k); });
         if (ky && KHONG_GHI.indexOf(u.pathname) < 0) {
             ['tu', 'den', 'cn', 'phong'].forEach(function (k) {
@@ -134,7 +137,9 @@ function(ky, path) {
             });
         }
         const moi = u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash;
-        if (moi !== window.location.pathname + window.location.search + window.location.hash) {
+        if (doiTrang) {
+            window.history.pushState(window.history.state, '', moi);
+        } else if (moi !== window.location.pathname + window.location.search + window.location.hash) {
             window.history.replaceState(window.history.state, '', moi);
         }
     } catch (e) {}

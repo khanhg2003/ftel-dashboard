@@ -349,3 +349,86 @@ def _callback_theo_input(id_):
         if "ky-chung.data" in k and any(i["id"] == id_ for i in v["inputs"]):
             return getattr(v["callback"], "__wrapped__", v["callback"])
     raise KeyError(id_)
+
+
+# ------------------------------------------------------- đợt 4: đi xuống chi tiết, tình trạng dữ liệu
+def test_trang_mo_dau_theo_vai_tro(tai_khoan):
+    r = _dang_nhap_tra_ve("zz_ht_admin")
+    assert r.headers["Location"].endswith("/") and not r.headers["Location"].endswith("/phong")
+    assert _dang_nhap_tra_ve("zz_ht_phong").headers["Location"].endswith("/phong")
+
+
+def _dang_nhap_tra_ve(username):
+    from app.ui.app import server
+    return server.test_client().post("/login", data={"username": username, "password": MK})
+
+
+def _callback_theo_output_input(out: str, id_):
+    from app.ui.app import app
+    for k, v in app.callback_map.items():
+        if out in k and any(i["id"] == id_ for i in v["inputs"]):
+            return getattr(v["callback"], "__wrapped__", v["callback"])
+    raise KeyError(id_)
+
+
+@pytest.mark.parametrize("grid", ["tq-grid", "tk-grid", "pt-phong"])
+def test_bam_ten_phong_mo_bao_cao_phong(tai_khoan, grid):
+    from dash import no_update
+    from flask_login import login_user
+
+    from app.ui.app import server
+    ham = _callback_theo_output_input("url.pathname", grid)
+    ky = {"tu": "2026-09-01", "den": "2026-09-08"}
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        assert ham({"colId": "phong", "rowId": "data|IBB6"}, ky) == ("/phong", {**ky, "phong": "IBB6"})
+        assert ham({"colId": "phong", "rowId": "subtotal|SUB_BAY1"}, ky) == (no_update, no_update)
+        assert ham({"colId": "online", "rowId": "data|IBB6"}, ky) == (no_update, no_update)
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_phong"))                 # trưởng phòng IBB2 không mở được phòng khác
+        assert ham({"colId": "phong", "rowId": "data|IBB6"}, ky) == (no_update, no_update)
+        assert ham({"colId": "phong", "rowId": "data|IBB2"}, ky)[0] == "/phong"
+
+
+def test_giai_thich_tu_viet_tat():
+    from app.ui.lien_ket import giai_thich, them_giai_thich
+    assert "hoàn thành kế hoạch" in giai_thich("Tỷ lệ HTKH")
+    gt = giai_thich("Tỷ lệ VVIP/PTTB")
+    assert "V.VIP" in gt and "phát triển thuê bao" in gt
+    cols = them_giai_thich([{"headerName": "PTTB CNQL", "children": [{"headerName": "Số online"}]},
+                            {"headerName": "Cùng kỳ", "headerTooltip": "giữ nguyên"}])
+    assert "CNQL" in cols[0]["headerTooltip"] and "headerTooltip" not in cols[0]["children"][0]
+    assert cols[1]["headerTooltip"] == "giữ nguyên"
+
+
+def test_dong_tinh_trang_du_lieu(tai_khoan, monkeypatch):
+    from flask_login import login_user
+
+    from app import admin_service
+    from app.ui import lien_ket
+    from app.ui.app import server
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        monkeypatch.setattr(admin_service, "do_moi_du_lieu", lambda: [
+            {"loai": "Internet", "ngay": "2026-09-12"}, {"loai": "Truyền hình", "ngay": "2026-09-12"},
+            {"loai": "Camera", "ngay": "2026-09-11"}])
+        chu = str(lien_ket.thanh_du_lieu())
+        assert "Số đến 12/09" in chu and "Camera mới đến 11/09" in chu and "/chatluong" in chu
+        monkeypatch.setattr(admin_service, "do_moi_du_lieu", lambda: [
+            {"loai": "Internet", "ngay": "2026-09-12"}, {"loai": "Truyền hình", "ngay": "2026-09-12"},
+            {"loai": "Camera", "ngay": "2026-09-12"}])
+        assert "Kiểm tra" not in str(lien_ket.thanh_du_lieu())
+
+
+def test_chua_co_du_lieu_thi_huong_dan_nap(tai_khoan, monkeypatch):
+    from flask_login import login_user
+
+    import app.metrics
+    from app.ui.app import _router, server
+    monkeypatch.setattr(app.metrics, "ngay_moi_nhat", lambda: None)
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        noi_dung, _ = _router("/", "", None)
+        assert "Nạp dữ liệu ngay" in str(noi_dung)
+        noi_dung, _ = _router("/quantri", "", None)          # trang quản trị vẫn mở bình thường
+        assert "qt-tab" in str(noi_dung)

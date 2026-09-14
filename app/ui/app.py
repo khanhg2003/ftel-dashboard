@@ -41,6 +41,11 @@ LOGIN_PAGE = """<!doctype html>
 </form></div></body></html>"""
 
 
+def trang_mo_dau(user) -> str:
+    """Trưởng phòng vào thẳng Báo cáo phòng của mình; các vai trò khác vào Báo cáo Tổng."""
+    return "/phong" if user.role == "phong" and user.phong_nhan_su() else "/"
+
+
 @server.route("/login", methods=["GET", "POST"])
 def login():
     err = ""
@@ -49,7 +54,7 @@ def login():
                              request.form.get("password", ""))
         if user:
             login_user(user)
-            return redirect("/")
+            return redirect(trang_mo_dau(user))
     return render_template_string(LOGIN_PAGE, err=err)
 
 
@@ -186,6 +191,7 @@ def serve_layout():
                 html.Button(icon("menu", 20), id="btn-menu", className="nut-menu",
                             title="Mở menu"),
                 html.Div(id="topbar", className="topbar-noi"),
+                html.Div(id="thanh-du-lieu", className="thanh-du-lieu"),
             ], className="topbar"),
             html.Div(id="page-content", className="page"),
         ], className="main"),
@@ -277,6 +283,34 @@ def _ky_tu_duong_dan(_path, search, store):
     return moi if moi != ky_chung.lam_sach(store) else no_update
 
 
+@app.callback(Output("thanh-du-lieu", "children"), Input("url", "pathname"))
+def _thanh_du_lieu(_path):
+    from app.ui.lien_ket import thanh_du_lieu
+    return thanh_du_lieu()
+
+
+TRANG_CAN_SO = {"/", "/phong", "/phantich", "/tracking", "/sosanh", "/hr", "/chatluong"}
+
+
+def _chua_co_du_lieu():
+    """Chưa nạp file nào: hướng dẫn 3 bước thay cho các bảng trống."""
+    buoc = [("1", "Nạp 3 file export", "Internet, Truyền hình, Camera - chọn cùng lúc rồi bấm Lưu."),
+            ("2", "Kiểm tra dữ liệu", "Trang Chất lượng dữ liệu báo mục nào cần xử lý."),
+            ("3", "Xem báo cáo", "Báo cáo Tổng, Báo cáo phòng... tự tính lại theo số vừa nạp.")]
+    nut = (dcc.Link([icon("upload", 14), html.Span("Nạp dữ liệu ngay")], href="/upload",
+                    className="btn primary") if current_user.duoc_upload else
+           html.Div("Liên hệ người phụ trách nhập liệu để nạp file.", className="desc"))
+    return html.Div([
+        html.H3("Chưa có số liệu để báo cáo"),
+        html.Div("App tính mọi chỉ số từ các file export. Làm theo 3 bước:", className="desc"),
+        html.Div([html.Div([html.Div(so, className="buoc-so"),
+                            html.Div([html.Div(ten, className="buoc-ten"),
+                                      html.Div(mo_ta, className="buoc-noi-dung")])], className="buoc")
+                  for so, ten, mo_ta in buoc], className="buoc-list", style={"margin": "16px 0"}),
+        nut,
+    ], className="card")
+
+
 @app.callback(Output("page-content", "children"), Output("topbar", "children"),
               Input("url", "pathname"), State("url", "search"), State("ky-chung", "data"))
 def _router(path, search=None, store=None):
@@ -290,6 +324,10 @@ def _router(path, search=None, store=None):
     path = path or "/"
     tab = (parse_qs((search or "").lstrip("?")).get("tab") or [None])[0]
     ky = ky_chung.doc(store, search)
+    if path in TRANG_CAN_SO:
+        from app.metrics import ngay_moi_nhat
+        if not ngay_moi_nhat():
+            return _chua_co_du_lieu(), _topbar_simple("Chưa có số liệu")
     if path == "/taikhoan":
         return taikhoan.layout(), taikhoan.topbar()
     if path == "/huongdan":
