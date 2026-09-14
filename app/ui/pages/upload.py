@@ -13,19 +13,22 @@ import dash_ag_grid as dag
 from dash import Input, Output, State, dcc, html, no_update
 from flask_login import current_user
 
+from app.admin_service import go_bo_lan_nap, lich_su_nap
 from app.auth import ghi_log
 from app.config import GIOI_HAN_NAP_MB, UPLOAD_DIR
 from app.db import session_scope
 from app.ingest.commit import commit_result, file_hash, thang_tu_ten_file
 from app.ingest.loader import load_file
 from app.metrics import cac_thang_co_du_lieu
-from app.ui.components import alert, badge, card
+from app.ui.components import LOCALE_VI, alert, badge, card
 from app.ui.icons import icon
 
 MAX_PREVIEW = 20
 TEN_DE_HIEU = {"internet": "Internet", "fptplay": "Truyền hình / FPT Play",
                "camera": "Camera", "nhan_su": "Nhân sự (NSLĐ)",
                "danh_muc_nv": "Danh mục nhân viên"}
+TEN_NGAN = {"internet": "Internet", "fptplay": "Truyền hình", "camera": "Camera",
+            "nhan_su": "NSLĐ", "danh_muc_nv": "Danh mục NV"}
 
 
 def topbar():
@@ -68,7 +71,68 @@ def layout():
                  "vẫn đọc đúng."),
         dcc.Loading(html.Div(id="up-ketqua")),
         html.Div(id="up-commit-ketqua"),
+        _the_lich_su(),
     ])
+
+
+def _the_lich_su():
+    return html.Div([
+        dcc.ConfirmDialog(id="up-ls-xacnhan"),
+        html.Div([
+            html.Div([html.H3("Lịch sử nạp"),
+                      html.Div("50 lần nạp gần nhất. Nạp nhầm file: tick dòng đó rồi bấm Gỡ bỏ.",
+                               className="desc")], className="the-ten"),
+            html.Div([html.Button([icon("trash", 14), html.Span("Gỡ bỏ lần nạp")],
+                                  id="up-ls-go", className="btn nguy-hiem", disabled=True)],
+                     className="the-nut"),
+        ], className="the-dau"),
+        html.Div(id="up-ls-msg"),
+        dag.AgGrid(id="up-ls-grid", className="ag-theme-quartz ag-theme-ftel",
+                   columnDefs=_cot_lich_su(), rowData=[], getRowId="params.data.id",
+                   defaultColDef={"resizable": True, "sortable": True},
+                   dashGridOptions={"rowSelection": "single", "suppressCellFocus": True,
+                                    "pagination": True, "paginationPageSize": 10,
+                                    "paginationPageSizeSelector": False, "tooltipShowDelay": 300,
+                                    "localeText": LOCALE_VI, "domLayout": "autoHeight"},
+                   style={"width": "100%"}),
+    ], className="card")
+
+
+SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
+
+
+def _cot_lich_su():
+    return [
+        {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
+         "checkboxSelection": True, "sortable": False, "resizable": False},
+        {"field": "thoi_diem", "headerName": "Thời điểm", "width": 136,
+         "comparator": {"function": "(a, b, na, nb) => na.data.thoi_diem_sx < nb.data.thoi_diem_sx ? -1 : 1"}},
+        {"field": "loai", "headerName": "Loại", "width": 120},
+        {"field": "file_name", "headerName": "File", "minWidth": 180, "flex": 1,
+         "tooltipField": "file_name"},
+        {"field": "rows_valid", "headerName": "Dòng hợp lệ", "width": 104,
+         "valueFormatter": SO, "type": "numericColumn"},
+        {"field": "rows_new", "headerName": "Thêm mới", "width": 94, "valueFormatter": SO,
+         "type": "numericColumn"},
+        {"field": "rows_updated", "headerName": "Cập nhật", "width": 94, "valueFormatter": SO,
+         "type": "numericColumn"},
+        {"field": "con_lai", "headerName": "Đang dùng", "width": 96, "valueFormatter": SO,
+         "type": "numericColumn",
+         "headerTooltip": "Số dòng báo cáo đang lấy từ lần nạp này. Về 0 khi lần nạp sau đã "
+                          "cập nhật lại toàn bộ các dòng đó - bình thường."},
+        {"field": "uploaded_by", "headerName": "Người nạp", "width": 100},
+        {"field": "note", "headerName": "Ghi chú", "minWidth": 110, "flex": .5,
+         "tooltipField": "note"},
+    ]
+
+
+def _du_lieu_lich_su() -> list[dict]:
+    b = lich_su_nap()
+    if b.empty:
+        return []
+    b["loai"] = b["dataset"].map(TEN_NGAN).fillna(b["dataset"])
+    b = b.drop(columns=["uploaded_at"])
+    return b.astype(object).where(b.notna(), None).to_dict("records")
 
 
 def _thang_options() -> list[dict]:
@@ -139,6 +203,42 @@ def _khoi_ui(res, ten_file: str) -> html.Div:
 
 
 def register(app):
+    # ------------------------------------------------------------ lịch sử nạp
+    @app.callback(Output("up-ls-grid", "rowData"),
+                  Input("up-ls-grid", "id"), Input("up-commit-ketqua", "children"),
+                  Input("up-ls-msg", "children"))
+    def _nap_lich_su(*_):
+        return _du_lieu_lich_su()
+
+    @app.callback(Output("up-ls-go", "disabled"), Input("up-ls-grid", "selectedRows"))
+    def _bat_nut_go(chon):
+        return not chon
+
+    @app.callback(Output("up-ls-xacnhan", "displayed"), Output("up-ls-xacnhan", "message"),
+                  Input("up-ls-go", "n_clicks"), State("up-ls-grid", "selectedRows"),
+                  prevent_initial_call=True)
+    def _hoi_go(_n, chon):
+        if not chon:
+            return False, ""
+        r = chon[0]
+        return True, (f"Gỡ lần nạp {r.get('thoi_diem')} · {r.get('loai')} "
+                      f"({r.get('file_name')})?\n\nCác dòng số đang lấy từ lần nạp này sẽ bị "
+                      "xoá khỏi báo cáo. Không hoàn tác được - muốn lấy lại thì nạp lại file.")
+
+    @app.callback(Output("up-ls-msg", "children"),
+                  Input("up-ls-xacnhan", "submit_n_clicks"), State("up-ls-grid", "selectedRows"),
+                  prevent_initial_call=True)
+    def _go(n, chon):
+        if not n or not chon:
+            return no_update
+        if not current_user.duoc_upload:
+            return alert("Tài khoản này không có quyền gỡ dữ liệu.", "bad")
+        kq = go_bo_lan_nap(int(chon[0]["id"]), current_user.username)
+        if not kq.get("ok"):
+            return alert(kq.get("msg", "Không gỡ được."), "bad")
+        return alert(f"Đã gỡ {kq['so_dong']:,} dòng {TEN_NGAN.get(kq['dataset'], kq['dataset'])} "
+                     f"của lần nạp {chon[0].get('thoi_diem')}.".replace(",", "."), "ok")
+
     # Kiểm dung lượng ngay trên trình duyệt, quá giới hạn thì không gửi lên máy chủ
     app.clientside_callback(
         """

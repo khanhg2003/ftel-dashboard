@@ -106,10 +106,11 @@ def xuat_tong_quan(thang: str, ngay: int | None = None,
     for i, row in enumerate(df.to_dict("records")):
         r = r_dau + i
         col = 1
-        la_tong = row.get("loai_dong") in ("subtotal", "total", "nhomkhac")
-        nen = {"subtotal": "EDF3F9", "total": "DCE8F4", "nhomkhac": "FFF6EC"}.get(
-            row.get("loai_dong"))
-        chu = {"subtotal": "C8372D", "total": "003057", "nhomkhac": "8A4B08"}.get(
+        la_tong = row.get("loai_dong") in ("subtotal", "total", "nhomkhac", "chinhanh")
+        nen = {"subtotal": "EDF3F9", "total": "DCE8F4", "nhomkhac": "FFF6EC",
+               "chinhanh": "E4EDF7"}.get(row.get("loai_dong"))
+        chu = {"subtotal": "C8372D", "total": "003057", "nhomkhac": "8A4B08",
+               "chinhanh": "003057"}.get(
             row.get("loai_dong"), "17212E")
         for _, cot in ct:
             for _, khoa, kieu in cot:

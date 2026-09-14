@@ -18,6 +18,7 @@ from app.metrics import cac_thang_co_du_lieu, prev_month
 from app.models import Target
 from app.org import (LOAI_PHONG, bay_info, bay_options, co_cau_rieng, luu_bay, luu_co_cau_thang,
                      luu_phong, phong_order, xoa_bay, xoa_cache_org, xoa_co_cau_thang, xoa_phong)
+from app.thoi_gian import chu_gio_vn
 from app.ui.components import alert, card, chon_ky, field, gan_dieu_huong_ky, modal, nhac_chua_luu
 from app.ui.icons import icon
 
@@ -402,7 +403,7 @@ def register(app):
                                   ORDER BY id DESC LIMIT 20"""), engine)
         log_ui = html.Table([
             html.Thead(html.Tr([html.Th("Thời điểm"), html.Th("Người dùng"), html.Th("Thao tác")])),
-            html.Tbody([html.Tr([html.Td(str(r.ts)[:19]), html.Td(r.username or ""),
+            html.Tbody([html.Tr([html.Td(chu_gio_vn(r.ts, "%H:%M:%S %d/%m/%Y")), html.Td(r.username or ""),
                                  html.Td(r.action)]) for r in log.itertuples()])
         ], className="simple")
         return (b_cols, b_rows, p_cols, p_rows, c_cols, c_rows, cc_badge, t_cols, t_rows,

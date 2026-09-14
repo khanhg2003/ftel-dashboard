@@ -71,19 +71,20 @@ def layout():
                     "Chọn hai khoảng ngày (có ba nút gợi ý). Kết quả gồm chênh lệch theo phòng và ",
                     html.B("Top giảm sâu nhất"), " - danh sách cần trao đổi trước."]),
                 _muc("Hiệu suất nhân sự", "Năng suất theo từng người", [
-                    "Số bán của từng nhân sự đối chiếu thâm niên và NSLĐ. Mục ",
-                    html.B("Nhân sự cần trao đổi sớm"), " nêu người nhiều ngày không có số hoặc "
-                    "tuần này sụt mạnh."]),
+                    "Luỹ kế đến ngày chọn, mặc định chỉ phòng kinh doanh. Mục ",
+                    html.B("Cần trao đổi sớm"), " ghi sẵn lý do từng người: 7 ngày chưa có số, "
+                    "tuần này giảm từ một nửa, NSLĐ chưa đạt. Cột ", html.B("So với cùng thâm niên"),
+                    " cho biết người đó bán hơn hay kém người cùng mốc thâm niên."]),
                 _muc("Chất lượng dữ liệu", "Soát lỗi trước khi chốt số", [
                     "Kiểm 5 điểm: hợp đồng chưa gán phòng, acc ngoài danh mục, ngày thiếu dữ "
                     "liệu, đơn tồn quá 7 ngày, hợp đồng đã huỷ. Mỗi mục có sẵn hướng xử lý."]),
                 _muc("Nạp dữ liệu", "Đưa file export vào hệ thống",
                      "Chọn nhiều file cùng lúc, xem trước 20 dòng đầu rồi mới lưu. File export 3 "
                      "tháng nạp lại bao nhiêu lần cũng không nhân đôi số: hợp đồng đã có được cập "
-                     "nhật, tháng nào tự về tháng đó theo Ngày online."),
-                _muc("Quản trị", "Tài khoản, danh mục nhân sự, lịch sử nạp",
-                     "Cấp tài khoản theo vai trò (Trưởng phòng chọn phòng phụ trách), khai acc người bán thuộc phòng nào, "
-                     "gỡ bỏ lần nạp sai."),
+                     "nhật, tháng nào tự về tháng đó theo Ngày online. Cuối trang là lịch sử nạp - "
+                     "nạp nhầm thì gỡ bỏ ở đây."),
+                _muc("Quản trị", "Tài khoản, danh mục nhân sự",
+                     "Cấp tài khoản theo vai trò (Trưởng phòng chọn phòng phụ trách), khai acc người bán thuộc phòng nào."),
                 _muc("Cấu hình", "Cơ cấu tổ chức và chỉ tiêu",
                      "Thêm bầy, thêm phòng, xếp lại cơ cấu theo từng tháng, nhập chỉ tiêu - "
                      "không cần can thiệp phần mềm."),
@@ -118,7 +119,7 @@ def layout():
                     html.B("Quản trị → Danh mục nhân sự"), ", thêm acc, rồi bấm “Tính lại việc "
                     "gán phòng” - áp cho cả dữ liệu đã nạp trước đó."]),
                 _muc("Nạp nhầm file", "", [
-                    html.B("Quản trị → Lịch sử nạp dữ liệu"), " → chọn dòng → ", html.B("Gỡ bỏ"),
+                    html.B("Nạp dữ liệu → Lịch sử nạp"), " → tick dòng → ", html.B("Gỡ bỏ"),
                     ". Toàn bộ số của lần nạp đó được rút khỏi báo cáo."]),
                 _muc("Bảng rộng hơn màn hình", "", [
                     "Ô ", html.B("Cỡ bảng"), " mặc định “Vừa màn hình”. Cần ảnh nét để gửi nhóm "

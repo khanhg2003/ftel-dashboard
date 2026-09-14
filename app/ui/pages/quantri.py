@@ -1,4 +1,4 @@
-"""Trang Quản trị: tài khoản, danh mục nhân sự, lịch sử nạp dữ liệu.
+"""Trang Quản trị: tài khoản, danh mục nhân sự (lịch sử nạp nằm ở trang Nạp dữ liệu).
 
 Mọi thao tác thêm đều qua hộp thoại (điền đủ thông tin rồi mới tạo), thao tác xoá
 đều hỏi lại, và dòng chưa lưu được tô vàng để không ai bấm nhầm rồi quên lưu.
@@ -10,7 +10,7 @@ from dash import Input, Output, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
 from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau,
-                               go_bo_lan_nap, lich_su_nap, luu_staff, luu_user, pham_vi_options,
+                               luu_staff, luu_user, pham_vi_options,
                                them_user, xoa_staff, xoa_user)
 from app.db import session_scope
 from app.ingest.commit import recompute_phong
@@ -32,7 +32,7 @@ ROW_STYLE = {"styleConditions": [
 
 def topbar():
     return [html.Div([html.H1("Quản trị"),
-                      html.Div("Tài khoản · danh mục nhân sự · lịch sử nạp dữ liệu",
+                      html.Div("Tài khoản · danh mục nhân sự",
                                className="sub")])]
 
 
@@ -89,8 +89,6 @@ def layout():
             dcc.Tab(label="Tài khoản", value="user", className="seg-item",
                     selected_className="seg-item active"),
             dcc.Tab(label="Danh mục nhân sự", value="staff", className="seg-item",
-                    selected_className="seg-item active"),
-            dcc.Tab(label="Lịch sử nạp dữ liệu", value="batch", className="seg-item",
                     selected_className="seg-item active"),
         ]),
         html.Div(style={"height": "16px"}),
@@ -157,27 +155,6 @@ def layout():
             ], title="Danh mục nhân sự theo phòng"),
         ]),
 
-        html.Div(id="qt-pane-batch", children=[
-            dcc.ConfirmDialog(id="qt-batch-xacnhan",
-                              message="Gỡ bỏ toàn bộ dữ liệu của lần nạp này?"),
-            card([
-                html.Div([
-                    html.Div("Nạp nhầm file thì chọn dòng tương ứng rồi bấm Gỡ bỏ - toàn bộ "
-                             "số của lần nạp đó sẽ được rút khỏi báo cáo.",
-                             className="desc", style={"margin": 0}),
-                    html.Div(className="grow"),
-                    html.Button([icon("trash", 14), html.Span("Gỡ bỏ lần nạp")], id="qt-batch-go",
-                                className="btn nguy-hiem"),
-                ], className="toolbar"),
-                html.Div(id="qt-batch-msg"),
-                dag.AgGrid(id="qt-batch-grid", className="ag-theme-quartz ag-theme-ftel",
-                           columnDefs=[], rowData=[],
-                           defaultColDef={"resizable": True, "sortable": True},
-                           dashGridOptions={**GRID, "rowSelection": "single",
-                                            "domLayout": "normal"},
-                           style={"width": "100%", "height": "320px"}),
-            ], title="Lịch sử nạp dữ liệu"),
-        ]),
     ])
 
 
@@ -222,51 +199,24 @@ def _staff_cols():
     ]
 
 
-def _batch_cols():
-    return [
-        CHON,
-        {"field": "id", "headerName": "#", "width": 64, "maxWidth": 64},
-        {"field": "thoi_diem", "headerName": "Thời điểm", "minWidth": 140, "flex": 1.2},
-        {"field": "dataset", "headerName": "Loại dữ liệu", "minWidth": 110, "flex": 1},
-        {"field": "file_name", "headerName": "File", "minWidth": 200, "flex": 2.4,
-         "tooltipField": "file_name"},
-        {"field": "rows_valid", "headerName": "Dòng hợp lệ", "minWidth": 110, "flex": 1,
-         "type": "numericColumn"},
-        {"field": "rows_new", "headerName": "Thêm mới", "minWidth": 100, "flex": .9,
-         "type": "numericColumn"},
-        {"field": "rows_updated", "headerName": "Cập nhật", "minWidth": 100, "flex": .9,
-         "type": "numericColumn"},
-        {"field": "con_lai", "headerName": "Còn trong hệ thống", "minWidth": 140, "flex": 1.2,
-         "type": "numericColumn"},
-        {"field": "uploaded_by", "headerName": "Người nạp", "minWidth": 110, "flex": 1},
-        {"field": "note", "headerName": "Ghi chú", "minWidth": 150, "flex": 1.6,
-         "tooltipField": "note"},
-    ]
-
-
 def register(app):
     nhac_chua_luu(app, "qt-user-grid", "qt-user-nhac", "qt-user-msg")
     nhac_chua_luu(app, "qt-staff-grid", "qt-staff-nhac", "qt-staff-msg")
 
     @app.callback(Output("qt-pane-user", "style"), Output("qt-pane-staff", "style"),
-                  Output("qt-pane-batch", "style"), Input("qt-tab", "value"))
+                  Input("qt-tab", "value"))
     def _tab(tab):
         an = {"display": "none"}
-        return ({} if tab == "user" else an, {} if tab == "staff" else an,
-                {} if tab == "batch" else an)
+        return {} if tab == "user" else an, {} if tab == "staff" else an
 
     @app.callback(Output("qt-user-grid", "columnDefs"), Output("qt-user-grid", "rowData"),
                   Output("qt-staff-grid", "columnDefs"), Output("qt-staff-grid", "rowData"),
-                  Output("qt-batch-grid", "columnDefs"), Output("qt-batch-grid", "rowData"),
-                  Input("qt-user-msg", "children"), Input("qt-staff-msg", "children"),
-                  Input("qt-batch-msg", "children"))
+                  Input("qt-user-msg", "children"), Input("qt-staff-msg", "children"))
     def _nap(*_):
         u = danh_sach_user()
         s = danh_sach_staff()
-        b = lich_su_nap()
         return (_user_cols(), [] if u.empty else u.to_dict("records"),
-                _staff_cols(), [] if s.empty else s.to_dict("records"),
-                _batch_cols(), [] if b.empty else b.to_dict("records"))
+                _staff_cols(), [] if s.empty else s.to_dict("records"))
 
     # ------------------------------------------------------------ tài khoản
     @app.callback(Output("qt-modal-user", "className"),
@@ -380,20 +330,3 @@ def register(app):
                           "; ".join(loi[:5])], "warn"), ""
         return alert([html.B(f"Đã lưu {n} dòng. "),
                       "Bấm “Tính lại việc gán phòng” để áp cho dữ liệu đã nạp."], "ok"), ""
-
-    # ---------------------------------------------------------- lịch sử nạp
-    @app.callback(Output("qt-batch-xacnhan", "displayed"), Input("qt-batch-go", "n_clicks"),
-                  State("qt-batch-grid", "selectedRows"), prevent_initial_call=True)
-    def _hoi(n, chon):
-        return bool(chon)
-
-    @app.callback(Output("qt-batch-msg", "children"), Input("qt-batch-xacnhan", "submit_n_clicks"),
-                  State("qt-batch-grid", "selectedRows"), prevent_initial_call=True)
-    def _go_bo(n, chon):
-        if not n or not chon:
-            return no_update
-        kq = go_bo_lan_nap(int(chon[0]["id"]), current_user.username)
-        if not kq.get("ok"):
-            return alert(kq.get("msg", "Không gỡ được."), "bad")
-        return alert(f"Đã gỡ {kq['so_dong']} dòng dữ liệu ({kq['dataset']}) của lần nạp "
-                     f"#{chon[0]['id']}.", "ok")

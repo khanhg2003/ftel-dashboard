@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.db import session_scope
 from app.models import AuditLog, User
+from app.thoi_gian import chu_gio_vn, utc_bay_gio
 
 ph = PasswordHasher()
 login_manager = LoginManager()
@@ -117,19 +118,19 @@ def xac_thuc(username: str, password: str) -> tuple[SessionUser | None, str]:
         row = s.execute(select(User).where(User.username == username)).scalars().first()
         if row is None or not row.active:
             return None, "Sai tài khoản hoặc mật khẩu."
-        if row.locked_until and row.locked_until > datetime.now():
-            return None, f"Tài khoản đang bị khoá tới {row.locked_until:%H:%M}."
+        if row.locked_until and row.locked_until > utc_bay_gio():
+            return None, f"Tài khoản đang bị khoá tới {chu_gio_vn(row.locked_until, '%H:%M')}."
         try:
             ph.verify(row.password_hash, password)
         except VerifyMismatchError:
             row.failed_logins = (row.failed_logins or 0) + 1
             if row.failed_logins >= KHOA_SAU:
-                row.locked_until = datetime.now() + timedelta(minutes=KHOA_PHUT)
+                row.locked_until = utc_bay_gio() + timedelta(minutes=KHOA_PHUT)
                 row.failed_logins = 0
             s.add(AuditLog(username=username, action="login_fail"))
             return None, "Sai tài khoản hoặc mật khẩu."
         row.failed_logins = 0
-        row.last_login = datetime.now()
+        row.last_login = utc_bay_gio()
         s.add(AuditLog(username=username, action="login_ok"))
         return SessionUser(row), ""
 

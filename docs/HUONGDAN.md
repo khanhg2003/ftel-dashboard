@@ -74,8 +74,10 @@ Chọn hai khoảng ngày (có ba nút gợi ý sẵn). App chỉ ra phòng nào
 danh sách **người bán sụt nhiều nhất** để biết cần hỏi thăm ai trước.
 
 ### Hiệu suất nhân sự — *Ai đang bán tốt, ai đang đuối?*
-Ghép số bán của từng người với hồ sơ NSLĐ. Đáng chú ý nhất là mục **Những người nên hỏi thăm
-sớm**: ai nhiều ngày liền không có số, ai tuần này sụt hẳn so với tuần trước.
+Số online luỹ kế đến ngày chọn của từng người, ghép với thâm niên và NSLĐ (mặc định chỉ phòng
+kinh doanh). Xem trước mục **Cần trao đổi sớm**: mỗi người có sẵn lý do (7 ngày chưa có số,
+tuần này giảm từ một nửa, NSLĐ chưa đạt). Cột **So với cùng thâm niên** so với trung vị người
+cùng mốc thâm niên. Bảng chi tiết có ô tìm, lọc phòng / thâm niên / tình trạng và nút Excel.
 
 ### Chất lượng dữ liệu — *Số liệu có chỗ nào sai không?*
 Nên xem trước khi gửi báo cáo. Kiểm 5 thứ: hợp đồng chưa biết tính cho phòng nào, acc lạ chưa
@@ -88,7 +90,7 @@ Nơi đưa file vào app (xem mục 3).
 - **Danh sách người được vào app**: tạo tài khoản, chọn vai trò và phạm vi, khoá, đặt lại mật khẩu.
 - **Ai thuộc phòng nào**: khai acc người bán thuộc phòng nào — đây là bảng quyết định số chạy
   về phòng nào.
-- **Các lần đã tải file lên**: nhật ký; lỡ nhầm thì tích chọn rồi bấm *Gỡ bỏ*.
+- **Lịch sử nạp** (cuối trang): giờ nạp, file, người nạp; lỡ nhầm thì tích chọn rồi bấm *Gỡ bỏ*.
 
 ### Cấu hình
 Khai báo **Bầy**, **Phòng kinh doanh**, **cơ cấu bầy của từng tháng** và **chỉ tiêu tháng**.
@@ -122,7 +124,7 @@ Acc người bán chưa có trong danh mục. Vào *Quản trị → Ai thuộc 
 bấm **Tính lại việc gán phòng**. Số sẽ tự chạy về đúng phòng, kể cả dữ liệu đã nạp trước đó.
 
 **Tải nhầm file.**
-*Quản trị → Các lần đã tải file lên* → tích chọn dòng đó → **Gỡ bỏ**.
+*Nạp dữ liệu → Lịch sử nạp* → tích chọn dòng đó → **Gỡ bỏ**.
 
 **Bảng rộng quá, xem không hết.**
 Ô *Cỡ bảng* đã để sẵn “Vừa màn hình”. Cần ảnh rõ để gửi nhóm thì dùng **Chụp ảnh (PNG)** —

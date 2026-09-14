@@ -19,8 +19,8 @@ Mỗi hạng mục chấm: ✅ xong · 🟡 làm một phần · ❌ chưa có.
 | 3 | Xem trước + xác nhận mới lưu | ✅ | Kèm danh sách dòng lỗi và lý do |
 | 4 | Chống trùng khi upload lại | ✅ | Upsert theo mã HĐ / mã băm dòng |
 | 5 | Ghi nhật ký mỗi lần nạp (`upload_batch`) | ✅ | Có hash file, số dòng mới/cập nhật |
-| 6 | **Hoàn tác một lần nạp (rollback batch)** | ✅ | Quản trị → *Lịch sử nạp* → gỡ bỏ lần nạp (có ghi nhật ký) |
-| 7 | **Màn hình lịch sử nạp dữ liệu** | ✅ | Quản trị → *Lịch sử nạp*: file, người nạp, số dòng mới/cập nhật |
+| 6 | **Hoàn tác một lần nạp (rollback batch)** | ✅ | Nạp dữ liệu → *Lịch sử nạp* → gỡ bỏ lần nạp (có ghi nhật ký) |
+| 7 | **Màn hình lịch sử nạp dữ liệu** | ✅ | Nạp dữ liệu → *Lịch sử nạp*: file, người nạp, số dòng mới/cập nhật |
 | 8 | Chọn sheet khi file .xlsx có nhiều sheet | 🟡 | Đang mặc định sheet đầu tiên (4 file thật đều 1 sheet) |
 | 8b | **Nạp nhiều file trong một lượt** | ✅ | Kéo 3-4 file, xem trước từng file, lưu một lần |
 | 9 | Cột tiền (ARPU, trả trước) | 🟡 | Định dạng trong CSV lẫn lộn — chờ file .xlsx gốc |

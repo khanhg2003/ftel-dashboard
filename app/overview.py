@@ -143,6 +143,17 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         tong = sub.drop(columns=["phong", "bay"]).sum()
         rows.append({"phong_code": f"SUB_{bcode}", "loai_dong": "subtotal",
                      "phong": binfo.get("ten_tong", f"TỔNG {binfo['ten']}"), **tong.to_dict()})
+    # Xem toàn chi nhánh: thêm dòng tổng riêng Đà Nẵng / Quảng Nam ngay trên dòng tổng
+    # (bầy trộn phòng của cả hai tỉnh nên không đọc được từ các dòng tổng bầy)
+    if chi_nhanh == "all":
+        cn_cua = pd.Series({c: meta[c].get("chi_nhanh") for c in codes})
+        if cn_cua.nunique() > 1:
+            for cn in ("DNG", "QNM"):
+                sub = df[cn_cua.reindex(df.index) == cn]
+                if len(sub):
+                    rows.append({"phong_code": f"CN_{cn}", "loai_dong": "chinhanh",
+                                 "phong": f"TỔNG {cn}",
+                                 **sub.drop(columns=["phong", "bay"]).sum().to_dict()})
     tong_all = df.drop(columns=["phong", "bay"]).sum()
     rows.append({"phong_code": "TOTAL", "loai_dong": "total",
                  "phong": TEN_DONG_TONG.get(chi_nhanh, TEN_DONG_TONG["all"]),

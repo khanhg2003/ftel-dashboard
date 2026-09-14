@@ -13,6 +13,7 @@ from app.ingest.normalize import norm_acc, norm_manv, norm_text, parse_date
 from app.models import (AuditLog, FactCamera, FactFptPlay, FactInternet, HrMonthly, StaffMap,
                         UploadBatch, User)
 from app.org import phong_order
+from app.thoi_gian import chu_gio_vn, gio_viet_nam, utc_bay_gio
 
 ph = PasswordHasher()
 ROLES = [("admin", "Quản trị (BGD)"), ("operator", "Nhập liệu"), ("phong", "Trưởng phòng")]
@@ -32,9 +33,9 @@ def danh_sach_user() -> pd.DataFrame:
     df["pham_vi"] = [_scope_text(s) if r in ("phong", "bay") else "Toàn chi nhánh"
                      for s, r in zip(df["scope"], df["role"])]
     df["trang_thai"] = df.apply(
-        lambda r: "Đang khoá" if (r.locked_until and str(r.locked_until) > str(datetime.now()))
+        lambda r: "Đang khoá" if (r.locked_until and str(r.locked_until) > str(utc_bay_gio()))
         else ("Đang dùng" if r.active else "Ngừng dùng"), axis=1)
-    df["lan_cuoi"] = df["last_login"].astype(str).str[:16].replace("None", "")
+    df["lan_cuoi"] = [chu_gio_vn(v) for v in df["last_login"]]
     return df
 
 
@@ -221,7 +222,8 @@ def lich_su_nap(limit: int = 50) -> pd.DataFrame:
                      engine, params={"n": limit})
     if df.empty:
         return df
-    df["thoi_diem"] = df["uploaded_at"].astype(str).str[:16]
+    df["thoi_diem"] = [chu_gio_vn(v, "%H:%M %d/%m/%Y") for v in df["uploaded_at"]]
+    df["thoi_diem_sx"] = [chu_gio_vn(v, "%Y-%m-%d %H:%M") for v in df["uploaded_at"]]
     df["con_lai"] = [_dem_dong_batch(int(i), d) for i, d in zip(df.id, df.dataset)]
     return df
 
@@ -252,7 +254,7 @@ def go_bo_lan_nap(batch_id: int, nguoi_thuc_hien: str) -> dict:
         else:
             return {"ok": False, "msg": "Loại dữ liệu này không gỡ tự động được."}
         batch.note = ((batch.note or "") + f" | Đã gỡ {n} dòng lúc "
-                      f"{datetime.now():%d/%m/%Y %H:%M} bởi {nguoi_thuc_hien}").strip(" |")
+                      f"{gio_viet_nam():%H:%M %d/%m/%Y} bởi {nguoi_thuc_hien}").strip(" |")
         s.add(AuditLog(username=nguoi_thuc_hien, action="go_bo_lan_nap",
                        detail=f"batch {batch_id} ({batch.dataset}): {n} dòng"))
     return {"ok": True, "so_dong": n, "dataset": batch.dataset}

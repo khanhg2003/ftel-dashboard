@@ -64,6 +64,8 @@ KET_LUAN_STYLE = {"styleConditions": [
 ROW_STYLE = {"styleConditions": [
     {"condition": "params.data.loai_dong == 'subtotal'",
      "style": {"backgroundColor": "#EDF3F9", "fontWeight": "700", "color": "#C8372D"}},
+    {"condition": "params.data.loai_dong == 'chinhanh'",
+     "style": {"backgroundColor": "#E4EDF7", "fontWeight": "700", "color": "#003057"}},
     {"condition": "params.data.loai_dong == 'total'",
      "style": {"backgroundColor": "#DCE8F4", "fontWeight": "700", "color": "#003057"}},
 ]}

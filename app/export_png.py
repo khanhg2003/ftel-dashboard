@@ -36,6 +36,7 @@ NEN_COT = "#E3EEF8"
 NEN_SUB = "#E9EFF6"
 NEN_TOTAL = "#D4E3F1"
 NEN_KHAC = "#FFF3E3"
+NEN_CN = "#E2EBF5"
 CHU_THUONG = "#141C26"
 CHU_SUB = "#C0322A"
 CHU_TOTAL = "#002B4E"
@@ -212,8 +213,10 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
     h = bo.px(CAO_DONG)
     for r in rows:
         loai = r.get("loai_dong")
-        nen_dong = {"subtotal": NEN_SUB, "total": NEN_TOTAL, "nhomkhac": NEN_KHAC}.get(loai)
-        mau_chu = {"subtotal": CHU_SUB, "total": CHU_TOTAL, "nhomkhac": CHU_KHAC}.get(
+        nen_dong = {"subtotal": NEN_SUB, "total": NEN_TOTAL, "nhomkhac": NEN_KHAC,
+                    "chinhanh": NEN_CN}.get(loai)
+        mau_chu = {"subtotal": CHU_SUB, "total": CHU_TOTAL, "nhomkhac": CHU_KHAC,
+                   "chinhanh": CHU_TOTAL}.get(
             loai, CHU_THUONG)
         x = x0
         for i, (_, khoa, kieu) in enumerate(cols):
