@@ -266,3 +266,86 @@ def _cac_node(node, out=None):
         for c in con if isinstance(con, (list, tuple)) else [con]:
             _cac_node(c, out)
     return out
+
+
+# ------------------------------------------------------- đợt 3: bộ lọc chung
+def test_bo_loc_chung_lam_sach_va_uu_tien_duong_dan():
+    from app.ui import ky_chung as kc
+    assert kc.lam_sach({"tu": "2026-09-05", "den": "2026-09-01", "cn": "HN", "phong": "<script>"}) == \
+        {"den": "2026-09-01"}
+    assert kc.doc({"den": "2026-09-10", "cn": "DNG"}, "?den=2026-09-11&tab=sosanh") == \
+        {"den": "2026-09-11", "cn": "DNG"}
+    assert kc.doc(None, "?tu=2026-13-01&den=abc") == {}
+    ngays = ["2026-08-30", "2026-09-01", "2026-09-02", "2026-09-05"]
+    assert kc.ngay_co_so("2026-09-04", ngays) == "2026-09-02"
+    assert kc.ca_thang("2026-09", ngays) == {"tu": "2026-09-01", "den": "2026-09-05"}
+    # luỹ kế tháng -> kỳ 1 là cùng kỳ tháng trước; khoảng tự chọn -> khoảng liền trước cùng số ngày
+    assert kc.hai_ky({"tu": "2026-09-01", "den": "2026-09-05"}, ngays) == \
+        ("2026-08-01", "2026-08-05", "2026-09-01", "2026-09-05")
+    assert kc.hai_ky({"tu": "2026-09-02", "den": "2026-09-05"}, ngays) == \
+        ("2026-08-29", "2026-09-01", "2026-09-02", "2026-09-05")
+    assert kc.hai_ky({}, ngays) is None
+
+
+def _gia_tri(node, id_, prop):
+    n = [x for x in _cac_node(node) if getattr(x, "id", None) == id_]
+    return getattr(n[0], prop) if n else None
+
+
+def test_cac_trang_mo_voi_bo_loc_da_chon(tai_khoan):
+    from flask_login import login_user
+
+    from app.ui.app import _router, server
+    ky = {"tu": "2026-09-03", "den": "2026-09-08", "cn": "QNM", "phong": "IBB2"}
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        tq, _ = _router("/", "", ky)
+        assert _gia_tri(tq, "tq-khoang", "start_date") == "2026-09-03"
+        assert _gia_tri(tq, "tq-khoang", "end_date") == "2026-09-08"
+        assert _gia_tri(tq, "tq-cn", "value") == "QNM"
+        bp, _ = _router("/phong", "", ky)
+        assert _gia_tri(bp, "bp-date", "date") == "2026-09-08" and _gia_tri(bp, "bp-phong", "value") == "IBB2"
+        hr, _ = _router("/hr", "", ky)
+        assert _gia_tri(hr, "hr-date", "date") == "2026-09-08" and _gia_tri(hr, "hr-phong", "value") == "IBB2"
+        db, _ = _router("/sosanh", "", ky)
+        assert _gia_tri(db, "ss-k2-tu", "date") == "2026-09-03"
+        assert _gia_tri(db, "ss-k1-den", "date") == "2026-09-02"
+        assert _gia_tri(db, "tk-thang", "value") == "2026-09"
+        cl, _ = _router("/chatluong", "?den=2026-09-11&cn=DNG", ky)     # đường dẫn thắng
+        assert _gia_tri(cl, "cl-cn", "value") == "DNG"
+
+
+def test_truong_phong_khong_mo_duoc_phong_khac_qua_duong_dan(tai_khoan):
+    from flask_login import login_user
+
+    from app.ui.app import _router, server
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_phong"))
+        bp, _ = _router("/phong", "?phong=IBB7", None)
+    assert _gia_tri(bp, "bp-phong", "value") == "IBB2"
+
+
+def test_doi_bo_loc_thi_ghi_vao_bo_loc_chung(tai_khoan):
+    from dash import no_update
+    from flask_login import login_user
+
+    from app.ui.app import app, server
+    ghi = [v["callback"] for k, v in app.callback_map.items()
+           if k.startswith("..ky-chung.data") or k.startswith("ky-chung.data")]
+    assert len(ghi) >= 8                             # 7 trang + đọc từ đường dẫn
+    ham = _callback_theo_input("bp-date")
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        assert ham("2026-09-08", "IBB6", {"cn": "DNG"}) == \
+            {"tu": "2026-09-01", "den": "2026-09-08", "cn": "DNG", "phong": "IBB6"}
+        assert ham("2026-09-08", "IBB6", {"tu": "2026-09-01", "den": "2026-09-08", "phong": "IBB6"}) is no_update
+        hr = _callback_theo_input("hr-date")
+        assert hr("2026-09-08", "all", "__kd", {"phong": "IBB6"})["phong"] == "IBB6"   # "tất cả" không xoá phòng
+
+
+def _callback_theo_input(id_):
+    from app.ui.app import app
+    for k, v in app.callback_map.items():
+        if "ky-chung.data" in k and any(i["id"] == id_ for i in v["inputs"]):
+            return getattr(v["callback"], "__wrapped__", v["callback"])
+    raise KeyError(id_)

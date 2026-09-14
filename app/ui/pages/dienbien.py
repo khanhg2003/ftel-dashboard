@@ -24,13 +24,13 @@ def topbar(tab: str = "ngay"):
             html.Div(id="ss-badge", hidden=tab != "sosanh")]
 
 
-def layout(tab: str = "ngay"):
+def layout(tab: str = "ngay", ky: dict | None = None):
     tab = tab if tab in dict(TAB) else "ngay"
     return html.Div([
         html.Div(seg_control("db-tab", TAB, tab), className="tab-lon"),
         html.Div(style={"height": "14px"}),
-        html.Div(tracking.layout(), id="db-pane-ngay", hidden=tab != "ngay"),
-        html.Div(sosanh.layout(), id="db-pane-sosanh", hidden=tab != "sosanh"),
+        html.Div(tracking.layout(ky), id="db-pane-ngay", hidden=tab != "ngay"),
+        html.Div(sosanh.layout(ky), id="db-pane-sosanh", hidden=tab != "sosanh"),
     ])
 
 

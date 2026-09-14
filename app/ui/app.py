@@ -7,6 +7,7 @@ from flask_login import current_user, login_user, logout_user
 
 from app.auth import ROLE_LABEL, login_manager, xac_thuc
 from app.config import BASE_DIR, SECRET_KEY
+from app.ui import ky_chung
 from app.ui.icons import icon
 from app.ui.viet_hoa import viet_hoa
 
@@ -175,6 +176,9 @@ def serve_layout():
         dcc.Store(id="ui-sidebar", storage_type="local", data={"thu_gon": False}),
         dcc.Store(id="ui-vw", data={"w": 1440, "h": 900}),
         dcc.Store(id="ui-menu"),
+        # kỳ báo cáo, chi nhánh, phòng dùng chung giữa các trang (xem app/ui/ky_chung.py)
+        dcc.Store(id="ky-chung", storage_type="session"),
+        dcc.Store(id="ui-duong-dan"),
         html.Div(id="sidebar-container"),
         html.Div(id="menu-nen", className="menu-nen"),
         html.Div([
@@ -258,9 +262,24 @@ def _render_sidebar(path):
     return _sidebar(path or "/")
 
 
+app.clientside_callback(ky_chung.JS_GHI_DUONG_DAN, Output("ui-duong-dan", "data"),
+                        Input("ky-chung", "data"), Input("url", "pathname"))
+
+
+@app.callback(Output("ky-chung", "data", allow_duplicate=True), Input("url", "pathname"),
+              State("url", "search"), State("ky-chung", "data"), prevent_initial_call="initial_duplicate")
+def _ky_tu_duong_dan(_path, search, store):
+    """Mở link có ?tu=&den=&cn=&phong= thì lấy làm bộ lọc chung cho các trang sau."""
+    tu_url = ky_chung.doc(None, search)
+    if not tu_url:
+        return no_update
+    moi = ky_chung.doc(store, search)
+    return moi if moi != ky_chung.lam_sach(store) else no_update
+
+
 @app.callback(Output("page-content", "children"), Output("topbar", "children"),
-              Input("url", "pathname"), State("url", "search"))
-def _router(path, search=None):
+              Input("url", "pathname"), State("url", "search"), State("ky-chung", "data"))
+def _router(path, search=None, store=None):
     from urllib.parse import parse_qs
 
     from app.ui.pages import chatluong, dienbien, huongdan
@@ -270,6 +289,7 @@ def _router(path, search=None):
 
     path = path or "/"
     tab = (parse_qs((search or "").lstrip("?")).get("tab") or [None])[0]
+    ky = ky_chung.doc(store, search)
     if path == "/taikhoan":
         return taikhoan.layout(), taikhoan.topbar()
     if path == "/huongdan":
@@ -278,27 +298,27 @@ def _router(path, search=None):
         return (html.Div("Bạn không có quyền xem chi tiết nhân sự."),
                 _topbar_simple("Báo cáo phòng" if path == "/phong" else "Nhân sự & NSLĐ"))
     if path == "/phong":
-        return phong.layout(), phong.topbar()
+        return phong.layout(ky), phong.topbar()
     if path == "/phantich":
-        return phantich.layout(), phantich.topbar()
+        return phantich.layout(ky), phantich.topbar()
     if path in ("/tracking", "/sosanh"):
         tab = "sosanh" if path == "/sosanh" else (tab or "ngay")
-        return dienbien.layout(tab), dienbien.topbar(tab)
+        return dienbien.layout(tab, ky), dienbien.topbar(tab)
     if path == "/chatluong":
-        return chatluong.layout(), chatluong.topbar()
+        return chatluong.layout(ky), chatluong.topbar()
     if path in ("/quantri", "/settings"):
         if not current_user.duoc_cau_hinh:
             return html.Div("Bạn không có quyền vào mục Quản trị."), _topbar_simple("Quản trị")
         return quantri.layout("cocau" if path == "/settings" and not tab else tab), quantri.topbar()
     if path == "/hr":
-        return hr_page.layout(), hr_page.topbar()
+        return hr_page.layout(ky), hr_page.topbar()
     if path == "/upload":
         if not current_user.duoc_upload:
             return html.Div("Bạn không có quyền nạp dữ liệu."), _topbar_simple("Nạp dữ liệu")
         return upload.layout(), upload.topbar()
     if path not in ("/", ""):
         return _trang_khong_co(path), _topbar_simple("Không tìm thấy trang")
-    return tongquan.layout(), tongquan.topbar()
+    return tongquan.layout(ky), tongquan.topbar()
 
 
 def _trang_khong_co(path: str):

@@ -22,6 +22,8 @@ from app.admin_service import (acc_la, acc_trung_danh_muc, chua_gan_phong, do_mo
 from app.metrics import cac_thang_co_du_lieu
 from app.org import phong_order
 from app.ui.components import LOCALE_VI, alert, chi_nhanh_control, chon_ky, field, gan_dieu_huong_ky, kpi, seg_control
+from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
+from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
 
@@ -40,12 +42,13 @@ def _the(tieu_de, id_mo_ta, noi_dung, nut=None):
     ], className="card")
 
 
-def layout():
+def layout(ky: dict | None = None):
+    ky = ky or {}
     thangs = cac_thang_co_du_lieu() or ["2026-09"]
     return html.Div([
         html.Div([
-            field("Kỳ kiểm tra", chon_ky("cl-thang", thangs)),
-            field("Chi nhánh", chi_nhanh_control("cl-cn")),
+            field("Kỳ báo cáo · theo tháng", chon_ky("cl-thang", thangs, kc.thang_cua(ky, thangs))),
+            field("Chi nhánh", chi_nhanh_control("cl-cn", ky.get("cn", "all"))),
             html.Div(className="grow"),
             field(" ", html.Div([
                 dcc.Link([icon("upload", 14), html.Span("Nạp dữ liệu")], href="/upload", className="btn"),
@@ -166,6 +169,8 @@ def _ngay(d: str | None) -> str:
 
 
 def register(app):
+    kc.ghi(app, ("cl-thang", "value"), ("cl-cn", "value"),
+           chuyen=lambda thang, cn: {**kc.ca_thang(thang, _cac_ngay()), "cn": cn})
     gan_dieu_huong_ky(app, "cl-thang")
 
     @app.callback(

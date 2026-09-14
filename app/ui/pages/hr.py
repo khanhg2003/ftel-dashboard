@@ -27,6 +27,7 @@ from app.metrics import cac_ngay_co_du_lieu
 from app.org import phong_order
 from app.ui.components import (LOCALE_VI, alert, chi_nhanh_control, chon_ngay, chu_giai, field,
                                gan_chon_ngay, kpi, seg_control)
+from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
 MAU_NHOM = {"MOI": "#F37021", "DANG_LEN": "#37A5E6", "ON_DINH": "#0072BC", "LAU_NAM": "#00A650"}
@@ -112,13 +113,15 @@ DINH_NGHIA_NSLD = [
 TAT_CA_KD, TAT_CA = "__kd", "__all"
 
 
-def layout():
+def layout(ky: dict | None = None):
+    ky = ky or {}
     ngays = cac_ngay_co_du_lieu()
     return html.Div([
         html.Div([
-            field("Ngày báo cáo", chon_ngay("hr", ngays)),
-            field("Chi nhánh", chi_nhanh_control("hr-cn")),
+            field("Kỳ báo cáo · luỹ kế đến ngày", chon_ngay("hr", ngays, kc.ngay_co_so(ky.get("den"), ngays))),
+            field("Chi nhánh", chi_nhanh_control("hr-cn", ky.get("cn", "all"))),
             field("Phòng", dcc.Dropdown(id="hr-phong", clearable=False, searchable=True,
+                                        value=ky.get("phong"),
                                         placeholder="Tất cả phòng kinh doanh",
                                         style={"width": "240px"})),
         ], className="toolbar loc-trang"),
@@ -520,6 +523,10 @@ def _du_lieu_nsld(ngay_iso, chi_nhanh):
 
 
 def register(app):
+    kc.ghi(app, ("hr-date", "date"), ("hr-cn", "value"), ("hr-phong", "value"),
+           chuyen=lambda den, cn, phong: {**kc.luy_ke(den), "cn": cn,
+                                          **({"phong": phong} if phong not in (None, TAT_CA_KD, TAT_CA)
+                                             else {})})
     gan_chon_ngay(app, "hr")
 
     @app.callback(Output("hr-phong", "options"), Output("hr-phong", "value"),

@@ -28,6 +28,7 @@ from app.org import loc_chi_nhanh, phong_order
 from app.overview import TEN_DONG_TONG, TEN_PHAM_VI
 from app.ui.components import (LOCALE_VI, alert, card, chi_nhanh_control, chon_ngay, chu_giai, field,
                                gan_chon_ngay, kpi, seg_control)
+from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
 MAU_TOT, MAU_VUA, MAU_KEM = ("#D3EBD4", "#14532D"), ("#FCEBB4", "#6B5104"), ("#F7BDBD", "#7F1D1D")
@@ -98,7 +99,8 @@ def _dau_the(tieu_de: str, mo_ta_id: str | None, *dieu_khien):
         html.Div(className="grow"), *dieu_khien], className="the-thanh")
 
 
-def layout():
+def layout(ky: dict | None = None):
+    ky = ky or {}
     ngays = cac_ngay_co_du_lieu()
     xem_nv = current_user.duoc_xem_nhan_su
     lua_chon_phong = [{"label": "Mọi phòng được xem", "value": "all"}] + [
@@ -106,8 +108,8 @@ def layout():
         if current_user.phong_nhan_su() is None or p["code"] in set(current_user.phong_nhan_su())]
     return html.Div([
         html.Div([
-            field("Ngày báo cáo", chon_ngay("pt", ngays)),
-            field("Chi nhánh", chi_nhanh_control("pt-cn")),
+            field("Kỳ báo cáo · luỹ kế đến ngày", chon_ngay("pt", ngays, kc.ngay_co_so(ky.get("den"), ngays))),
+            field("Chi nhánh", chi_nhanh_control("pt-cn", ky.get("cn", "all"))),
             html.Div(className="grow"),
             field(" ", html.Button([icon("download", 14), html.Span("Excel")], id="pt-xls",
                                    className="btn", title="Tải toàn bộ bảng của trang, mỗi bảng "
@@ -465,6 +467,8 @@ def _nhan_vien(df, ton, thang, pham_vi_nv, phong_loc, loc) -> pd.DataFrame:
 
 # ------------------------------------------------------------------ callback
 def register(app):
+    kc.ghi(app, ("pt-date", "date"), ("pt-cn", "value"),
+           chuyen=lambda den, cn: {**kc.luy_ke(den), "cn": cn})
     gan_chon_ngay(app, "pt")
 
     @app.callback(Output("pt-ton-phong-hop", "hidden"), Output("pt-ton-ds-hop", "hidden"),

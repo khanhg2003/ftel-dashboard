@@ -14,6 +14,8 @@ from app.metrics import (METRIC_LABEL, cac_thang_co_du_lieu, daily_counts, month
 from app.org import bay_info, loc_chi_nhanh, phong_order
 from app.ui.components import (GRID_STYLE_CONDITIONS, card, chi_nhanh_control, chon_ky, field,
                                gan_dieu_huong_ky, kpi, pct_vn, seg_control, so_vn)
+from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
+from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
 ZOOM_STEPS = [50, 75, 90, 100, 125, 150, 200]
@@ -48,12 +50,13 @@ def _thang_mac_dinh() -> str:
     return ds[0] if ds else "2026-09"
 
 
-def layout():
+def layout(ky: dict | None = None):
+    ky = ky or {}
     thangs = cac_thang_co_du_lieu() or [_thang_mac_dinh()]
     return html.Div([
         html.Div([
-            field("Kỳ báo cáo", chon_ky("tk-thang", thangs)),
-            field("Chi nhánh", chi_nhanh_control("tk-cn")),
+            field("Kỳ báo cáo · theo tháng", chon_ky("tk-thang", thangs, kc.thang_cua(ky, thangs))),
+            field("Chi nhánh", chi_nhanh_control("tk-cn", ky.get("cn", "all"))),
             html.Div(className="grow"),
             field("Chỉ số", seg_control("tk-metric",
                                         [("online", "Số Online"), ("vvip", "Số V.VIP"),
@@ -120,6 +123,8 @@ def _fig(fig: go.Figure, height: int = 320) -> go.Figure:
 
 
 def register(app):
+    kc.ghi(app, ("tk-thang", "value"), ("tk-cn", "value"),
+           chuyen=lambda thang, cn: {**kc.ca_thang(thang, _cac_ngay()), "cn": cn})
     gan_dieu_huong_ky(app, "tk-thang")
 
     @app.callback(Output("tk-tai-xuong", "data"), Input("tk-export", "n_clicks"),

@@ -156,10 +156,11 @@ def chi_nhanh_control(id: str, value: str = "all"):
     return seg_control(id, [("all", "Tất cả"), ("DNG", "Đà Nẵng"), ("QNM", "Quảng Nam")], value)
 
 
-def chon_ngay(prefix: str, ngays: list[str]):
+def chon_ngay(prefix: str, ngays: list[str], value: str | None = None):
     """Bộ chọn ngày báo cáo dùng chung: ‹ lịch › + nút Mới nhất. Chỉ cho chọn ngày đã có số."""
     from datetime import date, timedelta
     moi_nhat = ngays[-1] if ngays else None
+    chon = value if value in set(ngays) else moi_nhat
     co = set(ngays)
     thieu = []
     if ngays:
@@ -168,9 +169,9 @@ def chon_ngay(prefix: str, ngays: list[str]):
                  if (d0 + timedelta(days=i)).isoformat() not in co]
     return html.Div([
         html.Button("‹", id=f"{prefix}-lui", className="nut-ky", title="Ngày trước đó"),
-        dcc.DatePickerSingle(id=f"{prefix}-date", date=moi_nhat, display_format="DD/MM/YYYY",
+        dcc.DatePickerSingle(id=f"{prefix}-date", date=chon, display_format="DD/MM/YYYY",
                              min_date_allowed=ngays[0] if ngays else None,
-                             max_date_allowed=moi_nhat, initial_visible_month=moi_nhat,
+                             max_date_allowed=moi_nhat, initial_visible_month=chon,
                              disabled_days=thieu, first_day_of_week=1, clearable=False,
                              className="date-pick"),
         html.Button("›", id=f"{prefix}-toi", className="nut-ky", title="Ngày sau đó"),

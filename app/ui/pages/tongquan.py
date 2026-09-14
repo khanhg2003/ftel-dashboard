@@ -25,6 +25,7 @@ from app.metrics import cac_ngay_co_du_lieu
 from app.org import loc_chi_nhanh
 from app.overview import TEN_PHAM_VI, bang_tong_quan, lui_mot_thang, trang_thai_ngay
 from app.ui.components import chi_nhanh_control, field, kpi, seg_control
+from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
 # thang màu giống bảng tính: đỏ nhạt -> cam -> vàng -> xanh nhạt -> xanh
@@ -78,19 +79,24 @@ def topbar():
             html.Div(id="tq-badge")]
 
 
-def layout():
+def layout(ky: dict | None = None):
+    ky = ky or {}
     ngays = cac_ngay_co_du_lieu()
     moi_nhat = ngays[-1] if ngays else None
+    den = kc.ngay_co_so(ky.get("den"), ngays) if ky.get("den") else moi_nhat
+    tu = ky.get("tu") if ky.get("tu") and den and ky["tu"] <= den else ((den[:8] + "01") if den else None)
+    if tu and ngays and tu < ngays[0][:8] + "01":
+        tu = ngays[0][:8] + "01"
     return html.Div([
         html.Div([
-            field("Kỳ báo cáo (từ ngày - đến ngày)", html.Div([
+            field("Kỳ báo cáo · từ ngày - đến ngày", html.Div([
                 html.Button("‹", id="tq-lui", className="nut-ky", title="Lùi một ngày"),
                 dcc.DatePickerRange(
-                    id="tq-khoang", start_date=(moi_nhat[:8] + "01") if moi_nhat else None,
-                    end_date=moi_nhat, display_format="DD/MM/YYYY",
+                    id="tq-khoang", start_date=tu,
+                    end_date=den, display_format="DD/MM/YYYY",
                     min_date_allowed=(ngays[0][:8] + "01") if ngays else None,
                     max_date_allowed=ngays[-1] if ngays else None,
-                    initial_visible_month=moi_nhat, first_day_of_week=1, clearable=False,
+                    initial_visible_month=den, first_day_of_week=1, clearable=False,
                     minimum_nights=0, start_date_placeholder_text="Từ ngày",
                     end_date_placeholder_text="Đến ngày", className="date-pick khoang"),
                 html.Button("›", id="tq-toi", className="nut-ky", title="Tới một ngày"),
@@ -105,7 +111,7 @@ def layout():
                                  {"label": "Cùng kỳ tháng trước", "value": "cungky"},
                                  {"label": "Cả tháng trước", "value": "thangtruoc"}]),
             ], className="chon-ngay")),
-            field("Chi nhánh", chi_nhanh_control("tq-cn")),
+            field("Chi nhánh", chi_nhanh_control("tq-cn", ky.get("cn", "all"))),
         ], className="toolbar loc-trang"),
         dcc.Download(id="tq-tai-xuong"),
         dcc.Store(id="tq-ty-le", data=1),
@@ -415,6 +421,8 @@ def _huy_hieu(tam_tinh: bool, luc) -> html.Span:
 
 
 def register(app):
+    kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),
+           chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     # Điện thoại: mở trang là dùng bảng Gọn luôn
     app.clientside_callback(
         """function(_) { return window.innerWidth < %d ? 'gon' : window.dash_clientside.no_update; }"""

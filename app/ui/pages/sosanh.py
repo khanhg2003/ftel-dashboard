@@ -13,6 +13,7 @@ from app.export_phan_tich import xuat_phan_tich
 from app.metrics import METRIC_LABEL, cac_ngay_co_du_lieu, so_sanh_acc, so_sanh_ky
 from app.org import loc_chi_nhanh, phong_order
 from app.ui.components import card, chi_nhanh_control, field, kpi, pct_vn, seg_control, so_vn
+from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
 TOP_N = 15
@@ -27,11 +28,15 @@ def _dp(gid, ngays, mac_dinh):
                                 first_day_of_week=1, clearable=False, className="date-pick")
 
 
-def layout():
+def layout(ky: dict | None = None):
+    ky = ky or {}
     ngays = cac_ngay_co_du_lieu()
     cuoi = date.fromisoformat(ngays[-1]) if ngays else date.today()
     k2_tu, k2_den = cuoi - timedelta(days=6), cuoi
     k1_tu, k1_den = k2_tu - timedelta(days=7), k2_tu - timedelta(days=1)
+    chon = kc.hai_ky(ky, ngays)          # đã chọn kỳ ở trang khác: kỳ 2 = kỳ đó
+    if chon:
+        k1_tu, k1_den, k2_tu, k2_den = (date.fromisoformat(x) for x in chon)
     return html.Div([
         card([
             # Hàng 1: Preset shortcuts + Chỉ số + Chi nhánh (tự hiểu, không cần label)
@@ -47,7 +52,7 @@ def layout():
                                           ("camera", "Camera")], "online"),
                 html.Div(style={"width": "1px", "background": "#E4E9F0",
                                 "alignSelf": "stretch", "margin": "0 10px"}),
-                chi_nhanh_control("ss-cn"),
+                chi_nhanh_control("ss-cn", ky.get("cn", "all")),
                 html.Button([icon("download", 14), html.Span("Excel")], id="ss-export", className="btn",
                             title="Tải bảng theo phòng, Top giảm và Top tăng (mỗi bảng một sheet)",
                             style={"marginLeft": "10px"}),
@@ -174,6 +179,8 @@ def _cols_acc():
 
 
 def register(app):
+    kc.ghi(app, ("ss-k2-tu", "date"), ("ss-k2-den", "date"), ("ss-cn", "value"),
+           chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     @app.callback(Output("ss-k1-tu", "date"), Output("ss-k1-den", "date"),
                   Output("ss-k2-tu", "date"), Output("ss-k2-den", "date"),
                   Input("ss-p-7ngay", "n_clicks"), Input("ss-p-tuan", "n_clicks"),

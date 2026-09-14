@@ -30,6 +30,7 @@ from app.org import phong_order
 from app.overview import trang_thai_ngay
 from app.ui.components import (LOCALE_VI, alert, card, chon_ngay, chu_giai, field, gan_chon_ngay,
                                kpi, seg_control)
+from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
 SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
@@ -81,7 +82,8 @@ def topbar():
             html.Div(id="bp-badge")]
 
 
-def layout():
+def layout(ky: dict | None = None):
+    ky = ky or {}
     if not current_user.duoc_xem_nhan_su:
         return alert("Tài khoản này không có quyền xem chi tiết nhân sự.", "bad")
     lua_chon = phong_duoc_chon()
@@ -91,8 +93,10 @@ def layout():
     ngays = cac_ngay_co_du_lieu()
     return html.Div([
         html.Div([
-            field("Ngày báo cáo", chon_ngay("bp", ngays)),
-            field("Phòng", dcc.Dropdown(id="bp-phong", options=lua_chon, value=lua_chon[0]["value"],
+            field("Kỳ báo cáo · luỹ kế đến ngày", chon_ngay("bp", ngays, kc.ngay_co_so(ky.get("den"), ngays))),
+            field("Phòng", dcc.Dropdown(id="bp-phong", options=lua_chon,
+                                        value=ky["phong"] if duoc_xem_phong(ky.get("phong"))
+                                        else lua_chon[0]["value"],
                                         clearable=False, searchable=len(lua_chon) > 6,
                                         disabled=len(lua_chon) == 1, style={"width": "210px"})),
             html.Div(className="grow"),
@@ -431,6 +435,8 @@ def _ngan_noi_dung(thang: str, ngay: int, code: str, r: dict):
 
 # ------------------------------------------------------------------ callback
 def register(app):
+    kc.ghi(app, ("bp-date", "date"), ("bp-phong", "value"),
+           chuyen=lambda den, phong: {**kc.luy_ke(den), "phong": phong})
     gan_chon_ngay(app, "bp")
 
     @app.callback(
