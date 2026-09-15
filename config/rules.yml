@@ -3,7 +3,8 @@ vvip:
   goi_tinh_vvip: ["V.VIP", "V.VIP Plus"]   # V.VIP Plus ĐƯỢC tính vào V.VIP
   goi_fpt_play_khac: ["VIP", "KXD"]
 camera:
-  gop_dong_trung_lap: true    # 2 dòng giống hệt nhau (trừ cột STT) = 1 camera
+  # BGĐ chốt lại 15/09/2026: bám theo file Inside như sheet - dòng giống hệt nhau vẫn đếm từng dòng
+  gop_dong_trung_lap: false
 fptplay:
   gop_dong_trung_lap: true
 chua_gan_phong:

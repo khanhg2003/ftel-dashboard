@@ -217,7 +217,7 @@ def register(app):
         return [
             kpi("Số Online", so_vn(online), delta),
             kpi("Số V.VIP", so_vn(vvip), f"Tỷ lệ V.VIP/Online {pct_vn(ty_vvip)}"),
-            kpi("Camera", so_vn(camera), "Đã loại các dòng trùng"),
+            kpi("Camera", so_vn(camera), "Đếm từng dòng file Camera"),
             kpi("Số tồn", so_vn(ton),
                 "Đã ký nhưng chưa online",
                 "warn" if ton else ""),

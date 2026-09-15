@@ -75,7 +75,7 @@ def test_tong_thang_khop_so_da_doi_chieu():
     assert ngay == 11
     assert int(tong.online) == 1394        # sheet cũ ghi 1.397 (đếm trùng 4, sót 1)
     assert int(tong.vvip) == 980           # sheet cũ ghi 983
-    assert int(tong.camera) == 554         # sheet cũ ghi 587 (đếm cả dòng trùng)
+    assert int(tong.camera) == 587         # = sheet: đếm từng dòng file Inside, kể cả dòng giống hệt (chốt 15/09)
     assert int(tong.cnql) == 1003
     assert int(tong.fpl_combo) == 983
     assert int(tong.so_ton) == 899

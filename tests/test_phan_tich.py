@@ -149,6 +149,19 @@ def test_nap_lai_camera_khong_dem_trung_khi_hop_dong_doi_thong_tin():
         s.close()
 
 
+def test_camera_dong_giong_het_van_dem_tung_dong_va_nap_lai_khong_nhan_doi():
+    from app.ingest.commit import _danh_so_dong_camera_giong_nhau
+
+    def file():
+        return [{"row_hash": "a"}, {"row_hash": "a"}, {"row_hash": "b"}, {"row_hash": "a"}]
+    lan1, lan2 = file(), file()
+    _danh_so_dong_camera_giong_nhau(lan1)
+    _danh_so_dong_camera_giong_nhau(lan2)
+    ma = [r["row_hash"] for r in lan1]
+    assert ma == ["a", "a#2", "b", "a#3"] and len(set(ma)) == 4       # 4 dòng file = 4 camera
+    assert ma == [r["row_hash"] for r in lan2]                          # nạp lại cùng file -> cùng mã
+
+
 def test_trang_phan_tich_dung_duoc():
     from flask_login import login_user
     from sqlalchemy import select

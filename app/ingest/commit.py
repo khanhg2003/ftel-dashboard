@@ -138,6 +138,18 @@ def _fact_rows(res: LoadResult, staff_map: dict[str, str], batch_id: int) -> lis
     return rows
 
 
+def _danh_so_dong_camera_giong_nhau(rows: list[dict]) -> None:
+    """Camera đếm theo từng dòng của file export, kể cả dòng giống hệt nhau (rules.yml
+    camera.gop_dong_trung_lap: false - bám theo dữ liệu Inside như sheet). Dòng giống nhau thứ 2, 3... trong cùng file được
+    đánh số vào mã băm để cùng được lưu; nạp lại đúng file đó vẫn ra đúng các mã cũ nên không nhân đôi."""
+    lan = {}
+    for r in rows:
+        goc = r["row_hash"]
+        lan[goc] = lan.get(goc, 0) + 1
+        if lan[goc] > 1:
+            r["row_hash"] = f"{goc}#{lan[goc]}"
+
+
 def _bo_dong_camera_cu(session, rows: list[dict]) -> int:
     """Camera khoá theo mã băm cả dòng, nên khi một hợp đồng đổi thông tin (vừa online, đổi hình
     thức thanh toán...) file mới sinh ra dòng có mã băm khác. Nạp lại file 3 tháng mà không bỏ dòng
@@ -177,6 +189,8 @@ def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
         rows = _fact_rows(res, staff_map, batch.id)
         key = KEYS[res.dataset]
         before = len(rows)
+        if res.dataset == "camera" and not rules_config()["camera"].get("gop_dong_trung_lap", True):
+            _danh_so_dong_camera_giong_nhau(rows)
         seen, uniq = set(), []
         for r in rows:                      # bỏ dòng trùng ngay trong file
             if r[key] in seen:
