@@ -78,20 +78,43 @@ def test_ban_ngoai_tinh_la_phan_bu_cua_pttb_cnql():
 
 
 # ---------------------------------------------------------- file cuộn 3 tháng
-def test_so_ton_chi_tinh_hop_dong_con_trong_file_moi_nhat(monkeypatch):
+def _gia_lap_lan_nap(monkeypatch, dong):
     import app.metrics as m
-    lan_nap = pd.DataFrame({"id": [9, 8, 7], "rows_valid": [10500, 10200, 9900]})
-    monkeypatch.setattr(m.pd, "read_sql", lambda *a, **k: lan_nap)
+    df = pd.DataFrame(dong, columns=["batch_id", "cn_ban", "n"])
+    monkeypatch.setattr(m.pd, "read_sql", lambda *a, **k: df)
+    return m
+
+
+def test_so_ton_xet_file_moi_nhat_rieng_tung_chi_nhanh(monkeypatch):
+    # file Đà Nẵng (lần 59) nạp sau file Quảng Nam (lần 58): tồn QNM vẫn lấy từ lần 58
+    m = _gia_lap_lan_nap(monkeypatch, [(59, "DNG_01", 3394), (59, "DNG_02", 4771), (59, "HCM_ECOM", 281),
+                                       (58, "QNM", 2063), (58, "HCM_ECOM", 64), (22, "DNG_01", 40)])
+    assert m.lan_nap_moi_nhat_theo_chi_nhanh() == {"DNG": 59, "QNM": 58}
     dk, p = m.dieu_kien_ton("f.")
-    assert "f.batch_id = :lo_moi_nhat" in dk and p == {"lo_moi_nhat": 9}
+    assert dk.startswith("f.ngay_online IS NULL AND (")
+    assert p["lo_0"] == 59 and p["lo_1"] == 58 and "f.batch_id IN (:lo_0, :lo_1)" in dk
 
 
 def test_file_le_khong_dung_de_loc_so_ton(monkeypatch):
-    import app.metrics as m
-    lan_nap = pd.DataFrame({"id": [9, 8], "rows_valid": [300, 10200]})   # lần mới chỉ là file lẻ
-    monkeypatch.setattr(m.pd, "read_sql", lambda *a, **k: lan_nap)
-    dk, p = m.dieu_kien_ton()
-    assert dk == "ngay_online IS NULL" and p == {}
+    # lần 60 chỉ vài chục dòng Đà Nẵng (file lẻ) -> vẫn dùng bản chụp đầy đủ lần 59
+    m = _gia_lap_lan_nap(monkeypatch, [(60, "DNG_01", 30), (59, "DNG_01", 3394), (59, "DNG_02", 4771),
+                                       (58, "QNM", 2063)])
+    assert m.lan_nap_moi_nhat_theo_chi_nhanh() == {"DNG": 59, "QNM": 58}
+
+
+def test_chua_nap_file_nao_thi_ton_la_moi_hop_dong_chua_online(monkeypatch):
+    m = _gia_lap_lan_nap(monkeypatch, [])
+    assert m.dieu_kien_ton() == ("ngay_online IS NULL", {})
+
+
+def test_so_ton_chay_duoc_tren_database():
+    from sqlalchemy import text
+
+    from app.db import engine
+    from app.metrics import dieu_kien_ton
+    dk, p = dieu_kien_ton("f.")
+    with engine.connect() as c:
+        assert c.execute(text(f"SELECT COUNT(*) FROM fact_internet f WHERE {dk}"), p).scalar() >= 0
 
 
 def test_nap_lai_camera_khong_dem_trung_khi_hop_dong_doi_thong_tin():

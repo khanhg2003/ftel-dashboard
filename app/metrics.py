@@ -111,31 +111,54 @@ def tracking_table(thang: str, metric: str = "online", cong_don: bool = False,
     return df
 
 
-def lan_nap_day_du(dataset: str = "internet") -> int | None:
-    """Mã lần nạp gần nhất nếu đó là một file đầy đủ (bản chụp 3 tháng), ngược lại None.
+# File export là bản chụp cuộn khoảng 3 tháng: hợp đồng bị huỷ/rớt biến mất khỏi file mới, nên hợp
+# đồng chưa online mà không còn trong file mới nhất thì không còn là "tồn".
+# File Internet xuất riêng từng chi nhánh (Đà Nẵng: DNG_01 + DNG_02, Quảng Nam: QNM) - mỗi file là
+# bản chụp riêng, nên "file mới nhất" phải xét theo từng chi nhánh (như sheet dán cả hai file).
+NHOM_FILE_INTERNET = {"DNG": ("DNG_01", "DNG_02"), "QNM": ("QNM",)}
 
-    File export là bản chụp cuộn khoảng 3 tháng: hợp đồng bị huỷ/rớt sẽ biến mất khỏi file mới.
-    Hợp đồng chưa online mà không còn trong file mới nhất thì không còn là "tồn" nữa.
-    Lần nạp chỉ bằng dưới một nửa lần nạp đầy đủ trước đó thì coi là file lẻ (không phải bản chụp),
-    khi đó không dùng để lọc.
+
+def lan_nap_moi_nhat_theo_chi_nhanh() -> dict[str, int]:
+    """{nhóm chi nhánh: mã lần nạp đầy đủ gần nhất của file chi nhánh đó}.
+
+    Đếm trên chính bảng hợp đồng: dòng mang mã lần nạp cuối cùng đã ghi nó. Lần nạp mới nhất có số
+    hợp đồng của chi nhánh chỉ bằng dưới một nửa lần nhiều nhất thì coi là file lẻ, bỏ qua.
     """
-    df = pd.read_sql(text("""SELECT id, rows_valid FROM upload_batch WHERE dataset = :d
-                             ORDER BY id DESC"""), engine, params={"d": dataset})
-    if df.empty:
-        return None
-    moi = df.iloc[0]
-    lon_nhat_truoc = df.iloc[1:6].rows_valid.max() if len(df) > 1 else 0
-    if lon_nhat_truoc and moi.rows_valid < 0.5 * lon_nhat_truoc:
-        return None
-    return int(moi.id)
+    df = pd.read_sql(text("""SELECT batch_id, cn_ban, COUNT(*) AS n FROM fact_internet
+                             WHERE batch_id IS NOT NULL GROUP BY batch_id, cn_ban"""), engine)
+    out = {}
+    for nhom, cns in NHOM_FILE_INTERNET.items():
+        g = df[df.cn_ban.isin(cns)].groupby("batch_id").n.sum().sort_index(ascending=False)
+        if g.empty:
+            continue
+        day_du = g[g >= 0.5 * g.max()]
+        out[nhom] = int(day_du.index[0])
+    return out
 
 
 def dieu_kien_ton(alias: str = "") -> tuple[str, dict]:
-    """Điều kiện SQL cho "Số tồn": chưa online VÀ còn nằm trong file Internet mới nhất."""
-    lo = lan_nap_day_du("internet")
-    if lo is None:
-        return f"{alias}ngay_online IS NULL", {}
-    return f"{alias}ngay_online IS NULL AND {alias}batch_id = :lo_moi_nhat", {"lo_moi_nhat": lo}
+    """Điều kiện SQL cho "Số tồn": chưa online VÀ còn nằm trong file Internet mới nhất của chi nhánh.
+
+    Hợp đồng ECOM (CN bán HCM_ECOM...) có trong cả hai file: còn trong file mới nhất nào cũng tính.
+    """
+    a = alias
+    lo = lan_nap_moi_nhat_theo_chi_nhanh()
+    if not lo:
+        return f"{a}ngay_online IS NULL", {}
+    p, nhanh = {}, []
+    noi_bo = []
+    for i, (nhom, cns) in enumerate(NHOM_FILE_INTERNET.items()):
+        ma_cn = ", ".join(f":cn_{i}_{j}" for j in range(len(cns)))
+        p.update({f"cn_{i}_{j}": c for j, c in enumerate(cns)})
+        noi_bo.append(ma_cn)
+        if nhom in lo:
+            p[f"lo_{i}"] = lo[nhom]
+            nhanh.append(f"({a}cn_ban IN ({ma_cn}) AND {a}batch_id = :lo_{i})")
+        else:                                   # chưa từng nạp file chi nhánh này
+            nhanh.append(f"{a}cn_ban IN ({ma_cn})")
+    moi_nhat = ", ".join(f":lo_{i}" for i, nhom in enumerate(NHOM_FILE_INTERNET) if nhom in lo)
+    nhanh.append(f"(COALESCE({a}cn_ban, '') NOT IN ({', '.join(noi_bo)}) AND {a}batch_id IN ({moi_nhat}))")
+    return f"{a}ngay_online IS NULL AND ({' OR '.join(nhanh)})", p
 
 
 def tong_thang(thang: str, metric: str = "online") -> int:
