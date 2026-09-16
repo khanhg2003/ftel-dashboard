@@ -161,7 +161,7 @@ def xoa_truong_phong_khong_dang_nhap() -> list[str]:
     """Tự động xoá tài khoản Trưởng phòng không đăng nhập trong 5 ngày gần nhất.
 
     Chỉ áp dụng cho role "phong" (Trưởng phòng). Tài khoản chưa từng đăng nhập
-    (last_login IS NULL) cũng bị xoá. Trả về danh sách username đã xoá.
+    (last_login IS NULL) thì tính từ lúc tạo tài khoản (created_at).
     """
     han = utc_bay_gio() - timedelta(days=SO_NGAY_TU_XOA)
     da_xoa: list[str] = []
@@ -170,7 +170,9 @@ def xoa_truong_phong_khong_dang_nhap() -> list[str]:
             select(User).where(User.role == "phong", User.active.is_(True))
         ).scalars().all()
         for u in tat_ca:
-            if u.last_login is None or u.last_login < han:
+            # Nếu chưa đăng nhập thì tính từ lúc tạo tài khoản
+            moc_thoi_gian = u.last_login or u.created_at
+            if moc_thoi_gian and moc_thoi_gian < han:
                 da_xoa.append(u.username)
                 s.delete(u)
         if da_xoa:
