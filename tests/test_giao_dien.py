@@ -322,8 +322,10 @@ def test_moi_bang_deu_cho_boi_den_va_copy():
 
 
 
-def test_ma_nv_luon_du_8_so():
-    from app.ui.components import MA_NV, ma_nv_hien
-    assert ma_nv_hien(56966) == "00056966" and ma_nv_hien("172290") == "00172290"
-    assert ma_nv_hien(None) == "" and ma_nv_hien("abc") == "abc"
-    assert "padStart(8, '0')" in MA_NV["function"]
+def test_ma_nv_giu_nguyen_so_0_o_dau():
+    """Nhập sao lưu vậy; chỉ khi đối chiếu mới bỏ số 0 ở đầu."""
+    from app.ingest.normalize import ma_nv_nhu_nhap, norm_manv
+    from app.ui.components import MA_NV
+    assert ma_nv_nhu_nhap("00056966") == "00056966" and ma_nv_nhu_nhap(" 0017-2290 ") == "00172290"
+    assert norm_manv("00056966") == norm_manv("56966") == "56966"
+    assert "String(params.value)" in MA_NV["function"]

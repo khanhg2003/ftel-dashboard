@@ -335,12 +335,20 @@ def register(app):
                "ban_moi": "ban_moi"}[metric]
         s = s[s[col] > 0].sort_values(col)
         fig = go.Figure()
+        # nhãn số luôn nằm ngang bên phải thanh - để "auto" thì thanh ngắn bị xoay dọc, khó đọc
         fig.add_trace(go.Bar(x=s[col], y=s.phong, orientation="h", marker_color="#0072BC",
-                             name=METRIC_LABEL[metric], text=s[col], textposition="auto"))
+                             name=METRIC_LABEL[metric], text=s[col], textposition="outside",
+                             textangle=0, insidetextanchor="start", cliponaxis=False,
+                             textfont=dict(size=11.5, color="#17212E")))
         if metric == "online" and s.muc_tieu_internet.notna().any():
             fig.add_trace(go.Scatter(x=s.muc_tieu_internet, y=s.phong, mode="markers",
                                      name="Chỉ tiêu tháng",
                                      marker=dict(symbol="line-ns", size=14, line=dict(width=2),
                                                  color="#F37021")))
         fig.update_layout(bargap=0.25, hovermode="closest")
-        return _fig(fig, height=max(320, 22 * len(s) + 90))
+        # chừa chỗ bên phải cho nhãn số và vạch chỉ tiêu
+        toi_da = max([s[col].max() if len(s) else 0,
+                      s.muc_tieu_internet.max() if metric == "online"
+                      and s.muc_tieu_internet.notna().any() else 0])
+        fig.update_xaxes(range=[0, float(toi_da) * 1.12 + 5])
+        return _fig(fig, height=max(320, 24 * len(s) + 90))

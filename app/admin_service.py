@@ -9,7 +9,7 @@ from argon2 import PasswordHasher
 from sqlalchemy import delete, select, text
 
 from app.db import engine, session_scope
-from app.ingest.normalize import norm_acc, norm_manv, norm_text, parse_date
+from app.ingest.normalize import ma_nv_nhu_nhap, norm_acc, norm_text, parse_date
 from app.models import (AuditLog, FactCamera, FactFptPlay, FactInternet, HrMonthly, StaffMap,
                         UploadBatch, User)
 from app.org import phong_order
@@ -74,7 +74,7 @@ def luu_user(rows: list[dict], nguoi_thuc_hien: str) -> tuple[int, list[str]]:
             row.email = norm_text(r.get("email")) or None
             role = TEN_ROLE.get(norm_text(r.get("vai_tro")), r.get("vai_tro") or "phong")
             row.role = role if role in dict(ROLES) else "phong"
-            row.ma_nv = norm_manv(r.get("ma_nv")) or None
+            row.ma_nv = ma_nv_nhu_nhap(r.get("ma_nv")) or None
             pv = [x.strip() for x in norm_text(r.get("pham_vi")).split(",") if x.strip()]
             pv = [ten2ma.get(x, x) for x in pv if x.lower() != "toàn chi nhánh"]
             if row.role != "phong":
@@ -117,7 +117,7 @@ def them_user(d: dict, nguoi_thuc_hien: str) -> tuple[bool, str]:
             return False, f"Tài khoản “{username}” đã tồn tại."
         s.add(User(username=username, ho_ten=norm_text(d.get("ho_ten")) or username,
                    email=norm_text(d.get("email")) or None, role=role,
-                   ma_nv=norm_manv(d.get("ma_nv")) or None,
+                   ma_nv=ma_nv_nhu_nhap(d.get("ma_nv")) or None,
                    scope=json.dumps(pham_vi, ensure_ascii=False) if pham_vi else None,
                    password_hash=ph.hash(mat_khau), active=True))
         s.add(AuditLog(username=nguoi_thuc_hien, action="them_tai_khoan", detail=username))
@@ -199,7 +199,7 @@ def sua_user(username: str, d: dict, nguoi_thuc_hien: str) -> tuple[bool, str]:
         truoc = (row.role, row.scope, row.active)
         row.ho_ten = norm_text(d.get("ho_ten")) or username
         row.email = email or None
-        row.ma_nv = norm_manv(d.get("ma_nv")) or None
+        row.ma_nv = ma_nv_nhu_nhap(d.get("ma_nv")) or None
         row.role = role
         row.scope = json.dumps(pham_vi, ensure_ascii=False) if pham_vi else None
         row.active = active
@@ -263,7 +263,7 @@ def luu_staff(rows: list[dict], nguoi_thuc_hien: str) -> tuple[int, list[str]]:
                 row = StaffMap(acc=acc, acc_norm=norm_acc(acc))
                 s.add(row)
             row.acc, row.acc_norm = acc, norm_acc(acc)
-            row.ma_nv = norm_manv(r.get("ma_nv")) or None
+            row.ma_nv = ma_nv_nhu_nhap(r.get("ma_nv")) or None
             row.phong_code = code
             row.hieu_luc_tu = parse_date(r.get("hieu_luc_tu"))
             row.hieu_luc_den = parse_date(r.get("hieu_luc_den"))
@@ -329,7 +329,7 @@ def luu_mot_staff(id_: int | None, d: dict, nguoi_thuc_hien: str) -> tuple[bool,
         doi_gan = moi or (row.acc_norm, row.phong_code, row.hieu_luc_tu, row.hieu_luc_den) !=             (norm_acc(acc), code, tu, den)
         cu = ten.get(row.phong_code, row.phong_code) if not moi else ""
         row.acc, row.acc_norm, row.phong_code = acc, norm_acc(acc), code
-        row.ma_nv = norm_manv(d.get("ma_nv")) or None
+        row.ma_nv = ma_nv_nhu_nhap(d.get("ma_nv")) or None
         row.hieu_luc_tu, row.hieu_luc_den = tu, den
         row.ghi_chu = _ghi_chu_nghi(norm_text(d.get("ghi_chu")), bool(d.get("da_nghi")))
         row.nguon = "giao diện"

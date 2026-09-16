@@ -21,7 +21,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy import select
 
 from app.db import session_scope
-from app.ingest.normalize import norm_acc, norm_manv, norm_text, parse_date
+from app.ingest.normalize import ma_nv_nhu_nhap, norm_acc, norm_manv, norm_text, parse_date
 from app.models import AuditLog, Bay, Phong, StaffMap
 from app.org import LOAI_PHONG, xoa_cache_org
 
@@ -220,7 +220,7 @@ def xem_truoc_nhan_su(noi_dung: bytes) -> pd.DataFrame:
         tu, loi_tu = _ngay_nhap(r, "Hiệu lực từ")
         den, loi_den = _ngay_nhap(r, "Hiệu lực đến")
         dong = {"dong": int(r["_dong"]), "acc": acc, "phong_moi": ten_p, "phong_cu": "",
-                "ma_nv": norm_manv(_v(r, "Mã NV")), "tu": tu, "den": den,
+                "ma_nv": ma_nv_nhu_nhap(_v(r, "Mã NV")), "tu": tu, "den": den,
                 "ghi_chu": _v(r, "Ghi chú"), "id": None}
         loi = [x for x in (loi_tu, loi_den) if x]
         if not acc:
@@ -250,7 +250,7 @@ def xem_truoc_nhan_su(noi_dung: bytes) -> pd.DataFrame:
         doi = []
         if cu["phong"] != p.code:
             doi.append(f"phòng {dong['phong_cu']} → {p.ten}")
-        if dong["ma_nv"] and dong["ma_nv"] != norm_manv(cu["ma_nv"]):
+        if dong["ma_nv"] and norm_manv(dong["ma_nv"]) != norm_manv(cu["ma_nv"]):
             doi.append("mã NV")
         if (cu["den"], cu["tu"]) != (den, tu):
             doi.append("ngày hiệu lực")

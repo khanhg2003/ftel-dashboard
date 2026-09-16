@@ -261,17 +261,9 @@ GRID_STYLE_CONDITIONS = {
 }
 
 
-# Mã nhân viên của FPT có 8 chữ số; khi chuẩn hoá để ghép dữ liệu thì bỏ số 0 ở đầu, nên khi
-# hiển thị phải chèn lại cho đủ 8 số (56966 -> 00056966).
-DAI_MA_NV = 8
-MA_NV = {"function": f"params.value == null || params.value === '' ? '' : "
-                     f"String(params.value).padStart({DAI_MA_NV}, '0')"}
-
-
-def ma_nv_hien(v) -> str:
-    """Mã NV dạng hiển thị: đủ 8 số, giữ số 0 ở đầu."""
-    s = str(v or "").strip()
-    return s.zfill(DAI_MA_NV) if s.isdigit() else s
+# Mã NV hiện đúng như đã lưu (giữ số 0 ở đầu), không tự thêm bớt chữ số. AG Grid mặc định coi
+# chuỗi toàn số là số nên mất số 0 ở đầu -> ép về chuỗi.
+MA_NV = {"function": "params.value == null ? '' : String(params.value)"}
 
 
 # ------------------------------------------------ bảng "số theo ngày" (Tracking ngày, Báo cáo phòng)

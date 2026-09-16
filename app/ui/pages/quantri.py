@@ -19,7 +19,7 @@ from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
 from app.ui.components import (COT_SUA, MA_NV, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card,
-                               dong_can_sua, gan_import, ma_nv_hien, modal, nut_import)
+                               dong_can_sua, gan_import, modal, nut_import)
 from app.ui.icons import icon
 
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
@@ -299,8 +299,7 @@ def register(app):
             if ban_than:
                 goi_y += " Đây là tài khoản bạn đang dùng: không đổi được vai trò và trạng thái."
             return ("modal mo", f"Sửa tài khoản · {u['username']}", "Lưu thay đổi", u["username"],
-                    u["username"], True, u["ho_ten"], u["role"], u["pham_vi"], ma_nv_hien(u["ma_nv"]),
-                    u["email"],
+                    u["username"], True, u["ho_ten"], u["role"], u["pham_vi"], u["ma_nv"], u["email"],
                     "Đang dùng" if u["active"] else "Ngừng dùng", AN, {}, [],
                     {"marginTop": "10px"} if u["dang_khoa"] else AN, goi_y, "")
         return ("modal",) + giu
@@ -393,8 +392,7 @@ def register(app):
             ghi_chu = " · ".join(x.strip() for x in r["ghi_chu"].split("·")
                                  if x.strip() and "nghỉ" not in x.lower())
             return ("modal mo", f"Sửa danh mục · {r['acc']}", "Lưu thay đổi", r["id"], r["acc"], r["phong_code"],
-                    ma_nv_hien(r["ma_nv"]), "nghi" if r["da_nghi"] else "lam", r["hieu_luc_tu"],
-                    r["hieu_luc_den"],
+                    r["ma_nv"], "nghi" if r["da_nghi"] else "lam", r["hieu_luc_tu"], r["hieu_luc_den"],
                     ghi_chu, "")
         return ("modal",) + giu
 

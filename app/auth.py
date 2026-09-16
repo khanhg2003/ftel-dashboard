@@ -98,11 +98,13 @@ class SessionUser(UserMixin):
         if self.ma_nv:
             from sqlalchemy import select as _select
 
+            from app.ingest.normalize import norm_manv
             from app.models import StaffMap
+            ma = norm_manv(self.ma_nv)          # so khớp bỏ qua số 0 ở đầu
             with session_scope() as s:
                 codes = [r.phong_code for r in s.execute(
-                    _select(StaffMap).where(StaffMap.ma_nv == self.ma_nv)).scalars()
-                    if r.phong_code]
+                    _select(StaffMap).where(StaffMap.ma_nv.isnot(None))).scalars()
+                    if r.phong_code and norm_manv(r.ma_nv) == ma]
             if codes:
                 return sorted(set(codes))
         return list(self.scope)

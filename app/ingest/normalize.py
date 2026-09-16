@@ -46,11 +46,14 @@ def norm_acc(value) -> str:
     return norm_text(value).lower()
 
 
+def ma_nv_nhu_nhap(value) -> str:
+    """Mã NV giữ đúng như người dùng nhập (chỉ bỏ ký tự không phải số): '00036393' vẫn còn số 0."""
+    return re.sub(r"[^0-9]", "", norm_text(value))
+
+
 def norm_manv(value) -> str:
-    """Mã NV -> chuỗi số, bỏ số 0 ở đầu. '00036393' và '36393' cho cùng kết quả."""
-    s = re.sub(r"[^0-9]", "", norm_text(value))
-    s = s.lstrip("0")
-    return s
+    """Mã NV để ĐỐI CHIẾU: chuỗi số, bỏ số 0 ở đầu. '00036393' và '36393' cho cùng kết quả."""
+    return ma_nv_nhu_nhap(value).lstrip("0")
 
 
 def parse_date(value):
