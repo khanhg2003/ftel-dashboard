@@ -12,7 +12,7 @@ from app.export_phan_tich import xuat_phan_tich
 from app.metrics import (METRIC_LABEL, cac_thang_co_du_lieu, daily_counts, month_range,
                          ngay_co_du_lieu, prev_month, summary_phong, tien_do_thang, tracking_table)
 from app.org import bay_info, loc_chi_nhanh, phong_order
-from app.ui.components import (GRID_STYLE_CONDITIONS, card, chi_nhanh_control, chon_ky, field,
+from app.ui.components import (card, chi_nhanh_control, chon_ky, field,
                                gan_dieu_huong_ky, kpi, pct_vn, seg_control, so_vn)
 from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
 from app.ui import ky_chung as kc
@@ -23,7 +23,7 @@ ZOOM_STEPS = [50, 75, 90, 100, 125, 150, 200]
 ZOOM_OPTIONS = ([{"label": "Vừa màn hình", "value": "fit"}]
                 + [{"label": f"{z}%", "value": z} for z in ZOOM_STEPS])
 RONG_CO_DINH = 165 * 2 + 88          # cột Bầy + Phòng + Tổng (luôn ghim)
-RONG_NGAY = 48
+RONG_NGAY = 52
 
 # Ô ngày tô đậm dần theo mức so với ngày thường của chính phòng đó, nhìn một cái
 # là thấy phòng nào ngày nào hụt hoặc bứt tốc.
@@ -41,9 +41,44 @@ HEAT_NGAY = {"styleConditions": [
      "style": {"backgroundColor": "#BFE6C8", "color": "#0F3D22", "fontWeight": "700"}},
 ]}
 
+# Dòng tổng bầy / tổng chi nhánh tô đậm hơn dòng phòng để mắt bám được theo hàng
+DONG_TONG = {"styleConditions": [
+    {"condition": "params.data.loai_dong == 'subtotal'",
+     "style": {"backgroundColor": "#D3E4F4", "fontWeight": "700", "color": "#0B2E4F"}},
+    {"condition": "params.data.loai_dong == 'nhomkhac'",
+     "style": {"backgroundColor": "#FBE8D2", "fontWeight": "700", "color": "#7A4406"}},
+    {"condition": "params.data.loai_dong == 'total'",
+     "style": {"backgroundColor": "#B9D3EB", "fontWeight": "700", "color": "#08284A"}},
+]}
+LOP_DONG = {"dong-tong-bay": "params.data.loai_dong == 'subtotal'",
+            "dong-khac": "params.data.loai_dong == 'nhomkhac'",
+            "dong-tong": "params.data.loai_dong == 'total'"}
+
 MAU = ["#0072BC", "#F37021", "#00A650", "#37A5E6", "#8C6FD1", "#0E7490"]
 MAU_PHONG = ["#0072BC", "#F37021", "#00A650", "#37A5E6", "#8C6FD1", "#0E7490", "#D946A0",
              "#B45309"]
+
+
+def _thu(thang: str, ngay: str) -> int:
+    """Thứ trong tuần của ngày (0 = thứ Hai ... 6 = Chủ nhật)."""
+    from datetime import date
+    y, m = int(thang[:4]), int(thang[5:7])
+    return date(y, m, int(ngay)).weekday()
+
+
+def _nhan_ngay(thang: str, ngay: str) -> str:
+    """Tiêu đề cột ngày kèm thứ viết tắt: 15 T3 - dễ dò tuần và cuối tuần."""
+    ten = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"][_thu(thang, ngay)]
+    return f"{ngay.zfill(2)} {ten}"
+
+
+def _lop_ngay(thang: str, ngay: str) -> str:
+    """Kẻ vạch đậm ở đầu mỗi tuần (thứ Hai) và tô nhạt hai ngày cuối tuần."""
+    thu = _thu(thang, ngay)
+    lop = ["dau-tuan"] if thu == 0 else []
+    if thu >= 5:
+        lop.append("cuoi-tuan")
+    return " ".join(lop)
 
 
 def _thang_mac_dinh() -> str:
@@ -86,8 +121,9 @@ def layout(ky: dict | None = None):
                 columnDefs=[], rowData=[], getRowId=lk.ROW_ID,
                 defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True},
                 dashGridOptions={"suppressCellFocus": True, "headerHeight": 38, "rowHeight": 32,
-                                 "domLayout": "normal", "tooltipShowDelay": 300},
-                getRowStyle=GRID_STYLE_CONDITIONS,
+                                 "domLayout": "normal", "tooltipShowDelay": 300,
+                                 "rowClassRules": LOP_DONG},
+                getRowStyle=DONG_TONG,
                 style={"width": "100%", "height": "560px"})),
                 id="tk-zoom-wrap", className="zoom-wrap")],
             title="Số bán theo ngày"),
@@ -174,8 +210,10 @@ def register(app):
                 lk.cot_phong_bam_duoc({"field": "phong", "headerName": "Phòng kinh doanh", "pinned": "left",
                                        "width": 165})]
         # flex để các cột ngày giãn đều lấp hết bề ngang, không chừa khoảng trắng bên phải
-        cols += [{"field": c, "headerName": c.zfill(2), "minWidth": RONG_NGAY, "flex": 1,
-                  "type": "numericColumn", "cellStyle": HEAT_NGAY} for c in day_cols]
+        cols += [{"field": c, "headerName": _nhan_ngay(thang, c), "minWidth": RONG_NGAY, "flex": 1,
+                  "type": "numericColumn", "cellStyle": HEAT_NGAY,
+                  "cellClass": _lop_ngay(thang, c), "headerClass": _lop_ngay(thang, c)}
+                 for c in day_cols]
         cols.append({"field": "Tổng", "headerName": "TỔNG", "pinned": "right", "width": 88,
                      "type": "numericColumn", "cellStyle": {"fontWeight": "700"}})
 

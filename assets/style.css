@@ -776,6 +776,20 @@ table.simple tr:last-child td { border-bottom: none; }
 #tq-grid .ag-row.dong-tong-cn { border-top: 2px solid #6F93B8 !important; }
 #tq-grid .ag-row.dong-tong { border-top: 2px solid #3E6E9E !important; }
 #tq-grid .ag-header-group-cell { border-right: 0 !important; }
+
+/* Bảng "Số bán theo ngày": kẻ khối theo tuần, tô nhạt cuối tuần, dòng tổng đậm và có viền */
+#tk-grid .ag-cell.dau-tuan, #tk-grid .ag-header-cell.dau-tuan { border-left: 2px solid #8FB0D0 !important; }
+#tk-grid .ag-header-cell.cuoi-tuan { background: #EEF2F7; }
+#tk-grid .ag-row .ag-cell.cuoi-tuan { box-shadow: inset 0 0 0 999px rgba(15, 45, 80, .035); }
+#tk-grid .ag-pinned-left-cols-container .ag-cell:last-child,
+#tk-grid .ag-pinned-left-header .ag-header-cell:last-child { border-right: 2px solid #8FB0D0 !important; }
+#tk-grid .ag-pinned-right-cols-container .ag-cell:first-child,
+#tk-grid .ag-pinned-right-header .ag-header-cell:first-child { border-left: 2px solid #8FB0D0 !important; }
+#tk-grid .ag-row.dong-tong-bay, #tk-grid .ag-row.dong-khac { border-top: 2px solid #6F93B8 !important; }
+#tk-grid .ag-row.dong-tong { border-top: 2px solid #3E6E9E !important;
+  border-bottom: 2px solid #3E6E9E !important; }
+#tk-grid .ag-row.dong-tong-bay .ag-cell, #tk-grid .ag-row.dong-tong .ag-cell,
+#tk-grid .ag-row.dong-khac .ag-cell { box-shadow: none; }
 #tq-grid .ag-header-cell-resize::after { display: none; }
 /* ô chọn mức phóng to bảng Báo cáo Tổng */
 .zoom-box .zoom-chon { width: 150px; }
