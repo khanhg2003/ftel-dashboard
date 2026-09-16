@@ -138,9 +138,10 @@ def layout(tab: str | None = None):
                            columnDefs=[], rowData=[], getRowId="params.data.username",
                            defaultColDef={"resizable": True, "sortable": True},
                            dashGridOptions=GRID, style={"width": "100%", "height": "340px"}),
-                html.Div("Quản trị (BGĐ): toàn quyền, xem chi tiết nhân sự mọi phòng · Nhập liệu: "
-                         "nạp dữ liệu và xem số chung, không xem nhân sự · Trưởng phòng: xem số "
-                         "chung toàn chi nhánh, chi tiết nhân sự chỉ của phòng phụ trách.",
+                html.Div("Quản trị (BGĐ): toàn quyền, nạp được cả NSLĐ và danh mục nhân viên, xem "
+                         "chi tiết nhân sự mọi phòng · Nhập liệu: nạp 3 file bán hàng và xem số "
+                         "chung, không xem nhân sự · Trưởng phòng: nạp 3 file bán hàng, xem số chung "
+                         "toàn chi nhánh, chi tiết nhân sự chỉ của phòng phụ trách.",
                          className="desc", style={"marginTop": "12px"}),
             ], title="Tài khoản người dùng"),
         ]),

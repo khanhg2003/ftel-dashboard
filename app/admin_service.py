@@ -373,12 +373,21 @@ def _dem_dong_batch(batch_id: int, dataset: str) -> int:
     return int(df.iloc[0, 0])
 
 
-def go_bo_lan_nap(batch_id: int, nguoi_thuc_hien: str) -> dict:
-    """Xoá các dòng dữ liệu mà lần nạp này ghi vào (và chưa bị lần nạp sau ghi đè)."""
+def go_bo_lan_nap(batch_id: int, nguoi_thuc_hien: str, loai_cho_phep: set[str] | None = None,
+                  chi_cua_minh: bool = False) -> dict:
+    """Xoá các dòng dữ liệu mà lần nạp này ghi vào (và chưa bị lần nạp sau ghi đè).
+
+    `loai_cho_phep` / `chi_cua_minh`: giới hạn theo quyền - Trưởng phòng chỉ gỡ được file bán hàng
+    do chính mình nạp, không đụng tới file NSLĐ hay lần nạp của người khác.
+    """
     with session_scope() as s:
         batch = s.get(UploadBatch, batch_id)
         if batch is None:
             return {"ok": False, "msg": "Không tìm thấy lần nạp."}
+        if loai_cho_phep is not None and batch.dataset not in loai_cho_phep:
+            return {"ok": False, "msg": "Tài khoản này không có quyền gỡ loại dữ liệu đó."}
+        if chi_cua_minh and (batch.uploaded_by or "") != nguoi_thuc_hien:
+            return {"ok": False, "msg": "Chỉ gỡ được lần nạp do chính mình thực hiện."}
         n = 0
         model = FACTS.get(batch.dataset)
         if model is not None:

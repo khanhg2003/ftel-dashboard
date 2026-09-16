@@ -175,7 +175,9 @@ def layout():
         card([
             html.P("Phải đăng nhập mới xem được. Số chung theo phòng, bầy, chi nhánh: mọi tài khoản "
                    "xem toàn chi nhánh. Chi tiết từng nhân sự: Quản trị (BGĐ) xem mọi phòng, Trưởng "
-                   "phòng chỉ phòng mình phụ trách, Nhập liệu không xem. Mọi thao tác nạp, sửa, xoá, "
+                   "phòng chỉ phòng mình phụ trách, Nhập liệu không xem. Nạp dữ liệu: Trưởng phòng và "
+                   "Nhập liệu nạp được Internet, Truyền hình, Camera; file NSLĐ và Danh mục nhân "
+                   "viên chỉ Quản trị (BGĐ) nạp. Mọi thao tác nạp, sửa, xoá, "
                    "xuất file đều được ghi nhật ký.", className="hd-noi"),
             html.Div([
                 dcc.Link([icon("upload", 14), html.Span("Bắt đầu: nạp dữ liệu")],

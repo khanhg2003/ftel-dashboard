@@ -31,10 +31,21 @@ TEN_NGAN = {"internet": "Internet", "fptplay": "Truyền hình", "camera": "Came
             "nhan_su": "NSLĐ", "danh_muc_nv": "Danh mục NV"}
 
 
+def _duoc_nap(dataset: str) -> bool:
+    """Quyền nạp theo loại file. Ngoài ngữ cảnh đăng nhập (dựng layout trong kiểm thử) coi như đủ
+    quyền - mọi callback lưu và gỡ đều kiểm tra lại ở máy chủ."""
+    ham = getattr(current_user, "duoc_nap", None)
+    return bool(ham(dataset)) if callable(ham) else True
+
+
+def _ten_loai_duoc_nap() -> str:
+    return " · ".join(TEN_NGAN[d] for d in ("internet", "fptplay", "camera", "nhan_su",
+                                            "danh_muc_nv") if _duoc_nap(d))
+
+
 def topbar():
     return [html.Div([html.H1("Nạp dữ liệu"),
-                      html.Div("Internet · Truyền hình · Camera · NSLĐ",
-                               className="sub")]),
+                      html.Div(_ten_loai_duoc_nap(), className="sub")]),
             html.Div(className="spacer"),
             html.Div(id="up-badge")]
 
@@ -58,9 +69,13 @@ def layout():
                           dcc.Dropdown(id="up-thang", options=_thang_options(), value=None,
                                        placeholder="Chọn tháng", clearable=True,
                                        style={"width": "190px"})],
-                         className="field"),
+                         className="field",
+                         style={} if _duoc_nap("nhan_su") else {"display": "none"}),
                 html.Div("File bán hàng tự lấy ngày trong file. File NSLĐ tự nhận tháng từ dữ liệu "
-                         "(Ngày tính lương + Tháng NSLĐ) hoặc tên file - nạp nhiều tháng một lượt được.",
+                         "(Ngày tính lương + Tháng NSLĐ) hoặc tên file - nạp nhiều tháng một lượt được."
+                         if _duoc_nap("nhan_su") else
+                         "Tài khoản của bạn nạp được 3 file bán hàng (Internet, Truyền hình, Camera); "
+                         "file NSLĐ và Danh mục nhân viên do Quản trị nạp.",
                          className="desc", style={"margin": 0, "alignSelf": "center",
                                                   "maxWidth": "42ch"}),
                 html.Div(className="grow"),
@@ -261,7 +276,9 @@ def register(app):
             return no_update
         if not current_user.duoc_upload:
             return alert("Tài khoản này không có quyền gỡ dữ liệu.", "bad")
-        kq = go_bo_lan_nap(int(chon[0]["id"]), current_user.username)
+        kq = go_bo_lan_nap(int(chon[0]["id"]), current_user.username,
+                           loai_cho_phep=current_user.loai_duoc_nap(),
+                           chi_cua_minh=current_user.role != "admin")
         if not kq.get("ok"):
             return alert(kq.get("msg", "Không gỡ được."), "bad")
         return alert(f"Đã gỡ {kq['so_dong']:,} dòng {TEN_NGAN.get(kq['dataset'], kq['dataset'])} "
@@ -313,6 +330,12 @@ def register(app):
                                title=ten_file))
                 continue
             for r in results:
+                if not _duoc_nap(r.dataset):
+                    ui.append(card([alert([html.B(f"{TEN_DE_HIEU.get(r.dataset, r.dataset)}: "),
+                                           "tài khoản của bạn không được nạp loại file này. "
+                                           "Nhờ Quản trị (BGĐ) nạp giúp."], "warn")],
+                                   title=ten_file))
+                    continue
                 ui.append(_khoi_ui(r, ten_file))
                 if r.ok:
                     so_ok += 1
@@ -359,6 +382,11 @@ def register(app):
                         if not res.ok:
                             continue
                         ten = TEN_DE_HIEU.get(res.dataset, res.ten_hien_thi)
+                        if not _duoc_nap(res.dataset):
+                            so_bo += 1
+                            dong.append(("bad", f"{ten} · {ten_file}",
+                                         "Chưa lưu: tài khoản của bạn không được nạp loại file này."))
+                            continue
                         thang_file = thang
                         if res.dataset == "nhan_su":
                             thang_file, cach = thang_nsld(res, ten_file, thang)

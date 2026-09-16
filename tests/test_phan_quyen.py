@@ -61,13 +61,14 @@ def test_admin_xem_toan_bo(tai_khoan):
     u = _user("zz_test_admin")
     assert u.phong_duoc_xem() is None and u.phong_nhan_su() is None
     assert u.duoc_upload and u.duoc_cau_hinh and u.duoc_xem_nhan_su
+    assert u.loai_duoc_nap() == {"internet", "fptplay", "camera", "nhan_su", "danh_muc_nv"}
 
 
 def test_tai_khoan_giam_doc_bay_cu_quy_ve_truong_phong_cac_phong_trong_bay(tai_khoan):
     u = _user("zz_test_bay")
     mong_doi = {p["code"] for p in phong_order() if p["bay"] == tai_khoan["bay"]}
     assert u.role == "phong" and set(u.phong_nhan_su()) == mong_doi and mong_doi
-    assert not u.duoc_upload and not u.duoc_cau_hinh
+    assert not u.duoc_cau_hinh
 
 
 def test_truong_phong_xem_so_chung_toan_chi_nhanh_nhung_nhan_su_chi_phong_minh(tai_khoan):
@@ -75,7 +76,38 @@ def test_truong_phong_xem_so_chung_toan_chi_nhanh_nhung_nhan_su_chi_phong_minh(t
     assert u.phong_duoc_xem() is None                  # Báo cáo Tổng, Tracking, Phân tích: đủ phòng
     assert u.phong_nhan_su() == ["IBB2"]               # chi tiết nhân sự: chỉ phòng mình
     assert u.duoc_xem_nhan_su
-    assert not u.duoc_upload and not u.duoc_cau_hinh and not u.duoc_chat
+    assert not u.duoc_cau_hinh and not u.duoc_chat
+
+
+def test_truong_phong_nap_duoc_3_file_ban_hang_nhung_khong_nap_duoc_nsld(tai_khoan):
+    u = _user("zz_test_phong")
+    assert u.duoc_upload and u.loai_duoc_nap() == {"internet", "fptplay", "camera"}
+    assert u.duoc_nap("internet") and u.duoc_nap("fptplay") and u.duoc_nap("camera")
+    assert not u.duoc_nap("nhan_su") and not u.duoc_nap("danh_muc_nv")
+
+
+def test_nhap_lieu_cung_chi_nap_file_ban_hang(tai_khoan):
+    assert _user("zz_test_nhaplieu").loai_duoc_nap() == {"internet", "fptplay", "camera"}
+
+
+def test_khong_go_duoc_lan_nap_ngoai_quyen(tai_khoan):
+    from sqlalchemy import select as _select
+
+    from app.admin_service import go_bo_lan_nap
+    from app.models import UploadBatch
+    with session_scope() as s:
+        lo = s.execute(_select(UploadBatch).where(UploadBatch.dataset == "nhan_su")).scalars().first()
+        ma, nguoi = (lo.id, lo.uploaded_by) if lo else (None, None)
+    if ma is None:
+        pytest.skip("Database kiểm thử chưa có lần nạp NSLĐ")
+    quyen_phong = _user("zz_test_phong").loai_duoc_nap()
+    kq = go_bo_lan_nap(ma, "zz_test_phong", loai_cho_phep=quyen_phong, chi_cua_minh=True)
+    assert not kq["ok"] and "quyền" in kq["msg"]
+    # đúng loại nhưng của người khác nạp cũng không gỡ được
+    with session_scope() as s:
+        lo2 = s.execute(_select(UploadBatch).where(UploadBatch.dataset == "internet")).scalars().first()
+    kq2 = go_bo_lan_nap(lo2.id, "zz_test_phong", loai_cho_phep=quyen_phong, chi_cua_minh=True)
+    assert not kq2["ok"] and lo2.uploaded_by != "zz_test_phong"
 
 
 def test_truong_phong_kiem_nhiem_hai_phong(tai_khoan):
@@ -85,7 +117,7 @@ def test_truong_phong_kiem_nhiem_hai_phong(tai_khoan):
 def test_nhap_lieu_xem_so_chung_nhung_khong_xem_nhan_su(tai_khoan):
     u = _user("zz_test_nhaplieu")
     assert u.phong_duoc_xem() is None and u.phong_nhan_su() == []
-    assert u.duoc_upload and not u.duoc_xem_nhan_su
+    assert u.duoc_upload and not u.duoc_xem_nhan_su and not u.duoc_nap("nhan_su")
 
 
 def test_loc_nhan_su_giao_dung_pham_vi():
@@ -196,7 +228,17 @@ def test_cac_trang_dung_duoc_voi_quyen_admin(tai_khoan, duong_dan):
     assert noi_dung is not None and thanh_tren is not None
 
 
-@pytest.mark.parametrize("duong_dan", ["/upload", "/quantri", "/settings"])
+def test_truong_phong_vao_duoc_trang_nap_du_lieu(tai_khoan):
+    from flask_login import login_user
+
+    from app.ui.app import _router, server
+    with server.test_request_context("/"):
+        login_user(_user("zz_test_phong"))
+        noi_dung, _ = _router("/upload")
+    assert "không có quyền" not in str(noi_dung.children)
+
+
+@pytest.mark.parametrize("duong_dan", ["/quantri", "/settings"])
 def test_trang_han_che_bi_chan_voi_truong_phong(tai_khoan, duong_dan):
     from flask_login import login_user
 

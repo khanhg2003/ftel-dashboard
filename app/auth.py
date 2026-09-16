@@ -22,7 +22,12 @@ KHOA_PHUT = 15
 
 ROLE_LABEL = {"admin": "Quản trị (BGD)", "operator": "Nhập liệu",
               "phong": "Trưởng phòng", "nhanvien": "Nhân viên"}
-ROLE_UPLOAD = {"admin", "operator"}
+# Nạp dữ liệu: Trưởng phòng được nạp 3 file bán hàng (họ là người tải file hằng ngày), nhưng
+# file NSLĐ và Danh mục nhân viên thì chỉ Quản trị (BGĐ) - BGĐ chốt 16/09/2026.
+ROLE_UPLOAD = {"admin", "operator", "phong"}
+LOAI_SO_BAN = {"internet", "fptplay", "camera"}
+LOAI_NHAN_SU = {"nhan_su", "danh_muc_nv"}
+ROLE_UPLOAD_NHAN_SU = {"admin"}
 ROLE_CHAT = {"admin"}
 ROLE_SETTINGS = {"admin"}
 # Hai lớp dữ liệu:
@@ -48,6 +53,17 @@ class SessionUser(UserMixin):
     @property
     def duoc_upload(self) -> bool:
         return self.role in ROLE_UPLOAD
+
+    def loai_duoc_nap(self) -> set[str]:
+        """Các loại file tài khoản này được nạp (và được gỡ)."""
+        if not self.duoc_upload:
+            return set()
+        if self.role in ROLE_UPLOAD_NHAN_SU:
+            return LOAI_SO_BAN | LOAI_NHAN_SU
+        return set(LOAI_SO_BAN)
+
+    def duoc_nap(self, dataset: str) -> bool:
+        return dataset in self.loai_duoc_nap()
 
     @property
     def duoc_chat(self) -> bool:
