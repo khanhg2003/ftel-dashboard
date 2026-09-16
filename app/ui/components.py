@@ -3,6 +3,10 @@ from __future__ import annotations
 
 from dash import dcc, html
 
+# AG Grid mặc định chặn bôi đen chữ trong ô (dành chuột cho việc chọn dòng) nên không copy được
+# nội dung; bật cho mọi bảng trong app/ui/viet_hoa.py.
+CHON_DUOC_CHU = {"enableCellTextSelection": True, "ensureDomOrder": True}
+
 
 def callback_can_quyen(app, quyen: str):
     """Như app.callback nhưng máy chủ kiểm tra quyền trước khi chạy (quyen: tên thuộc tính của

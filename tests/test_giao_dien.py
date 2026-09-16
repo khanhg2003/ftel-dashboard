@@ -295,3 +295,28 @@ def test_tieu_de_cot_khong_bi_cat_ngang_tu():
     assert "word-break: keep-all" in css
     js = (goc / "khong_rot_chu.js").read_text(encoding="utf-8")
     assert "setColumnWidths" in js and ".ag-theme-ftel" in js
+
+
+def test_moi_bang_deu_cho_boi_den_va_copy():
+    """AG Grid mặc định chặn chọn chữ trong ô - app bật lại ở app/ui/components.py."""
+    import dash_ag_grid as dag
+
+    from app.ui.pages import chatluong
+    from app.ui.viet_hoa import viet_hoa
+    viet_hoa()
+
+    def cac_bang(node):
+        if isinstance(node, (list, tuple)):
+            for x in node:
+                yield from cac_bang(x)
+            return
+        if getattr(node, "dashGridOptions", None) is not None:
+            yield node
+        con = getattr(node, "children", None)
+        if con is not None:
+            yield from cac_bang(con)
+
+    assert dag.AgGrid(id="x").dashGridOptions["enableCellTextSelection"] is True
+    bang = list(cac_bang(chatluong.layout()))
+    assert bang and all(b.dashGridOptions.get("enableCellTextSelection") for b in bang)
+

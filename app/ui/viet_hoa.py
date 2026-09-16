@@ -9,7 +9,7 @@ from __future__ import annotations
 import dash_ag_grid as dag
 from dash import dcc
 
-from app.ui.components import LOCALE_VI
+from app.ui.components import CHON_DUOC_CHU, LOCALE_VI
 
 NHAN_DROPDOWN = {
     "select_all": "Chọn tất cả",
@@ -42,7 +42,7 @@ def _dropdown(kw: dict) -> None:
 
 
 def _bang(kw: dict) -> None:
-    opts = dict(kw.get("dashGridOptions") or {})
+    opts = {**CHON_DUOC_CHU, **(kw.get("dashGridOptions") or {})}
     opts["localeText"] = {**LOCALE_VI, **(opts.get("localeText") or {})}
     kw["dashGridOptions"] = opts
 
