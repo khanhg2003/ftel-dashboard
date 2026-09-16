@@ -154,6 +154,34 @@ def xoa_user(usernames: list[str], nguoi_thuc_hien: str) -> tuple[int, list[str]
     return n, bo_qua
 
 
+SO_NGAY_TU_XOA = 5  # Trưởng phòng không đăng nhập bao nhiêu ngày thì tự xoá
+
+
+def xoa_truong_phong_khong_dang_nhap() -> list[str]:
+    """Tự động xoá tài khoản Trưởng phòng không đăng nhập trong 5 ngày gần nhất.
+
+    Chỉ áp dụng cho role "phong" (Trưởng phòng). Tài khoản chưa từng đăng nhập
+    (last_login IS NULL) cũng bị xoá. Trả về danh sách username đã xoá.
+    """
+    han = utc_bay_gio() - timedelta(days=SO_NGAY_TU_XOA)
+    da_xoa: list[str] = []
+    with session_scope() as s:
+        tat_ca = s.execute(
+            select(User).where(User.role == "phong", User.active.is_(True))
+        ).scalars().all()
+        for u in tat_ca:
+            if u.last_login is None or u.last_login < han:
+                da_xoa.append(u.username)
+                s.delete(u)
+        if da_xoa:
+            s.add(AuditLog(
+                username="hệ thống",
+                action="tu_xoa_tp_khong_login",
+                detail=f"{len(da_xoa)} tài khoản: {', '.join(da_xoa)}",
+            ))
+    return da_xoa
+
+
 def lay_user(username: str) -> dict | None:
     """Thông tin một tài khoản để điền sẵn vào hộp thoại Sửa."""
     df = danh_sach_user()

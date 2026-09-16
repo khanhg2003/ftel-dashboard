@@ -14,7 +14,7 @@ from flask_login import current_user
 
 from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau, lay_staff,
                                lay_user, luu_mot_staff, pham_vi_options, sua_user, them_user,
-                               xoa_staff, xoa_user)
+                               xoa_staff, xoa_user, xoa_truong_phong_khong_dang_nhap)
 from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
@@ -258,8 +258,18 @@ def register(app):
 
     @cb(Output("qt-user-grid", "columnDefs"), Output("qt-user-grid", "rowData"),
         Output("qt-staff-grid", "columnDefs"), Output("qt-staff-grid", "rowData"),
+        Output("qt-user-msg", "children", allow_duplicate=True),
         Input("qt-user-msg", "children"), Input("qt-staff-msg", "children"))
     def _nap(*_):
+        # Tự động xoá Trưởng phòng không đăng nhập >= 5 ngày
+        da_xoa = xoa_truong_phong_khong_dang_nhap()
+        msg_xoa = ""
+        if da_xoa:
+            msg_xoa = alert(
+                [html.B(f"Đã tự động xoá {len(da_xoa)} tài khoản Trưởng phòng "
+                        f"không đăng nhập quá 5 ngày: "),
+                 ", ".join(da_xoa) + "."],
+                "warn")
         u = danh_sach_user()
         s = danh_sach_staff()
         if not s.empty:
@@ -268,7 +278,8 @@ def register(app):
         cot_u = ["username", "ho_ten", "vai_tro", "pham_vi", "ma_nv", "email", "trang_thai", "lan_cuoi"]
         return (_user_cols(), [] if u.empty else u[cot_u].astype(object).where(u[cot_u].notna(), "")
                 .to_dict("records"),
-                _staff_cols(), [] if s.empty else s.to_dict("records"))
+                _staff_cols(), [] if s.empty else s.to_dict("records"),
+                msg_xoa)
 
     # ------------------------------------------------------------ tài khoản
     @cb(Output("qt-modal-user", "className"), Output("qt-user-tieu-de", "children"),

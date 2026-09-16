@@ -88,6 +88,14 @@ def main() -> None:
     bat_ghi_log()
     init_db()
 
+    # Tự động dọn tài khoản Trưởng phòng không đăng nhập >= 5 ngày
+    from app.admin_service import xoa_truong_phong_khong_dang_nhap
+    da_xoa = xoa_truong_phong_khong_dang_nhap()
+    if da_xoa:
+        print(f"  ⚠  Đã tự xoá {len(da_xoa)} tài khoản Trưởng phòng không đăng nhập >= 5 ngày: "
+              + ", ".join(da_xoa))
+        logging.getLogger("ftel").warning("Tự xoá TP: %s", ", ".join(da_xoa))
+
     for cb in kiem_tra_truoc_khi_chay():
         print(f"  ⚠  {cb}")
         logging.getLogger("ftel").warning(cb)
