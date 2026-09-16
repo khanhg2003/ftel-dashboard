@@ -21,7 +21,8 @@ from app.admin_service import (acc_la, acc_trung_danh_muc, chua_gan_phong, do_mo
                                hd_bat_thuong, ngay_thieu_du_lieu, nv_thieu_ho_so, ton_dong_lau)
 from app.metrics import cac_thang_co_du_lieu
 from app.org import phong_order
-from app.ui.components import LOCALE_VI, alert, chi_nhanh_control, chon_ky, field, gan_dieu_huong_ky, kpi, seg_control
+from app.ui.components import (LOCALE_VI, MA_NV, alert, chi_nhanh_control, chon_ky, field,
+                               gan_dieu_huong_ky, kpi, seg_control)
 from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
 from app.ui import ky_chung as kc
 from app.ui.icons import icon
@@ -149,7 +150,9 @@ def _cols(df, ten: dict[str, str] | None = None, rong: dict[str, int] | None = N
             continue
         col = {"field": c, "headerName": ten.get(c, c.replace("_", " ").title()),
                "minWidth": rong.get(c, 100), "flex": 1, "tooltipField": c}
-        if _la_cot_so(df[c]) and c not in ("ma_nv", "acc", "hop_dong"):
+        if c == "ma_nv":                      # mã NV đủ 8 số, giữ số 0 ở đầu
+            col["valueFormatter"] = MA_NV
+        elif _la_cot_so(df[c]) and c not in ("acc", "hop_dong"):
             col["type"] = "numericColumn"
         out.append(col)
     return out

@@ -320,3 +320,10 @@ def test_moi_bang_deu_cho_boi_den_va_copy():
     bang = list(cac_bang(chatluong.layout()))
     assert bang and all(b.dashGridOptions.get("enableCellTextSelection") for b in bang)
 
+
+
+def test_ma_nv_luon_du_8_so():
+    from app.ui.components import MA_NV, ma_nv_hien
+    assert ma_nv_hien(56966) == "00056966" and ma_nv_hien("172290") == "00172290"
+    assert ma_nv_hien(None) == "" and ma_nv_hien("abc") == "abc"
+    assert "padStart(8, '0')" in MA_NV["function"]

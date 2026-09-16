@@ -606,7 +606,9 @@ def test_bao_cao_phong_co_khoi_so_theo_ngay(tai_khoan):
     from app.ui.app import server
     with server.test_request_context("/"):
         login_user(_user("zz_ht_admin"))
-        cols, rows, mo_ta = _callback("bp-nv-ngay.columnDefs")("2026-09-11", "IBB2", "vvip", "ngay")
+        cols, rows, mo_ta, kieu = _callback("bp-nv-ngay.columnDefs")("2026-09-11", "IBB2", "vvip",
+                                                                     "ngay", {"h": 900})
+    assert kieu["height"].endswith("px")
     assert cols[0]["field"] == "acc" and cols[-1]["headerName"] == "TỔNG"
     assert rows and rows[-1]["loai_dong"] == "subtotal" and "Số V.VIP" in mo_ta
 

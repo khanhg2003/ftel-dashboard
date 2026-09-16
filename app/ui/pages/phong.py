@@ -180,10 +180,10 @@ def layout(ky: dict | None = None):
             dcc.Loading(dag.AgGrid(
                 id="bp-nv-ngay", className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
                 defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True},
-                dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight",
+                dashGridOptions={"suppressCellFocus": True, "domLayout": "normal",
                                  "rowHeight": 32, "headerHeight": 38, "localeText": LOCALE_VI,
                                  "rowClassRules": LOP_DONG_NGAY},
-                getRowStyle=DONG_TONG_NGAY, style={"width": "100%"})),
+                getRowStyle=DONG_TONG_NGAY, style={"width": "100%", "height": "420px"})),
         ], className="card"),
 
         # ngăn chi tiết nhân sự
@@ -513,13 +513,14 @@ def register(app):
                 _bieu_do(bp.dien_bien_ngay(thang, ngay, code), dong.get("mt_ngay")))
 
     @app.callback(Output("bp-nv-ngay", "columnDefs"), Output("bp-nv-ngay", "rowData"),
-                  Output("bp-ngay-nv-mo-ta", "children"),
+                  Output("bp-ngay-nv-mo-ta", "children"), Output("bp-nv-ngay", "style"),
                   Input("bp-date", "date"), Input("bp-phong", "value"), Input("bp-khoi", "value"),
-                  Input("bp-khoi-xem", "value"))
-    def _ngay_theo_nhan_su(ngay_iso, code, khoi, xem):
+                  Input("bp-khoi-xem", "value"), Input("ui-vw", "data"))
+    def _ngay_theo_nhan_su(ngay_iso, code, khoi, xem, vw):
         """Khối số theo ngày của từng nhân viên trong phòng (Online / Combo / V.VIP / Camera)."""
+        kieu = {"width": "100%", "height": "420px"}
         if not duoc_xem_phong(code) or not ngay_iso:
-            return [], [], ""
+            return [], [], "", kieu
         d = date.fromisoformat(ngay_iso)
         thang = f"{d.year}-{d.month:02d}"
         df = bang_ngay_theo_acc(thang, khoi or "online", chi_phong=[code], den_ngay=d.day,
@@ -541,7 +542,10 @@ def register(app):
         cach = "cộng dồn từ ngày 01" if xem == "congdon" else "số của riêng từng ngày"
         mo_ta = (f"{TEN_KHOI.get(khoi or 'online')} · {so_nv} nhân sự · 01-{d:%d/%m/%Y} · {cach}. "
                  "Tổng các nhân viên bằng số của phòng.")
-        return cols, df.to_dict("records"), mo_ta
+        # nằm gọn trong khung hình: cao vừa đủ số dòng, quá thì cuộn trong bảng
+        cao_man_hinh = (vw or {}).get("h") or 900
+        cao = max(260, min(40 + 32 * max(len(df), 1) + 26, max(320, cao_man_hinh - 260)))
+        return cols, df.to_dict("records"), mo_ta, {"width": "100%", "height": f"{cao}px"}
 
     @app.callback(Output("bp-nv", "dashGridOptions"), Input("bp-tim", "value"),
                   prevent_initial_call=True)

@@ -18,8 +18,8 @@ from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_m
 from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
-from app.ui.components import (COT_SUA, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card, dong_can_sua,
-                               gan_import, modal, nut_import)
+from app.ui.components import (COT_SUA, MA_NV, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card,
+                               dong_can_sua, gan_import, ma_nv_hien, modal, nut_import)
 from app.ui.icons import icon
 
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
@@ -186,7 +186,7 @@ def _user_cols():
         {"field": "vai_tro", "headerName": "Vai trò", "minWidth": 130, "flex": 1.1},
         {"field": "pham_vi", "headerName": "Phòng phụ trách", "minWidth": 160, "flex": 1.8,
          "tooltipField": "pham_vi"},
-        {"field": "ma_nv", "headerName": "Mã NV", "minWidth": 90, "flex": .7},
+        {"field": "ma_nv", "headerName": "Mã NV", "minWidth": 100, "flex": .7, "valueFormatter": MA_NV},
         {"field": "email", "headerName": "Email", "minWidth": 150, "flex": 1.3},
         {"field": "trang_thai", "headerName": "Trạng thái", "minWidth": 110, "flex": .9,
          "cellStyle": {"styleConditions": [
@@ -202,7 +202,7 @@ def _staff_cols():
         CHON,
         {"field": "acc", "headerName": "Acc inside", "minWidth": 150, "flex": 1.4, "pinned": "left"},
         {"field": "phong", "headerName": "Phòng", "minWidth": 150, "flex": 1.4},
-        {"field": "ma_nv", "headerName": "Mã NV", "minWidth": 100, "flex": .9},
+        {"field": "ma_nv", "headerName": "Mã NV", "minWidth": 110, "flex": .9, "valueFormatter": MA_NV},
         {"field": "hieu_luc_tu", "headerName": "Hiệu lực từ", "minWidth": 110, "flex": .9},
         {"field": "hieu_luc_den", "headerName": "Hiệu lực đến", "minWidth": 110, "flex": .9},
         {"field": "ghi_chu", "headerName": "Ghi chú", "minWidth": 160, "flex": 1.8, "tooltipField": "ghi_chu",
@@ -299,7 +299,8 @@ def register(app):
             if ban_than:
                 goi_y += " Đây là tài khoản bạn đang dùng: không đổi được vai trò và trạng thái."
             return ("modal mo", f"Sửa tài khoản · {u['username']}", "Lưu thay đổi", u["username"],
-                    u["username"], True, u["ho_ten"], u["role"], u["pham_vi"], u["ma_nv"], u["email"],
+                    u["username"], True, u["ho_ten"], u["role"], u["pham_vi"], ma_nv_hien(u["ma_nv"]),
+                    u["email"],
                     "Đang dùng" if u["active"] else "Ngừng dùng", AN, {}, [],
                     {"marginTop": "10px"} if u["dang_khoa"] else AN, goi_y, "")
         return ("modal",) + giu
@@ -392,7 +393,8 @@ def register(app):
             ghi_chu = " · ".join(x.strip() for x in r["ghi_chu"].split("·")
                                  if x.strip() and "nghỉ" not in x.lower())
             return ("modal mo", f"Sửa danh mục · {r['acc']}", "Lưu thay đổi", r["id"], r["acc"], r["phong_code"],
-                    r["ma_nv"], "nghi" if r["da_nghi"] else "lam", r["hieu_luc_tu"], r["hieu_luc_den"],
+                    ma_nv_hien(r["ma_nv"]), "nghi" if r["da_nghi"] else "lam", r["hieu_luc_tu"],
+                    r["hieu_luc_den"],
                     ghi_chu, "")
         return ("modal",) + giu
 

@@ -201,8 +201,7 @@ def register(app):
             # chỉ hiện tới ngày có dữ liệu - khỏi thừa 20 cột trống của những ngày chưa tới
             df = tracking_table(thang, metric, cong_don=cong_don, den_ngay=den_ngay,
                                 chi_phong=scope)
-            ghi_chu = ("Màu ô so với mức trung bình của chính phòng đó: xanh là ngày tốt, "
-                       "đỏ là ngày hụt.")
+            ghi_chu = ""
         day_cols = [c for c in df.columns if c.isdigit()]
         # trung bình mỗi ngày của từng dòng -> mốc tô màu riêng cho chính dòng đó
         df["_tb"] = df[day_cols].mean(axis=1).round(2) if day_cols and len(df) else 0
@@ -241,9 +240,12 @@ def register(app):
             ty_le = min(1.0, round(con_lai / (rong_bang + 12), 3))
         else:
             ty_le = (zoom or 100) / 100
-        # Cao vừa đủ số dòng đang có: xem hết bảng bằng cách cuộn trang, không cuộn trong bảng
-        # (trước đây cố định theo màn hình nên dòng tổng bị cắt mất).
-        cao_bang = max(260, 40 + 32 * max(len(df), 1) + 26)   # 26px chừa thanh cuộn ngang
+        # Bảng nằm gọn trong khung hình: cao vừa đủ số dòng, nhiều dòng thì cuộn trong bảng.
+        # Chia cho tỷ lệ thu nhỏ vì zoom làm bảng hiện nhỏ lại so với chiều cao đặt ở đây.
+        cao_man_hinh = (vw or {}).get("h") or 900
+        cao_noi_dung = 40 + 32 * max(len(df), 1) + 26          # 26px chừa thanh cuộn ngang
+        cao_toi_da = max(320, int((cao_man_hinh - 250) / ty_le))
+        cao_bang = max(260, min(cao_noi_dung, cao_toi_da))
         return (kpis, cols, df.to_dict("records"), line, bar, cap_nhat,
                 {"zoom": ty_le} if ty_le != 1 else {},
                 {"width": "100%", "height": f"{cao_bang}px"},
