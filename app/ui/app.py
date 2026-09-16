@@ -19,6 +19,11 @@ FPT_LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHQAAABmCAYAAAAahL
 server = Flask(__name__)
 server.secret_key = SECRET_KEY
 server.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
+
+# Đảm bảo cột session_version tồn tại (migration nhẹ, cần trước login_manager)
+from app.db import _migrate_session_version
+_migrate_session_version()
+
 login_manager.init_app(server)
 
 LOGIN_PAGE = """<!doctype html>

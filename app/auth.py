@@ -45,7 +45,7 @@ class SessionUser(UserMixin):
         self.ho_ten = row.ho_ten or row.username
         self.role = row.role
         self.ma_nv = row.ma_nv
-        self.session_version = row.session_version or 0
+        self.session_version = getattr(row, "session_version", 0) or 0
         self.scope = json.loads(row.scope) if row.scope else []
         if self.role == "bay":       # vai trò Giám đốc Bầy đã bỏ: tài khoản cũ quy về Trưởng phòng
             self.role = "phong"      # của các phòng trong bầy đó, không bị mở rộng quyền
@@ -134,7 +134,7 @@ def load_user(user_id: str):
             return None
         # Kiểm tra phiên bản session: nếu mật khẩu đã đổi thì phiên cũ bị vô hiệu
         sv_session = flask_session.get("_sv")
-        sv_db = row.session_version or 0
+        sv_db = getattr(row, "session_version", 0) or 0
         if sv_session is not None and sv_session != sv_db:
             return None
         return SessionUser(row)

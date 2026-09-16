@@ -133,6 +133,7 @@ def layout(tab: str | None = None):
                     html.Button([icon("plus", 14), html.Span("Thêm tài khoản")], id="qt-user-them",
                                 className="btn primary"),
                 ], className="toolbar"),
+                html.Div(id="qt-user-auto-msg"),
                 html.Div(id="qt-user-msg"),
                 dag.AgGrid(id="qt-user-grid", className="ag-theme-quartz ag-theme-ftel",
                            columnDefs=[], rowData=[], getRowId="params.data.username",
@@ -258,7 +259,7 @@ def register(app):
 
     @cb(Output("qt-user-grid", "columnDefs"), Output("qt-user-grid", "rowData"),
         Output("qt-staff-grid", "columnDefs"), Output("qt-staff-grid", "rowData"),
-        Output("qt-user-msg", "children", allow_duplicate=True),
+        Output("qt-user-auto-msg", "children"),
         Input("qt-user-msg", "children"), Input("qt-staff-msg", "children"))
     def _nap(*_):
         # Tự động xoá Trưởng phòng không đăng nhập >= 5 ngày
