@@ -39,6 +39,7 @@ def cau_truc_phong(thang: str, ngay: int):
         ("SỐ TỒN", [("Chưa online", "ton", "so"), ("Chờ từ 7 ngày", "ton_qua_7", "so")]),
         ("THEO DÕI", [("Ngày liền chưa có số", "ngay_lien_chua_co_so", "so"),
                       ("Tuần này", "tuan_nay", "so"), ("Tuần trước", "tuan_truoc", "so")]),
+        ("CẦN CHÚ Ý", [("Mức", "muc_chu_y", "text"), ("Nội dung", "chu_y", "text")]),
     ]
 
 
@@ -216,8 +217,7 @@ COT_EXCEL_THEM = [("Acc", "acc", "text"), ("Vị trí", "vi_tri", "text"),
                   ("Bán mới tháng", "ban_moi", "so"), ("Đủ 3 DV", "du_3", "pct"),
                   ("Trả trước", "tra_truoc", "pct"), ("Online trong 1 ngày", "onl_1_ngay", "pct"),
                   ("Số ngày có số", "so_ngay_co_so", "so"), ("Điểm NSLĐ kỳ trước", "diem_tong", "so"),
-                  ("NSLĐ kỳ trước", "ket_luan", "text"), ("Mức", "muc_chu_y", "text"),
-                  ("Cần chú ý", "chu_y", "text")]
+                  ("NSLĐ kỳ trước", "ket_luan", "text")]
 
 
 def xuat_bao_cao_phong(thang: str, ngay: int, code: str, tam_tinh: bool = False,

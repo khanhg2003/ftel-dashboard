@@ -196,8 +196,7 @@ def register(app):
         if xem_ns:
             df = bang_ngay_theo_acc(thang, metric, chi_phong=[ma_phong], den_ngay=den_ngay,
                                     cong_don=cong_don)
-            ghi_chu = ("Từng nhân viên của phòng, xếp từ nhiều số xuống ít. Tổng các nhân viên "
-                       "bằng số của phòng ở Báo cáo Tổng.")
+            ghi_chu = ""
         else:
             # chỉ hiện tới ngày có dữ liệu - khỏi thừa 20 cột trống của những ngày chưa tới
             df = tracking_table(thang, metric, cong_don=cong_don, den_ngay=den_ngay,
@@ -220,10 +219,12 @@ def register(app):
         # flex để các cột ngày giãn đều lấp hết bề ngang, không chừa khoảng trắng bên phải
         cols += [{"field": c, "headerName": c.zfill(2), "minWidth": RONG_NGAY, "flex": 1,
                   "type": "numericColumn", "cellStyle": HEAT_NGAY,
-                  "cellClass": lop_cot_ngay(thang, c), "headerClass": lop_cot_ngay(thang, c)}
+                  "cellClass": f"o-giua {lop_cot_ngay(thang, c)}".strip(),
+                  "headerClass": f"tieu-de-giua {lop_cot_ngay(thang, c)}".strip()}
                  for c in day_cols]
         cols.append({"field": "Tổng", "headerName": "TỔNG", "pinned": "right", "width": 88,
-                     "type": "numericColumn", "cellStyle": {"fontWeight": "700"}})
+                     "type": "numericColumn", "cellClass": "o-giua",
+                     "headerClass": "tieu-de-giua", "cellStyle": {"fontWeight": "700"}})
 
         kpis = _kpi_cards(thang, den_ngay, scope)
         line = _line_chart(thang, metric, cong_don, scope, den_ngay, nhom or "bay")
@@ -240,8 +241,9 @@ def register(app):
             ty_le = min(1.0, round(con_lai / (rong_bang + 12), 3))
         else:
             ty_le = (zoom or 100) / 100
-        cao_man_hinh = (vw or {}).get("h") or 900
-        cao_bang = max(300, min(760, int((cao_man_hinh - 430) / ty_le)))
+        # Cao vừa đủ số dòng đang có: xem hết bảng bằng cách cuộn trang, không cuộn trong bảng
+        # (trước đây cố định theo màn hình nên dòng tổng bị cắt mất).
+        cao_bang = max(260, 40 + 32 * max(len(df), 1) + 26)   # 26px chừa thanh cuộn ngang
         return (kpis, cols, df.to_dict("records"), line, bar, cap_nhat,
                 {"zoom": ty_le} if ty_le != 1 else {},
                 {"width": "100%", "height": f"{cao_bang}px"},

@@ -531,10 +531,12 @@ def register(app):
                 {"field": "ten", "headerName": "Họ tên", "pinned": "left", "width": 170}]
         cols += [{"field": c, "headerName": c.zfill(2), "width": 48, "flex": 1, "minWidth": 44,
                   "type": "numericColumn", "cellStyle": HEAT_NGAY,
-                  "cellClass": lop_cot_ngay(thang, c), "headerClass": lop_cot_ngay(thang, c)}
+                  "cellClass": f"o-giua {lop_cot_ngay(thang, c)}".strip(),
+                  "headerClass": f"tieu-de-giua {lop_cot_ngay(thang, c)}".strip()}
                  for c in ngay_cols]
         cols.append({"field": "Tổng", "headerName": "TỔNG", "pinned": "right", "width": 84,
-                     "type": "numericColumn", "cellStyle": {"fontWeight": "700"}})
+                     "type": "numericColumn", "cellClass": "o-giua",
+                     "headerClass": "tieu-de-giua", "cellStyle": {"fontWeight": "700"}})
         so_nv = int((df.loai_dong == "data").sum())
         cach = "cộng dồn từ ngày 01" if xem == "congdon" else "số của riêng từng ngày"
         mo_ta = (f"{TEN_KHOI.get(khoi or 'online')} · {so_nv} nhân sự · 01-{d:%d/%m/%Y} · {cach}. "
