@@ -1,6 +1,6 @@
 """Đi từ tổng xuống chi tiết và các phần dùng chung ở khung app.
 
-- Bấm tên phòng ở Báo cáo Tổng, Diễn biến, Phân tích -> mở Báo cáo phòng của phòng đó, giữ kỳ đang xem.
+- Bấm tên phòng ở Báo cáo Tổng, Tracking ngày, Phân tích -> mở Báo cáo phòng của phòng đó, giữ kỳ đang xem.
 - Dòng tình trạng dữ liệu trên đầu mọi trang: số đến ngày nào, file nào đang nạp thiếu.
 - Giải thích từ viết tắt khi rê chuột lên tiêu đề cột / ô chỉ số.
 """

@@ -1,4 +1,4 @@
-"""Tab 2 "So sánh hai kỳ" của trang Diễn biến & So sánh (dienbien.py): khoảng ngày tự chọn + Top hụt số."""
+"""Tab 2 "So sánh" của trang Tracking ngày & So sánh (dienbien.py): khoảng ngày tự chọn + Top hụt số."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -213,7 +213,7 @@ def register(app):
                   Input("ss-metric", "value"), Input("ss-nhom", "value"),
                   Input("ss-cn", "value"), Input("db-tab", "value"))
     def _cap_nhat(k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh, tab):
-        if tab != "sosanh":                  # đang xem tab Theo từng ngày: không tính phần này
+        if tab != "sosanh":                  # đang xem tab Tracking ngày: không tính phần này
             return (no_update,) * 9
         dfp, dfa, hut, tang, so_ngay1, so_ngay2 = _tinh(k1_tu, k1_den, k2_tu, k2_den, metric, nhom,
                                                         chi_nhanh)

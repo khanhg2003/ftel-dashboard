@@ -107,7 +107,7 @@ app = Dash(__name__, server=server, suppress_callback_exceptions=True,
 NAV = [
     ("Hằng ngày", [
         ("/", "Báo cáo Tổng", "dashboard", None),
-        ("/tracking", "Diễn biến & So sánh", "trend", None),
+        ("/tracking", "Tracking ngày & So sánh", "trend", None),
     ]),
     ("Phân tích", [
         ("/phantich", "Phân tích bán hàng", "pie", None),

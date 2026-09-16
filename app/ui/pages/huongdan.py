@@ -67,9 +67,9 @@ def layout():
                     "Tỷ lệ bán kèm V.VIP / Camera, trả trước, online trong 1 ngày theo từng phòng và "
                     "nhân viên - màu so với mức chung chi nhánh. Mục ", html.B("Số tồn theo thời "
                     "gian chờ"), " có danh sách hợp đồng chờ từ 7 ngày để đôn đốc."]),
-                _muc("Diễn biến & So sánh", "Số đi thế nào theo thời gian", [
-                    html.B("Tab 1 Theo từng ngày"), ": mỗi cột là một ngày, màu ô so với mức trung bình "
-                    "của chính phòng đó (xanh ngày tốt, đỏ ngày hụt). ", html.B("Tab 2 So sánh hai kỳ"),
+                _muc("Tracking ngày & So sánh", "Số đi thế nào theo thời gian", [
+                    html.B("Tab 1 Tracking ngày"), ": mỗi cột là một ngày, màu ô so với mức trung bình "
+                    "của chính phòng đó (xanh ngày tốt, đỏ ngày hụt). ", html.B("Tab 2 So sánh"),
                     ": chọn hai khoảng ngày (có nút gợi ý), xem chênh lệch theo phòng và Top giảm sâu "
                     "nhất - danh sách cần trao đổi trước."]),
                 _muc("Nhân sự & NSLĐ", "Năng suất theo từng người", [
@@ -105,7 +105,7 @@ def layout():
                     "dẫn trên trình duyệt ghi sẵn lựa chọn đó - ", html.B("gửi link"),
                     " là người nhận mở đúng kỳ bạn đang xem (vẫn theo quyền của người nhận)."]),
                 _muc("Bấm tên phòng để xem chi tiết", "", [
-                    "Ở Báo cáo Tổng, Diễn biến & So sánh, Phân tích bán hàng: bấm tên một phòng để mở ",
+                    "Ở Báo cáo Tổng, Tracking ngày & So sánh, Phân tích bán hàng: bấm tên một phòng để mở ",
                     html.B("Báo cáo phòng"), " của phòng đó. Trong Báo cáo phòng, bấm một nhân sự để mở "
                     "chi tiết người đó."]),
                 _muc("Dòng tình trạng dữ liệu", "", [

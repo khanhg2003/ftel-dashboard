@@ -1,4 +1,4 @@
-"""Tab 1 "Theo từng ngày" của trang Diễn biến & So sánh (dienbien.py) - thay báo cáo Google Sheet."""
+"""Tab 1 "Tracking ngày" của trang Tracking ngày & So sánh (dienbien.py) - thay báo cáo Google Sheet."""
 from __future__ import annotations
 
 import dash_ag_grid as dag
@@ -23,7 +23,7 @@ ZOOM_STEPS = [50, 75, 90, 100, 125, 150, 200]
 ZOOM_OPTIONS = ([{"label": "Vừa màn hình", "value": "fit"}]
                 + [{"label": f"{z}%", "value": z} for z in ZOOM_STEPS])
 RONG_CO_DINH = 165 * 2 + 88          # cột Bầy + Phòng + Tổng (luôn ghim)
-RONG_NGAY = 52
+RONG_NGAY = 48
 
 # Ô ngày tô đậm dần theo mức so với ngày thường của chính phòng đó, nhìn một cái
 # là thấy phòng nào ngày nào hụt hoặc bứt tốc.
@@ -64,12 +64,6 @@ def _thu(thang: str, ngay: str) -> int:
     from datetime import date
     y, m = int(thang[:4]), int(thang[5:7])
     return date(y, m, int(ngay)).weekday()
-
-
-def _nhan_ngay(thang: str, ngay: str) -> str:
-    """Tiêu đề cột ngày kèm thứ viết tắt: 15 T3 - dễ dò tuần và cuối tuần."""
-    ten = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"][_thu(thang, ngay)]
-    return f"{ngay.zfill(2)} {ten}"
 
 
 def _lop_ngay(thang: str, ngay: str) -> str:
@@ -210,7 +204,7 @@ def register(app):
                 lk.cot_phong_bam_duoc({"field": "phong", "headerName": "Phòng kinh doanh", "pinned": "left",
                                        "width": 165})]
         # flex để các cột ngày giãn đều lấp hết bề ngang, không chừa khoảng trắng bên phải
-        cols += [{"field": c, "headerName": _nhan_ngay(thang, c), "minWidth": RONG_NGAY, "flex": 1,
+        cols += [{"field": c, "headerName": c.zfill(2), "minWidth": RONG_NGAY, "flex": 1,
                   "type": "numericColumn", "cellStyle": HEAT_NGAY,
                   "cellClass": _lop_ngay(thang, c), "headerClass": _lop_ngay(thang, c)}
                  for c in day_cols]
