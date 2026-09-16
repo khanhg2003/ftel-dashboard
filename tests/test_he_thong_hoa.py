@@ -609,3 +609,22 @@ def test_bao_cao_phong_co_khoi_so_theo_ngay(tai_khoan):
         cols, rows, mo_ta = _callback("bp-nv-ngay.columnDefs")("2026-09-11", "IBB2", "vvip", "ngay")
     assert cols[0]["field"] == "acc" and cols[-1]["headerName"] == "TỔNG"
     assert rows and rows[-1]["loai_dong"] == "subtotal" and "Số V.VIP" in mo_ta
+
+
+def test_moi_dong_nhan_su_co_ma_dong_rieng(tai_khoan):
+    """Mã dòng phải khác nhau, nếu không AG Grid gộp mất các nhân sự cùng phòng."""
+    from flask_login import login_user
+
+    from app.ui.app import server
+    from app.ui.lien_ket import ROW_ID
+
+    def ma_dong(r):                       # chạy đúng công thức ROW_ID bằng Python
+        return f"{r['loai_dong']}|{r['phong_code']}|{r.get('acc') or ''}"
+
+    assert "params.data.acc" in ROW_ID
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        rows = _callback("tk-kpi.children")(THANG, "online", "ngay", "fit", "all", "bay", "nhansu",
+                                            "IBB2", {}, "ngay", {})[2]
+    ma = [ma_dong(r) for r in rows]
+    assert len(rows) > 5 and len(set(ma)) == len(ma)

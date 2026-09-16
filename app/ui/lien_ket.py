@@ -12,8 +12,10 @@ from flask_login import current_user
 from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
-# Mã dòng trên bảng theo phòng: "<loại dòng>|<mã phòng>" (mã phòng lặp ở dòng tổng bầy nên ghép loại dòng)
-ROW_ID = "params.data.loai_dong + '|' + params.data.phong_code"
+# Mã dòng trên bảng theo phòng: "<loại dòng>|<mã phòng>|<acc>" - mã phòng lặp ở dòng tổng bầy nên
+# ghép loại dòng; bảng xem theo nhân sự có nhiều dòng cùng phòng nên ghép thêm acc, thiếu acc là
+# các dòng trùng mã và AG Grid chỉ giữ lại một dòng.
+ROW_ID = "params.data.loai_dong + '|' + params.data.phong_code + '|' + (params.data.acc || '')"
 O_PHONG = {"o-lien-ket": "params.data && params.data.loai_dong == 'data'"}
 
 
