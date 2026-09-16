@@ -288,6 +288,79 @@ def tong_theo_phong(tu: str, den: str, metric: str = "online") -> pd.DataFrame:
     return pd.read_sql(sql, engine, params={"tu": tu, "den": den})
 
 
+def bang_ngay_theo_acc(thang: str, metric: str = "online", chi_phong: list[str] | None = None,
+                       den_ngay: int | None = None, cong_don: bool = False) -> pd.DataFrame:
+    """Bảng số theo ngày của TỪNG NHÂN VIÊN: dòng = acc, cột = ngày 1..n, có dòng tổng mỗi phòng.
+
+    Lấy đủ nhân sự trong danh mục của phòng (kể cả người chưa có số trong kỳ) cộng với acc có số
+    thật trong kỳ, nên tổng của các nhân sự luôn bằng số của phòng ở Báo cáo Tổng.
+    """
+    table, col, extra = METRICS[metric]
+    start, _, days = month_range(thang)
+    den_ngay = den_ngay or days
+    end = f"{thang}-{den_ngay:02d}"
+    df = pd.read_sql(text(f"""SELECT phong_code, acc_nhan_vien AS acc, acc_norm, {col} AS ngay,
+                                     COUNT(*) AS n
+                              FROM {table}
+                              WHERE {col} >= :tu AND {col} <= :den{extra}
+                              GROUP BY phong_code, acc_nhan_vien, acc_norm, {col}"""),
+                     engine, params={"tu": start.isoformat(), "den": end})
+    meta = {p["code"]: p for p in phong_order(thang)}
+    codes = [c for c in meta if chi_phong is None or c in set(chi_phong)]
+    if not df.empty:
+        df = df[df.phong_code.isin(codes)]
+        df["ngay"] = pd.to_datetime(df["ngay"]).dt.day
+
+    nguoi = pd.read_sql(text("""SELECT phong_code, acc, acc_norm FROM staff_map
+                                WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'"""), engine)
+    nguoi = nguoi[nguoi.phong_code.isin(codes)]
+    ds = pd.concat([nguoi[["phong_code", "acc", "acc_norm"]],
+                    df[["phong_code", "acc", "acc_norm"]] if not df.empty else pd.DataFrame()],
+                   ignore_index=True).drop_duplicates("acc_norm")
+    ten = pd.read_sql(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
+    ho_ten = dict(zip(ten.acc_norm, ten.ho_ten)) if not ten.empty else {}
+
+    cot_ngay = list(range(1, den_ngay + 1))
+    so = pd.DataFrame(0, index=ds.acc_norm, columns=cot_ngay, dtype=int)
+    if not df.empty:
+        pv = df.pivot_table(index="acc_norm", columns="ngay", values="n", aggfunc="sum", fill_value=0)
+        for c in pv.columns:
+            if c in so.columns:
+                so.loc[pv.index, c] = pv[c].astype(int)
+    tong_acc = so.sum(axis=1)
+    if cong_don:
+        so = so.cumsum(axis=1)
+
+    rows = []
+    ds = ds.set_index("acc_norm")
+    for code in codes:
+        accs = ds[ds.phong_code == code]
+        if accs.empty:
+            continue
+        accs = accs.assign(tong=tong_acc.reindex(accs.index)).sort_values("tong", ascending=False)
+        for acc_norm, r in accs.iterrows():
+            rows.append({"loai_dong": "data", "phong_code": code, "phong": meta[code]["ten"],
+                         "acc": r.acc, "ten": ho_ten.get(acc_norm, ""),
+                         **{str(c): int(so.at[acc_norm, c]) for c in cot_ngay},
+                         "Tổng": int(tong_acc.get(acc_norm, 0))})
+        tong = so.loc[accs.index].sum()
+        rows.append({"loai_dong": "subtotal", "phong_code": f"SUB_{code}",
+                     "phong": meta[code]["ten"], "acc": f"TỔNG {meta[code]['ten'].upper()}", "ten": "",
+                     **{str(c): int(tong[c]) for c in cot_ngay},
+                     "Tổng": int(tong_acc.reindex(accs.index).sum())})
+    if not rows:
+        return pd.DataFrame(columns=["loai_dong", "phong_code", "phong", "acc", "ten",
+                                     *[str(c) for c in cot_ngay], "Tổng"])
+    out = pd.DataFrame(rows)
+    if len([c for c in codes if (ds.phong_code == c).any()]) > 1:
+        tong = out[out.loai_dong == "subtotal"][[str(c) for c in cot_ngay] + ["Tổng"]].sum()
+        out = pd.concat([out, pd.DataFrame([{"loai_dong": "total", "phong_code": "TOTAL",
+                                             "phong": "", "acc": "TỔNG TẤT CẢ", "ten": "",
+                                             **{k: int(v) for k, v in tong.items()}}])],
+                        ignore_index=True)
+    return out
+
+
 def tong_theo_acc(tu: str, den: str, metric: str = "online") -> pd.DataFrame:
     """Tổng số trong khoảng [tu, den] theo từng acc nhân viên."""
     table, col, extra = METRICS[metric]

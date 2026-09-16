@@ -243,7 +243,8 @@ def test_tab_an_khong_tinh(tai_khoan):
     from app.ui.app import server
     with server.test_request_context("/"):
         login_user(_user("zz_ht_admin"))
-        kq = _callback("tk-kpi.children")(THANG, "online", "ngay", "fit", "all", "bay", {}, "sosanh", {})
+        kq = _callback("tk-kpi.children")(THANG, "online", "ngay", "fit", "all", "bay", "phong",
+                                          None, {}, "sosanh", {})
         assert all(x is no_update for x in kq)
         kq = _callback("ss-kpi.children")("2026-09-01", "2026-09-05", "2026-09-06", "2026-09-11",
                                           "online", "kd", "all", "ngay")
@@ -565,3 +566,46 @@ def test_bam_sua_mo_hop_thoai_co_cau_chi_tieu(tai_khoan, grid, out, rowid):
             kq = (ham(o, None, None, None, None, THANG) if grid in ("st-cocau-grid", "st-target-grid")
                   else ham(None, o, None, None, None, None))
             assert kq[0] == "modal mo"
+
+
+# ------------------------------------------------- xem theo nhân sự (Tracking ngày, Báo cáo phòng)
+def test_bang_ngay_theo_acc_cong_dung_bang_so_cua_phong():
+    from app.metrics import bang_ngay_theo_acc, tracking_table
+    df = bang_ngay_theo_acc(THANG, "online", chi_phong=["IBB2"], den_ngay=11)
+    tong_nv = int(df[df.loai_dong == "subtotal"]["Tổng"].iloc[0])
+    bang = tracking_table(THANG, "online", den_ngay=11)
+    tong_phong = int(bang[bang.phong_code == "IBB2"]["Tổng"].iloc[0])
+    assert tong_nv == tong_phong > 0
+    assert (df[df.loai_dong == "data"]["Tổng"].sum()) == tong_nv
+    cong_don = bang_ngay_theo_acc(THANG, "online", chi_phong=["IBB2"], den_ngay=11, cong_don=True)
+    assert int(cong_don[cong_don.loai_dong == "subtotal"]["11"].iloc[0]) == tong_phong
+
+
+def test_tracking_xem_theo_nhan_su_va_quyen(tai_khoan):
+    from flask_login import login_user
+
+    from app.ui.app import server
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        kq = _callback("tk-kpi.children")(THANG, "online", "ngay", "fit", "all", "bay", "nhansu",
+                                          "IBB2", {}, "ngay", {})
+        cols, rows = kq[1], kq[2]
+        assert cols[0]["field"] == "acc" and rows and all(r["phong_code"].startswith(("IBB2", "SUB_"))
+                                                          for r in rows)
+        assert kq[8] == {}                       # ô chọn phòng hiện ra
+        # trưởng phòng chỉ chọn được phòng mình
+        login_user(_user("zz_ht_phong"))
+        kq = _callback("tk-kpi.children")(THANG, "online", "ngay", "fit", "all", "bay", "nhansu",
+                                          "IBB6", {}, "ngay", {})
+        assert [o["value"] for o in kq[9]] == ["IBB2"] and kq[10] == "IBB2"
+
+
+def test_bao_cao_phong_co_khoi_so_theo_ngay(tai_khoan):
+    from flask_login import login_user
+
+    from app.ui.app import server
+    with server.test_request_context("/"):
+        login_user(_user("zz_ht_admin"))
+        cols, rows, mo_ta = _callback("bp-nv-ngay.columnDefs")("2026-09-11", "IBB2", "vvip", "ngay")
+    assert cols[0]["field"] == "acc" and cols[-1]["headerName"] == "TỔNG"
+    assert rows and rows[-1]["loai_dong"] == "subtotal" and "Số V.VIP" in mo_ta

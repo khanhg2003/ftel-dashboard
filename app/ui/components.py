@@ -261,6 +261,47 @@ GRID_STYLE_CONDITIONS = {
 }
 
 
+# ------------------------------------------------ bảng "số theo ngày" (Tracking ngày, Báo cáo phòng)
+# Ô ngày tô đậm dần theo mức so với ngày thường của chính dòng đó, nhìn một cái là thấy ngày nào
+# hụt hoặc bứt tốc.
+HEAT_NGAY = {"styleConditions": [
+    {"condition": "params.data.loai_dong != 'data'", "style": {}},
+    {"condition": "params.value === 0",
+     "style": {"backgroundColor": "#FBE3E1", "color": "#93241C"}},
+    {"condition": "params.value < params.data._tb * 0.6",
+     "style": {"backgroundColor": "#FDEDE9", "color": "#9A3412"}},
+    {"condition": "params.value < params.data._tb * 0.95",
+     "style": {"backgroundColor": "#FFF8E6", "color": "#6B5104"}},
+    {"condition": "params.value < params.data._tb * 1.4",
+     "style": {"backgroundColor": "#E8F5EC", "color": "#14532D"}},
+    {"condition": "true",
+     "style": {"backgroundColor": "#BFE6C8", "color": "#0F3D22", "fontWeight": "700"}},
+]}
+
+# Dòng tổng tô đậm hơn dòng thường để mắt bám được theo hàng
+DONG_TONG_NGAY = {"styleConditions": [
+    {"condition": "params.data.loai_dong == 'subtotal'",
+     "style": {"backgroundColor": "#D3E4F4", "fontWeight": "700", "color": "#0B2E4F"}},
+    {"condition": "params.data.loai_dong == 'nhomkhac'",
+     "style": {"backgroundColor": "#FBE8D2", "fontWeight": "700", "color": "#7A4406"}},
+    {"condition": "params.data.loai_dong == 'total'",
+     "style": {"backgroundColor": "#B9D3EB", "fontWeight": "700", "color": "#08284A"}},
+]}
+LOP_DONG_NGAY = {"dong-tong-bay": "params.data.loai_dong == 'subtotal'",
+                 "dong-khac": "params.data.loai_dong == 'nhomkhac'",
+                 "dong-tong": "params.data.loai_dong == 'total'"}
+
+
+def lop_cot_ngay(thang: str, ngay: str) -> str:
+    """Kẻ vạch đậm ở đầu mỗi tuần (thứ Hai) và tô nhạt hai ngày cuối tuần."""
+    from datetime import date
+    thu = date(int(thang[:4]), int(thang[5:7]), int(ngay)).weekday()
+    lop = ["dau-tuan"] if thu == 0 else []
+    if thu >= 5:
+        lop.append("cuoi-tuan")
+    return " ".join(lop)
+
+
 # ------------------------------------------------------------ import Excel
 MAU_LOAI_THAY_DOI = {"styleConditions": [
     {"condition": "params.value == 'Lỗi'", "style": {"color": "#B42318", "fontWeight": "700"}},

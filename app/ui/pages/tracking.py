@@ -9,11 +9,13 @@ from flask_login import current_user
 from app.auth import ghi_log
 from app.export_phan_tich import xuat_phan_tich
 
-from app.metrics import (METRIC_LABEL, cac_thang_co_du_lieu, daily_counts, month_range,
-                         ngay_co_du_lieu, prev_month, summary_phong, tien_do_thang, tracking_table)
+from app.metrics import (METRIC_LABEL, bang_ngay_theo_acc, cac_thang_co_du_lieu, daily_counts,
+                         month_range, ngay_co_du_lieu, prev_month, summary_phong, tien_do_thang,
+                         tracking_table)
 from app.org import bay_info, loc_chi_nhanh, phong_order
-from app.ui.components import (card, chi_nhanh_control, chon_ky, field,
-                               gan_dieu_huong_ky, kpi, pct_vn, seg_control, so_vn)
+from app.ui.components import (DONG_TONG_NGAY, HEAT_NGAY, LOP_DONG_NGAY, card, chi_nhanh_control,
+                               chon_ky, field, gan_dieu_huong_ky, kpi, lop_cot_ngay, pct_vn,
+                               seg_control, so_vn)
 from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
@@ -25,54 +27,25 @@ ZOOM_OPTIONS = ([{"label": "Vừa màn hình", "value": "fit"}]
 RONG_CO_DINH = 165 * 2 + 88          # cột Bầy + Phòng + Tổng (luôn ghim)
 RONG_NGAY = 48
 
-# Ô ngày tô đậm dần theo mức so với ngày thường của chính phòng đó, nhìn một cái
-# là thấy phòng nào ngày nào hụt hoặc bứt tốc.
-HEAT_NGAY = {"styleConditions": [
-    {"condition": "params.data.loai_dong != 'data'", "style": {}},
-    {"condition": "params.value === 0",
-     "style": {"backgroundColor": "#FBE3E1", "color": "#93241C"}},
-    {"condition": "params.value < params.data._tb * 0.6",
-     "style": {"backgroundColor": "#FDEDE9", "color": "#9A3412"}},
-    {"condition": "params.value < params.data._tb * 0.95",
-     "style": {"backgroundColor": "#FFF8E6", "color": "#6B5104"}},
-    {"condition": "params.value < params.data._tb * 1.4",
-     "style": {"backgroundColor": "#E8F5EC", "color": "#14532D"}},
-    {"condition": "true",
-     "style": {"backgroundColor": "#BFE6C8", "color": "#0F3D22", "fontWeight": "700"}},
-]}
-
-# Dòng tổng bầy / tổng chi nhánh tô đậm hơn dòng phòng để mắt bám được theo hàng
-DONG_TONG = {"styleConditions": [
-    {"condition": "params.data.loai_dong == 'subtotal'",
-     "style": {"backgroundColor": "#D3E4F4", "fontWeight": "700", "color": "#0B2E4F"}},
-    {"condition": "params.data.loai_dong == 'nhomkhac'",
-     "style": {"backgroundColor": "#FBE8D2", "fontWeight": "700", "color": "#7A4406"}},
-    {"condition": "params.data.loai_dong == 'total'",
-     "style": {"backgroundColor": "#B9D3EB", "fontWeight": "700", "color": "#08284A"}},
-]}
-LOP_DONG = {"dong-tong-bay": "params.data.loai_dong == 'subtotal'",
-            "dong-khac": "params.data.loai_dong == 'nhomkhac'",
-            "dong-tong": "params.data.loai_dong == 'total'"}
-
 MAU = ["#0072BC", "#F37021", "#00A650", "#37A5E6", "#8C6FD1", "#0E7490"]
 MAU_PHONG = ["#0072BC", "#F37021", "#00A650", "#37A5E6", "#8C6FD1", "#0E7490", "#D946A0",
              "#B45309"]
 
 
-def _thu(thang: str, ngay: str) -> int:
-    """Thứ trong tuần của ngày (0 = thứ Hai ... 6 = Chủ nhật)."""
-    from datetime import date
-    y, m = int(thang[:4]), int(thang[5:7])
-    return date(y, m, int(ngay)).weekday()
+AN = {"display": "none"}
 
 
-def _lop_ngay(thang: str, ngay: str) -> str:
-    """Kẻ vạch đậm ở đầu mỗi tuần (thứ Hai) và tô nhạt hai ngày cuối tuần."""
-    thu = _thu(thang, ngay)
-    lop = ["dau-tuan"] if thu == 0 else []
-    if thu >= 5:
-        lop.append("cuoi-tuan")
-    return " ".join(lop)
+def _duoc_xem_nhan_su() -> bool:
+    return bool(getattr(current_user, "duoc_xem_nhan_su", False))
+
+
+def _phong_cho_phep(thang: str | None = None, scope: list[str] | None = None) -> list[dict]:
+    """Phòng được xem CHI TIẾT NHÂN SỰ, đã cắt theo chi nhánh đang lọc."""
+    nhan_su = getattr(current_user, "phong_nhan_su", lambda: None)()
+    ds = [p for p in phong_order(thang) if nhan_su is None or p["code"] in set(nhan_su)]
+    if scope is not None:
+        ds = [p for p in ds if p["code"] in set(scope)]
+    return ds
 
 
 def _thang_mac_dinh() -> str:
@@ -99,8 +72,15 @@ def layout(ky: dict | None = None):
 
         card([
             html.Div([
-                html.Div("Màu ô so với mức trung bình của chính phòng đó: xanh là ngày tốt, "
-                         "đỏ là ngày hụt.", className="desc", style={"margin": 0}),
+                field("Xem theo", seg_control("tk-doi-tuong", [("phong", "Phòng"),
+                                                               ("nhansu", "Nhân sự")], "phong"))
+                if _duoc_xem_nhan_su() else html.Div(),
+                html.Div(field("Phòng", dcc.Dropdown(
+                    id="tk-phong", clearable=False, style={"width": "210px"},
+                    options=[{"label": p["ten"], "value": p["code"]} for p in _phong_cho_phep()],
+                    value=next((p["code"] for p in _phong_cho_phep()), None))),
+                    id="tk-phong-wrap", style=AN),
+                html.Div(id="tk-ghi-chu", className="desc", style={"margin": 0}),
                 html.Div(className="grow"),
                 field("Cỡ bảng", dcc.Dropdown(
                     id="tk-zoom", clearable=False, value="fit", options=ZOOM_OPTIONS,
@@ -108,7 +88,7 @@ def layout(ky: dict | None = None):
                 field(" ", html.Button([icon("download", 14), html.Span("Excel")],
                                        id="tk-export", className="btn",
                                        title="Tải bảng số theo ngày đang xem")),
-            ], className="toolbar", style={"marginBottom": "12px"}),
+            ], className="toolbar", style={"marginBottom": "12px", "flexWrap": "wrap"}),
             dcc.Download(id="tk-tai-xuong"),
             html.Div(dcc.Loading(dag.AgGrid(
                 id="tk-grid", className="ag-theme-quartz ag-theme-ftel",
@@ -116,11 +96,11 @@ def layout(ky: dict | None = None):
                 defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True},
                 dashGridOptions={"suppressCellFocus": True, "headerHeight": 38, "rowHeight": 32,
                                  "domLayout": "normal", "tooltipShowDelay": 300,
-                                 "rowClassRules": LOP_DONG},
-                getRowStyle=DONG_TONG,
+                                 "rowClassRules": LOP_DONG_NGAY},
+                getRowStyle=DONG_TONG_NGAY,
                 style={"width": "100%", "height": "560px"})),
                 id="tk-zoom-wrap", className="zoom-wrap")],
-            title="Số bán theo ngày"),
+            title="Số bán theo ngày", id="tk-the-bang"),
 
         html.Div([
             html.Div(card([
@@ -161,16 +141,27 @@ def register(app):
 
     @app.callback(Output("tk-tai-xuong", "data"), Input("tk-export", "n_clicks"),
                   State("tk-thang", "value"), State("tk-metric", "value"), State("tk-view", "value"),
-                  State("tk-cn", "value"), prevent_initial_call=True)
-    def _export(n, thang, metric, view, chi_nhanh):
+                  State("tk-cn", "value"), State("tk-doi-tuong", "value"), State("tk-phong", "value"),
+                  prevent_initial_call=True)
+    def _export(n, thang, metric, view, chi_nhanh, doi_tuong, ma_phong):
         if not n or not thang:
             return no_update
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         den_ngay = ngay_co_du_lieu(thang) or month_range(thang)[2]
-        df = tracking_table(thang, metric, cong_don=view == "congdon", den_ngay=den_ngay, chi_phong=scope)
+        ds_phong = _phong_cho_phep(thang, scope)
+        xem_ns = doi_tuong == "nhansu" and _duoc_xem_nhan_su() and any(p["code"] == ma_phong
+                                                                       for p in ds_phong)
+        if xem_ns:
+            df = bang_ngay_theo_acc(thang, metric, chi_phong=[ma_phong], den_ngay=den_ngay,
+                                    cong_don=view == "congdon")
+            dau = [("acc", "Acc nhân viên", "text"), ("ten", "Họ tên", "text")]
+        else:
+            df = tracking_table(thang, metric, cong_don=view == "congdon", den_ngay=den_ngay,
+                                chi_phong=scope)
+            dau = [("bay", "Bầy", "text"), ("phong", "Phòng", "text")]
         ngay = [c for c in df.columns if c.isdigit()]
-        cot = ([("bay", "Bầy", "text"), ("phong", "Phòng", "text")]
-               + [(c, f"{int(c):02d}/{thang[5:7]}", "so") for c in ngay] + [("Tổng", "Tổng", "so")])
+        cot = (dau + [(c, f"{int(c):02d}/{thang[5:7]}", "so") for c in ngay]
+               + [("Tổng", "Tổng", "so")])
         cach = "cộng dồn" if view == "congdon" else "từng ngày"
         noi_dung = xuat_phan_tich("", f"TRACKING {METRIC_LABEL[metric].upper()} THÁNG {thang[5:7]}/{thang[:4]} "
                                       f"· {cach}", [("Theo ngày", df, cot)])
@@ -182,31 +173,54 @@ def register(app):
         Output("tk-grid", "rowData"), Output("tk-line", "figure"),
         Output("tk-bar", "figure"), Output("tracking-cap-nhat", "children"),
         Output("tk-zoom-wrap", "style"), Output("tk-grid", "style"),
+        Output("tk-phong-wrap", "style"), Output("tk-phong", "options"),
+        Output("tk-phong", "value"), Output("tk-ghi-chu", "children"),
         Input("tk-thang", "value"), Input("tk-metric", "value"), Input("tk-view", "value"),
         Input("tk-zoom", "value"), Input("tk-cn", "value"), Input("tk-nhom", "value"),
+        Input("tk-doi-tuong", "value"), Input("tk-phong", "value"),
         Input("ui-vw", "data"), Input("db-tab", "value"), State("ui-sidebar", "data"))
-    def _cap_nhat(thang, metric, view, zoom, chi_nhanh, nhom, vw, tab, sidebar):
+    def _cap_nhat(thang, metric, view, zoom, chi_nhanh, nhom, doi_tuong, ma_phong, vw, tab, sidebar):
         if tab == "sosanh":                  # đang xem tab So sánh hai kỳ: không tính phần này
-            return (no_update,) * 8
+            return (no_update,) * 12
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         cong_don = view == "congdon"
         den_ngay = ngay_co_du_lieu(thang) or month_range(thang)[2]
 
-        # chỉ hiện tới ngày có dữ liệu - khỏi thừa 20 cột trống của những ngày chưa tới
-        df = tracking_table(thang, metric, cong_don=cong_don, den_ngay=den_ngay,
-                            chi_phong=scope)
-        day_cols = [c for c in df.columns if c.isdigit()]
-        # trung bình mỗi ngày của từng phòng -> mốc tô màu riêng cho chính dòng đó
-        df["_tb"] = df[day_cols].mean(axis=1).round(2) if day_cols else 0
+        # Xem theo nhân sự: chỉ vai trò được xem chi tiết nhân sự, và chỉ trong phòng phụ trách
+        ds_phong = _phong_cho_phep(thang, scope)
+        xem_ns = doi_tuong == "nhansu" and _duoc_xem_nhan_su() and bool(ds_phong)
+        chon = [{"label": p["ten"], "value": p["code"]} for p in ds_phong]
+        ma_phong = ma_phong if any(ma_phong == p["value"] for p in chon) else (
+            chon[0]["value"] if chon else None)
 
-        cols = [{"field": "bay", "headerName": "Bầy", "pinned": "left", "width": 165,
-                 "cellStyle": {"fontWeight": "600"}},
-                lk.cot_phong_bam_duoc({"field": "phong", "headerName": "Phòng kinh doanh", "pinned": "left",
-                                       "width": 165})]
+        if xem_ns:
+            df = bang_ngay_theo_acc(thang, metric, chi_phong=[ma_phong], den_ngay=den_ngay,
+                                    cong_don=cong_don)
+            ghi_chu = ("Từng nhân viên của phòng, xếp từ nhiều số xuống ít. Tổng các nhân viên "
+                       "bằng số của phòng ở Báo cáo Tổng.")
+        else:
+            # chỉ hiện tới ngày có dữ liệu - khỏi thừa 20 cột trống của những ngày chưa tới
+            df = tracking_table(thang, metric, cong_don=cong_don, den_ngay=den_ngay,
+                                chi_phong=scope)
+            ghi_chu = ("Màu ô so với mức trung bình của chính phòng đó: xanh là ngày tốt, "
+                       "đỏ là ngày hụt.")
+        day_cols = [c for c in df.columns if c.isdigit()]
+        # trung bình mỗi ngày của từng dòng -> mốc tô màu riêng cho chính dòng đó
+        df["_tb"] = df[day_cols].mean(axis=1).round(2) if day_cols and len(df) else 0
+
+        if xem_ns:
+            cols = [{"field": "acc", "headerName": "Acc nhân viên", "pinned": "left", "width": 175,
+                     "cellStyle": {"fontWeight": "600"}},
+                    {"field": "ten", "headerName": "Họ tên", "pinned": "left", "width": 175}]
+        else:
+            cols = [{"field": "bay", "headerName": "Bầy", "pinned": "left", "width": 165,
+                     "cellStyle": {"fontWeight": "600"}},
+                    lk.cot_phong_bam_duoc({"field": "phong", "headerName": "Phòng kinh doanh",
+                                           "pinned": "left", "width": 165})]
         # flex để các cột ngày giãn đều lấp hết bề ngang, không chừa khoảng trắng bên phải
         cols += [{"field": c, "headerName": c.zfill(2), "minWidth": RONG_NGAY, "flex": 1,
                   "type": "numericColumn", "cellStyle": HEAT_NGAY,
-                  "cellClass": _lop_ngay(thang, c), "headerClass": _lop_ngay(thang, c)}
+                  "cellClass": lop_cot_ngay(thang, c), "headerClass": lop_cot_ngay(thang, c)}
                  for c in day_cols]
         cols.append({"field": "Tổng", "headerName": "TỔNG", "pinned": "right", "width": 88,
                      "type": "numericColumn", "cellStyle": {"fontWeight": "700"}})
@@ -230,7 +244,8 @@ def register(app):
         cao_bang = max(300, min(760, int((cao_man_hinh - 430) / ty_le)))
         return (kpis, cols, df.to_dict("records"), line, bar, cap_nhat,
                 {"zoom": ty_le} if ty_le != 1 else {},
-                {"width": "100%", "height": f"{cao_bang}px"})
+                {"width": "100%", "height": f"{cao_bang}px"},
+                {} if xem_ns else AN, chon, ma_phong, ghi_chu)
 
     def _kpi_cards(thang, den_ngay, scope):
         s = summary_phong(thang, den_ngay=den_ngay, chi_phong=scope)

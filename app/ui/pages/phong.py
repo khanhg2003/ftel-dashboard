@@ -25,11 +25,12 @@ from app import bao_cao_phong as bp
 from app import canh_bao as quy_tac   # quy tắc cần chú ý dùng chung
 from app.auth import ghi_log
 from app.export_phong import anh_bao_cao_phong, xuat_bao_cao_phong
-from app.metrics import cac_ngay_co_du_lieu
+from app.metrics import bang_ngay_theo_acc, cac_ngay_co_du_lieu
 from app.org import phong_order
 from app.overview import trang_thai_ngay
-from app.ui.components import (LOCALE_VI, alert, card, chon_ngay, chu_giai, field, gan_chon_ngay,
-                               kpi, seg_control)
+from app.ui.components import (DONG_TONG_NGAY, HEAT_NGAY, LOCALE_VI, LOP_DONG_NGAY, alert, card,
+                               chon_ngay, chu_giai, field, gan_chon_ngay, kpi, lop_cot_ngay,
+                               seg_control)
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui.icons import icon
@@ -70,6 +71,10 @@ def phong_duoc_chon() -> list[dict]:
     if pham_vi is not None:
         ds = [p for p in ds if p["code"] in set(pham_vi)]
     return [{"label": p["ten"], "value": p["code"]} for p in ds]
+
+
+TEN_KHOI = {"online": "Số Online", "fptplay": "Số Combo (FPT Play)", "vvip": "Số V.VIP",
+            "camera": "Số Camera"}
 
 
 def duoc_xem_phong(code: str | None) -> bool:
@@ -160,6 +165,26 @@ def layout(ky: dict | None = None):
                           desc="Cột xanh là online, cột cam là hợp đồng tạo mới; đường chấm là "
                                "mục tiêu ngày"), className="chart-col"),
         ], className="chart-row doi"),
+
+        # Khối số theo ngày của từng nhân viên - giống các KHỐI A/B/C/D trong file báo cáo của phòng
+        html.Div([
+            html.Div([
+                html.Div([html.H3("Số bán theo ngày của từng nhân viên", style={"margin": 0}),
+                          html.Div(id="bp-ngay-nv-mo-ta", className="desc",
+                                   style={"margin": "2px 0 0"})]),
+                html.Div(className="grow"),
+                seg_control("bp-khoi", [("online", "Số Online"), ("fptplay", "Số Combo"),
+                                        ("vvip", "Số V.VIP"), ("camera", "Số Camera")], "online"),
+                seg_control("bp-khoi-xem", [("ngay", "Từng ngày"), ("congdon", "Cộng dồn")], "ngay"),
+            ], className="the-thanh"),
+            dcc.Loading(dag.AgGrid(
+                id="bp-nv-ngay", className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
+                defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True},
+                dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight",
+                                 "rowHeight": 32, "headerHeight": 38, "localeText": LOCALE_VI,
+                                 "rowClassRules": LOP_DONG_NGAY},
+                getRowStyle=DONG_TONG_NGAY, style={"width": "100%"})),
+        ], className="card"),
 
         # ngăn chi tiết nhân sự
         html.Div([
@@ -486,6 +511,35 @@ def register(app):
                 lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), hien.to_dict("records"), [tong],
                 COT_SO_SANH, _dong_so_sanh(ss), mo_ta_ss,
                 _bieu_do(bp.dien_bien_ngay(thang, ngay, code), dong.get("mt_ngay")))
+
+    @app.callback(Output("bp-nv-ngay", "columnDefs"), Output("bp-nv-ngay", "rowData"),
+                  Output("bp-ngay-nv-mo-ta", "children"),
+                  Input("bp-date", "date"), Input("bp-phong", "value"), Input("bp-khoi", "value"),
+                  Input("bp-khoi-xem", "value"))
+    def _ngay_theo_nhan_su(ngay_iso, code, khoi, xem):
+        """Khối số theo ngày của từng nhân viên trong phòng (Online / Combo / V.VIP / Camera)."""
+        if not duoc_xem_phong(code) or not ngay_iso:
+            return [], [], ""
+        d = date.fromisoformat(ngay_iso)
+        thang = f"{d.year}-{d.month:02d}"
+        df = bang_ngay_theo_acc(thang, khoi or "online", chi_phong=[code], den_ngay=d.day,
+                                cong_don=xem == "congdon")
+        ngay_cols = [c for c in df.columns if c.isdigit()]
+        df["_tb"] = df[ngay_cols].mean(axis=1).round(2) if ngay_cols and len(df) else 0
+        cols = [{"field": "acc", "headerName": "Acc nhân viên", "pinned": "left", "width": 170,
+                 "cellStyle": {"fontWeight": "600"}},
+                {"field": "ten", "headerName": "Họ tên", "pinned": "left", "width": 170}]
+        cols += [{"field": c, "headerName": c.zfill(2), "width": 48, "flex": 1, "minWidth": 44,
+                  "type": "numericColumn", "cellStyle": HEAT_NGAY,
+                  "cellClass": lop_cot_ngay(thang, c), "headerClass": lop_cot_ngay(thang, c)}
+                 for c in ngay_cols]
+        cols.append({"field": "Tổng", "headerName": "TỔNG", "pinned": "right", "width": 84,
+                     "type": "numericColumn", "cellStyle": {"fontWeight": "700"}})
+        so_nv = int((df.loai_dong == "data").sum())
+        cach = "cộng dồn từ ngày 01" if xem == "congdon" else "số của riêng từng ngày"
+        mo_ta = (f"{TEN_KHOI.get(khoi or 'online')} · {so_nv} nhân sự · 01-{d:%d/%m/%Y} · {cach}. "
+                 "Tổng các nhân viên bằng số của phòng.")
+        return cols, df.to_dict("records"), mo_ta
 
     @app.callback(Output("bp-nv", "dashGridOptions"), Input("bp-tim", "value"),
                   prevent_initial_call=True)
