@@ -64,3 +64,16 @@ def init_db() -> None:
     from app import models  # noqa: F401  (đăng ký bảng)
 
     Base.metadata.create_all(engine)
+    _migrate_session_version()
+
+
+def _migrate_session_version() -> None:
+    """Thêm cột session_version vào bảng users nếu chưa tồn tại (migration nhẹ)."""
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    if "users" not in insp.get_table_names():
+        return
+    cot = {c["name"] for c in insp.get_columns("users")}
+    if "session_version" not in cot:
+        with engine.begin() as c:
+            c.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0"))

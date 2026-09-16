@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from flask import session as flask_session
 from flask_login import LoginManager, UserMixin, current_user
 from sqlalchemy import select
 
@@ -44,6 +45,7 @@ class SessionUser(UserMixin):
         self.ho_ten = row.ho_ten or row.username
         self.role = row.role
         self.ma_nv = row.ma_nv
+        self.session_version = row.session_version or 0
         self.scope = json.loads(row.scope) if row.scope else []
         if self.role == "bay":       # vai trò Giám đốc Bầy đã bỏ: tài khoản cũ quy về Trưởng phòng
             self.role = "phong"      # của các phòng trong bầy đó, không bị mở rộng quyền
@@ -128,7 +130,14 @@ def loc_nhan_su(scope_so: list[str] | None, scope_nhan_su: list[str] | None) -> 
 def load_user(user_id: str):
     with session_scope() as s:
         row = s.get(User, int(user_id))
-        return SessionUser(row) if row and row.active else None
+        if row is None or not row.active:
+            return None
+        # Kiểm tra phiên bản session: nếu mật khẩu đã đổi thì phiên cũ bị vô hiệu
+        sv_session = flask_session.get("_sv")
+        sv_db = row.session_version or 0
+        if sv_session is not None and sv_session != sv_db:
+            return None
+        return SessionUser(row)
 
 
 def xac_thuc(username: str, password: str) -> tuple[SessionUser | None, str]:
@@ -150,7 +159,10 @@ def xac_thuc(username: str, password: str) -> tuple[SessionUser | None, str]:
         row.failed_logins = 0
         row.last_login = utc_bay_gio()
         s.add(AuditLog(username=username, action="login_ok"))
-        return SessionUser(row), ""
+        user = SessionUser(row)
+        # Lưu session_version vào Flask session để kiểm tra sau khi đổi mật khẩu
+        flask_session["_sv"] = user.session_version
+        return user, ""
 
 
 def doi_mat_khau(username: str, mat_khau_cu: str, mat_khau_moi: str) -> str:
@@ -165,7 +177,12 @@ def doi_mat_khau(username: str, mat_khau_cu: str, mat_khau_moi: str) -> str:
         except VerifyMismatchError:
             return "Mật khẩu hiện tại không đúng."
         row.password_hash = ph.hash(mat_khau_moi)
+        # Tăng session_version → buộc các máy khác đăng nhập lại
+        row.session_version = (row.session_version or 0) + 1
         s.add(AuditLog(username=username, action="doi_mat_khau"))
+        new_sv = row.session_version
+    # Cập nhật session hiện tại để người đổi mật khẩu không bị logout
+    flask_session["_sv"] = new_sv
     return ""
 
 

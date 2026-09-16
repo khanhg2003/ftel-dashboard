@@ -259,6 +259,7 @@ def dat_lai_mat_khau(username: str, nguoi_thuc_hien: str) -> str:
         if row is None:
             return ""
         row.password_hash = ph.hash(mk)
+        row.session_version = (row.session_version or 0) + 1  # buộc đăng nhập lại mọi máy
         row.failed_logins = 0
         row.locked_until = None
         s.add(AuditLog(username=nguoi_thuc_hien, action="dat_lai_mat_khau", detail=username))

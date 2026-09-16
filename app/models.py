@@ -227,6 +227,7 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
