@@ -29,6 +29,10 @@ def danh_sach_user() -> pd.DataFrame:
                              FROM users ORDER BY role, username"""), engine)
     if df.empty:
         return df
+    # Giữ nguyên mã NV dạng chuỗi (kể cả số 0 ở đầu). pd.read_sql tự suy kiểu numeric
+    # cho cột toàn chữ số, khiến "067376" thành 67376 → mất số 0.
+    if "ma_nv" in df.columns:
+        df["ma_nv"] = df["ma_nv"].apply(lambda v: str(v).split(".")[0] if pd.notna(v) and v != "" else "")
     df["vai_tro"] = df["role"].map(ROLE_TEN).fillna(df["role"])
     df["pham_vi"] = [_scope_text(s) if r in ("phong", "bay") else "Toàn chi nhánh"
                      for s, r in zip(df["scope"], df["role"])]
@@ -239,7 +243,10 @@ def danh_sach_staff() -> pd.DataFrame:
                                     s.hieu_luc_tu, s.hieu_luc_den, s.ghi_chu
                              FROM staff_map s LEFT JOIN dim_phong p ON p.code = s.phong_code
                              ORDER BY p.thu_tu, s.acc"""), engine)
-    for c in ("hieu_luc_tu", "hieu_luc_den", "ma_nv", "ghi_chu", "phong"):
+    # Giữ nguyên mã NV dạng chuỗi (kể cả số 0 ở đầu) trước khi astype(object).
+    if "ma_nv" in df.columns:
+        df["ma_nv"] = df["ma_nv"].apply(lambda v: str(v).split(".")[0] if pd.notna(v) and v != "" else "")
+    for c in ("hieu_luc_tu", "hieu_luc_den", "ghi_chu", "phong"):
         if c in df.columns:
             df[c] = df[c].astype(object).where(df[c].notna(), "")
     return df

@@ -1,0 +1,657 @@
+{
+  "name": "Báo cáo chi tiêu ads - Tháng 9 [FTEL]",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "5ce90986-6c9d-41c6-bc6f-2c56b946b4ab",
+      "name": "07:00 AM Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -31696,
+        2848
+      ],
+      "retryOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheet_name }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "TÊN CAMP": "={{ $json.campaign_name }}",
+            "STT": "={{ $json.row_number }}",
+            "NGÀY": "={{ $json.date }}",
+            "TÌNH TRẠNG": "={{ $json.status }}",
+            "CHI TIÊU": "={{ $json.spend }}",
+            "TỔNG TIN NHẮN": "={{ $json.messages }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "STT",
+              "displayName": "STT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÊN CAMP",
+              "displayName": "TÊN CAMP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÌNH TRẠNG",
+              "displayName": "TÌNH TRẠNG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NGÀY",
+              "displayName": "NGÀY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CHI TIÊU",
+              "displayName": "CHI TIÊU",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG TIN NHẮN",
+              "displayName": "TỔNG TIN NHẮN",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG SỐ ĐIỆN THOẠI",
+              "displayName": "TỔNG SỐ ĐIỆN THOẠI",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "TỔNG PTTB",
+              "displayName": "TỔNG PTTB",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PIC 1",
+              "displayName": "PIC 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PIC 2",
+              "displayName": "PIC 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Tiền/Người",
+              "displayName": "Tiền/Người",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PIC 3",
+              "displayName": "PIC 3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "locationDefine": {
+            "values": {
+              "headerRow": 3
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -29680,
+        2896
+      ],
+      "id": "5663d1d6-c750-4e5f-b7d6-aaf6078a04d9",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheet_name }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "TÊN CAMP": "={{ $json.campaign_name }}",
+            "TÌNH TRẠNG": "={{ $json.status }}",
+            "NGÀY": "={{ $json.date }}",
+            "CHI TIÊU": "={{ $json.spend }}",
+            "TỔNG TIN NHẮN": "={{ $json.messages }}",
+            "row_number": "={{ $json.row_number }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "STT",
+              "displayName": "STT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÊN CAMP",
+              "displayName": "TÊN CAMP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÌNH TRẠNG",
+              "displayName": "TÌNH TRẠNG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NGÀY",
+              "displayName": "NGÀY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CHI TIÊU",
+              "displayName": "CHI TIÊU",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG TIN NHẮN",
+              "displayName": "TỔNG TIN NHẮN",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG SỐ ĐIỆN THOẠI",
+              "displayName": "TỔNG SỐ ĐIỆN THOẠI",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG PTTB",
+              "displayName": "TỔNG PTTB",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "locationDefine": {
+            "values": {
+              "headerRow": 3,
+              "firstDataRow": 6
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -29680,
+        2704
+      ],
+      "id": "799984b6-1ca2-4e91-ac39-eb0fd82a79d8",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "93852348-d6ac-40d4-bfe1-26c9e7f7fce7",
+              "leftValue": "={{ $json.row_number }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -29904,
+        2624
+      ],
+      "id": "0c885947-152b-4140-aabe-376f9325535d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const searchResults = items;\nconst campaignData = $('Loop Over Items').item.json;\n\nlet targetRow = 0;\n\nif (searchResults && searchResults.length > 0 && searchResults[0].json && searchResults[0].json.row_number) {\n    for (const row of searchResults) {\n        // Bỏ qua 5 hàng đầu tiên (tiêu đề, tổng tiền...)\n        if (row.json.row_number < 6) continue;\n        \n        let colBValue = \"\";\n        \n        // Thử lấy cột B theo tên chuẩn (nếu N8N đọc đúng hàng 3)\n        if (row.json['TÊN CAMP'] !== undefined) {\n            colBValue = row.json['TÊN CAMP'] ? row.json['TÊN CAMP'].toString().trim() : \"\";\n        } else {\n            // Nếu N8N đọc nhầm hàng 1 làm tiêu đề, cột B sẽ mang tên Sale (VD: 'Linh', 'Toàn')\n            // Ta sẽ lấy key thứ 2 trong object (sau 'Sale' hoặc 'STT')\n            const keys = Object.keys(row.json).filter(k => k !== 'row_number' && k !== 'Sale' && k !== 'STT');\n            if (keys.length > 0) {\n                const colBKey = keys[0];\n                colBValue = row.json[colBKey] ? row.json[colBKey].toString().trim() : \"\";\n            }\n        }\n\n        // Nếu cột B trống, đây chính là hàng trống đầu tiên (hàng cuối cùng chờ điền)\n        if (colBValue === \"\") {\n            targetRow = row.json.row_number;\n            break; // Tìm thấy thì dừng lại ngay để ghi vào hàng này\n        }\n    }\n}\n\nreturn [{\n    json: {\n        ...campaignData,\n        row_number: targetRow \n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -30128,
+        2624
+      ],
+      "id": "60f38982-9aec-4aac-8c30-6ca1c8adf5f4",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheet_name }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -30352,
+        2624
+      ],
+      "id": "a919a32c-b980-46aa-846a-5fe4a9eed923",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// HƯỚNG DẪN SỬ DỤNG:\n// - Để trống biến manualDate = \"\"; -> Workflow tự động lấy ngày hôm qua (chạy daily).\n// - Muốn xuất data ngày cụ thể -> Nhập ngày vào biến manualDate. \n// VÍ DỤ: const manualDate = \"2026-03-01\"; (Format bắt buộc: YYYY-MM-DD)\n\nconst manualDate = \"\"; \n\nlet targetDate;\n\nif (manualDate !== \"\") {\n    targetDate = new Date(manualDate);\n} else {\n    // Lấy thời gian hiện tại chuẩn theo múi giờ Việt Nam (Asia/Ho_Chi_Minh)\n    // Để tránh lỗi lệch múi giờ trên server n8n (VD: server chạy giờ UTC, lúc 6h sáng VN mới là 23h ngày hôm trước)\n    const now = new Date();\n    const vnTimeStr = now.toLocaleString(\"en-US\", { timeZone: \"Asia/Ho_Chi_Minh\" });\n    targetDate = new Date(vnTimeStr);\n\n    // Nếu để trống, tự động lùi về 1 ngày (hôm qua)\n    targetDate.setDate(targetDate.getDate() - 1); \n}\n\n// 1. Format ngày cho API Facebook (YYYY-MM-DD)\nconst fbDate = `${targetDate.getFullYear()}-${(targetDate.getMonth()+1).toString().padStart(2, '0')}-${targetDate.getDate().toString().padStart(2, '0')}`;\n\n// 2. Format ngày cho báo cáo Google Sheet (DD/MM/YYYY)\nconst sheetDate = `${targetDate.getDate().toString().padStart(2, '0')}/${(targetDate.getMonth()+1).toString().padStart(2, '0')}/${targetDate.getFullYear()}`;\n\nreturn [\n    {\n        json: {\n            target_date_fb: fbDate,\n            target_date_sheet: sheetDate,\n            ad_account_id: \"act_864484523102589\",\n            access_token: \"EAAKEFyxZBgIkBRjXodSZAIwJVKKg7MHwlfxZBzfdbKJQwBmD22nw4rrrOQnrOvutchg1T1ppoPLKl1ZA8vDMn2iXFUZCJiG02A064Ox1EFaGgubZAU4XvNhsTZCDZAaovJeUDh6kG7YZBuhVgZCzweHedkvT8As4rgNv261ZAFuIU9Eh3HZCg5XSprkMJnvEUNVxFgkZB\"\n        }\n    },\n    {\n        json: {\n            target_date_fb: fbDate,\n            target_date_sheet: sheetDate,\n            ad_account_id: \"act_1144142194555382\",\n            access_token: \"EAAZBqZBaI5HaEBRxiMeZCtPLn7HmeVWvQRH4BeRSWc3NJppYcsyRSMcklHomegdolMm5CuZBruhqV8y7vSKxMfKCXaqmRAKJY2rJ4Phpk7AZAJCXFoXyTBVBxBekSRkaBYIV6ZCF3LdcwuqdGUOeM26aJ9xCknLZANAq4Vxhh0dZA8HZC4p0vgEmnreQUc6FhLOU8\"\n        }\n    }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -31472,
+        2848
+      ],
+      "id": "bdd2a27a-ab38-4616-9054-237c43791bb8",
+      "name": "Setup Target Date"
+    },
+    {
+      "parameters": {
+        "amount": 7
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -30576,
+        2624
+      ],
+      "id": "d90aaad3-a702-4798-bae9-0ca0c143dda3",
+      "name": "Wait",
+      "webhookId": "d6257fdc-5dde-43b2-87b3-fdf08ea48755"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -30800,
+        2848
+      ],
+      "id": "dcd79600-c9d2-47ca-bfeb-3095927e41a9",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://graph.facebook.com/v21.0/' + $json.ad_account_id + '/campaigns' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $json.access_token }}"
+            },
+            {
+              "name": "fields",
+              "value": "={{ 'name,effective_status,insights.time_range(' + JSON.stringify({since: $json.target_date_fb, until: $json.target_date_fb}) + '){spend,actions}' }}\n"
+            },
+            {
+              "name": "limit",
+              "value": "1000"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -31248,
+        2848
+      ],
+      "id": "41a6f43e-cfdf-45b6-b917-d2e434f79d2a",
+      "name": "Fetch FB Campaigns"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\n// 1. Lấy ngày báo cáo đã được setup\nconst reportDate = $('Setup Target Date').first().json.target_date_sheet;\n\n// 2. Xử lý dữ liệu đầu vào\nlet campaigns = [];\nfor (const item of items) {\n    if (item.json && item.json.data && Array.isArray(item.json.data)) {\n        campaigns = campaigns.concat(item.json.data);\n    }\n}\nif (campaigns.length === 0 && items.length > 0) {\n    campaigns = items.map(i => i.json);\n}\n\n// Hàm phân loại sheet_name (Thay thế cho AI để đảm bảo 100% không sót)\nfunction getSheetName(name) {\n    if (!name) return null;\n    const cleanName = name.toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n    const rawNameUpper = name.toUpperCase();\n\n    if (cleanName.includes('TCDT_TLDANANG2') || cleanName.includes('TCDT-TLDANANG2')) return 'ĐÀ NẴNG (TRUNG LẬP) 2';\n    if (cleanName.includes('TCDT-TLDANANG') || cleanName.includes('TCDT_TLDANANG')) return 'ĐÀ NẴNG (TRUNG LẬP)';\n    if (cleanName.includes('DANANG') && (cleanName.includes('C.HONG') || rawNameUpper.includes('C.HỒNG'))) return 'ĐÀ NẴNG (C.HỒNG)';\n    if (cleanName.includes('GIALAI')) return 'GIALAI';\n    if (cleanName.includes('HCMBINHDUONG') || cleanName.includes('BINHDUONG')) return 'BÌNH DƯƠNG';\n    if (cleanName.includes('DAKLAK') || cleanName.includes('DAC LAC')) return 'DAKLAK';\n    if (cleanName.includes('DONGNAI')) return 'ĐỒNG NAI';\n    if (cleanName.includes('CANTHO')) return 'CẦN THƠ';\n    if (cleanName.includes('VUNGTAU')) return 'VŨNG TÀU';\n    if (cleanName.includes('VINHLONG')) return 'VĨNH LONG';\n    if (cleanName.includes('ANGIANG')) return 'AN GIANG';\n    if (cleanName.includes('KHANHHOA')) return 'KHÁNH HÒA';\n    if (cleanName.includes('PHANTHIET')) return 'PHAN THIẾT';\n    if (cleanName.includes('DANANG')) return 'ĐÀ NẴNG (TRUNG LẬP)';\n            if (cleanName.includes('HCM')) return 'HCM';\n          if (cleanName.includes('PLEIKU')) return 'PLEIKU';\n  if (cleanName.includes('DONGTHAP')) return 'ĐỒNG THÁP';\n          if (cleanName.includes('DN_SON')) return 'ĐÀ NẴNG (SƠN)';\n          if (cleanName.includes('NINHBINH')) return 'NINH BÌNH';\n          if (cleanName.includes('KONTUM')) return 'KON TUM';\n          if (cleanName.includes('VINHPHUC')) return 'VĨNH PHÚC';\n          if (cleanName.includes('CAMAU')) return 'CÀ MAU';\n          if (cleanName.includes('TAYNINH')) return 'TÂY NINH';\n          if (cleanName.includes('LONGAN')) return 'LONG AN';\n          if (cleanName.includes('LANGSON')) return 'LẠNG SƠN';\n          if (cleanName.includes('THAIBINH')) return 'THÁI BÌNH';\n          if (cleanName.includes('QUANGNGAI')) return 'QUẢNG NGÃI';\n          if (cleanName.includes('PHUYEN')) return 'PHÚ YÊN';\n          if (cleanName.includes('NHATRANG')) return 'NHA TRANG';\n          if (cleanName.includes('SAIGON')) return 'SÀI GÒN';\n          if (cleanName.includes('HUE')) return 'HUẾ';\n          if \n(cleanName.includes('QUANGTRI')) return 'QUẢNG TRỊ';\n    return null;\n}\n\n// 3. Duyệt từng chiến dịch\nfor (const camp of campaigns) {\n    const insightData = (camp.insights && camp.insights.data && camp.insights.data[0]) ? camp.insights.data[0] : {};\n    \n    const actions = insightData.actions || [];\n    const spend = parseFloat(insightData.spend || 0);\n\n    const msgAction = actions.find(a => \n      a.action_type === 'onsite_conversion.messaging_conversation_started_7d' || \n      a.action_type === 'onsite_conversion.total_messaging_connection'\n    );\n    const messages = msgAction ? parseInt(msgAction.value) : 0;\n\n    let statusVN = 'TẮT';\n    if (camp.effective_status === 'ACTIVE') {\n        statusVN = 'HOẠT ĐỘNG';\n    }\n\n    // Lọc: Có tên và có tiêu tiền\n    if (camp.name && spend > 0) {\n        const sheetName = getSheetName(camp.name);\n        if (sheetName) {\n            results.push({\n                json: {\n                    campaign_name: camp.name,\n                    spend: spend,\n                    messages: messages,\n                    status: statusVN,\n                    date: reportDate,\n                    sheet_name: sheetName\n                }\n            });\n        }\n    }\n}\n\nreturn results;"
+      },
+      "id": "4681de40-c473-4fee-a239-bc4416639064",
+      "name": "Clean Metrics & Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -31024,
+        2848
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "07:00 AM Daily": {
+      "main": [
+        [
+          {
+            "node": "Setup Target Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Target Date": {
+      "main": [
+        [
+          {
+            "node": "Fetch FB Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FB Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Clean Metrics & Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Metrics & Date": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b4476af5-e40a-4bdf-9234-6f28eed2c109",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "ja84LyJQmkOZy0KU",
+  "tags": []
+}

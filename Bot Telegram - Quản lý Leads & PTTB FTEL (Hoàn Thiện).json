@@ -1,0 +1,982 @@
+{
+  "name": "Bot Telegram - Quản lý Leads & PTTB FTEL (Hoàn Thiện)",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// 1. Lấy toàn bộ danh sách parts từ AI\nconst parts = $input.first().json.content.parts;\n\n// 2. Tự động lấy part cuối cùng (nơi chứa kết quả JSON thực sự)\nlet rawText = parts[parts.length - 1].text;\n\n// (Dự phòng an toàn): Nếu part cuối không chứa cấu trúc JSON mong muốn, tìm part có chứa chữ \"intent\"\nif (!rawText.includes('\"intent\"')) {\n    let targetPart = parts.find(p => p.text && p.text.includes('\"intent\"'));\n    if (targetPart) rawText = targetPart.text;\n}\n\n// 3. Làm sạch chuỗi và chuyển đổi sang JSON\nrawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();\n\n// Xử lý thêm: Cắt bỏ các text rác có thể bị AI chèn vào trước/sau ngoặc nhọn\nconst start = rawText.indexOf('{');\nconst end = rawText.lastIndexOf('}');\nif (start !== -1 && end !== -1) {\n    rawText = rawText.substring(start, end + 1);\n}\n\nlet parsed = JSON.parse(rawText);\n\nconst validSheets = [\"ĐÀ NẴNG (TRUNG LẬP)\", \"DAKLAK\", \"GIALAI\", \"KHÁNH HÒA\", \"ĐỒNG NAI\", \"CẦN THƠ\", \"BÌNH DƯƠNG\", \"VŨNG TÀU\", \"NINH BÌNH\", \"VĨNH LONG\", \"AN GIANG\", \"QUẢNG NINH\", \"ĐÀ NẴNG (C.HỒNG)\", \"PHAN THIẾT\", \"PAGE A.THẮNG\", \"PLEIKU\", \"ĐÀ NẴNG (SƠN)\", \"HCM\", \"ĐỒNG THÁP\", \"KON TUM\", \"VĨNH PHÚC\", \"CÀ MAU\", \"ĐÀ NẴNG (TRUNG LẬP) 2\", \"LẠNG SƠN\", \"THÁI BÌNH\", \"QUẢNG NGÃI\", \"PHÚ YÊN\", \"HUẾ\", \"QUẢNG TRỊ\", \"NHA TRANG\", \"SÀI GÒN\"];\n\nfunction standardize(name) {\n  if (!name) return \"\";\n  let iName = name.trim().toUpperCase();\n  let cName = iName.replace(/^PAGE\\s+/i, '').trim();\n  let normalize = (str) => str.replace(/[\\s\\(\\)\\.\\-]/g, '').toUpperCase();\n  let f = validSheets.find(s => s === iName || s === cName);\n  if (!f) f = validSheets.find(s => normalize(s) === normalize(iName) || normalize(s) === normalize(cName));\n  if (!f) f = validSheets.find(s => s.includes(cName) || cName.includes(s));\n  return f || iName;\n}\n\nif (parsed.intent === 'nhập_liệu') {\n  let updates = Array.isArray(parsed.updates) ? parsed.updates : [parsed];\n  return updates.map(u => ({\n      json: {\n          intent: 'nhập_liệu',\n          sheet_name: standardize(u.sheet_name || parsed.sheet_name),\n          leads: Number(u.leads || parsed.leads || 0),\n          pttb: Number(u.pttb || parsed.pttb || 0)\n      }\n  }));\n}\n\nreturn [ { json: parsed } ];"
+      },
+      "id": "1d5b2ea5-af33-4f41-ad73-0900e21cae2a",
+      "name": "Parse JSON AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28464,
+        5472
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.intent }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "nhập_liệu"
+            },
+            {
+              "value2": "báo_cáo",
+              "output": 1
+            },
+            {
+              "value2": "nhập_online",
+              "output": 2
+            },
+            {
+              "value2": "báo_cáo_online",
+              "output": 3
+            }
+          ]
+        }
+      },
+      "id": "c5eb9ee6-ff7a-4ad6-9e7a-fe65cee0f559",
+      "name": "Switch Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -28240,
+        5440
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheet_name }}",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "NGÀY",
+              "lookupValue": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy') }}"
+            }
+          ]
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRange",
+              "headerRow": 3,
+              "firstDataRow": 6
+            }
+          }
+        }
+      },
+      "id": "4ebeb54c-308b-456e-ba82-5a7b2b64c82d",
+      "name": "Tìm Ngày Trong Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -28016,
+        5184
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.row_number }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "c70a40fd-d4a2-49ae-88f8-35dec940bc13",
+      "name": "Kiểm tra dòng tồn tại",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -27568,
+        5184
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheet_name }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "TỔNG SỐ ĐIỆN THOẠI": "={{ Number($json['TỔNG SỐ ĐIỆN THOẠI'] || 0) + Number($json.leads) }}",
+            "TỔNG PTTB": "={{ Number($json['TỔNG PTTB'] || 0) + Number($json.pttb) }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "STT",
+              "displayName": "STT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÊN CAMP",
+              "displayName": "TÊN CAMP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÌNH TRẠNG",
+              "displayName": "TÌNH TRẠNG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NGÀY",
+              "displayName": "NGÀY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CHI TIÊU",
+              "displayName": "CHI TIÊU",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG TIN NHẮN",
+              "displayName": "TỔNG TIN NHẮN",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG SỐ ĐIỆN THOẠI",
+              "displayName": "TỔNG SỐ ĐIỆN THOẠI",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG PTTB",
+              "displayName": "TỔNG PTTB",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "locationDefine": {
+            "values": {
+              "headerRow": 3,
+              "firstDataRow": 6
+            }
+          }
+        }
+      },
+      "id": "bc281f46-d35b-409d-a4fe-29f2cc2f9161",
+      "name": "Cộng Dồn Dữ Liệu",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -27344,
+        5088
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheet_name }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "TỔNG SỐ ĐIỆN THOẠI": "={{ $json.leads }}",
+            "TỔNG PTTB": "={{ $json.pttb }}",
+            "NGÀY": "={{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "STT",
+              "displayName": "STT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÊN CAMP",
+              "displayName": "TÊN CAMP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TÌNH TRẠNG",
+              "displayName": "TÌNH TRẠNG",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "NGÀY",
+              "displayName": "NGÀY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "CHI TIÊU",
+              "displayName": "CHI TIÊU",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TỔNG TIN NHẮN",
+              "displayName": "TỔNG TIN NHẮN",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TỔNG SỐ ĐIỆN THOẠI",
+              "displayName": "TỔNG SỐ ĐIỆN THOẠI",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "TỔNG PTTB",
+              "displayName": "TỔNG PTTB",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "locationDefine": {
+            "values": {
+              "headerRow": 3
+            }
+          }
+        }
+      },
+      "id": "4eaf4d40-0380-4f21-84d9-09bda864b375",
+      "name": "Tạo Dòng Mới",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -27344,
+        5280
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
+        "text": "=✅ Đã ghi nhận thành công!\n\nPage: {{ $('Merge Leads Data').item.json.sheet_name }}\nNgày: {{ $now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy') }}\nThêm: {{ $('Merge Leads Data').item.json.leads }} Leads | {{ $('Merge Leads Data').item.json.pttb }} PTTB",
+        "additionalFields": {}
+      },
+      "id": "d18832cd-21fe-4443-ae3b-c29fe9aa1242",
+      "name": "Báo Cáo Cập Nhật",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -27120,
+        5184
+      ],
+      "webhookId": "739dff67-a0c9-4333-a399-ebf6a915eda7",
+      "credentials": {
+        "telegramApi": {
+          "id": "03W6rXET0MDK7cc6",
+          "name": "Báo cáo FTEL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://script.google.com/macros/s/AKfycbxdb2pUZKe-wAHH1S7QOnc8YYdb3cxmcaUPd4P-KBk1kViZJ1YlqOPbCkSCD9KfbyYG/exec",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ $json.target_date || '' }}"
+            },
+            {
+              "name": "start_date",
+              "value": "={{ $json.start_date || $json.target_date || '' }}"
+            },
+            {
+              "name": "end_date",
+              "value": "={{ $json.end_date || $json.target_date || '' }}"
+            },
+            {
+              "name": "type",
+              "value": "={{ $json.type || 'day' }}"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "73d7e241-ce24-46cc-b75a-933a9db48d58",
+      "name": "Gọi Apps Script (Báo Cáo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -28016,
+        5472
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
+        "text": "=📊 BÁO CÁO FB ADS: {{ $json.date }}\n\n{{ $json.details_text }}\n\n---------------------------\nTỔNG LEADS: {{ $json.total_leads }}\nTỔNG PTTB: {{ $json.total_pttb }}{{ $json.ineffective_pages_text }}",
+        "additionalFields": {}
+      },
+      "id": "ddd6b97b-a688-4c40-bf9c-fab86f9f17ab",
+      "name": "Gửi Báo Cáo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -27344,
+        5472
+      ],
+      "webhookId": "5fc88e6e-1c4a-4f3e-9946-8d4a7930edb9",
+      "credentials": {
+        "telegramApi": {
+          "id": "03W6rXET0MDK7cc6",
+          "name": "Báo cáo FTEL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "DASHBOARD",
+          "mode": "name"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRange",
+              "headerRow": 3,
+              "firstDataRow": 4
+            }
+          }
+        }
+      },
+      "id": "f4dcafff-a349-42ae-ae67-dfae8534914c",
+      "name": "Đọc DASHBOARD",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -27792,
+        5472
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy dữ liệu từ Apps Script (báo cáo hôm nay)\nconst appsScriptData = $('Gọi Apps Script (Báo Cáo)').first().json;\n\n// Lấy danh sách page từ DASHBOARD\nconst dashboardItems = $input.all();\n\n// Lọc ra các page đang chạy (Tình trạng = 'Đang chạy')\nconst runningPages = dashboardItems\n  .filter(item => {\n    const status = (item.json['Tình trạng'] || item.json['TÌNH TRẠNG'] || '').trim();\n    return status === 'Đang chạy';\n  })\n  .map(item => {\n    // Tên cột trong DASHBOARD là 'Tỉnh/Page' (cột A, hàng 3)\n    return (\n      item.json['Tỉnh/Page'] ||\n      item.json['Tên Page'] ||\n      item.json['TÊN PAGE'] ||\n      item.json['Page'] ||\n      item.json['PAGE'] ||\n      ''\n    ).trim();\n  })\n  .filter(name => name !== '');\n\n// Hàm chuẩn hóa tên để so sánh\nconst normalize = (str) => str.replace(/[\\s\\(\\)\\.\\-]/g, '').toUpperCase();\n\n// Lấy danh sách page đã có dữ liệu hôm nay từ Apps Script\nlet effectivePages = [];\n\n// Phân tích từ rows nếu có (Apps Script trả về mảng rows)\nif (appsScriptData.rows && Array.isArray(appsScriptData.rows)) {\n  effectivePages = appsScriptData.rows\n    .filter(row => Number(row.leads || row.LEADS || row['TỔNG SỐ ĐIỆN THOẠI'] || 0) > 0 ||\n                   Number(row.pttb || row.PTTB || row['TỔNG PTTB'] || 0) > 0)\n    .map(row => row.page || row.PAGE || row.name || row.sheet || '');\n}\n\n// Nếu không có rows, phân tích từ details_text\nif (effectivePages.length === 0 && appsScriptData.details_text) {\n  const lines = appsScriptData.details_text.split('\\n');\n  for (const line of lines) {\n    const leadsMatch = line.match(/(\\d+)\\s*leads?/i);\n    const pttbMatch = line.match(/(\\d+)\\s*pttb/i);\n    const leads = leadsMatch ? Number(leadsMatch[1]) : 0;\n    const pttb = pttbMatch ? Number(pttbMatch[1]) : 0;\n    \n    if (leads > 0 || pttb > 0) {\n      const colonIdx = line.indexOf(':');\n      if (colonIdx > 0) {\n        const pageName = line.substring(0, colonIdx).replace(/^[\\s\\uD83D\\uDCCC\\-\\*•]+/, '').trim();\n        if (pageName) effectivePages.push(pageName);\n      }\n    }\n  }\n}\n\n// Tìm page đang chạy nhưng CHƯA hiệu quả (không có trong danh sách hiệu quả)\nconst ineffectivePages = runningPages.filter(runPage => {\n  const isEffective = effectivePages.some(effPage =>\n    normalize(effPage) === normalize(runPage) ||\n    normalize(effPage).includes(normalize(runPage)) ||\n    normalize(runPage).includes(normalize(effPage))\n  );\n  return !isEffective;\n});\n\n// Tạo text hiển thị\nlet ineffectivePagesText = '';\nif (ineffectivePages.length > 0) {\n  ineffectivePagesText = '\\n\\n⚠️ Page chưa hiệu quả: ' + ineffectivePages.join(', ');\n} else {\n  ineffectivePagesText = '\\n\\n✅ Tất cả page đang chạy đều có hiệu quả!';\n}\n\n// Trả về dữ liệu đầy đủ\nreturn [{\n  json: {\n    ...appsScriptData,\n    ineffective_pages: ineffectivePages,\n    ineffective_pages_text: ineffectivePagesText,\n    running_pages: runningPages,\n    effective_pages: effectivePages\n  }\n}];"
+      },
+      "id": "2c5680ee-1c12-428b-ad3d-f145d0cf3a26",
+      "name": "Lọc Page Chưa Hiệu Quả",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27568,
+        5472
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const pages = [\n  \"PAGE ANH THẮNG\", \"Hà Nội (A.Thắng)\", \"Quảng Ninh\", \"PAGE CHỊ CHI\", \"CÀ MAU\", \n  \"ĐỒNG THÁP\", \"HCM (C.CHI)\", \"DAKLAK\", \"TÂY NINH\", \"Page A.Thắng\", \n  \"Hà Nội (Đ.Anh)\", \"PAGE CHỊ HOÀNG\", \"Hưng Yên (C.Hoàng)\", \"PHÚ THỌ (C.HOÀNG)\", \n  \"GIALAI\", \"LÂM ĐỒNG\", \"CẦN THƠ\", \"BÌNH DƯƠNG\", \"VĨNH LONG\", \"AN GIANG\", \n  \"HUẾ\", \"ĐỒNG NAI\", \"KHÁNH HÒA\", \"QUẢNG NGÃI\", \"HẢI DƯƠNG\", \"NINH BÌNH\", \n  \"Thanh Hóa\", \"NGHỆ AN\", \"QUẢNG TRỊ\", \"PAGE CHỊ TIÊN\", \"Bắc Ninh (Tiên)\", \n  \"Thái Nguyên\", \"ĐÀ NẴNG (TRUNG LẬP)\", \"QUẢNG NAM\", \"TOÀN QUỐC\", \"PAGE C.TRÂM\", \n  \"HCM (TRÂM)\", \"Bắc Ninh (Trâm)\", \"HCM (KIM CHI)\", \"Vĩnh Phúc\"\n];\n\nreturn $input.all().map(item => {\n  const json = item.json;\n  const page_name = json.page_name || '';\n  const online_count = Number(json.online_count) || 0;\n\n  const normalize = (str) => str.replace(/[\\s\\(\\)\\.\\-]/g, '').toLowerCase();\n\n  let rowIndex = -1;\n  for(let i=0; i<pages.length; i++) {\n     if(pages[i].toLowerCase() === page_name.toLowerCase()) {\n        rowIndex = i; break;\n     }\n  }\n  if(rowIndex === -1) {\n     for(let i=0; i<pages.length; i++) {\n        if(normalize(pages[i]) === normalize(page_name)) {\n           rowIndex = i; break;\n        }\n     }\n  }\n  if(rowIndex === -1) {\n     for(let i=0; i<pages.length; i++) {\n        if(pages[i].toLowerCase().includes(page_name.toLowerCase()) || page_name.toLowerCase().includes(pages[i].toLowerCase())) {\n           rowIndex = i; break;\n        }\n     }\n  }\n  if(rowIndex === -1) {\n    throw new Error(\"LỖI: Không tìm thấy Page nào phù hợp với: \" + page_name);\n  }\n\n  const rowNum = 2 + rowIndex;\n\n  return {\n    json: {\n      ...json,\n      \"TÊN FANPAGE\": pages[rowIndex],\n      \"row_number\": rowNum,\n      \"Số Online\": online_count,\n      \"page_name\": page_name,\n      \"matchedPage\": pages[rowIndex],\n      \"online_count_new\": online_count\n    }\n  };\n});"
+      },
+      "id": "d7b84e64-9984-4033-9a1c-c601233daaad",
+      "name": "Tính Toán Dòng",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27792,
+        5664
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "BÁO CÁO ONLINE FB ADS",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "TÊN FANPAGE": "={{ $json['TÊN FANPAGE'] }}",
+            "Số Online": "={{ Number($json['Số Online'] || 0) + Number($('Tính Toán Dòng').item.json.online_count_new || 0) }}"
+          },
+          "matchingColumns": [
+            "TÊN FANPAGE"
+          ],
+          "schema": [
+            {
+              "id": "TÊN FANPAGE",
+              "displayName": "TÊN FANPAGE",
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Số Online",
+              "displayName": "Số Online",
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee660ee6-c71e-4cc0-b557-c6a6c03353d7",
+      "name": "Cập Nhật Số Online Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -27344,
+        5664
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
+        "text": "=✅ Đã cập nhật thành công!\n\nDanh sách các trang:\n{{ $json.matchedPage.map((page, index) => '- ' + page + ': ' + $json.online_count[index] + ' online').join('\\n') }}",
+        "additionalFields": {}
+      },
+      "id": "b268a66d-db17-4016-a86b-e7b705c7c1fe",
+      "name": "Báo Cáo Hoàn Tất",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -26896,
+        5664
+      ],
+      "webhookId": "9b64c2d8-2b81-42e8-8a8f-28c0f5f8b919",
+      "credentials": {
+        "telegramApi": {
+          "id": "03W6rXET0MDK7cc6",
+          "name": "Báo cáo FTEL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "updates",
+        "options": {}
+      },
+      "id": "7c279fcb-ab1b-400c-b164-6f4accf257f6",
+      "name": "Tách Danh Sách Page",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        -28016,
+        5664
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst matchedPages = [];\nconst onlineCounts = [];\nconst pageNames = [];\n\nfor (const item of items) {\n  const json = item.json;\n  matchedPages.push(json['TÊN FANPAGE'] || json.matchedPage || \"Không rõ\");\n  // Pick whichever case has data\n  let count = json['Số online'];\n  if (count === undefined || count === null) count = json['Số Online'];\n  if (count === undefined || count === null) count = 0;\n  \n  onlineCounts.push(count);\n  pageNames.push(json.page_name || json['TÊN FANPAGE'] || \"Không rõ\");\n}\n\nreturn [{\n  json: {\n    matchedPage: matchedPages,\n    online_count: onlineCounts,\n    page_name: pageNames\n  }\n}];"
+      },
+      "id": "c1ea7b5e-a8a2-4aac-aadb-7c94d9f207a1",
+      "name": "Tổng Hợp Kết Quả Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27120,
+        5664
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8",
+          "mode": "list",
+          "cachedResultName": "BÁO CÁO CHI TIÊU ADS FACEBOOK IBB7_THÁNG 9/2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ESlC1BXFJDpS57x6xO0A0VUKk-_NkqFv99G0t6V4wY8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "BÁO CÁO ONLINE FB ADS",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "TÊN FANPAGE",
+              "lookupValue": "={{ $json['TÊN FANPAGE'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "742503b8-b649-4437-be39-ba8e1dc447bb",
+      "name": "Đọc Số Online Cũ",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -27568,
+        5664
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "2fTJCJ7LIKavfYN7",
+          "name": "Queen Bus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const intentItems = $('Switch Intent').all();\nreturn $input.all().map((item, i) => ({\n  json: { ...(intentItems[i] ? intentItems[i].json : {}), ...item.json },\n  pairedItem: { item: i }\n}));"
+      },
+      "id": "e14a75e3-7b9c-4a7b-be62-e53c8632230b",
+      "name": "Merge Leads Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27792,
+        5184
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemma-4-26b-a4b-it",
+          "mode": "list",
+          "cachedResultName": "models/gemma-4-26b-a4b-it"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Bạn là chuyên gia bóc tách dữ liệu. Ngày hiện tại: {{$now.setZone('Asia/Ho_Chi_Minh').toFormat('dd/MM/yyyy')}}. Dựa vào tin nhắn sau: '{{ $('Telegram Trigger').item.json.message.text }}'.\nHãy trả về JSON chuẩn.\nNếu là nhập liệu leads/pttb (có thể nhập cho 1 hoặc nhiều page cùng lúc), trả về danh sách updates:\n{\"intent\": \"nhập_liệu\", \"updates\": [ {\"sheet_name\": \"[TÊN SHEET CHUẨN IN HOA]\", \"leads\": [số lượng leads/sđt, mặc định là 0], \"pttb\": [số lượng pttb, mặc định là 0]} ]}\n\nNếu là báo cáo chi tiêu/thống kê/leads:\n- Báo cáo cho 1 ngày cụ thể: trả về {\"intent\": \"báo_cáo\", \"type\": \"day\", \"target_date\": \"[Ngày định dạng dd/MM/yyyy]\"}\n- Báo cáo theo tháng (VD: tháng 4/2026): trả về {\"intent\": \"báo_cáo\", \"type\": \"month\", \"start_date\": \"[Ngày đầu tiên của tháng đó dd/MM/yyyy]\", \"end_date\": \"[Ngày cuối cùng của tháng đó dd/MM/yyyy]\"}\n- Báo cáo theo khoảng thời gian (VD: từ 10/4 đến 15/4): trả về {\"intent\": \"báo_cáo\", \"type\": \"range\", \"start_date\": \"[Ngày bắt đầu dd/MM/yyyy]\", \"end_date\": \"[Ngày kết thúc dd/MM/yyyy]\"}\n\nNếu là lệnh cập nhật số online (VD: \"đà nẵng trung lập 1 online, cần thơ 2 online, hải dương 3 online\"), BẮT BUỘC nhận diện TOÀN BỘ các page được nhắc đến. Tách từng page ra và trả về mảng danh sách updates:\n{\"intent\": \"nhập_online\", \"updates\": [ \n  {\"page_name\": \"[TÊN FANPAGE CHUẨN 1]\", \"online_count\": 1}, \n  {\"page_name\": \"[TÊN FANPAGE CHUẨN 2]\", \"online_count\": 2},\n  {\"page_name\": \"[TÊN FANPAGE CHUẨN 3]\", \"online_count\": 3} \n]}\nDanh sách TÊN FANPAGE chuẩn: [\"ĐÀ NẴNG (TRUNG LẬP)\", \"DAKLAK\", \"GIALAI\", \"KHÁNH HÒA\", \"ĐỒNG NAI\", \"CẦN THƠ\", \"BÌNH DƯƠNG\", \"VŨNG TÀU\", \"VĨNH LONG\", \"AN GIANG\", \"QUẢNG NINH\", \"ĐÀ NẴNG (C.HỒNG)\", \"HẢI PHÒNG\", \"PHAN THIẾT\", \"LÀO CAI\", \"LẠNG SƠN\", \"QUẢNG NGÃI\", \"PLEIKU\", \"BÌNH PHƯỚC\", \"LÂM ĐỒNG\", \"QUẢNG NAM\", \"ĐÀ NẴNG (SƠN)\", \"HCM\", \"NINH BÌNH\", \"ĐỒNG THÁP\", \"KON TUM\", \"VĨNH PHÚC\", \"CÀ MAU\", \"LONG AN\", \"TÂY NINH\", \"ĐÀ NẴNG (TRUNG LẬP)  2\", \"THÁI BÌNH\", \"QUẢNG NGÃI\", \"PHÚ YÊN\", \"HUẾ\", \"QUẢNG TRỊ\", \"NHA TRANG\", \"SÀI GÒN\"]\n\nNếu là lệnh báo cáo tổng số online, trả về:\n{\"intent\": \"báo_cáo_online\"}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -28816,
+        5472
+      ],
+      "id": "e2b227ca-f952-482b-b263-6f93a352e05b",
+      "name": "Gemini",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "UWGPi43UnSZZ6Nl4",
+          "name": "khanhvhg@fpt.com"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -29040,
+        5472
+      ],
+      "id": "9b0a6676-65ec-46bd-a20b-2cf3a762d884",
+      "name": "Telegram Trigger",
+      "webhookId": "f0812471-f630-4477-8ceb-c2fbf06cf04e",
+      "credentials": {
+        "telegramApi": {
+          "id": "03W6rXET0MDK7cc6",
+          "name": "Báo cáo FTEL"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Parse JSON AI": {
+      "main": [
+        [
+          {
+            "node": "Switch Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Intent": {
+      "main": [
+        [
+          {
+            "node": "Tìm Ngày Trong Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gọi Apps Script (Báo Cáo)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tách Danh Sách Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tìm Ngày Trong Sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge Leads Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kiểm tra dòng tồn tại": {
+      "main": [
+        [
+          {
+            "node": "Cộng Dồn Dữ Liệu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tạo Dòng Mới",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cộng Dồn Dữ Liệu": {
+      "main": [
+        [
+          {
+            "node": "Báo Cáo Cập Nhật",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tạo Dòng Mới": {
+      "main": [
+        [
+          {
+            "node": "Báo Cáo Cập Nhật",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gọi Apps Script (Báo Cáo)": {
+      "main": [
+        [
+          {
+            "node": "Đọc DASHBOARD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc DASHBOARD": {
+      "main": [
+        [
+          {
+            "node": "Lọc Page Chưa Hiệu Quả",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lọc Page Chưa Hiệu Quả": {
+      "main": [
+        [
+          {
+            "node": "Gửi Báo Cáo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tính Toán Dòng": {
+      "main": [
+        [
+          {
+            "node": "Đọc Số Online Cũ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Số Online Cũ": {
+      "main": [
+        [
+          {
+            "node": "Cập Nhật Số Online Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tách Danh Sách Page": {
+      "main": [
+        [
+          {
+            "node": "Tính Toán Dòng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tổng Hợp Kết Quả Page": {
+      "main": [
+        [
+          {
+            "node": "Báo Cáo Hoàn Tất",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cập Nhật Số Online Sheet": {
+      "main": [
+        [
+          {
+            "node": "Tổng Hợp Kết Quả Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Leads Data": {
+      "main": [
+        [
+          {
+            "node": "Kiểm tra dòng tồn tại",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8bdab098-3b6b-4e9d-bd03-9b567a7071f3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "b4AYyrgnpLTXWrAD",
+  "tags": []
+}

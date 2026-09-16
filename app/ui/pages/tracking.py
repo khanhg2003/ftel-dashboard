@@ -335,20 +335,23 @@ def register(app):
                "ban_moi": "ban_moi"}[metric]
         s = s[s[col] > 0].sort_values(col)
         fig = go.Figure()
-        # nhãn số luôn nằm ngang bên phải thanh - để "auto" thì thanh ngắn bị xoay dọc, khó đọc
+        # Không hiện text trên thanh nữa — dùng annotation ở vị trí x cố định để các số thẳng hàng dọc
         fig.add_trace(go.Bar(x=s[col], y=s.phong, orientation="h", marker_color="#0072BC",
-                             name=METRIC_LABEL[metric], text=s[col], textposition="outside",
-                             textangle=0, insidetextanchor="start", cliponaxis=False,
-                             textfont=dict(size=11.5, color="#17212E")))
+                             name=METRIC_LABEL[metric]))
         if metric == "online" and s.muc_tieu_internet.notna().any():
             fig.add_trace(go.Scatter(x=s.muc_tieu_internet, y=s.phong, mode="markers",
                                      name="Chỉ tiêu tháng",
                                      marker=dict(symbol="line-ns", size=14, line=dict(width=2),
                                                  color="#F37021")))
-        fig.update_layout(bargap=0.25, hovermode="closest")
         # chừa chỗ bên phải cho nhãn số và vạch chỉ tiêu
         toi_da = max([s[col].max() if len(s) else 0,
                       s.muc_tieu_internet.max() if metric == "online"
                       and s.muc_tieu_internet.notna().any() else 0])
-        fig.update_xaxes(range=[0, float(toi_da) * 1.12 + 5])
+        # Đặt nhãn số ở vị trí x cố định = ngay sau giá trị lớn nhất, các số sẽ thẳng hàng dọc
+        x_nhan = float(toi_da) * 1.03 + 3
+        for phong, gia_tri in zip(s.phong, s[col]):
+            fig.add_annotation(x=x_nhan, y=phong, text=str(int(gia_tri)), showarrow=False,
+                               xanchor="left", font=dict(size=11.5, color="#17212E"))
+        fig.update_layout(bargap=0.25, hovermode="closest")
+        fig.update_xaxes(range=[0, float(toi_da) * 1.18 + 8])
         return _fig(fig, height=max(320, 24 * len(s) + 90))
