@@ -271,20 +271,31 @@ def chay_cong_cu(user, ten: str, ts: dict) -> str:
 
 QUY_TAC_CHAT = (
     "\n\nCÁCH TRẢ LỜI CHAT (bắt buộc):\n"
-    "- Câu hỏi có số: LUÔN gọi công cụ lấy số; không dùng lại số trong hội thoại nếu khác kỳ hoặc phạm vi, "
-    "không trả lời bằng hiểu biết chung.\n"
-    "- Mở đầu bằng kỳ và phạm vi của số (VD: 'Luỹ kế 01-16/09, toàn chi nhánh:').\n"
-    "- Ưu tiên số có sẵn trong bảng; chỉ tự cộng/trừ/chia khi bảng chưa có và ghi rõ phép tính.\n"
-    "- Không suy đoán nguyên nhân ngoài số liệu; giả thuyết phải ghi 'có thể'.\n"
-    "- Công cụ báo LỖI hoặc không có dữ liệu thì nói thẳng, không đoán. LỖI quyền thì nói người hỏi không có quyền.\n"
-    "- Chỉ trả lời về số bán, dự báo, NSLĐ/tân binh; câu ngoài phạm vi thì từ chối lịch sự.\n"
-    "- Trả lời thẳng câu hỏi, ngắn (tối đa khoảng 150 từ); chỉ thêm 'Việc nên làm' khi câu hỏi cần đánh giá.\n"
-    "- Gọi ít công cụ nhất có thể; hỏi vài phòng thì truyền tham số phòng.\n"
-    "- Câu hỏi so sánh / xếp hạng ('phòng nào', 'bầy nào', 'ai nhất') luôn xét MỌI phòng/bầy trong phạm vi được xem, "
-    "không thu hẹp về phòng đang chọn. Chỉ giới hạn một phòng khi câu hỏi nói 'phòng này', 'phòng mình' hoặc nêu tên "
-    "phòng.\n"
-    "- Trả lời đúng trọng tâm câu hỏi; câu hỏi khác nhau thì không lặp lại cùng một bài tóm tắt.")
-
+    "1. NGẮN, ĐÚNG TRỌNG TÂM. Bảng chi tiết người dùng đã xem trên trang, chat chỉ trả lời điều được hỏi:\n"
+    "   - Mặc định 1-3 câu hoặc tối đa 3 gạch đầu dòng, khoảng 60 từ.\n"
+    "   - Chỉ nêu 1-2 con số quan trọng nhất trả lời trực tiếp câu hỏi. Câu hỏi chung chung về kết quả thì chỉ "
+    "nêu số online và % tăng trưởng so cùng kỳ (thêm % HTKH nếu hỏi về mục tiêu).\n"
+    "   - KHÔNG liệt kê thêm nhân sự, số tồn, V.VIP, Camera, FPT Play... nếu câu hỏi không hỏi tới.\n"
+    "   - KHÔNG thêm 'Việc nên làm', lời khuyên, bình luận, trừ khi được hỏi.\n"
+    "   - Chỉ trả lời dài, liệt kê đủ số khi người dùng yêu cầu rõ ('chi tiết', 'liệt kê', 'đầy đủ', 'tất cả').\n"
+    "   - Câu hỏi 'phòng nào/bầy nào/ai ... nhất': nêu tên + số chính của tối đa 3 đơn vị mỗi chiều "
+    "(VD tăng nhất / giảm nhất), không kể các đơn vị khác.\n"
+    "2. HỎI TIẾP NGẮN (VD 'các phòng IBB á', 'còn IBB5?', 'tháng trước thì sao?') là giữ nguyên câu hỏi trước "
+    "và chỉ đổi điều kiện đó rồi trả lời lại theo đúng ý câu hỏi trước.\n"
+    "3. NHÓM PHÒNG: dùng cột 'loại' trong danh sách phòng (IBB, DIABAN = địa bàn, KT, CUS, ECOM, KHAC). "
+    "'Phòng kinh doanh' = IBB + DIABAN. Chỉ xét đúng các phòng thuộc nhóm được hỏi; truyền mã các phòng đó vào "
+    "tham số 'phong' của công cụ.\n"
+    "4. KHÔNG GÁN NHẦM SỐ TỔNG: dòng 'TỔNG TOÀN CHI NHÁNH' là toàn chi nhánh, dòng 'BẦY ...'/'TỔNG ...' là tổng "
+    "bầy, không phải tổng của một nhóm phòng tự chọn. Cần tổng một nhóm thì tự cộng các dòng phòng và ghi rõ là tự "
+    "cộng; không chắc thì không nêu.\n"
+    "5. SỐ LIỆU: câu có số thì LUÔN lấy qua công cụ, không dùng số nhớ trong hội thoại nếu khác kỳ/phạm vi, không "
+    "trả lời bằng hiểu biết chung. Ưu tiên số có sẵn; tự tính thì ghi phép tính. Không suy đoán nguyên nhân. "
+    "Công cụ báo LỖI hoặc trống thì nói thẳng; LỖI quyền thì nói người hỏi không có quyền.\n"
+    "6. Mở đầu gọn bằng kỳ trong ngoặc (VD '(01-16/09)'), không nhắc lại câu hỏi. Chỉ trả lời về số bán, dự "
+    "báo, NSLĐ/tân binh; ngoài phạm vi thì từ chối lịch sự.\n"
+    "7. Câu 'phòng nào/bầy nào' xét MỌI phòng/bầy trong phạm vi được xem, không thu hẹp về phòng đang chọn trên "
+    "trang; chỉ giới hạn khi câu hỏi nói 'phòng này', 'phòng mình' hoặc nêu tên.\n"
+    "8. Gọi ít công cụ nhất có thể.")
 
 # Bộ lọc chung (ky-chung) được nhiều trang cùng ghi: chỉ lấy các ô mà trang đang xem thật sự có,
 # tránh VD phòng chọn ở Báo cáo phòng vẫn "dính" khi đang hỏi ở Báo cáo Tổng.
@@ -308,13 +319,13 @@ def ngu_canh_chat(user, duong_dan: str | None, ky: dict | None) -> tuple[str, st
              "/phantich": "Phân tích bán hàng", "/phong": "Báo cáo phòng", "/hr": "Nhân sự & NSLĐ"}.get(
         duong_dan or "/", duong_dan or "")
     pv, pns = user.phong_duoc_xem(), user.phong_nhan_su()
-    phong = "\n".join(f"{p['code']} | {p['ten']} | bầy {p['bay']} | {p.get('chi_nhanh') or ''}"
+    phong = "\n".join(f"{p['code']} | {p['ten']} | {p.get('loai') or ''} | bầy {p['bay']} | {p.get('chi_nhanh') or ''}"
                       for p in phong_order() if pv is None or p["code"] in pv)
     quyen = ("được xem chi tiết nhân sự mọi phòng" if pns is None else
              f"chỉ xem chi tiết nhân sự phòng {', '.join(pns)}" if pns else "KHÔNG được xem chi tiết nhân sự")
     moi_nhat = ngays[-1] if ngays else None
     tam_tinh = bool(moi_nhat) and trang_thai_ngay(moi_nhat)[0]
-    co_dinh = QUY_TAC_CHAT + f"\n\nDANH SÁCH PHÒNG (mã | tên | bầy | chi nhánh):\n{phong}"
+    co_dinh = QUY_TAC_CHAT + f"\n\nDANH SÁCH PHÒNG (mã | tên | loại | bầy | chi nhánh):\n{phong}"
     thay_doi = (f"Hôm nay {gio_viet_nam():%d/%m/%Y}. Số liệu có đến ngày {moi_nhat or '(chưa có)'}"
                 + (" (ngày này đang cập nhật, số tạm tính - nói rõ khi dùng)" if tam_tinh else "") + ".\n"
                 f"Người hỏi: vai trò {user.role}, {quyen}.\n"

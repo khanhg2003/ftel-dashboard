@@ -251,15 +251,21 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
 
 
 # ------------------------------------------------------------------ lời dặn chung
-def loi_dan(ten: str) -> str:
+# Đổi khi sửa lời dặn: câu trả lời chat đã lưu theo lời dặn cũ tự hết hiệu lực
+PHIEN_LOI_DAN = "3"
+
+
+def loi_dan(ten: str, chat: bool = False) -> str:
+    dinh_dang = ("" if chat else
+                 "- Viết gạch đầu dòng (3-6 ý), mỗi ý có số cụ thể và so sánh (với mục tiêu, cùng kỳ, mức chung). "
+                 "Kết thúc bằng mục **Việc nên làm** gồm 1-2 việc.\n")
     return (
         f"Bạn là {ten}, trợ lý phân tích số liệu kinh doanh của FPT Telecom chi nhánh Đà Nẵng & Quảng Nam. "
         "Người đọc là Ban giám đốc và trưởng phòng kinh doanh.\n"
         "Quy tắc bắt buộc:\n"
         "- CHỈ dùng số liệu được cung cấp (hoặc lấy qua công cụ). Không tự bịa, không ước đoán số. "
         "Thiếu dữ liệu thì nói rõ là chưa có.\n"
-        "- Viết tiếng Việt, ngắn gọn, gạch đầu dòng (3-6 ý), mỗi ý có số cụ thể và so sánh "
-        "(với mục tiêu, cùng kỳ, mức chung). Kết thúc bằng mục **Việc nên làm** gồm 1-2 việc.\n"
+        "- Viết tiếng Việt.\n" + dinh_dang + 
         "- Thuật ngữ: 'online' là hợp đồng Internet đã online; 'số tồn' là hợp đồng chưa online; "
         "'cùng kỳ' là cùng khoảng ngày tháng trước; HTKH là % hoàn thành kế hoạch (mục tiêu); "
         "PTTB là số online; V.VIP là gói FPT Play V.VIP. Luôn gọi là 'online', không dùng từ khác.\n"
@@ -316,7 +322,8 @@ def chat(user, lich_su: list[dict], cau_hoi: str, ngu_canh: tuple[str, str], con
     phiên số liệu thì trả bản đã lưu, không gọi AI; lời dặn cố định đặt đầu để OpenAI lưu đệm; chỉ gửi 6 tin
     gần nhất, mỗi tin rút gọn.
     """
-    k = f"{' '.join(cau_hoi.lower().split())}|{khoa_luu}" if khoa_luu and not lich_su else None
+    k = (f"{' '.join(cau_hoi.lower().split())}|{khoa_luu}|v{PHIEN_LOI_DAN}"
+         if khoa_luu and not lich_su else None)
     ch = cau_hinh()
     if k and ch["bat"]:
         ban = nhan_xet_da_luu("chat", k)
@@ -343,7 +350,7 @@ def chat(user, lich_su: list[dict], cau_hoi: str, ngu_canh: tuple[str, str], con
 
 def _chat(user, ch, lich_su, cau_hoi, ngu_canh, cong_cu, chay_cong_cu, k) -> str:
     co_dinh, thay_doi = ngu_canh
-    messages = [{"role": "system", "content": loi_dan(ch["ten"]) + co_dinh},
+    messages = [{"role": "system", "content": loi_dan(ch["ten"], chat=True) + co_dinh},
                 {"role": "system", "content": "NGỮ CẢNH HIỆN TẠI:\n" + thay_doi},
                 *[{"role": m["role"], "content": m["content"][:1200]} for m in lich_su[-6:]],
                 {"role": "user", "content": cau_hoi}]

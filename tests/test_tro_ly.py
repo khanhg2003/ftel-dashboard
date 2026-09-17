@@ -126,7 +126,14 @@ def test_phong_chon_o_bao_cao_phong_khong_dinh_sang_trang_khac():
     assert "IBB7" not in dl.ngu_canh_chat(u, "/", ky)[1]
     assert "phòng đang chọn IBB7" in dl.ngu_canh_chat(u, "/phong", ky)[1]
     assert dl.bo_loc_trang("/", ky) == {"tu": "2026-09-01", "den": "2026-09-16", "cn": "all"}
-    assert "MỌI phòng" in dl.ngu_canh_chat(u, "/phong", ky)[0]
+    assert "MỌI phòng/bầy" in dl.ngu_canh_chat(u, "/phong", ky)[0]
+
+
+def test_chat_tra_loi_ngan_nhan_xet_moi_day_du():
+    u = _nguoi()
+    chat = ai.loi_dan("Fox", chat=True) + dl.ngu_canh_chat(u, "/", {})[0]
+    assert "Việc nên làm" not in ai.loi_dan("Fox", chat=True) and "Việc nên làm" in ai.loi_dan("Fox")
+    assert "NGẮN, ĐÚNG TRỌNG TÂM" in chat and "| IBB |" in chat and "| DIABAN |" in chat
 
 
 def test_loi_dan_co_dinh_dung_dau_de_openai_luu_dem(ai_bat):
