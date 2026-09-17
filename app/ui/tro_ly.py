@@ -27,7 +27,7 @@ SVG_CAO = """<svg class="cao" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/
 <path d="M27 48C22 58 24 72 29 75H47C52 72 54 58 49 48C42 43 34 43 27 48Z" fill="#E8590C"/>
 <path d="M32 48C33 58 36 64 38 66C40 64 43 58 44 48C40 46 36 46 32 48Z" fill="#FFF4E6"/>
 <rect x="29" y="68" width="7" height="10" rx="3.5" fill="#3B2418"/><rect x="40" y="68" width="7" height="10" rx="3.5" fill="#3B2418"/>
-<g transform="translate(14 0) scale(.75)">
+<g class="cao-dau"><g transform="translate(14 0) scale(.75)">
 <path d="M9 5 27 19 13 31Z" fill="#D9480F"/><path d="M55 5 37 19 51 31Z" fill="#D9480F"/>
 <path d="M13 12 22 20 15 26Z" fill="#3B2418"/><path d="M51 12 42 20 49 26Z" fill="#3B2418"/>
 <path d="M7 31Q9 15 32 15Q55 15 57 31Q57 45 32 59Q7 45 7 31Z" fill="#E8590C"/>
@@ -37,7 +37,7 @@ SVG_CAO = """<svg class="cao" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/
 <g class="cao-nguoi" data-cx="30.9" data-cy="24.8"><circle cx="22.5" cy="33" r="3" fill="#2B1B14"/><circle cx="23.6" cy="31.9" r="1" fill="#fff"/></g>
 <g class="cao-nguoi" data-cx="45.1" data-cy="24.8"><circle cx="41.5" cy="33" r="3" fill="#2B1B14"/><circle cx="42.6" cy="31.9" r="1" fill="#fff"/></g></g>
 <ellipse cx="32" cy="50" rx="3.2" ry="2.3" fill="#2B1B14"/>
-<path d="M29 54Q32 56.5 35 54" stroke="#2B1B14" stroke-width="1.2" fill="none" stroke-linecap="round"/></g>
+<path d="M29 54Q32 56.5 35 54" stroke="#2B1B14" stroke-width="1.2" fill="none" stroke-linecap="round"/></g></g>
 </svg>"""
 
 

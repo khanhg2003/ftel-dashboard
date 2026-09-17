@@ -877,6 +877,7 @@ table.simple tr:last-child td { border-bottom: none; }
 .ai-nut-noi { padding: 5px 18px 5px 5px; gap: 10px; }
 .ai-nut-noi .cao-boc { width: 46px; height: 46px; padding: 3px; border-radius: 50%; background: #FFF4EA;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .7); }
+.cao-dau { transform-box: view-box; transform-origin: 38px 46px; transition: transform .18s ease-out; }
 .cao-duoi { transform-box: view-box; transform-origin: 47px 60px; animation: cao-vay 1.1s ease-in-out infinite alternate; }
 @keyframes cao-vay { from { transform: rotate(-16deg); } to { transform: rotate(14deg); } }
 .ai-nut-noi:hover .cao-duoi { animation-duration: .35s; }
