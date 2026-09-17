@@ -403,7 +403,7 @@ def register(app):
         dung = ai.thong_ke_su_dung()
         chi_phi = sum(r["chi_phi"] for r in dung)
         pct = chi_phi / ch["tran_usd"] * 100 if ch["tran_usd"] else 0
-        kpis = [kpi("Chi phí tháng này", f"${chi_phi:.2f}", f"trần ${ch['tran_usd']:g} · {pct:.0f}%",
+        kpis = [kpi("Chi phí tháng này", f"${chi_phi:.3f}", f"trần ${ch['tran_usd']:g} · {pct:.0f}%",
                     "bad" if pct >= 100 else "warn" if pct >= 80 else "ok"),
                 kpi("Câu hỏi hôm nay", sum(r["hom_nay"] for r in dung)),
                 kpi("Câu hỏi tháng này", sum(r["thang"] for r in dung)),

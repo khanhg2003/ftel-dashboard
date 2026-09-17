@@ -105,6 +105,22 @@ def test_chat_cau_hoi_trung_dung_ban_da_luu_khong_goi_ai(ai_bat):
     assert len(ai_bat) == 2
 
 
+def test_cung_cau_dang_tra_loi_thi_khong_goi_ai_them(ai_bat, monkeypatch):
+    u = _nguoi()
+    ngu_canh, cc = dl.ngu_canh_chat(u, "/", {}), dl.cong_cu(u)
+    ket_qua = []
+
+    def chay(ten, ts):          # trong lúc câu đầu còn đang lấy số, người dùng bấm gửi lại đúng câu đó
+        with pytest.raises(ai.LoiAI, match="đang được trả lời"):
+            ai.chat(u, [], "Phòng nào rủi ro?", ngu_canh, cc, chay)
+        ket_qua.append("chan")
+        return dl.chay_cong_cu(u, ten, ts)
+    ai.chat(u, [], "Phòng nào rủi ro?", ngu_canh, cc, chay)
+    assert ket_qua == ["chan"] and len(ai_bat) == 2                          # chỉ 2 lượt của câu đầu
+    ai.chat(u, [], "Phòng nào rủi ro?", ngu_canh, cc, lambda t, s: dl.chay_cong_cu(u, t, s))   # xong thì hỏi lại được
+    assert len(ai_bat) == 4
+
+
 def test_loi_dan_co_dinh_dung_dau_de_openai_luu_dem(ai_bat):
     a, b = _nguoi(), _nguoi("phong", "kiemthu.tp", ["IBB2"])
     ca, cb = dl.ngu_canh_chat(a, "/", {}), dl.ngu_canh_chat(b, "/phong", {"phong": "IBB2"})

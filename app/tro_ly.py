@@ -323,6 +323,25 @@ def chat(user, lich_su: list[dict], cau_hoi: str, ngu_canh: tuple[str, str], con
         if ban:
             return ban["noi_dung"]
     ch = kiem_tra(user, ch)
+    # Chặn gửi trùng ở máy chủ: cùng người, cùng câu đang được trả lời (bấm nhiều lần, mở nhiều tab) thì không
+    # gọi AI thêm lần nữa. Lưu trong database vì trên Vercel mỗi yêu cầu có thể chạy ở một máy khác.
+    khoa_dang = hashlib.sha256(f"dang|{user.username}|{' '.join(cau_hoi.lower().split())}".encode()).hexdigest()
+    with session_scope() as s:
+        r = s.get(AiNhanXet, khoa_dang)
+        if r and (datetime.utcnow() - r.created_at).total_seconds() < HAN_GIAY + 10:
+            raise LoiAI("Câu này đang được trả lời, bạn chờ vài giây nhé.")
+        s.merge(AiNhanXet(khoa=khoa_dang, loai="dang_hoi", noi_dung="", username=user.username,
+                          created_at=datetime.utcnow()))
+    try:
+        return _chat(user, ch, lich_su, cau_hoi, ngu_canh, cong_cu, chay_cong_cu, k)
+    finally:
+        with session_scope() as s:
+            r = s.get(AiNhanXet, khoa_dang)
+            if r:
+                s.delete(r)
+
+
+def _chat(user, ch, lich_su, cau_hoi, ngu_canh, cong_cu, chay_cong_cu, k) -> str:
     co_dinh, thay_doi = ngu_canh
     messages = [{"role": "system", "content": loi_dan(ch["ten"]) + co_dinh},
                 {"role": "system", "content": "NGỮ CẢNH HIỆN TẠI:\n" + thay_doi},
