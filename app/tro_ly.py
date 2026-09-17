@@ -174,9 +174,10 @@ def gia_model(model: str) -> tuple[float, float]:
     return GIA_LA
 
 
-def _ghi_su_dung(username, loai, model, vao, ra) -> float:
+def _ghi_su_dung(username, loai, model, vao, ra, dem: int = 0) -> float:
+    """`dem`: số token vào đã được OpenAI lưu đệm (prompt caching) - tính 10% giá."""
     g_vao, g_ra = gia_model(model)
-    chi_phi = (vao * g_vao + ra * g_ra) / 1_000_000
+    chi_phi = ((vao - dem) * g_vao + dem * g_vao * 0.1 + ra * g_ra) / 1_000_000
     with session_scope() as s:
         s.add(AiSuDung(username=username, loai=loai, model=model, token_vao=vao, token_ra=ra,
                        chi_phi_usd=chi_phi))
@@ -234,9 +235,9 @@ def thu_ket_noi(key: str, model: str) -> str:
 
 
 def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
-        tools: list | None = None, han: float = HAN_GIAY) -> dict:
+        tools: list | None = None, han: float = HAN_GIAY, toi_da: int = 3000) -> dict:
     """Một lượt Chat Completions, ghi lượt dùng. Trả về message của AI."""
-    body = {"model": model, "messages": messages, "max_completion_tokens": 3000}
+    body = {"model": model, "messages": messages, "max_completion_tokens": toi_da}
     if model.startswith(("gpt-5", "o3", "o4")):
         body["reasoning_effort"] = "low"          # đủ cho diễn giải số, trả lời nhanh hơn nhiều
     if tools:
@@ -244,7 +245,8 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
     kq = _goi_api("chat/completions", key, body, han)
     dung = kq.get("usage") or {}
     _ghi_su_dung(username, loai, kq.get("model") or model, int(dung.get("prompt_tokens") or 0),
-                 int(dung.get("completion_tokens") or 0))
+                 int(dung.get("completion_tokens") or 0),
+                 int((dung.get("prompt_tokens_details") or {}).get("cached_tokens") or 0))
     return kq["choices"][0]["message"]
 
 
@@ -306,11 +308,25 @@ def tao_nhan_xet(user, loai: str, khoa: str, du_lieu: str, yeu_cau: str) -> dict
     return {"noi_dung": noi_dung, "username": user.username, "luc": datetime.utcnow()}
 
 
-def chat(user, lich_su: list[dict], cau_hoi: str, ngu_canh: str, cong_cu: list, chay_cong_cu) -> str:
-    """Hỏi đáp có gọi công cụ lấy số. `chay_cong_cu(ten, tham_so) -> str`."""
-    ch = kiem_tra(user)
-    messages = [{"role": "system", "content": loi_dan(ch["ten"]) + "\n\nNGỮ CẢNH:\n" + ngu_canh},
-                *[{"role": m["role"], "content": m["content"]} for m in lich_su[-8:]],
+def chat(user, lich_su: list[dict], cau_hoi: str, ngu_canh: tuple[str, str], cong_cu: list, chay_cong_cu,
+         khoa_luu: str | None = None) -> str:
+    """Hỏi đáp có gọi công cụ lấy số. `chay_cong_cu(ten, tham_so) -> str`.
+
+    Tiết kiệm token: câu hỏi đầu (chưa có hội thoại) trùng câu đã có người hỏi cùng trang, bộ lọc, quyền và
+    phiên số liệu thì trả bản đã lưu, không gọi AI; lời dặn cố định đặt đầu để OpenAI lưu đệm; chỉ gửi 6 tin
+    gần nhất, mỗi tin rút gọn.
+    """
+    k = f"{' '.join(cau_hoi.lower().split())}|{khoa_luu}" if khoa_luu and not lich_su else None
+    ch = cau_hinh()
+    if k and ch["bat"]:
+        ban = nhan_xet_da_luu("chat", k)
+        if ban:
+            return ban["noi_dung"]
+    ch = kiem_tra(user, ch)
+    co_dinh, thay_doi = ngu_canh
+    messages = [{"role": "system", "content": loi_dan(ch["ten"]) + co_dinh},
+                {"role": "system", "content": "NGỮ CẢNH HIỆN TẠI:\n" + thay_doi},
+                *[{"role": m["role"], "content": m["content"][:1200]} for m in lich_su[-6:]],
                 {"role": "user", "content": cau_hoi}]
     bat_dau = datetime.utcnow()
     tong_chi_phi_truoc = chi_phi_thang()
@@ -319,13 +335,17 @@ def chat(user, lich_su: list[dict], cau_hoi: str, ngu_canh: str, cong_cu: list, 
         if con < 8:
             raise LoiAI("Câu hỏi cần tra nhiều số quá, hãy hỏi hẹp lại (một phòng hoặc một kỳ).")
         msg = hoi(messages, ch["model_chat"], ch["key"], user.username, "chat" if vong == 0 else "chat_tiep",
-                  tools=cong_cu if vong < 4 else None, han=con)
+                  tools=cong_cu if vong < 4 else None, han=con, toi_da=2000)
         goi = msg.get("tool_calls") or []
         if not goi:
-            tra_loi = (msg.get("content") or "").strip() or "Mình chưa trả lời được câu này, bạn hỏi lại nhé."
+            tra_loi = (msg.get("content") or "").strip()
+            if not tra_loi:
+                raise LoiAI("Mình chưa trả lời được câu này, bạn hỏi lại cụ thể hơn nhé.")
             with session_scope() as s:
                 s.add(AuditLog(username=user.username, action="ai_chat",
                                detail=f"{cau_hoi[:300]} · ~{chi_phi_thang() - tong_chi_phi_truoc:.4f} USD"))
+                if k and vong > 0:              # chỉ lưu câu trả lời đã dựa trên số lấy từ công cụ
+                    s.merge(AiNhanXet(khoa=_khoa("chat", k), loai="chat", noi_dung=tra_loi, username=user.username))
             return tra_loi
         messages.append({"role": "assistant", "content": msg.get("content"), "tool_calls": goi})
         for g in goi:

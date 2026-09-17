@@ -94,6 +94,42 @@ def test_chat_goi_cong_cu_roi_tra_loi(ai_bat):
     assert "Dự báo cuối tháng" in ket_qua_cong_cu
 
 
+def test_chat_cau_hoi_trung_dung_ban_da_luu_khong_goi_ai(ai_bat):
+    u = _nguoi()
+    hoi = lambda cau: ai.chat(u, [], cau, dl.ngu_canh_chat(u, "/", {}), dl.cong_cu(u),   # noqa: E731
+                              lambda ten, ts: dl.chay_cong_cu(u, ten, ts), khoa_luu="/|admin")
+    dau = hoi("Phòng nào rủi ro?")
+    assert len(ai_bat) == 2
+    assert hoi("  phòng nào RỦI RO? ") == dau and len(ai_bat) == 2          # không gọi thêm
+    hoi("Phòng nào rủi ro?")
+    assert len(ai_bat) == 2
+
+
+def test_loi_dan_co_dinh_dung_dau_de_openai_luu_dem(ai_bat):
+    a, b = _nguoi(), _nguoi("phong", "kiemthu.tp", ["IBB2"])
+    ca, cb = dl.ngu_canh_chat(a, "/", {}), dl.ngu_canh_chat(b, "/phong", {"phong": "IBB2"})
+    assert ca[0] == cb[0] and ca[1] != cb[1]                                # phần đầu giống hệt -> dùng lại đệm
+    assert ai._ghi_su_dung("kiemthu.gia", "thu", "gpt-5-mini", 10_000, 0, dem=10_000) == \
+        pytest.approx(10_000 * 0.25 * 0.1 / 1e6)
+
+
+def test_bao_cao_tong_hoi_vai_phong_chi_tra_vai_dong():
+    u = _nguoi()
+    ca = dl.chay_cong_cu(u, "bao_cao_tong", {"den": "2026-09-11"})
+    gon = dl.chay_cong_cu(u, "bao_cao_tong", {"den": "2026-09-11", "phong": "IBB7, IBB2"})
+    dong = gon.splitlines()
+    assert len(dong) < len(ca.splitlines()) and any(x.startswith("IBB7,") for x in dong)
+    assert dong[-1].startswith("TỔNG TOÀN CHI NHÁNH")
+
+
+def test_goi_y_cau_hoi_theo_trang():
+    from app.ui.tro_ly import goi_y_cho_trang
+    admin, nhap_lieu = _nguoi(), _nguoi("operator")
+    assert goi_y_cho_trang("/phong", admin) != goi_y_cho_trang("/", admin) != goi_y_cho_trang("/phantich", admin)
+    assert goi_y_cho_trang("/sosanh", admin) == goi_y_cho_trang("/tracking", admin)
+    assert goi_y_cho_trang("/hr", nhap_lieu) == goi_y_cho_trang("/", nhap_lieu)
+
+
 def test_gioi_han_luot_moi_ngay_va_admin_khong_gioi_han(ai_bat):
     tp = _nguoi("phong", "kiemthu.tp", ["IBB2"])
     for _ in range(2):
@@ -117,7 +153,7 @@ def test_ai_tat_thi_bao_ro():
 def test_phan_quyen_cong_cu():
     nhap_lieu = _nguoi("operator")
     assert {c["function"]["name"] for c in dl.cong_cu(nhap_lieu)} == {"bao_cao_tong", "so_theo_ngay",
-                                                                     "du_bao_cuoi_thang"}
+                                                                     "du_bao_cuoi_thang", "chat_luong_ban"}
     with pytest.raises(ai.LoiAI):
         dl.chay_cong_cu(nhap_lieu, "nhan_su_phong", {"phong": "IBB2", "den": "2026-09-11"})
     tp = _nguoi("phong", "kiemthu.tp", ["IBB2"])

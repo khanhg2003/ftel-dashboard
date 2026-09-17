@@ -85,12 +85,19 @@ def ngu_canh_tong(user, tu: str | None, den: str | None, chi_nhanh: str | None) 
     return f"{tu}|{d}|{cn}|{scope}", lambda: _du_lieu_tong(d, thang, cn, tu, scope)
 
 
-def _du_lieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
-    df, ngay = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=cn, tu=tu)
-    db = du_bao_thang(thang, ngay, scope)
+def _bang_tong(d: date, thang: str, cn: str, tu: str, scope, chi: set[str] | None = None) -> str:
+    """Bảng Báo cáo Tổng dạng CSV. `chi`: chỉ lấy các phòng này (kèm dòng tổng) - chat hỏi vài phòng cho gọn token."""
+    df, _ = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=cn, tu=tu)
+    if chi:
+        df = df[df.phong_code.isin(chi) | (df.loai_dong == "total")]
     return (f"Kỳ: {tu} đến {d.isoformat()} · phạm vi {TEN_PHAM_VI.get(cn, cn)}. Cột 'Online ngày cuối' "
-               f"và 'MT ngày' là của riêng ngày {d:%d/%m}.\n"
-               f"BẢNG KẾT QUẢ THEO PHÒNG (dòng TỔNG ... là tổng bầy / chi nhánh):\n{csv(df, COT_TONG)}\n\n"
+            f"và 'MT ngày' là của riêng ngày {d:%d/%m}.\n"
+            f"BẢNG KẾT QUẢ THEO PHÒNG (dòng TỔNG ... là tổng bầy / chi nhánh):\n{csv(df, COT_TONG)}")
+
+
+def _du_lieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
+    db = du_bao_thang(thang, d.day, scope)
+    return (f"{_bang_tong(d, thang, cn, tu, scope)}\n\n"
                f"DỰ BÁO CUỐI THÁNG {d.month} (luỹ kế từ 01, hệ số cuối tháng {db.attrs['he_so']}):\n"
                f"{csv(db, COT_DU_BAO)}")
 
@@ -175,9 +182,15 @@ def _ngay(mo_ta):
 def cong_cu(user) -> list[dict]:
     ds = [
         _cong_cu("bao_cao_tong", "Kết quả theo phòng trong một khoảng ngày (như Báo cáo Tổng): nhân sự, mục "
-                 "tiêu, online, cùng kỳ tháng trước, tăng trưởng, tồn, V.VIP, FPT Play, Camera. Muốn so hai kỳ "
-                 "bất kỳ thì gọi hai lần.",
+                 "tiêu, online, cùng kỳ tháng trước, tăng trưởng, tồn, V.VIP, FPT Play, Camera; có dòng tổng bầy "
+                 "và tổng chi nhánh. Muốn so hai kỳ thì gọi hai lần. Hỏi vài phòng thì truyền 'phong' cho gọn.",
                  tu=_ngay("Từ ngày"), den=_ngay("Đến ngày"),
+                 chi_nhanh={"type": "string", "enum": ["all", "DNG", "QNM"], "tuy_chon": True},
+                 phong={"type": "string", "description": "Mã phòng cách nhau dấu phẩy; bỏ trống = mọi phòng",
+                        "tuy_chon": True}),
+        _cong_cu("chat_luong_ban", "Chất lượng bán luỹ kế từ 01 đến ngày (như trang Phân tích): tỷ lệ kèm V.VIP, "
+                 "Camera, đủ 3 dịch vụ, trả trước, online trong 1 ngày so cùng kỳ; theo phòng; số tồn theo thời "
+                 "gian chờ; bán kèm theo nhóm gói.", den=_ngay("Ngày luỹ kế đến"),
                  chi_nhanh={"type": "string", "enum": ["all", "DNG", "QNM"], "tuy_chon": True}),
         _cong_cu("so_theo_ngay", "Số từng ngày trong một tháng, theo phòng (hoặc một phòng).",
                  thang={"type": "string", "description": "YYYY-MM"},
@@ -202,7 +215,14 @@ def cong_cu(user) -> list[dict]:
 
 def chay_cong_cu(user, ten: str, ts: dict) -> str:
     if ten == "bao_cao_tong":
-        return ngu_canh_tong(user, ts.get("tu"), ts.get("den"), ts.get("chi_nhanh"))[1]().split("\n\nDỰ BÁO")[0]
+        d = _ngay_hop_le(ts.get("den"))
+        thang, cn = f"{d.year}-{d.month:02d}", ts.get("chi_nhanh") or "all"
+        tu = str(ts.get("tu") or "")[:10]
+        tu = tu if tu and tu <= d.isoformat() else d.replace(day=1).isoformat()
+        chi = {_ma_phong(x) for x in str(ts.get("phong") or "").split(",") if x.strip()}
+        return _bang_tong(d, thang, cn, tu, loc_chi_nhanh(user.phong_duoc_xem(), cn, thang), chi or None)
+    if ten == "chat_luong_ban":
+        return ngu_canh_phan_tich(user, ts.get("den"), ts.get("chi_nhanh"))[1]()
     if ten == "du_bao_cuoi_thang":
         d = _ngay_hop_le(ts.get("den"))
         thang = f"{d.year}-{d.month:02d}"
@@ -249,21 +269,41 @@ def chay_cong_cu(user, ten: str, ts: dict) -> str:
     raise LoiAI(f"Không có công cụ {ten}.")
 
 
-def ngu_canh_chat(user, duong_dan: str | None, ky: dict | None) -> str:
+QUY_TAC_CHAT = (
+    "\n\nCÁCH TRẢ LỜI CHAT (bắt buộc):\n"
+    "- Câu hỏi có số: LUÔN gọi công cụ lấy số; không dùng lại số trong hội thoại nếu khác kỳ hoặc phạm vi, "
+    "không trả lời bằng hiểu biết chung.\n"
+    "- Mở đầu bằng kỳ và phạm vi của số (VD: 'Luỹ kế 01-16/09, toàn chi nhánh:').\n"
+    "- Ưu tiên số có sẵn trong bảng; chỉ tự cộng/trừ/chia khi bảng chưa có và ghi rõ phép tính.\n"
+    "- Không suy đoán nguyên nhân ngoài số liệu; giả thuyết phải ghi 'có thể'.\n"
+    "- Công cụ báo LỖI hoặc không có dữ liệu thì nói thẳng, không đoán. LỖI quyền thì nói người hỏi không có quyền.\n"
+    "- Chỉ trả lời về số bán, dự báo, NSLĐ/tân binh; câu ngoài phạm vi thì từ chối lịch sự.\n"
+    "- Trả lời thẳng câu hỏi, ngắn (tối đa khoảng 150 từ); chỉ thêm 'Việc nên làm' khi câu hỏi cần đánh giá.\n"
+    "- Gọi ít công cụ nhất có thể; hỏi vài phòng thì truyền tham số phòng.")
+
+
+def ngu_canh_chat(user, duong_dan: str | None, ky: dict | None) -> tuple[str, str]:
+    """(phần cố định, phần thay đổi). Phần cố định đặt đầu lời nhắn để OpenAI tự lưu đệm (token vào của phần
+    đó tính 10% giá); phần thay đổi (ngày, trang, bộ lọc, quyền) đặt sau."""
+    from app.overview import trang_thai_ngay
+    from app.thoi_gian import gio_viet_nam
     ky = ky or {}
     ngays = cac_ngay_co_du_lieu()
-    trang = {"/": "Báo cáo Tổng", "/tracking": "Tracking ngày & So sánh", "/phantich": "Phân tích bán hàng",
-             "/phong": "Báo cáo phòng", "/hr": "Nhân sự & NSLĐ"}.get(duong_dan or "/", duong_dan or "")
+    trang = {"/": "Báo cáo Tổng", "/tracking": "Tracking ngày & So sánh", "/sosanh": "Tracking ngày & So sánh",
+             "/phantich": "Phân tích bán hàng", "/phong": "Báo cáo phòng", "/hr": "Nhân sự & NSLĐ"}.get(
+        duong_dan or "/", duong_dan or "")
     pv, pns = user.phong_duoc_xem(), user.phong_nhan_su()
     phong = "\n".join(f"{p['code']} | {p['ten']} | bầy {p['bay']} | {p.get('chi_nhanh') or ''}"
                       for p in phong_order() if pv is None or p["code"] in pv)
     quyen = ("được xem chi tiết nhân sự mọi phòng" if pns is None else
              f"chỉ xem chi tiết nhân sự phòng {', '.join(pns)}" if pns else "KHÔNG được xem chi tiết nhân sự")
-    return (f"Hôm nay {date.today():%d/%m/%Y}. Số liệu có đến ngày {ngays[-1] if ngays else '(chưa có)'}.\n"
-            f"Người hỏi: {user.ho_ten} · vai trò {user.role} · {quyen}.\n"
-            f"Đang xem trang {trang}; bộ lọc: từ {ky.get('tu') or '-'} đến {ky.get('den') or '-'}, chi nhánh "
-            f"{ky.get('cn') or 'all'}, phòng {ky.get('phong') or '-'}. Câu hỏi không nói kỳ thì hiểu là kỳ "
-            "đang xem (hoặc luỹ kế tháng có số mới nhất).\n"
-            "Chỉ trả lời về số bán và NSLĐ/tân binh; câu ngoài phạm vi thì từ chối lịch sự. Luôn lấy số bằng "
-            "công cụ, không đoán. Công cụ báo LỖI quyền thì nói rõ người hỏi không có quyền.\n"
-            f"DANH SÁCH PHÒNG (mã | tên | bầy | chi nhánh):\n{phong}")
+    moi_nhat = ngays[-1] if ngays else None
+    tam_tinh = bool(moi_nhat) and trang_thai_ngay(moi_nhat)[0]
+    co_dinh = QUY_TAC_CHAT + f"\n\nDANH SÁCH PHÒNG (mã | tên | bầy | chi nhánh):\n{phong}"
+    thay_doi = (f"Hôm nay {gio_viet_nam():%d/%m/%Y}. Số liệu có đến ngày {moi_nhat or '(chưa có)'}"
+                + (" (ngày này đang cập nhật, số tạm tính - nói rõ khi dùng)" if tam_tinh else "") + ".\n"
+                f"Người hỏi: vai trò {user.role}, {quyen}.\n"
+                f"Đang xem trang {trang}; bộ lọc: từ {ky.get('tu') or '-'} đến {ky.get('den') or '-'}, chi nhánh "
+                f"{ky.get('cn') or 'all'}, phòng {ky.get('phong') or '-'}. Câu hỏi không nói kỳ thì dùng kỳ đang xem "
+                "(không có thì luỹ kế tháng có số mới nhất) và nói rõ kỳ đã dùng.")
+    return co_dinh, thay_doi

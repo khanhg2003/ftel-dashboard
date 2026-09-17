@@ -21,17 +21,23 @@ MODEL_GOI_Y = ["gpt-5-mini", "gpt-5", "gpt-5-nano", "gpt-4.1-mini", "gpt-4.1", "
 
 
 # Con cáo cam - hình đại diện của trợ lý. Con ngươi (.cao-nguoi) nhìn theo chuột: assets/cao_nhin_theo.js
-SVG_CAO = """<svg class="cao" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-<path d="M9 5 27 19 13 31Z" fill="#E8621A"/><path d="M55 5 37 19 51 31Z" fill="#E8621A"/>
-<path d="M13 12 22 20 15 26Z" fill="#4A2A1C"/><path d="M51 12 42 20 49 26Z" fill="#4A2A1C"/>
-<path d="M7 31Q9 15 32 15Q55 15 57 31Q57 45 32 59Q7 45 7 31Z" fill="#F7892F"/>
-<path d="M7 33Q19 36 32 59Q13 49 7 33Z" fill="#FFF3E6"/><path d="M57 33Q45 36 32 59Q51 49 57 33Z" fill="#FFF3E6"/>
-<path d="M23 43Q32 36 41 43Q37 54 32 59Q27 54 23 43Z" fill="#FFF3E6"/>
+SVG_CAO = """<svg class="cao" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<g class="cao-duoi"><path d="M47 62C60 66 76 58 76 40C76 31 71 25 66 23C68 33 64 44 54 50C50 53 47 56 45 58Z" fill="#D9480F"/>
+<path d="M66 23C71 25 76 31 76 40C76 43 75 46 74 48C72 40 68 34 63 31C65 28 66 25 66 23Z" fill="#FFF4E6"/></g>
+<path d="M27 48C22 58 24 72 29 75H47C52 72 54 58 49 48C42 43 34 43 27 48Z" fill="#E8590C"/>
+<path d="M32 48C33 58 36 64 38 66C40 64 43 58 44 48C40 46 36 46 32 48Z" fill="#FFF4E6"/>
+<rect x="29" y="68" width="7" height="10" rx="3.5" fill="#3B2418"/><rect x="40" y="68" width="7" height="10" rx="3.5" fill="#3B2418"/>
+<g transform="translate(14 0) scale(.75)">
+<path d="M9 5 27 19 13 31Z" fill="#D9480F"/><path d="M55 5 37 19 51 31Z" fill="#D9480F"/>
+<path d="M13 12 22 20 15 26Z" fill="#3B2418"/><path d="M51 12 42 20 49 26Z" fill="#3B2418"/>
+<path d="M7 31Q9 15 32 15Q55 15 57 31Q57 45 32 59Q7 45 7 31Z" fill="#E8590C"/>
+<path d="M7 33Q19 36 32 59Q13 49 7 33Z" fill="#FFF4E6"/><path d="M57 33Q45 36 32 59Q51 49 57 33Z" fill="#FFF4E6"/>
+<path d="M23 43Q32 36 41 43Q37 54 32 59Q27 54 23 43Z" fill="#FFF4E6"/>
 <g class="cao-mat"><ellipse cx="22.5" cy="33" rx="5.2" ry="5.6" fill="#fff"/><ellipse cx="41.5" cy="33" rx="5.2" ry="5.6" fill="#fff"/>
-<g class="cao-nguoi" data-cx="22.5" data-cy="33"><circle cx="22.5" cy="33" r="3" fill="#2B1B14"/><circle cx="23.6" cy="31.9" r="1" fill="#fff"/></g>
-<g class="cao-nguoi" data-cx="41.5" data-cy="33"><circle cx="41.5" cy="33" r="3" fill="#2B1B14"/><circle cx="42.6" cy="31.9" r="1" fill="#fff"/></g></g>
+<g class="cao-nguoi" data-cx="30.9" data-cy="24.8"><circle cx="22.5" cy="33" r="3" fill="#2B1B14"/><circle cx="23.6" cy="31.9" r="1" fill="#fff"/></g>
+<g class="cao-nguoi" data-cx="45.1" data-cy="24.8"><circle cx="41.5" cy="33" r="3" fill="#2B1B14"/><circle cx="42.6" cy="31.9" r="1" fill="#fff"/></g></g>
 <ellipse cx="32" cy="50" rx="3.2" ry="2.3" fill="#2B1B14"/>
-<path d="M29 54Q32 56.5 35 54" stroke="#2B1B14" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+<path d="M29 54Q32 56.5 35 54" stroke="#2B1B14" stroke-width="1.2" fill="none" stroke-linecap="round"/></g>
 </svg>"""
 
 
@@ -182,6 +188,7 @@ def khung_chat():
                       html.Button("×", id="ai-chat-dong", className="modal-x", title="Đóng")],
                      className="ai-dau"),
             html.Div(id="ai-chat-log", className="ai-log"),
+            html.Div(id="ai-chat-goi-y", className="ai-goi-y-hang"),
             html.Div([dcc.Textarea(id="ai-chat-o", placeholder="VD: IBB5 tháng này so cùng kỳ thế nào?",
                                    className="ai-o", maxLength=600),
                       html.Button("Gửi", id="ai-chat-gui", className="btn primary")], className="ai-go"),
@@ -196,8 +203,24 @@ def _tin(m: dict, ten: str):
                     className="ai-tin ai-ban" + (" ai-loi" if m.get("loi") else ""))
 
 
-GOI_Y_CAU_HOI = ["Tóm tắt kết quả tháng này so với mục tiêu", "Phòng nào có nguy cơ không đạt mục tiêu?",
-                 "Nhân sự nào cần chú ý nhất?"]
+# Câu hỏi gợi ý theo trang đang xem
+GOI_Y_CAU_HOI = {
+    "/": ["Tóm tắt kết quả kỳ đang xem so với mục tiêu và cùng kỳ", "Phòng nào có nguy cơ không đạt mục tiêu tháng?",
+          "Bầy nào dẫn đầu, bầy nào đang tụt?"],
+    "/tracking": ["So sánh online 7 ngày gần nhất với 7 ngày trước đó", "Ngày nào tháng này online thấp bất thường?",
+                  "Phòng nào tăng, giảm mạnh nhất so với cùng kỳ?"],
+    "/phantich": ["Tỷ lệ bán kèm V.VIP, Camera thay đổi thế nào so với cùng kỳ?",
+                  "Phòng nào có nhiều hợp đồng chờ online lâu nhất?", "Nhóm gói nào dễ bán kèm nhất?"],
+    "/phong": ["Phòng đang xem có đạt mục tiêu tháng không?", "Nhân sự nào cần trao đổi ngay và vì sao?",
+               "Ai đang có nhiều hợp đồng tồn lâu?"],
+    "/hr": ["NSLĐ phòng nào cao nhất, thấp nhất tháng gần nhất?", "Tỷ lệ tân binh nghỉ việc ra sao?",
+            "NSLĐ tháng gần nhất so với bình quân năm thế nào?"],
+}
+
+
+def goi_y_cho_trang(duong_dan: str | None, user) -> list[str]:
+    ds = GOI_Y_CAU_HOI.get({"/sosanh": "/tracking"}.get(duong_dan or "/", duong_dan or "/"), GOI_Y_CAU_HOI["/"])
+    return ds if user.duoc_xem_nhan_su or duong_dan not in ("/phong", "/hr") else GOI_Y_CAU_HOI["/"]
 
 
 # ------------------------------------------------------------------ tab Quản trị → Trợ lý AI
@@ -259,38 +282,22 @@ def register(app):
         Output("ai-chat-khung", "className"), Input("ai-chat-nut", "n_clicks"), Input("ai-chat-dong", "n_clicks"),
         prevent_initial_call=True)
 
-    # gửi: hiện ngay câu hỏi (máy khách), máy chủ trả lời sau
+    # gửi: hiện ngay câu hỏi (máy khách), máy chủ trả lời sau. Câu gợi ý và phím Enter: assets/tro_ly_ai.js
     app.clientside_callback(
-        """function(_n, _goi_y, chu, ls) {
-            const trig = (window.dash_clientside.callback_context.triggered[0] || {}).prop_id || '';
+        """function(_n, chu) {
             const nu = window.dash_clientside.no_update;
-            if (trig.startsWith('{')) {
-                const t = window.dash_clientside.callback_context.triggered[0];
-                if (!t || !t.value) { return [nu, nu]; }
-                const i = JSON.parse(trig.split('.')[0]).i;
-                chu = document.querySelectorAll('.ai-goi-y-cau')[i].innerText;
-            }
+            if (window.__aiCau) { chu = window.__aiCau; window.__aiCau = null; }
             chu = (chu || '').trim();
             if (!chu) { return [nu, nu]; }
             return [{id: Date.now(), q: chu}, ''];
         }""",
         Output("ai-chat-cho", "data"), Output("ai-chat-o", "value"),
-        Input("ai-chat-gui", "n_clicks"), Input({"loai": "ai-goi-y", "i": "ALL"}, "n_clicks"),
-        State("ai-chat-o", "value"), State("ai-chat-ls", "data"), prevent_initial_call=True)
+        Input("ai-chat-gui", "n_clicks"), State("ai-chat-o", "value"), prevent_initial_call=True)
 
-    # Enter để gửi, Shift+Enter xuống dòng
-    app.clientside_callback(
-        """function(id) {
-            const o = document.getElementById('ai-chat-o');
-            if (o && !o.__ftel) {
-                o.__ftel = true;
-                o.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('ai-chat-gui').click(); }
-                });
-            }
-            return window.dash_clientside.no_update;
-        }""",
-        Output("ai-chat-cuon", "data", allow_duplicate=True), Input("ai-chat-o", "id"), prevent_initial_call="initial_duplicate")
+    @app.callback(Output("ai-chat-goi-y", "children"), Input("url", "pathname"))
+    def _goi_y(duong_dan):
+        return [html.Button(c, className="ai-goi-y-cau", **{"data-cau": c})
+                for c in goi_y_cho_trang(duong_dan, current_user)]
 
     @app.callback(Output("ai-chat-ls", "data"), Input("ai-chat-cho", "data"), Input("ai-chat-xoa", "n_clicks"),
                   State("ai-chat-ls", "data"), State("url", "pathname"), State("ky-chung", "data"),
@@ -303,9 +310,12 @@ def register(app):
             return no_update
         hoi = {"role": "user", "content": cho["q"][:600], "id": cho["id"]}
         try:
-            tra_loi = ai.chat(current_user, [m for m in ls if not m.get("loi")], hoi["content"],
-                              dl.ngu_canh_chat(current_user, duong_dan, ky), dl.cong_cu(current_user),
-                              lambda ten, ts: dl.chay_cong_cu(current_user, ten, ts))
+            u = current_user
+            ky_gon = {k: (ky or {}).get(k) for k in ("tu", "den", "cn", "phong")}
+            tra_loi = ai.chat(u, [m for m in ls if not m.get("loi")], hoi["content"],
+                              dl.ngu_canh_chat(u, duong_dan, ky), dl.cong_cu(u),
+                              lambda ten, ts: dl.chay_cong_cu(u, ten, ts),
+                              khoa_luu=f"{duong_dan}|{ky_gon}|{u.role}|{u.phong_duoc_xem()}|{u.phong_nhan_su()}")
             dap = {"role": "assistant", "content": tra_loi}
         except ai.LoiAI as e:
             dap = {"role": "assistant", "content": str(e), "loi": True}
@@ -325,9 +335,8 @@ def register(app):
         if not tin:
             tin = [html.Div([html.Div(ten, className="ai-ten"),
                              html.Div(f"Chào {current_user.ho_ten}! Mình là {ten}, tra số bán và NSLĐ theo đúng quyền "
-                                      "của bạn. Thử hỏi:")], className="ai-tin ai-ban"),
-                   *[html.Button(c, id={"loai": "ai-goi-y", "i": i}, className="ai-goi-y-cau")
-                     for i, c in enumerate(GOI_Y_CAU_HOI)]]
+                                      "của bạn. Chọn câu gợi ý bên dưới hoặc gõ câu hỏi.")],
+                            className="ai-tin ai-ban")]
         return tin
 
     app.clientside_callback(
