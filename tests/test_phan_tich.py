@@ -215,3 +215,63 @@ def test_moc_ton_lien_mach_khong_trung():
     for (a1, b1, _), (a2, _, _) in zip(pt.MOC_TON, pt.MOC_TON[1:]):
         assert a2 == b1 + 1
     assert pt.MOC_TON[0][0] == 0 and pt.MOC_TON[2][0] == 7      # khớp mốc "chờ từ 7 ngày"
+
+
+# ---------------------------------------------------------- chất lượng dữ liệu
+def test_chat_luong_moi_muc_chay_duoc_va_xep_theo_muc_do():
+    from app import chat_luong as cl
+    kq = cl.chay(THANG, "all")
+    assert len(kq) == len(cl.MUC) and not [r["ten"] for r in kq if r["loi"]]
+    thu_tu = [(r["muc_do"] == "Ổn", cl.THU_TU_MUC_DO.get(r["muc_do_goc"])) for r in kq]
+    assert thu_tu == sorted(thu_tu)
+    qnm = {r["ma"]: r["so_luong"] for r in cl.chay(THANG, "QNM")}
+    tat_ca = {r["ma"]: r["so_luong"] for r in kq}
+    assert all(qnm[m] <= tat_ca[m] for m in ("khong_net", "nguon_kxd", "lech_phong"))
+
+
+def test_chat_luong_bat_dung_bat_thuong():
+    from app import chat_luong as cl
+    nghi = cl.nghi_van_co_so(THANG, "all")
+    assert "DNG.Thaidh5" in set(nghi.acc)                                     # ghi Nghỉ mà vẫn có số
+    kn = cl.khong_co_internet(THANG, "all")
+    assert len(kn) and kn.loai.isin(["Truyền hình", "Camera"]).all()
+
+
+def test_ngay_thap_bat_thuong_so_voi_cung_thu(monkeypatch):
+    from app import chat_luong as cl
+    # 5 tuần, mỗi thứ Hai 100 hợp đồng; thứ Hai cuối chỉ 30 -> dưới 50% bình quân cùng thứ
+    ngays = pd.date_range("2026-08-10", "2026-09-14")
+    df = pd.DataFrame({"ngay": ngays, "cn_ban": "DNG_01",
+                       "n": [30 if d == pd.Timestamp("2026-09-14") else 100 for d in ngays]})
+    monkeypatch.setattr(cl, "_q", lambda *a, **k: df)
+    monkeypatch.setattr(cl, "_ngay_tam_tinh", lambda d: False)
+    out = cl.ngay_bat_thuong(THANG, "all")
+    assert list(out.ngay) == ["2026-09-14"] and out.ty_le.iloc[0] == 30
+
+
+def test_excel_chat_luong_moi_muc_mot_sheet():
+    import io
+
+    from openpyxl import load_workbook
+
+    from app.ui.app import app, server
+    from app.ui.pages import chatluong  # noqa: F401  (đăng ký callback)
+    ham = app.callback_map["cl-tai-xuong.data"]["callback"]
+    with server.test_request_context("/"):
+        kq = ham.__wrapped__(1, THANG, "all")
+    wb = load_workbook(io.BytesIO(__import__("base64").b64decode(kq["content"])))
+    assert wb.sheetnames[0] == "Tổng hợp" and len(wb.sheetnames) > 3
+
+
+def test_file_dang_dung_it_dong_hon_lan_truoc_thi_bao(monkeypatch):
+    from app import chat_luong as cl
+    bay_gio = pd.Timestamp.now("UTC").tz_localize(None)
+    df = pd.DataFrame([  # file Đà Nẵng ~8.700 dòng và file Quảng Nam ~2.200 dòng nạp xen kẽ
+        (1, "internet", "DN.xlsx", 8700, 0, 0), (2, "internet", "QN.xlsx", 2200, 0, 0),
+        (3, "internet", "DN.xlsx", 7500, 0, 0), (4, "internet", "QN.xlsx", 2210, 0, 0),
+        (5, "camera", "CAM.xlsx", 5000, 0, 400)],
+        columns=["id", "dataset", "file_name", "rows_total", "rows_invalid", "rows_duplicate"])
+    df["uploaded_at"], df["uploaded_by"] = bay_gio, "admin"
+    monkeypatch.setattr(cl, "_q", lambda *a, **k: df)
+    out = cl.lan_nap_bat_thuong(THANG, "all")
+    assert list(out.lan_nap) == [3] and "14%" in out.van_de.iloc[0]      # QN không bị đem so với DN; camera trùng bỏ qua

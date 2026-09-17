@@ -41,9 +41,9 @@ def layout():
                     "hình, Camera) rồi bấm ", html.B("Lưu tất cả vào hệ thống"), ". Đầu tháng nạp thêm "
                     "file NSLĐ - app tự nhận tháng từ nội dung file."]),
                 _buoc("2", "Kiểm tra dữ liệu", [
-                    "Mở ", html.B("Chất lượng dữ liệu"), ": 6 mục kiểm tra (đủ 3 file cùng ngày, hợp "
-                    "đồng chưa gán phòng, acc lạ, NSLĐ, danh mục sai…). Mục nào chưa ổn có sẵn cách "
-                    "xử lý."]),
+                    "Mở ", html.B("Chất lượng dữ liệu"), ": 18 mục kiểm tra xếp theo mức độ (file chậm ngày, "
+                    "ngày số thấp bất thường, hợp đồng chưa gán phòng, dòng thiếu thông tin, lệch giữa 3 file…). "
+                    "Bấm một mục để xem chi tiết và cách xử lý."]),
                 _buoc("3", "Xem và gửi báo cáo", [
                     "Vào ", html.B("Báo cáo Tổng"), ", bấm ", html.B("Chụp ảnh (PNG)"),
                     " để có ảnh đầy đủ gửi nhóm, hoặc ", html.B("Excel"), " nếu cần tính tiếp."]),
@@ -81,9 +81,11 @@ def layout():
                     "từng người. Cột ", html.B("So với cùng thâm niên"),
                     " cho biết người đó bán hơn hay kém người cùng mốc thâm niên."]),
                 _muc("Chất lượng dữ liệu", "Soát lỗi trước khi chốt số", [
-                    "6 mục: dữ liệu mới nhất của 3 file, hợp đồng chưa gán phòng, ngày thiếu dữ liệu, "
-                    "acc cần xem, nhân sự kinh doanh thiếu NSLĐ, danh mục khai sai hoặc trùng. Đầu "
-                    "trang ghi số mục ổn và danh sách việc cần làm."]),
+                    "18 mục chia 5 nhóm: File nạp (file chậm ngày theo từng chi nhánh, ngày số thấp dưới "
+                    "50% bình quân cùng thứ, file ít dòng hơn lần trước từ 10%) · Gán phòng & danh mục · "
+                    "Dữ liệu thiếu / lạ (thiếu acc, CN Bán lạ, Truyền hình / Camera không có hợp đồng Internet) · "
+                    "Hợp đồng · Cấu hình tháng (thiếu mục tiêu, thiếu file NSLĐ). Mức độ Nghiêm trọng / Cần soát / "
+                    "Thông tin; bấm mục để xem chi tiết; nút Excel xuất mỗi mục một sheet."]),
                 _muc("Nạp dữ liệu", "Đưa file export vào hệ thống",
                      "Chọn nhiều file cùng lúc, xem trước rồi mới lưu; kết quả lưu hiện ngay dưới nút "
                      "Lưu. File export 3 "

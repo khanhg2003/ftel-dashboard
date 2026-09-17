@@ -1,46 +1,47 @@
-"""Trang Chất lượng dữ liệu: soát các điểm làm số báo cáo sai hoặc thiếu trước khi chốt số.
+"""Trang Chất lượng dữ liệu: nơi phát hiện mọi điểm bất thường của file raw trước khi chốt số.
 
-Mỗi mục kiểm tra trả lời một câu hỏi và có sẵn cách xử lý:
-1. Đã nạp đủ file chưa?          -> Ngày có số mới nhất của Internet / Truyền hình / Camera có lệch nhau không.
-2. Có ngày nào thiếu file?        -> Ngày không có hợp đồng online nào trong khoảng đã có số.
-3. Số đã về đúng phòng chưa?      -> Hợp đồng chưa gán phòng (cả 3 loại file), acc khai trùng trong danh mục.
-4. Danh mục có sót người bán?     -> Acc ngoài danh mục, tách riêng nhóm "cần xem" khỏi nhân viên KT/CUS.
-5. Hồ sơ NSLĐ có đủ?              -> Nhân sự phòng kinh doanh không có trong file NSLĐ gần nhất.
-6. Có hợp đồng đáng soát?         -> Tồn đọng triển khai, hợp đồng đã ngưng / chấm dứt nhưng vẫn tính.
-Không dùng "điểm chất lượng" cộng trừ tuỳ ý - chỉ đếm số mục ổn / cần xử lý.
+Bố cục (BGĐ chốt 17/09/2026):
+1. Bốn ô đếm: số mục Nghiêm trọng / Cần soát / Thông tin / Ổn.
+2. Danh sách mục kiểm tra xếp theo mức độ, mỗi dòng có số lượng và cách xử lý. Mặc định chỉ hiện mục có vấn đề.
+3. Bấm một mục -> bảng chi tiết bên dưới (tìm nhanh, copy được).
+4. Nút Excel: mỗi mục có vấn đề một sheet + sheet Tổng hợp để gửi Trưởng phòng / Inside.
+Danh sách mục và cách kiểm tra nằm ở app/chat_luong.py.
 """
 from __future__ import annotations
 
-import numbers
-
 import dash_ag_grid as dag
 import pandas as pd
-from dash import Input, Output, dcc, html
+from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 
-from app.admin_service import (acc_la, acc_trung_danh_muc, chua_gan_phong, do_moi_du_lieu,
-                               hd_bat_thuong, ngay_thieu_du_lieu, nv_thieu_ho_so, ton_dong_lau)
-from app.metrics import cac_thang_co_du_lieu
-from app.org import phong_order
-from app.ui.components import (LOCALE_VI, MA_NV, alert, chi_nhanh_control, chon_ky, field,
-                               gan_dieu_huong_ky, kpi, seg_control)
+from app import chat_luong as cl
+from app.auth import ghi_log
+from app.export_phan_tich import xuat_phan_tich
 from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
+from app.metrics import cac_thang_co_du_lieu
+from app.overview import TEN_PHAM_VI
 from app.ui import ky_chung as kc
+from app.ui.components import LOCALE_VI, MA_NV, chi_nhanh_control, chon_ky, field, gan_dieu_huong_ky, kpi, seg_control
 from app.ui.icons import icon
+
+MAU_MUC_DO = {"styleConditions": [
+    {"condition": f"params.value == '{cl.NGHIEM_TRONG}'", "style": {"color": "#B42318", "fontWeight": "700"}},
+    {"condition": f"params.value == '{cl.CAN_SOAT}'", "style": {"color": "#8A5709", "fontWeight": "650"}},
+    {"condition": f"params.value == '{cl.THONG_TIN}'", "style": {"color": "#0C4B7E"}},
+    {"condition": "params.value == 'Ổn'", "style": {"color": "#0A5B31"}}]}
+COT_TONG = [
+    {"field": "muc_do", "headerName": "Mức độ", "width": 130, "pinned": "left", "cellStyle": MAU_MUC_DO},
+    {"field": "nhom", "headerName": "Nhóm", "width": 170},
+    {"field": "ten", "headerName": "Mục kiểm tra", "flex": 2, "minWidth": 260},
+    {"field": "so", "headerName": "Số lượng", "width": 120},
+    {"field": "xu_ly", "headerName": "Cách xử lý", "flex": 3, "minWidth": 320, "tooltipField": "xu_ly"},
+]
 
 
 def topbar():
     return [html.Div([html.H1("Chất lượng dữ liệu"),
-                      html.Div("Soát các điểm làm số sai hoặc thiếu trước khi chốt số", className="sub")]),
+                      html.Div("Mọi điểm bất thường của file raw - soát trước khi chốt số", className="sub")]),
             html.Div(className="spacer"),
             html.Div(id="cl-badge")]
-
-
-def _the(tieu_de, id_mo_ta, noi_dung, nut=None):
-    return html.Div([
-        html.Div([html.Div([html.H3(tieu_de), html.Div(id=id_mo_ta, className="desc")], className="the-ten"),
-                  html.Div(nut or [], className="the-nut")], className="the-dau"),
-        *noi_dung,
-    ], className="card")
 
 
 def layout(ky: dict | None = None):
@@ -52,123 +53,68 @@ def layout(ky: dict | None = None):
             field("Chi nhánh", chi_nhanh_control("cl-cn", ky.get("cn", "all"))),
             html.Div(className="grow"),
             field(" ", html.Div([
+                html.Button([icon("download", 14), html.Span("Excel")], id="cl-xls", className="btn primary",
+                            title="Mỗi mục có vấn đề một sheet, gửi Trưởng phòng / Inside xử lý"),
                 dcc.Link([icon("upload", 14), html.Span("Nạp dữ liệu")], href="/upload", className="btn"),
-                dcc.Link([icon("users", 14), html.Span("Sửa danh mục nhân sự")], href="/quantri?tab=staff",
+                dcc.Link([icon("users", 14), html.Span("Danh mục nhân sự")], href="/quantri?tab=staff",
                          className="btn"),
-            ], style={"display": "flex", "gap": "8px"})),
+            ], style={"display": "flex", "gap": "8px", "flexWrap": "wrap"})),
         ], className="toolbar loc-trang"),
+        dcc.Store(id="cl-kq"),
+        dcc.Download(id="cl-tai-xuong"),
 
-        dcc.Loading(html.Div(id="cl-kpi", className="kpi-row kpi-6"), type="dot"),
-        html.Div(id="cl-canh-bao"),
-
-        _the("1 · Hợp đồng chưa gán phòng", "cl-mo-chuagan", [
-            html.Div("Acc người bán không có trong danh mục và không thuộc quy tắc KT/CUS/ECOM nên số "
-                     "chưa về phòng nào (vẫn cộng vào tổng chi nhánh). Xử lý: Quản trị → Danh mục nhân sự → "
-                     "thêm acc → Tính lại việc gán phòng.", className="desc", style={"marginBottom": "10px"}),
-            _grid("cl-chuagan")]),
+        dcc.Loading(html.Div(id="cl-kpi", className="kpi-row"), type="dot"),
 
         html.Div([
-            html.Div(_the("2 · Acc ngoài danh mục", "cl-mo-accla", [
-                html.Div("Nhân viên kỹ thuật / CUS không cần khai danh mục - app tự tính cho Phòng KT/CUS. "
-                         "Chỉ cần soát nhóm “Cần xem”: acc đang tính cho phòng kinh doanh, chưa gán phòng, "
-                         "hoặc có trong NSLĐ (nhiều khả năng là nhân viên kinh doanh bị sót).",
-                         className="desc", style={"marginBottom": "10px"}),
-                _grid("cl-accla")],
-                nut=seg_control("cl-accla-xem", [("can_xem", "Cần xem"), ("tat_ca", "Tất cả")], "can_xem")),
-                className="chart-col"),
-            html.Div(_the("3 · Nhân sự kinh doanh thiếu NSLĐ", "cl-mo-thieuhoso", [
-                html.Div("Có trong danh mục phòng kinh doanh, đang làm, nhưng không có trong file NSLĐ gần "
-                         "nhất nên thiếu thâm niên, điểm NSLĐ. Chi nhánh chưa nạp file NSLĐ thì cả chi nhánh "
-                         "sẽ hiện ở đây.", className="desc", style={"marginBottom": "10px"}),
-                _grid("cl-thieuhoso")]), className="chart-col"),
-        ], className="chart-row doi"),
+            html.Div([
+                html.Div([html.H3("Danh sách kiểm tra"), html.Div(id="cl-mo-ta", className="desc")],
+                         className="the-ten"),
+                html.Div(seg_control("cl-xem", [("loi", "Chỉ mục có vấn đề"), ("tat_ca", "Tất cả mục")], "loi"),
+                         className="the-nut"),
+            ], className="the-dau"),
+            dag.AgGrid(id="cl-tong", className="ag-theme-quartz ag-theme-ftel", columnDefs=COT_TONG, rowData=[],
+                       getRowId="params.data.ma",
+                       defaultColDef={"resizable": True, "sortable": True, "wrapText": True, "autoHeight": True},
+                       dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight",
+                                        "rowSelection": "single", "rowStyle": {"cursor": "pointer"},
+                                        "localeText": {**LOCALE_VI, "noRowsToShow": "Không có mục nào cần xử lý"}},
+                       style={"width": "100%"}),
+            html.Div("Bấm một dòng để xem chi tiết bên dưới.", className="desc", style={"marginTop": "8px"}),
+        ], className="card"),
 
         html.Div([
-            html.Div(_the("4 · Tồn đọng triển khai", "cl-mo-tondong", [
-                html.Div("Hợp đồng đã tạo từ 7 ngày, chưa online, còn trong file mới nhất - tính đến ngày có "
-                         "số mới nhất. Chi tiết từng hợp đồng ở Phân tích bán hàng → Số tồn.",
-                         className="desc", style={"marginBottom": "10px"}),
-                _grid("cl-tondong")],
-                nut=dcc.Link("Xem chi tiết", href="/phantich", className="btn nho")), className="chart-col"),
-            html.Div(_the("5 · Hợp đồng đã ngưng / chấm dứt", "cl-mo-batthuong", [
-                html.Div("Online trong kỳ nhưng tình trạng hiện tại không còn “Bình thường” (ngưng vì thanh "
-                         "toán, chấm dứt, đi vắng). Các hợp đồng này vẫn đang được tính vào số online.",
-                         className="desc", style={"marginBottom": "10px"}),
-                html.Div(id="cl-batthuong-tt"),
-                _grid("cl-batthuong")]), className="chart-col"),
-        ], className="chart-row doi"),
-
-        _the("6 · Danh mục khai sai hoặc trùng", "cl-mo-trung", [
-            html.Div("Acc khai nhiều dòng mà không ghi ngày hiệu lực, hoặc đang khai khác phòng đã được BGĐ chốt "
-                     "- số của acc đó đang về sai phòng. Xử lý ở Quản trị → Danh mục nhân sự rồi bấm "
-                     "“Tính lại việc gán phòng”.",
-                     className="desc", style={"marginBottom": "10px"}),
-            _grid("cl-trung")]),
+            html.Div([
+                html.Div([html.H3(id="cl-ct-tieu-de"), html.Div(id="cl-ct-mo-ta", className="desc")],
+                         className="the-ten"),
+                html.Div(dcc.Input(id="cl-ct-tim", type="search", placeholder="Tìm hợp đồng, acc, phòng…",
+                                   className="o-tim"), className="the-nut"),
+            ], className="the-dau"),
+            dag.AgGrid(id="cl-ct", className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
+                       defaultColDef={"resizable": True, "sortable": True, "filter": True},
+                       dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight", "pagination": True,
+                                        "paginationPageSize": 15, "paginationPageSizeSelector": False,
+                                        "localeText": {**LOCALE_VI, "noRowsToShow": "Không có - mục này ổn"}},
+                       style={"width": "100%"}),
+        ], className="card", id="cl-the-ct"),
     ])
 
 
-def _grid(gid):
-    return dag.AgGrid(id=gid, className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
-                      defaultColDef={"resizable": True, "sortable": True, "filter": True},
-                      dashGridOptions={"suppressCellFocus": True, "domLayout": "autoHeight",
-                                       "pagination": True, "paginationPageSize": 10,
-                                       "paginationPageSizeSelector": False,
-                                       "localeText": {**LOCALE_VI, "noRowsToShow": "Không có - mục này ổn"}},
-                      style={"width": "100%"})
+def _so(r: dict) -> str:
+    if r["loi"]:
+        return "Lỗi khi kiểm tra"
+    return f"{r['so_luong']:,} {r['don_vi']}".replace(",", ".") if r["so_luong"] else "0"
 
 
-def _loc_cn(df, chi_nhanh: str | None, cot_phong: str | None = None,
-            cot_acc: str | None = None, cot_cn: str | None = None):
-    """Lọc một bảng theo chi nhánh: theo cột CN Bán, cột chi nhánh, tên phòng hoặc tiền tố acc."""
-    if not chi_nhanh or chi_nhanh == "all" or df is None or df.empty:
-        return df
-    if cot_cn and cot_cn in df.columns:
-        return df[df[cot_cn].astype(str).str.upper().str.startswith(chi_nhanh)]
-    if cot_phong and cot_phong in df.columns:
-        thuoc = {p["ten"] for p in phong_order() if p.get("chi_nhanh") == chi_nhanh}
-        return df[df[cot_phong].isin(thuoc)]
-    if cot_acc and cot_acc in df.columns:
-        return df[df[cot_acc].astype(str).str.upper().str.startswith(chi_nhanh + ".")]
-    return df
-
-
-def _la_cot_so(cot: pd.Series) -> bool:
-    """Cột toàn số - kể cả kiểu Decimal mà PostgreSQL trả về cho phép ROUND."""
-    if pd.api.types.is_numeric_dtype(cot):
-        return True
-    gia_tri = cot.dropna()
-    return not gia_tri.empty and all(isinstance(v, numbers.Number) and not isinstance(v, bool)
-                                     for v in gia_tri)
-
-
-def _cols(df, ten: dict[str, str] | None = None, rong: dict[str, int] | None = None, bo: tuple = ()):
-    """Cột co giãn theo bề rộng thật của màn hình - không đặt width cứng để khỏi kéo ngang."""
-    ten, rong = ten or {}, rong or {}
+def _cot_ct(r: dict) -> list[dict]:
     out = []
-    for c in df.columns:
-        if c in bo:
-            continue
-        col = {"field": c, "headerName": ten.get(c, c.replace("_", " ").title()),
-               "minWidth": rong.get(c, 100), "flex": 1, "tooltipField": c}
-        if c == "ma_nv":                      # mã NV đủ 8 số, giữ số 0 ở đầu
-            col["valueFormatter"] = MA_NV
-        elif _la_cot_so(df[c]) and c not in ("acc", "hop_dong"):
-            col["type"] = "numericColumn"
-        out.append(col)
+    for k, ten in r["cot"].items():
+        c = {"field": k, "headerName": ten, "flex": 1, "minWidth": 110, "tooltipField": k}
+        if k == "ma_nv":
+            c["valueFormatter"] = MA_NV
+        if k in ("van_de", "xu_ly", "file_name", "thieu"):
+            c.update(flex=2, minWidth=220)
+        out.append(c)
     return out
-
-
-def _ban_ghi(df):
-    if df is None or df.empty:
-        return []
-    d = df.astype(object).where(df.notna(), None)
-    for c in d.columns:
-        d[c] = [str(v)[:10] if hasattr(v, "isoformat") else v for v in d[c]]
-    return d.to_dict("records")
-
-
-def _ngay(d: str | None) -> str:
-    return f"{d[8:10]}/{d[5:7]}" if d else "–"
 
 
 def register(app):
@@ -176,100 +122,76 @@ def register(app):
            chuyen=lambda thang, cn: {**kc.ca_thang(thang, _cac_ngay()), "cn": cn})
     gan_dieu_huong_ky(app, "cl-thang")
 
-    @app.callback(
-        Output("cl-kpi", "children"), Output("cl-canh-bao", "children"), Output("cl-badge", "children"),
-        Output("cl-chuagan", "columnDefs"), Output("cl-chuagan", "rowData"), Output("cl-mo-chuagan", "children"),
-        Output("cl-accla", "columnDefs"), Output("cl-accla", "rowData"), Output("cl-mo-accla", "children"),
-        Output("cl-thieuhoso", "columnDefs"), Output("cl-thieuhoso", "rowData"),
-        Output("cl-mo-thieuhoso", "children"),
-        Output("cl-tondong", "columnDefs"), Output("cl-tondong", "rowData"), Output("cl-mo-tondong", "children"),
-        Output("cl-batthuong", "columnDefs"), Output("cl-batthuong", "rowData"),
-        Output("cl-mo-batthuong", "children"), Output("cl-batthuong-tt", "children"),
-        Output("cl-trung", "columnDefs"), Output("cl-trung", "rowData"), Output("cl-mo-trung", "children"),
-        Input("cl-thang", "value"), Input("cl-cn", "value"), Input("cl-accla-xem", "value"))
-    def _cap_nhat(thang, chi_nhanh, xem_accla):
-        moi = do_moi_du_lieu()
-        cg = _loc_cn(chua_gan_phong(thang), chi_nhanh, cot_cn="cn_ban", cot_acc="acc")
-        al_tat_ca = _loc_cn(acc_la(thang), chi_nhanh, cot_acc="acc")
-        al_can_xem = al_tat_ca[al_tat_ca.nhom == "Cần xem"] if len(al_tat_ca) else al_tat_ca
-        al = al_can_xem if xem_accla != "tat_ca" else al_tat_ca
-        th = nv_thieu_ho_so(thang)
-        if chi_nhanh and chi_nhanh != "all" and len(th):
-            th = th[th.chi_nhanh == chi_nhanh]
-        td = _loc_cn(ton_dong_lau(7), chi_nhanh, cot_phong="phong")
-        bt = _loc_cn(hd_bat_thuong(thang), chi_nhanh, cot_phong="phong")
-        trung = acc_trung_danh_muc()
-        ngay_thieu = ngay_thieu_du_lieu(thang)
+    @app.callback(Output("cl-kq", "data"), Output("cl-kpi", "children"), Output("cl-badge", "children"),
+                  Output("cl-mo-ta", "children"),
+                  Input("cl-thang", "value"), Input("cl-cn", "value"))
+    def _chay(thang, cn):
+        kq = cl.chay(thang, cn or "all")
+        dem = {m: sum(1 for r in kq if r["muc_do"] == m) for m in (cl.NGHIEM_TRONG, cl.CAN_SOAT, cl.THONG_TIN, "Ổn")}
+        kpis = [kpi("Nghiêm trọng", dem[cl.NGHIEM_TRONG], "mục làm số báo cáo sai / thiếu",
+                    "bad" if dem[cl.NGHIEM_TRONG] else "ok"),
+                kpi("Cần soát", dem[cl.CAN_SOAT], "mục nên kiểm tra lại với Inside", "warn" if dem[cl.CAN_SOAT] else "ok"),
+                kpi("Thông tin", dem[cl.THONG_TIN], "mục theo dõi, không làm sai số"),
+                kpi("Mục ổn", dem["Ổn"], f"trên {len(kq)} mục kiểm tra", "ok")]
+        van_de = dem[cl.NGHIEM_TRONG] + dem[cl.CAN_SOAT]
+        badge = html.Span(f"{dem[cl.NGHIEM_TRONG]} nghiêm trọng · {dem[cl.CAN_SOAT]} cần soát" if van_de
+                          else "Dữ liệu ổn", className="badge bad" if dem[cl.NGHIEM_TRONG] else
+                          "badge warn" if van_de else "badge ok")
+        mo_ta = (f"{len(kq)} mục · tháng {thang[5:7]}/{thang[:4]} · {TEN_PHAM_VI.get(cn or 'all', 'Toàn chi nhánh')}"
+                 " · xếp theo mức độ")
+        return kq, kpis, badge, mo_ta
 
-        # 1. độ mới: các file phải cùng tới một ngày
-        ngay_moi = [m["ngay"] for m in moi if m["ngay"]]
-        lech = [m for m in moi if m["ngay"] and ngay_moi and m["ngay"] < max(ngay_moi)]
-        so_cg = int(cg.so_hd.sum()) if len(cg) else 0
-        so_td = int(td.so_hd.sum()) if len(td) else 0
-        muc = [
-            ("Dữ liệu mới nhất", _ngay(max(ngay_moi) if ngay_moi else None),
-             ("Chậm hơn: " + ", ".join(f"{m['loai']} {_ngay(m['ngay'])}" for m in lech)) if lech
-             else "Internet, Truyền hình, Camera cùng ngày", not lech),
-            ("HĐ chưa gán phòng", f"{so_cg}",
-             " · ".join(f"{k} {int(v)}" for k, v in cg.groupby("loai").so_hd.sum().items()) if so_cg
-             else "Mọi hợp đồng đã về phòng", so_cg == 0),
-            ("Ngày thiếu dữ liệu", f"{len(ngay_thieu)}",
-             ", ".join(_ngay(d) for d in ngay_thieu[:5]) or "Không thiếu ngày nào", not ngay_thieu),
-            ("Acc cần xem", f"{len(al_can_xem)}",
-             f"Ngoài danh mục · {len(al_tat_ca) - len(al_can_xem)} acc KT/CUS bỏ qua", len(al_can_xem) == 0),
-            ("Thiếu hồ sơ NSLĐ", f"{len(th)}", "Nhân sự phòng kinh doanh đang làm", len(th) == 0),
-            ("Danh mục sai / trùng", f"{len(trung)}", "Acc đang về sai phòng", len(trung) == 0),
-        ]
-        kpis = [kpi(ten, gia_tri, goi_y, "ok" if dat else "warn") for ten, gia_tri, goi_y, dat in muc]
-        so_on = sum(1 for *_, dat in muc if dat)
+    @app.callback(Output("cl-tong", "rowData"), Input("cl-kq", "data"), Input("cl-xem", "value"))
+    def _tong(kq, xem):
+        return [{"ma": r["ma"], "muc_do": r["muc_do"], "nhom": r["nhom"], "ten": r["ten"], "so": _so(r),
+                 "xu_ly": r["loi"] or r["xu_ly"]}
+                for r in (kq or []) if xem == "tat_ca" or r["muc_do"] != "Ổn"]
 
-        viec = []
-        if lech:
-            viec.append([html.B("Nạp bổ sung file: "),
-                         ", ".join(f"{m['loai']} (mới tới {_ngay(m['ngay'])})" for m in lech),
-                         f" - Internet đã tới {_ngay(max(ngay_moi))}, số V.VIP/Camera ngày đó đang thiếu."])
-        if ngay_thieu:
-            viec.append([html.B("Kiểm tra ngày không có hợp đồng: "), ", ".join(_ngay(d) for d in ngay_thieu),
-                         " - nhiều khả năng chưa nạp file của ngày đó."])
-        if so_cg:
-            viec.append([html.B(f"{so_cg} hợp đồng chưa gán phòng: "),
-                         "thêm acc vào danh mục rồi bấm “Tính lại việc gán phòng”."])
-        if len(al_can_xem):
-            viec.append([html.B(f"{len(al_can_xem)} acc cần xem: "),
-                         "nếu là nhân viên kinh doanh thì khai vào danh mục để số về đúng phòng."])
-        if len(trung):
-            viec.append([html.B(f"{len(trung)} acc khai sai hoặc trùng trong danh mục: "),
-                         "; ".join(f"{r.acc} - {r.van_de}, đang khai {r.dang_khai}" for r in trung.itertuples())])
-        canh_bao = (alert([html.B(f"{so_on}/{len(muc)} mục ổn. Việc cần làm:"),
-                           html.Ul([html.Li(v) for v in viec], style={"margin": "6px 0 0"})], "warn")
-                    if viec else alert(html.B(f"{so_on}/{len(muc)} mục ổn - dữ liệu sẵn sàng để chốt số."), "ok"))
-        badge = html.Span(f"{len(muc) - so_on} mục cần xử lý" if so_on < len(muc) else "Dữ liệu ổn",
-                          className="badge warn" if so_on < len(muc) else "badge ok")
+    @app.callback(Output("cl-ct-tieu-de", "children"), Output("cl-ct-mo-ta", "children"),
+                  Output("cl-ct", "columnDefs"), Output("cl-ct", "rowData"), Output("cl-ct-tim", "value"),
+                  Input("cl-tong", "cellClicked"), Input("cl-kq", "data"), State("cl-tong", "rowData"))
+    def _chi_tiet(bam, kq, dong_tong):
+        kq = kq or []
+        if not kq:
+            return "Chi tiết", "", [], [], ""
+        ma = (bam or {}).get("rowId") if ctx.triggered_id == "cl-tong" else None
+        if not ma:                                    # mặc định: mục có vấn đề nặng nhất
+            ma = (dong_tong or [{}])[0].get("ma") if dong_tong else None
+            ma = ma or next((r["ma"] for r in kq if r["muc_do"] != "Ổn"), kq[0]["ma"])
+        r = next((x for x in kq if x["ma"] == ma), kq[0])
+        tieu_de = [html.Span(r["muc_do"], className="badge " + {cl.NGHIEM_TRONG: "bad", cl.CAN_SOAT: "warn",
+                                                                  "Ổn": "ok"}.get(r["muc_do"], "muted"),
+                             style={"marginRight": "8px"}), f"{r['ten']} · {_so(r)}"]
+        mo_ta = r["loi"] or r["xu_ly"]
+        if r["tong_dong"] > len(r["dong"]):
+            mo_ta += f" (đang hiện {len(r['dong'])}/{r['tong_dong']} dòng - xem đủ trong file Excel)"
+        return tieu_de, mo_ta, _cot_ct(r), r["dong"], ""
 
-        ten_thang = f"tháng {thang[5:7]}/{thang[:4]}"
-        th_mo = (f"{len(th)} người · so với file NSLĐ {th.thang_nsld.iloc[0][5:7]}/{th.thang_nsld.iloc[0][:4]}"
-                 if len(th) and th.thang_nsld.iloc[0] else f"{len(th)} người · chưa có file NSLĐ")
-        bt_tt = (html.Div([html.Span(f"{k}: {v}", className="badge warn") for k, v in bt.tinh_trang.value_counts().items()],
-                          style={"display": "flex", "gap": "6px", "flexWrap": "wrap", "marginBottom": "10px"})
-                 if len(bt) else "")
-        return (
-            kpis, canh_bao, badge,
-            _cols(cg, {"loai": "Loại", "acc": "Acc nhân viên", "ma_nv": "Mã NV", "phong_he_thong": "Phòng hệ thống",
-                       "cn_ban": "CN Bán", "so_hd": "Số HĐ", "tu_ngay": "Từ ngày", "den_ngay": "Đến ngày"},
-                  {"acc": 170, "phong_he_thong": 150}),
-            _ban_ghi(cg), f"{so_cg} hợp đồng · {len(cg)} acc · {ten_thang}",
-            _cols(al_tat_ca, {"acc": "Acc", "dang_tinh_cho": "Đang tính cho", "so_hd": "Số HĐ",
-                              "gan_nhat": "Gần nhất", "co_nsld": "Có NSLĐ", "nhom": "Nhóm"},
-                  {"acc": 150, "dang_tinh_cho": 130}),
-            _ban_ghi(al), f"{len(al_can_xem)} cần xem / {len(al_tat_ca)} acc · {ten_thang}",
-            _cols(th, {"acc": "Acc", "phong": "Phòng", "ma_nv": "Mã NV", "chi_nhanh": "Chi nhánh"},
-                  {"acc": 150}, bo=("thang_nsld",)),
-            _ban_ghi(th), th_mo,
-            _cols(td, {"phong": "Phòng", "so_hd": "HĐ chờ từ 7 ngày", "tuoi_tb": "Chờ TB (ngày)"}, {"phong": 150}),
-            _ban_ghi(td), f"{so_td} hợp đồng · tính đến {_ngay(max(ngay_moi) if ngay_moi else None)}",
-            _cols(bt, {"hop_dong": "Hợp đồng", "acc": "Acc", "tinh_trang": "Tình trạng", "ngay_online": "Ngày online",
-                       "ngay_huy": "Ngày hủy", "phong": "Phòng"}, {"hop_dong": 120, "tinh_trang": 170}),
-            _ban_ghi(bt), f"{len(bt)} hợp đồng · {ten_thang}", bt_tt,
-            _cols(trung, {"acc": "Acc", "van_de": "Vấn đề", "dang_khai": "Đang khai ở"}, {"acc": 150, "van_de": 300}),
-            _ban_ghi(trung), f"{len(trung)} acc",
-        )
+    @app.callback(Output("cl-ct", "dashGridOptions"), Input("cl-ct-tim", "value"), prevent_initial_call=True)
+    def _tim(chu):
+        p = Patch()
+        p["quickFilterText"] = chu or ""
+        return p
+
+    @app.callback(Output("cl-tai-xuong", "data"), Input("cl-xls", "n_clicks"),
+                  State("cl-thang", "value"), State("cl-cn", "value"), prevent_initial_call=True)
+    def _excel(_n, thang, cn):
+        if not _n:
+            return no_update
+        cn = cn or "all"
+        kq = cl.chay(thang, cn)
+        tong = pd.DataFrame([{"muc_do": r["muc_do"], "nhom": r["nhom"], "ten": r["ten"], "so": _so(r),
+                              "xu_ly": r["loi"] or r["xu_ly"]} for r in kq])
+        bang = [("Tổng hợp", tong, [("muc_do", "Mức độ", "text"), ("nhom", "Nhóm", "text"),
+                                    ("ten", "Mục kiểm tra", "text"), ("so", "Số lượng", "text"),
+                                    ("xu_ly", "Cách xử lý", "text")])]
+        for i, r in enumerate([x for x in kq if x["muc_do"] != "Ổn" and not x["loi"]], start=1):
+            # Excel lấy đủ dòng, không giới hạn như trên trang
+            df = cl.MUC_THEO_MA[r["ma"]].ham(thang, cn)
+            ten_sheet = "".join(" " if ch in "/\\?*[]:" else ch for ch in f"{i:02d} {r['ten']}")[:31]
+            bang.append((ten_sheet, cl._ban_ghi_df(df),
+                         [(k, ten, "text") for k, ten in r["cot"].items()]))
+        ghi_log("xuat_chat_luong", f"{thang} {cn}")
+        noi_dung = xuat_phan_tich("", f"CHẤT LƯỢNG DỮ LIỆU THÁNG {thang[5:7]}/{thang[:4]} · "
+                                      f"{TEN_PHAM_VI.get(cn, 'Toàn chi nhánh').upper()}", bang)
+        return dcc.send_bytes(noi_dung, f"ChatLuongDuLieu_{thang}_{cn}.xlsx")
