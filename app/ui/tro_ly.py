@@ -331,7 +331,7 @@ def register(app):
         hoi = {"role": "user", "content": cho["q"][:600], "id": cho["id"]}
         try:
             u = current_user
-            ky_gon = {k: (ky or {}).get(k) for k in ("tu", "den", "cn", "phong")}
+            ky_gon = dl.bo_loc_trang(duong_dan, ky)
             tra_loi = ai.chat(u, [m for m in ls if not m.get("loi")], hoi["content"],
                               dl.ngu_canh_chat(u, duong_dan, ky), dl.cong_cu(u),
                               lambda ten, ts: dl.chay_cong_cu(u, ten, ts),

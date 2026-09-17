@@ -121,6 +121,14 @@ def test_cung_cau_dang_tra_loi_thi_khong_goi_ai_them(ai_bat, monkeypatch):
     assert len(ai_bat) == 4
 
 
+def test_phong_chon_o_bao_cao_phong_khong_dinh_sang_trang_khac():
+    u, ky = _nguoi(), {"tu": "2026-09-01", "den": "2026-09-16", "cn": "all", "phong": "IBB7"}
+    assert "IBB7" not in dl.ngu_canh_chat(u, "/", ky)[1]
+    assert "phòng đang chọn IBB7" in dl.ngu_canh_chat(u, "/phong", ky)[1]
+    assert dl.bo_loc_trang("/", ky) == {"tu": "2026-09-01", "den": "2026-09-16", "cn": "all"}
+    assert "MỌI phòng" in dl.ngu_canh_chat(u, "/phong", ky)[0]
+
+
 def test_loi_dan_co_dinh_dung_dau_de_openai_luu_dem(ai_bat):
     a, b = _nguoi(), _nguoi("phong", "kiemthu.tp", ["IBB2"])
     ca, cb = dl.ngu_canh_chat(a, "/", {}), dl.ngu_canh_chat(b, "/phong", {"phong": "IBB2"})

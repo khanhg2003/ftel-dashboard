@@ -279,7 +279,23 @@ QUY_TAC_CHAT = (
     "- Công cụ báo LỖI hoặc không có dữ liệu thì nói thẳng, không đoán. LỖI quyền thì nói người hỏi không có quyền.\n"
     "- Chỉ trả lời về số bán, dự báo, NSLĐ/tân binh; câu ngoài phạm vi thì từ chối lịch sự.\n"
     "- Trả lời thẳng câu hỏi, ngắn (tối đa khoảng 150 từ); chỉ thêm 'Việc nên làm' khi câu hỏi cần đánh giá.\n"
-    "- Gọi ít công cụ nhất có thể; hỏi vài phòng thì truyền tham số phòng.")
+    "- Gọi ít công cụ nhất có thể; hỏi vài phòng thì truyền tham số phòng.\n"
+    "- Câu hỏi so sánh / xếp hạng ('phòng nào', 'bầy nào', 'ai nhất') luôn xét MỌI phòng/bầy trong phạm vi được xem, "
+    "không thu hẹp về phòng đang chọn. Chỉ giới hạn một phòng khi câu hỏi nói 'phòng này', 'phòng mình' hoặc nêu tên "
+    "phòng.\n"
+    "- Trả lời đúng trọng tâm câu hỏi; câu hỏi khác nhau thì không lặp lại cùng một bài tóm tắt.")
+
+
+# Bộ lọc chung (ky-chung) được nhiều trang cùng ghi: chỉ lấy các ô mà trang đang xem thật sự có,
+# tránh VD phòng chọn ở Báo cáo phòng vẫn "dính" khi đang hỏi ở Báo cáo Tổng.
+BO_LOC_TRANG = {"/": ("tu", "den", "cn"), "/tracking": ("tu", "den", "cn"), "/sosanh": ("tu", "den", "cn"),
+                "/phantich": ("den", "cn"), "/phong": ("den", "phong"), "/hr": ("den", "cn", "phong"),
+                "/chatluong": ("tu", "den", "cn")}
+TEN_BO_LOC = {"tu": "từ ngày", "den": "đến ngày", "cn": "chi nhánh", "phong": "phòng đang chọn"}
+
+
+def bo_loc_trang(duong_dan: str | None, ky: dict | None) -> dict:
+    return {k: (ky or {}).get(k) for k in BO_LOC_TRANG.get(duong_dan or "/", ()) if (ky or {}).get(k)}
 
 
 def ngu_canh_chat(user, duong_dan: str | None, ky: dict | None) -> tuple[str, str]:
@@ -287,7 +303,6 @@ def ngu_canh_chat(user, duong_dan: str | None, ky: dict | None) -> tuple[str, st
     đó tính 10% giá); phần thay đổi (ngày, trang, bộ lọc, quyền) đặt sau."""
     from app.overview import trang_thai_ngay
     from app.thoi_gian import gio_viet_nam
-    ky = ky or {}
     ngays = cac_ngay_co_du_lieu()
     trang = {"/": "Báo cáo Tổng", "/tracking": "Tracking ngày & So sánh", "/sosanh": "Tracking ngày & So sánh",
              "/phantich": "Phân tích bán hàng", "/phong": "Báo cáo phòng", "/hr": "Nhân sự & NSLĐ"}.get(
@@ -303,7 +318,8 @@ def ngu_canh_chat(user, duong_dan: str | None, ky: dict | None) -> tuple[str, st
     thay_doi = (f"Hôm nay {gio_viet_nam():%d/%m/%Y}. Số liệu có đến ngày {moi_nhat or '(chưa có)'}"
                 + (" (ngày này đang cập nhật, số tạm tính - nói rõ khi dùng)" if tam_tinh else "") + ".\n"
                 f"Người hỏi: vai trò {user.role}, {quyen}.\n"
-                f"Đang xem trang {trang}; bộ lọc: từ {ky.get('tu') or '-'} đến {ky.get('den') or '-'}, chi nhánh "
-                f"{ky.get('cn') or 'all'}, phòng {ky.get('phong') or '-'}. Câu hỏi không nói kỳ thì dùng kỳ đang xem "
-                "(không có thì luỹ kế tháng có số mới nhất) và nói rõ kỳ đã dùng.")
+                f"Đang xem trang {trang}; bộ lọc trên trang: "
+                + (", ".join(f"{TEN_BO_LOC[k]} {v}" for k, v in bo_loc_trang(duong_dan, ky).items()) or "mặc định")
+                + ". Câu hỏi không nói kỳ thì dùng kỳ đang xem (không có thì luỹ kế tháng có số mới nhất) và nói rõ "
+                "kỳ đã dùng. Chi nhánh, phòng đang chọn chỉ là ngữ cảnh, không phải giới hạn của câu hỏi.")
     return co_dinh, thay_doi
