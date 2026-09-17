@@ -87,10 +87,8 @@ elif _db_url.startswith("sqlite:///") and not _db_url.startswith("sqlite:////"):
         _db_url = f"sqlite:///{(BASE_DIR / rel).as_posix()}"
 DATABASE_URL = _db_url
 
-AI_ENABLED = os.getenv("AI_ENABLED", "false").lower() == "true"
+# Trợ lý AI cấu hình ở Quản trị → Trợ lý AI; biến này chỉ là mã dự phòng khi chưa dán mã trong app
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL_CHAT = os.getenv("OPENAI_MODEL_CHAT", "")
-OPENAI_MODEL_INSIGHT = os.getenv("OPENAI_MODEL_INSIGHT", "")
 
 
 @lru_cache(maxsize=None)

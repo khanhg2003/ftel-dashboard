@@ -23,7 +23,9 @@ from flask_login import current_user
 
 from app import bao_cao_phong as bp
 from app import canh_bao as quy_tac   # quy tắc cần chú ý dùng chung
+from app import tro_ly_du_lieu as dl
 from app.auth import ghi_log
+from app.du_bao import du_bao_thang
 from app.export_phong import anh_bao_cao_phong, xuat_bao_cao_phong
 from app.metrics import bang_ngay_theo_acc, cac_ngay_co_du_lieu
 from app.org import phong_order
@@ -33,6 +35,7 @@ from app.ui.components import (DONG_TONG_NGAY, HEAT_NGAY, LOCALE_VI, LOP_DONG_NG
                                seg_control)
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
+from app.ui import tro_ly as tl
 from app.ui.icons import icon
 
 SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
@@ -117,6 +120,7 @@ def layout(ky: dict | None = None):
 
         html.Div(id="bp-canh-bao"),
         dcc.Loading(html.Div(id="bp-kpi", className="kpi-row kpi-6"), type="dot"),
+        tl.the_ai("bp", "Dự báo cuối tháng & nhận xét của phòng", tl.MO_TA_DU_BAO, html.Div(id="bp-du-bao")),
 
         html.Div([
             html.Div([
@@ -466,6 +470,16 @@ def register(app):
     kc.ghi(app, ("bp-date", "date"), ("bp-phong", "value"),
            chuyen=lambda den, phong: {**kc.luy_ke(den), "phong": phong})
     gan_chon_ngay(app, "bp")
+    tl.gan_nhan_xet(app, "bp", "phong", [("bp-date", "date"), ("bp-phong", "value")], dl.ngu_canh_phong,
+                    dl.YEU_CAU_PHONG)
+
+    @app.callback(Output("bp-du-bao", "children"), Input("bp-date", "date"), Input("bp-phong", "value"))
+    def _du_bao(ngay_iso, code):
+        if not ngay_iso or not duoc_xem_phong(code):
+            return ""
+        d = date.fromisoformat(ngay_iso[:10])
+        db = du_bao_thang(f"{d.year}-{d.month:02d}", d.day, [code])
+        return tl.dong_du_bao(db[db.phong_code == code].iloc[0].to_dict(), "Phòng")
 
     @app.callback(
         Output("bp-kpi", "children"), Output("bp-badge", "children"),

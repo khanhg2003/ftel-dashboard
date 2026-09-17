@@ -150,8 +150,11 @@ def _noi_rong_theo_nhom(ct, rong: list[int], bo: _Bo) -> None:
 def anh_tong_quan(thang: str, ngay: int | None = None,
                   chi_phong: list[str] | None = None, chi_nhanh: str = "all",
                   tam_tinh: bool = False, luc: datetime | None = None,
-                  tu: str | None = None) -> tuple[bytes, str]:
-    """Trả về (nội dung PNG, tên file) - toàn bộ bảng Báo cáo Tổng trong một ảnh."""
+                  tu: str | None = None, nhan_xet: tuple[str, str] | None = None) -> tuple[bytes, str]:
+    """Trả về (nội dung PNG, tên file) - toàn bộ bảng Báo cáo Tổng trong một ảnh.
+
+    `nhan_xet` = (tiêu đề, nội dung) của trợ lý AI, in thành khối ngắn dưới bảng.
+    """
     df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong, chi_nhanh=chi_nhanh,
                               tam_tinh=tam_tinh, tu=tu)
     ct = cau_truc(thang, ngay, tu)
@@ -168,8 +171,10 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
     rong_bang = sum(rong)
     le = bo.px(LE)
     cao_dau = bo.px(62)
+    dong_nx = _dong_nhan_xet(nhan_xet[1], bo.o, rong_bang - bo.px(2 * DEM)) if nhan_xet else []
+    cao_nx = (bo.px(40) + len(dong_nx) * bo.px(CO_O * 1.6) + bo.px(14)) if dong_nx else 0
     cao = (cao_dau + bo.px(CAO_NHOM + CAO_COT) + len(rows) * bo.px(CAO_DONG)
-           + bo.px(30) + le)
+           + bo.px(30) + cao_nx + le)
     img = Image.new("RGB", (rong_bang + le * 2, cao), NEN)
     d = ImageDraw.Draw(img)
 
@@ -251,11 +256,37 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
     d.text((x0, y + bo.px(9)),
            f"Nguồn: Sales & HR Dashboard · {mo_ta_ky(thang, ngay, tu)}"
            f" · xuất lúc {gio_viet_nam():%H:%M %d/%m/%Y}", font=bo.phu, fill=XAM_CHU)
+    if dong_nx:
+        y_nx = y + bo.px(40)
+        d.rounded_rectangle([x0, y_nx - bo.px(6), x0 + rong_bang, y_nx + cao_nx - bo.px(40)],
+                            radius=bo.px(6), fill="#F1F7FD", outline="#CFE1F2")
+        d.text((x0 + bo.px(DEM), y_nx), nhan_xet[0] + " (trợ lý AI)", font=bo.phu_dam, fill=XANH_FPT)
+        for i, dong in enumerate(dong_nx, start=1):
+            d.text((x0 + bo.px(DEM), y_nx + i * bo.px(CO_O * 1.6)), dong, font=bo.o, fill=CHU_THUONG)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
     ten = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{hau_to_ky(thang, ngay, tu)}.png"
     return buf.getvalue(), ten
+
+
+def _dong_nhan_xet(noi_dung: str, font, rong: int) -> list[str]:
+    """Bỏ ký hiệu markdown, ngắt dòng vừa bề ngang ảnh."""
+    do = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    ra: list[str] = []
+    for goc in noi_dung.replace("**", "").replace("__", "").splitlines():
+        goc = goc.strip().lstrip("-*• ").strip()
+        if not goc:
+            continue
+        dong = "•"
+        for tu in goc.split():
+            if do.textlength(f"{dong} {tu}", font=font) > rong:
+                ra.append(dong)
+                dong = "  " + tu
+            else:
+                dong = f"{dong} {tu}"
+        ra.append(dong)
+    return ra[:12]
 
 
 def _giua(d, x, y, w, h, chu, font, mau, trai: int | None = None):

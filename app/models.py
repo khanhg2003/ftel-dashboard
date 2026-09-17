@@ -239,3 +239,36 @@ class AuditLog(Base):
     username: Mapped[str | None] = mapped_column(String(60), nullable=True)
     action: Mapped[str] = mapped_column(String(40), index=True)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# ---------------------------------------------------------------- trợ lý AI
+class CaiDat(Base):
+    """Cài đặt dạng khoá - giá trị chỉnh trên giao diện (VD cấu hình trợ lý AI)."""
+    __tablename__ = "cai_dat"
+    khoa: Mapped[str] = mapped_column(String(60), primary_key=True)
+    gia_tri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_by: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AiSuDung(Base):
+    """Mỗi lần gọi OpenAI một dòng: để giới hạn lượt/ngày và trần chi phí tháng."""
+    __tablename__ = "ai_su_dung"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    username: Mapped[str | None] = mapped_column(String(60), index=True, nullable=True)
+    loai: Mapped[str] = mapped_column(String(20))            # chat | nhan_xet | thu
+    model: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    token_vao: Mapped[int] = mapped_column(Integer, default=0)
+    token_ra: Mapped[int] = mapped_column(Integer, default=0)
+    chi_phi_usd: Mapped[float] = mapped_column(Float, default=0)
+
+
+class AiNhanXet(Base):
+    """Nhận xét đã tạo, dùng lại cho người mở sau khi số liệu chưa đổi."""
+    __tablename__ = "ai_nhan_xet"
+    khoa: Mapped[str] = mapped_column(String(64), primary_key=True)
+    loai: Mapped[str] = mapped_column(String(20))
+    noi_dung: Mapped[str] = mapped_column(Text)
+    username: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

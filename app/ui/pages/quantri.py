@@ -30,12 +30,12 @@ GRID = {"rowSelection": "multiple", "suppressRowClickSelection": True, "suppress
 TRANG_THAI_TK = ["Đang dùng", "Ngừng dùng"]
 
 TAB = [("user", "Tài khoản"), ("staff", "Danh mục nhân sự"), ("cocau", "Cơ cấu tổ chức"),
-       ("chitieu", "Chỉ tiêu"), ("nhatky", "Nhật ký")]
+       ("chitieu", "Chỉ tiêu"), ("nhatky", "Nhật ký"), ("ai", "Trợ lý AI")]
 
 
 def topbar():
     return [html.Div([html.H1("Quản trị"),
-                      html.Div("Tài khoản · danh mục nhân sự · cơ cấu tổ chức · chỉ tiêu · nhật ký",
+                      html.Div("Tài khoản · danh mục nhân sự · cơ cấu tổ chức · chỉ tiêu · nhật ký · trợ lý AI",
                                className="sub")])]
 
 
@@ -104,6 +104,7 @@ def _hop_thoai_staff():
 
 
 def layout(tab: str | None = None):
+    from app.ui import tro_ly
     from app.ui.pages import settings as st
     tab = tab if tab in dict(TAB) else "user"
     an = {"display": "none"}
@@ -176,6 +177,7 @@ def layout(tab: str | None = None):
             ], title="Danh mục nhân sự theo phòng"),
         ]),
         *st.cac_tab(tab),
+        tro_ly.pane_cau_hinh(tab),
     ])
 
 

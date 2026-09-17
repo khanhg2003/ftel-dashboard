@@ -20,6 +20,8 @@ from dash import Input, Output, Patch, State, dcc, html, no_update
 from flask_login import current_user
 
 from app import phan_tich as pt
+from app import tro_ly_du_lieu as dl
+from app.du_bao import du_bao_thang
 from app.auth import ghi_log, loc_nhan_su
 from app.config import rules_config
 from app.export_phan_tich import xuat_phan_tich
@@ -30,6 +32,7 @@ from app.ui.components import (LOCALE_VI, alert, card, chi_nhanh_control, chon_n
                                gan_chon_ngay, kpi, seg_control)
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
+from app.ui import tro_ly as tl
 from app.ui.icons import icon
 
 MAU_TOT, MAU_VUA, MAU_KEM = ("#D3EBD4", "#14532D"), ("#FCEBB4", "#6B5104"), ("#F7BDBD", "#7F1D1D")
@@ -119,6 +122,7 @@ def layout(ky: dict | None = None):
         dcc.Download(id="pt-tai-xuong"),
 
         dcc.Loading(html.Div(id="pt-kpi", className="kpi-row kpi-6"), type="dot"),
+        tl.the_ai("pt", "Dự báo cuối tháng & nhận định chất lượng bán", tl.MO_TA_DU_BAO, html.Div(id="pt-du-bao")),
         chu_giai("Cách tính các chỉ số", DINH_NGHIA),
 
         html.Div([
@@ -588,6 +592,18 @@ def register(app):
                                          else " · trong phòng bạn phụ trách")
         return (_cot_nv(pt.muc_chung_kinh_doanh(df, thang), _nguong()),
                 [] if nv.empty else nv.to_dict("records"), mo_ta)
+
+    tl.gan_nhan_xet(app, "pt", "phan_tich", [("pt-date", "date"), ("pt-cn", "value")], dl.ngu_canh_phan_tich,
+                    dl.YEU_CAU_PHAN_TICH)
+
+    @app.callback(Output("pt-du-bao", "children"), Input("pt-date", "date"), Input("pt-cn", "value"))
+    def _du_bao(ngay_iso, chi_nhanh):
+        ky = _ky(ngay_iso)
+        if ky is None:
+            return ""
+        thang, ngay, _, _ = ky
+        db = du_bao_thang(thang, ngay, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
+        return tl.dong_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), TEN_PHAM_VI.get(chi_nhanh or "all"))
 
     @app.callback(Output("pt-tai-xuong", "data"), Input("pt-xls", "n_clicks"),
                   State("pt-date", "date"), State("pt-cn", "value"), prevent_initial_call=True)

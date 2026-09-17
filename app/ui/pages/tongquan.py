@@ -22,11 +22,14 @@ from app.config import rules_config
 from app.export_excel import xuat_tong_quan
 from app.export_png import anh_tong_quan
 from app.metrics import cac_ngay_co_du_lieu
+from app import tro_ly_du_lieu as dl
+from app.du_bao import du_bao_thang
 from app.org import loc_chi_nhanh
 from app.overview import TEN_PHAM_VI, bang_tong_quan, lui_mot_thang, trang_thai_ngay
 from app.ui.components import chi_nhanh_control, field, kpi, seg_control
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
+from app.ui import tro_ly as tl
 from app.ui.icons import icon
 
 # thang màu giống bảng tính: đỏ nhạt -> cam -> vàng -> xanh nhạt -> xanh
@@ -165,6 +168,7 @@ def layout(ky: dict | None = None):
                 getRowStyle=ROW_STYLE, style={"width": "100%"})),
                 id="tq-zoom-wrap", className="zoom-wrap"),
         ], className="card"),
+        tl.the_ai("tq", "Dự báo cuối tháng & nhận xét", tl.MO_TA_DU_BAO, tl.bang_du_bao("tq-du-bao")),
     ])
 
 
@@ -424,6 +428,19 @@ def _huy_hieu(tam_tinh: bool, luc) -> html.Span:
 
 def register(app):
     lk.gan_mo_phong(app, "tq-grid")
+    tl.gan_nhan_xet(app, "tq", "tong", [("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value")],
+                    dl.ngu_canh_tong, dl.YEU_CAU_TONG)
+
+    @app.callback(Output("tq-du-bao", "rowData"), Input("tq-khoang", "end_date"), Input("tq-cn", "value"))
+    def _du_bao(ngay_iso, chi_nhanh):
+        ngays = cac_ngay_co_du_lieu()
+        ngay_iso = (ngay_iso or (ngays[-1] if ngays else ""))[:10]
+        if not ngay_iso:
+            return []
+        d = date.fromisoformat(ngay_iso)
+        thang = f"{d.year}-{d.month:02d}"
+        db = du_bao_thang(thang, d.day, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
+        return db[(db.phong_code == "TOTAL") | (db.mt > 0) | (db.luy_ke > 0)].to_dict("records")
     kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),
            chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     # Điện thoại: mở trang là dùng bảng Gọn luôn
@@ -527,7 +544,10 @@ def register(app):
         chi_nhanh = chi_nhanh or "all"
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         tam_tinh, luc = trang_thai_ngay(ngay_iso) if ngay_iso else (False, None)
-        ham = anh_tong_quan if ctx.triggered_id == "tq-png" else xuat_tong_quan
-        noi_dung, ten = ham(thang, d.day if d else None, chi_phong=scope, chi_nhanh=chi_nhanh,
-                            tam_tinh=tam_tinh, luc=luc, tu=tu_iso)
+        kw = dict(chi_phong=scope, chi_nhanh=chi_nhanh, tam_tinh=tam_tinh, luc=luc, tu=tu_iso)
+        if ctx.triggered_id == "tq-png":
+            noi_dung, ten = anh_tong_quan(thang, d.day if d else None, nhan_xet=tl.nhan_xet_anh(tu_iso, ngay_iso,
+                                                                                               chi_nhanh), **kw)
+        else:
+            noi_dung, ten = xuat_tong_quan(thang, d.day if d else None, **kw)
         return dcc.send_bytes(noi_dung, ten)
