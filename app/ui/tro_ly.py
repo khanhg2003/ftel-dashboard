@@ -20,6 +20,25 @@ MAU_DANH_GIA = {AN_TOAN: "ok", TANG_TOC: "warn", RUI_RO: "bad"}
 MODEL_GOI_Y = ["gpt-5-mini", "gpt-5", "gpt-5-nano", "gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini"]
 
 
+# Con cáo cam - hình đại diện của trợ lý. Con ngươi (.cao-nguoi) nhìn theo chuột: assets/cao_nhin_theo.js
+SVG_CAO = """<svg class="cao" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<path d="M9 5 27 19 13 31Z" fill="#E8621A"/><path d="M55 5 37 19 51 31Z" fill="#E8621A"/>
+<path d="M13 12 22 20 15 26Z" fill="#4A2A1C"/><path d="M51 12 42 20 49 26Z" fill="#4A2A1C"/>
+<path d="M7 31Q9 15 32 15Q55 15 57 31Q57 45 32 59Q7 45 7 31Z" fill="#F7892F"/>
+<path d="M7 33Q19 36 32 59Q13 49 7 33Z" fill="#FFF3E6"/><path d="M57 33Q45 36 32 59Q51 49 57 33Z" fill="#FFF3E6"/>
+<path d="M23 43Q32 36 41 43Q37 54 32 59Q27 54 23 43Z" fill="#FFF3E6"/>
+<g class="cao-mat"><ellipse cx="22.5" cy="33" rx="5.2" ry="5.6" fill="#fff"/><ellipse cx="41.5" cy="33" rx="5.2" ry="5.6" fill="#fff"/>
+<g class="cao-nguoi" data-cx="22.5" data-cy="33"><circle cx="22.5" cy="33" r="3" fill="#2B1B14"/><circle cx="23.6" cy="31.9" r="1" fill="#fff"/></g>
+<g class="cao-nguoi" data-cx="41.5" data-cy="33"><circle cx="41.5" cy="33" r="3" fill="#2B1B14"/><circle cx="42.6" cy="31.9" r="1" fill="#fff"/></g></g>
+<ellipse cx="32" cy="50" rx="3.2" ry="2.3" fill="#2B1B14"/>
+<path d="M29 54Q32 56.5 35 54" stroke="#2B1B14" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+</svg>"""
+
+
+def con_cao(co: str = "nho"):
+    return dcc.Markdown(SVG_CAO, dangerously_allow_html=True, className=f"cao-boc {co}")
+
+
 def _cau_hinh_an_toan() -> dict:
     try:
         return ai.cau_hinh()
@@ -33,7 +52,7 @@ def the_ai(prefix: str, tieu_de: str, mo_ta: str, truoc=None):
     ch = _cau_hinh_an_toan()
     return html.Div([
         html.Div([
-            html.Div([html.H3([html.Span("✦", className="ai-logo"), tieu_de]),
+            html.Div([html.H3([con_cao(), tieu_de]),
                       html.Div(mo_ta, className="desc")], className="the-ten"),
             html.Button([html.Span("✨"), html.Span(f"{ch['ten']} nhận xét", id=f"{prefix}-ai-nhan")],
                         id=f"{prefix}-ai-tao", className="btn primary",
@@ -152,10 +171,10 @@ def khung_chat():
         dcc.Store(id="ai-chat-ls", storage_type="session", data=[]),
         dcc.Store(id="ai-chat-cho"),
         dcc.Store(id="ai-chat-cuon"),
-        html.Button([html.Span("✦", className="ai-logo"), html.Span(f"Hỏi {ten}")], id="ai-chat-nut",
+        html.Button([con_cao("vua"), html.Span(f"Hỏi {ten}")], id="ai-chat-nut",
                     className="ai-nut-noi", title=f"Hỏi {ten} về số bán, NSLĐ"),
         html.Div([
-            html.Div([html.Span("✦", className="ai-logo"),
+            html.Div([con_cao("vua"),
                       html.Div([html.B(ten), html.Div("Trợ lý số liệu · trả lời theo quyền của bạn",
                                                       className="ai-phu")], className="grow"),
                       html.Button(icon("trash", 14), id="ai-chat-xoa", className="modal-x",

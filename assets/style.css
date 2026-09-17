@@ -806,10 +806,6 @@ table.simple tr:last-child td { border-bottom: none; }
 #up-commit:disabled { opacity: .75; cursor: progress; }
 
 /* ---------------------------------------------------------- trợ lý AI */
-.ai-logo {
-  display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 7px;
-  background: linear-gradient(135deg, #0072BC, #F37021); color: #fff; font-size: 12px; vertical-align: -3px;
-}
 .the-ai { border-color: #CFE1F2; background: linear-gradient(180deg, #F7FBFF 0%, var(--card) 140px); }
 .ai-kq:not(:empty) { margin-top: 14px; }
 .ai-goi-y { font-size: 13px; color: var(--text-muted); padding: 10px 12px; border: 1px dashed #CFE1F2; border-radius: 8px; }
@@ -828,7 +824,6 @@ table.simple tr:last-child td { border-bottom: none; }
   transition: transform .18s var(--ease), box-shadow .18s var(--ease);
 }
 .ai-nut-noi:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 72, 130, .38); }
-.ai-nut-noi .ai-logo { background: rgba(255, 255, 255, .22); width: 26px; height: 26px; }
 .ai-khung {
   position: fixed; right: 22px; bottom: 76px; z-index: 61; width: 400px; height: min(620px, calc(100vh - 110px));
   display: none; flex-direction: column; background: var(--card); border: 1px solid var(--border);
@@ -836,7 +831,6 @@ table.simple tr:last-child td { border-bottom: none; }
 }
 .ai-khung.mo { display: flex; }
 .ai-dau { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px 14px; color: #fff; background: var(--grad-sidebar); }
-.ai-dau .ai-logo { margin: 0; }
 .ai-dau .grow { flex: 1; min-width: 0; }
 .ai-dau .ai-phu { font-size: 11.5px; opacity: .8; }
 .ai-dau .modal-x { color: #fff; }
@@ -871,3 +865,17 @@ table.simple tr:last-child td { border-bottom: none; }
   .ai-nut-noi span:last-child { display: none; }
   .ai-nut-noi { padding: 9px; }
 }
+
+/* ---------------------------------------------------------- con cáo Mây */
+.cao-boc { display: inline-flex; line-height: 0; flex: none; }
+.cao-boc > * { margin: 0 !important; line-height: 0; }
+.cao { width: 100%; height: 100%; overflow: visible; transition: transform .25s var(--ease); }
+.cao-mat { transform-box: fill-box; transform-origin: center; animation: cao-chop 5s infinite; }
+@keyframes cao-chop { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+.cao-boc.nho { width: 26px; height: 26px; margin-right: 8px; vertical-align: -6px; }
+.cao-boc.vua { width: 34px; height: 34px; }
+.ai-nut-noi { padding: 5px 18px 5px 5px; gap: 10px; }
+.ai-nut-noi .cao-boc { width: 42px; height: 42px; padding: 4px; border-radius: 50%; background: #FFF4EA;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .7); }
+.ai-nut-noi:hover .cao { transform: rotate(-10deg) scale(1.06); }
+.ai-dau .cao-boc { padding: 3px; border-radius: 50%; background: #FFF4EA; }
