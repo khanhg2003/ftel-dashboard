@@ -27,7 +27,10 @@ from app.thoi_gian import gio_viet_nam, LECH_GIO_VN
 API = "https://api.openai.com/v1"
 HAN_GIAY = 50                     # Vercel cắt yêu cầu ở 60 giây
 MAC_DINH = {"bat": False, "ten": "Mây", "model_chat": "gpt-5-mini", "model_nhan_xet": "gpt-5",
-            "tran_usd": 20.0, "luot_ngay": 20}
+            "tran_usd": 20.0, "luot_ngay": 20,
+            # ai được dùng: theo vai trò HOẶC từng tài khoản (Quản trị → Trợ lý AI). Chưa lưu = mọi vai trò.
+            "vai_tro": ["admin", "operator", "phong"], "tai_khoan": []}
+DS_CAU_HINH = ("vai_tro", "tai_khoan")
 # USD / 1 triệu token (vào, ra). Model lạ tính theo giá cao để không vượt trần.
 GIA = {"gpt-5-nano": (0.05, 0.4), "gpt-5-mini": (0.25, 2.0), "gpt-5": (1.25, 10.0),
        "gpt-4.1-nano": (0.1, 0.4), "gpt-4.1-mini": (0.4, 1.6), "gpt-4.1": (2.0, 8.0),
@@ -94,6 +97,8 @@ def cau_hinh() -> dict:
             ch[k] = int(v)
         elif k == "bat":
             ch[k] = v == "1"
+        elif k in DS_CAU_HINH:
+            ch[k] = [x for x in (v or "").split(",") if x]
         elif k != "key" and v:
             ch[k] = v
     ma = luu.get("ai.key")
@@ -119,7 +124,8 @@ def luu_cau_hinh(moi: dict, nguoi: str) -> None:
                 if row:
                     s.delete(row)
                 continue
-            gia_tri = ma_hoa(v.strip()) if k == "key" else ("1" if v is True else "0" if v is False else str(v))
+            gia_tri = (ma_hoa(v.strip()) if k == "key" else ",".join(v) if k in DS_CAU_HINH
+                       else "1" if v is True else "0" if v is False else str(v))
             if row is None:
                 s.add(CaiDat(khoa=f"ai.{k}", gia_tri=gia_tri, updated_by=nguoi))
             else:
@@ -151,11 +157,19 @@ def luot_hom_nay(username: str) -> int:
             AiSuDung.loai.in_(["chat", "nhan_xet"]))).scalar() or 0)
 
 
+def duoc_dung(user, ch: dict) -> bool:
+    """AI đang bật và tài khoản này được mở quyền (theo vai trò hoặc chọn riêng từng tài khoản)."""
+    return bool(ch["bat"]) and (getattr(user, "role", None) in ch["vai_tro"]
+                                or getattr(user, "username", None) in ch["tai_khoan"])
+
+
 def kiem_tra(user, ch: dict | None = None) -> dict:
     """Trả về cấu hình nếu người này được dùng AI ngay bây giờ, ngược lại ném LoiAI."""
     ch = ch or cau_hinh()
     if not ch["bat"]:
         raise LoiAI("Trợ lý AI đang tắt. Quản trị bật ở Quản trị → Trợ lý AI.")
+    if not duoc_dung(user, ch):
+        raise LoiAI("Tài khoản của bạn chưa được mở quyền dùng trợ lý AI.")
     if not ch["key"]:
         raise LoiAI("Chưa có mã API ChatGPT (hoặc mã đã lưu không còn dùng được). "
                     "Quản trị dán lại ở Quản trị → Trợ lý AI.")
@@ -348,7 +362,7 @@ def chat(user, lich_su: list[dict], cau_hoi: str, ngu_canh: tuple[str, str], con
     k = (f"{' '.join(cau_hoi.lower().split())}|{khoa_luu}|v{PHIEN_LOI_DAN}"
          if khoa_luu and not lich_su else None)
     ch = cau_hinh()
-    if k and ch["bat"]:
+    if k and duoc_dung(user, ch):
         ban = nhan_xet_da_luu("chat", k)
         if ban:
             return ban["noi_dung"]

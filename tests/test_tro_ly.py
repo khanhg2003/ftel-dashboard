@@ -194,6 +194,26 @@ def test_gioi_han_luot_moi_ngay_va_admin_khong_gioi_han(ai_bat):
     ai.kiem_tra(_nguoi("admin", "kiemthu.admin"))
 
 
+def test_quyen_dung_ai_theo_vai_tro_hoac_tung_tai_khoan(ai_bat):
+    # giai đoạn thử: không mở vai trò nào, chỉ riêng tài khoản kiemthu.admin
+    ai.luu_cau_hinh({"vai_tro": [], "tai_khoan": ["kiemthu.admin"]}, "pytest")
+    ch = ai.cau_hinh()
+    assert ch["vai_tro"] == [] and ch["tai_khoan"] == ["kiemthu.admin"]
+    ai.kiem_tra(_nguoi("admin", "kiemthu.admin"))
+    for nguoi in (_nguoi("admin", "kiemthu.bgd"), _nguoi("phong", "kiemthu.tp", ["IBB2"])):
+        with pytest.raises(ai.LoiAI, match="chưa được mở quyền"):
+            ai.kiem_tra(nguoi)
+    # câu trả lời đã lưu cũng không trả cho người chưa có quyền
+    with pytest.raises(ai.LoiAI, match="chưa được mở quyền"):
+        ai.chat(_nguoi("admin", "kiemthu.bgd"), [], "x", ("", ""), [], None, khoa_luu="k")
+    # mở rộng: thêm vai trò Trưởng phòng
+    ai.luu_cau_hinh({"vai_tro": ["phong"], "tai_khoan": ["kiemthu.admin", "kiemthu.bgd"]}, "pytest")
+    ai.kiem_tra(_nguoi("phong", "kiemthu.tp", ["IBB2"]))
+    ai.kiem_tra(_nguoi("admin", "kiemthu.bgd"))
+    with pytest.raises(ai.LoiAI, match="chưa được mở quyền"):
+        ai.kiem_tra(_nguoi("operator", "kiemthu.nl"))
+
+
 def test_cham_tran_chi_phi_thi_dung(ai_bat, monkeypatch):
     monkeypatch.setattr(ai, "chi_phi_thang", lambda: 20.0)
     with pytest.raises(ai.LoiAI, match="ngân sách"):

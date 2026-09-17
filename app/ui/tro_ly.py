@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 
 import dash_ag_grid as dag
 from dash import Input, Output, State, ctx, dcc, html, no_update
@@ -9,6 +10,7 @@ from flask_login import current_user
 
 from app import tro_ly as ai
 from app import tro_ly_du_lieu as dl
+from app.admin_service import ROLES, danh_sach_user
 from app.auth import ghi_log
 from app.du_bao import AN_TOAN, RUI_RO, TANG_TOC
 from app.thoi_gian import chu_gio_vn, gio_viet_nam
@@ -52,6 +54,14 @@ def _cau_hinh_an_toan() -> dict:
         return dict(ai.MAC_DINH)
 
 
+def _dung_duoc(ch: dict) -> bool:
+    """Người đang đăng nhập có thấy / dùng được AI không (bật + được mở quyền)."""
+    try:
+        return current_user.is_authenticated and ai.duoc_dung(current_user, ch)
+    except Exception:
+        return False
+
+
 # ------------------------------------------------------------------ thẻ dự báo & nhận xét
 def the_ai(prefix: str, tieu_de: str, mo_ta: str, truoc=None):
     """Thẻ dùng chung: phần dự báo (luôn hiện) + nút nhận xét của trợ lý (ẩn khi AI tắt)."""
@@ -62,7 +72,7 @@ def the_ai(prefix: str, tieu_de: str, mo_ta: str, truoc=None):
                       html.Div(mo_ta, className="desc")], className="the-ten"),
             html.Button([html.Span("✨"), html.Span(f"{ch['ten']} nhận xét", id=f"{prefix}-ai-nhan")],
                         id=f"{prefix}-ai-tao", className="btn primary",
-                        style={} if ch["bat"] else AN,
+                        style={} if _dung_duoc(ch) else AN,
                         title="Trợ lý AI đọc số của trang đang xem rồi nhận xét"),
         ], className="the-dau"),
         *([truoc] if truoc is not None else []),
@@ -85,7 +95,7 @@ def gan_nhan_xet(app, prefix: str, loai: str, inputs: list[tuple[str, str]], ngu
                   Input(f"{prefix}-ai-tao", "n_clicks"), *[Input(i, p) for i, p in inputs])
     def _nhan_xet(_n, *gia_tri):
         ch = _cau_hinh_an_toan()
-        if not ch["bat"]:
+        if not _dung_duoc(ch):
             return "", no_update
         try:
             khoa, du_lieu = ngu_canh(current_user, *gia_tri)
@@ -104,7 +114,7 @@ def gan_nhan_xet(app, prefix: str, loai: str, inputs: list[tuple[str, str]], ngu
 def nhan_xet_anh(tu: str | None, den: str | None, chi_nhanh: str | None) -> tuple[str, str] | None:
     """(tiêu đề, nội dung) nhận xét ngắn in dưới ảnh Báo cáo Tổng. AI tắt / lỗi thì ảnh vẫn xuất bình thường."""
     ch = _cau_hinh_an_toan()
-    if not ch["bat"]:
+    if not _dung_duoc(ch):
         return None
     try:
         khoa, du_lieu = dl.ngu_canh_tong(current_user, tu, den, chi_nhanh)
@@ -170,7 +180,7 @@ def khung_chat():
         ch = ai.cau_hinh()
     except Exception:
         return html.Div()
-    if not ch["bat"]:
+    if not _dung_duoc(ch):
         return html.Div()
     ten = ch["ten"]
     return html.Div([
@@ -231,7 +241,7 @@ def pane_cau_hinh(tab: str):
         dcc.Store(id="ai-da-luu"),
         html.Datalist(id="ai-ds-model", children=[html.Option(value=m) for m in MODEL_GOI_Y]),
         card([
-            dcc.Checklist(id="ai-bat", options=[{"label": " Bật trợ lý AI cho mọi tài khoản", "value": "bat"}],
+            dcc.Checklist(id="ai-bat", options=[{"label": " Bật trợ lý AI", "value": "bat"}],
                           value=[], className="ai-bat"),
             html.Div([
                 o("Tên trợ lý", dcc.Input(id="ai-ten", type="text", className="inp", maxLength=20)),
@@ -242,7 +252,17 @@ def pane_cau_hinh(tab: str):
                 o("Trần chi phí mỗi tháng (USD)", dcc.Input(id="ai-tran", type="number", min=0.5, step=0.5,
                                                             className="inp")),
                 o("Số câu mỗi người / ngày", dcc.Input(id="ai-luot", type="number", min=1, step=1, className="inp")),
+                o("Vai trò được dùng AI", dcc.Dropdown(id="ai-vai-tro", multi=True, searchable=False,
+                                                       placeholder="Chưa mở cho vai trò nào",
+                                                       options=[{"label": t, "value": v} for v, t in ROLES])),
+                o("Thêm từng tài khoản được dùng", dcc.Dropdown(id="ai-tai-khoan", multi=True,
+                                                                placeholder="Chọn tài khoản (tuỳ chọn)")),
             ], className="form-grid"),
+            html.Div("Quyền dùng AI: tài khoản dùng được khi vai trò của họ được chọn HOẶC tài khoản đó được chọn "
+                     "riêng. VD giai đoạn thử: bỏ trống vai trò, chỉ chọn tài khoản admin → sau mở thêm tài khoản "
+                     "BGĐ → cuối cùng chọn vai trò Trưởng phòng. Người chưa được mở quyền không thấy nút chat, nút "
+                     "nhận xét và nhận xét trên ảnh.", className="desc", style={"marginTop": "8px"}),
+            html.Div(id="ai-quyen-hien", className="desc", style={"marginTop": "4px"}),
             html.Div(id="ai-key-hien", className="desc", style={"marginTop": "10px"}),
             html.Div([
                 html.Button([icon("check", 14), html.Span("Lưu cấu hình")], id="ai-luu", className="btn primary"),
@@ -388,11 +408,23 @@ def register(app):
     @cb(Output("ai-bat", "value"), Output("ai-ten", "value"), Output("ai-model-chat", "value"),
         Output("ai-model-nx", "value"), Output("ai-tran", "value"), Output("ai-luot", "value"),
         Output("ai-key-hien", "children"), Output("ai-dung-kpi", "children"), Output("ai-dung-grid", "rowData"),
+        Output("ai-vai-tro", "value"), Output("ai-tai-khoan", "options"), Output("ai-tai-khoan", "value"),
+        Output("ai-quyen-hien", "children"),
         Input("qt-tab", "value"), Input("ai-da-luu", "data"))
     def _nap(tab, _luu):
         if tab != "ai":
-            return (no_update,) * 9
+            return (no_update,) * 13
         ch = ai.cau_hinh()
+        users = danh_sach_user()
+        tk = [] if users.empty else [{"label": f"{r.username} · {r.ho_ten or ''} ({r.vai_tro})", "value": r.username}
+                                     for r in users.itertuples() if r.active]
+        ten_vt = dict(ROLES)
+        duoc = [] if users.empty else [
+            r.username for r in users.itertuples()
+            if r.active and ai.duoc_dung(SimpleNamespace(role=r.role, username=r.username), {**ch, "bat": True})]
+        quyen = [html.B(f"Đang mở cho {len(duoc)} tài khoản: "),
+                 ", ".join(duoc) if duoc else "chưa có ai",
+                 f" · vai trò: {', '.join(ten_vt.get(v, v) for v in ch['vai_tro']) or 'không'}."]
         if ch["key_loi"]:
             key = alert("Mã API đã lưu không giải mã được (APP_SECRET_KEY đã đổi) - dán lại mã rồi Lưu.", "warn")
         elif ch["key"]:
@@ -411,14 +443,15 @@ def register(app):
         for r in dung:
             r["chi_phi"] = round(r["chi_phi"], 4)
         return (["bat"] if ch["bat"] else [], ch["ten"], ch["model_chat"], ch["model_nhan_xet"], ch["tran_usd"],
-                ch["luot_ngay"], key, kpis, dung)
+                ch["luot_ngay"], key, kpis, dung, ch["vai_tro"], tk, ch["tai_khoan"], quyen)
 
     @cb(Output("ai-msg", "children"), Output("ai-key", "value"), Output("ai-da-luu", "data"),
         Input("ai-luu", "n_clicks"), Input("ai-thu", "n_clicks"), Input("ai-xoa-key", "n_clicks"),
         State("ai-bat", "value"), State("ai-ten", "value"), State("ai-key", "value"),
         State("ai-model-chat", "value"), State("ai-model-nx", "value"), State("ai-tran", "value"),
-        State("ai-luot", "value"), prevent_initial_call=True)
-    def _thao_tac(_l, _t, _x, bat, ten, key, m_chat, m_nx, tran, luot):
+        State("ai-luot", "value"), State("ai-vai-tro", "value"), State("ai-tai-khoan", "value"),
+        prevent_initial_call=True)
+    def _thao_tac(_l, _t, _x, bat, ten, key, m_chat, m_nx, tran, luot, vai_tro, tai_khoan):
         key, m_chat, m_nx = (key or "").strip(), (m_chat or "").strip(), (m_nx or "").strip()
         trig = ctx.triggered_id
         if trig == "ai-xoa-key":
@@ -440,9 +473,12 @@ def register(app):
         if key and not key.startswith("sk-"):
             return alert("Mã API OpenAI bắt đầu bằng “sk-”. Kiểm tra lại mã vừa dán.", "warn"), no_update, no_update
         ai.luu_cau_hinh({"bat": "bat" in (bat or []), "ten": ten.strip(), "key": key, "model_chat": m_chat,
-                         "model_nhan_xet": m_nx, "tran_usd": float(tran), "luot_ngay": int(luot)},
+                         "model_nhan_xet": m_nx, "tran_usd": float(tran), "luot_ngay": int(luot),
+                         "vai_tro": list(vai_tro or []), "tai_khoan": list(tai_khoan or [])},
                         current_user.username)
         ch = ai.cau_hinh()
-        nhac = " Chưa có mã API nên AI chưa chạy." if ch["bat"] and not ch["key"] else ""
+        nhac = (" Chưa có mã API nên AI chưa chạy." if ch["bat"] and not ch["key"] else
+                " Chưa mở quyền cho vai trò hay tài khoản nào nên chưa ai dùng được." if ch["bat"]
+                and not (ch["vai_tro"] or ch["tai_khoan"]) else "")
         return alert(f"Đã lưu cấu hình ({gio_viet_nam():%H:%M:%S}). Tải lại trang (F5) để thấy nút chat "
                      f"và nút nhận xét.{nhac}", "warn" if nhac else "ok"), "", time.time()
