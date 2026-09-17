@@ -329,3 +329,17 @@ def test_ma_nv_giu_nguyen_so_0_o_dau():
     assert ma_nv_nhu_nhap("00056966") == "00056966" and ma_nv_nhu_nhap(" 0017-2290 ") == "00172290"
     assert norm_manv("00056966") == norm_manv("56966") == "56966"
     assert "String(params.value)" in MA_NV["function"]
+
+
+def test_trang_thai_tai_khoan_khong_bi_khoa_nham_khi_co_nguoi_khac_bi_khoa(monkeypatch):
+    # một tài khoản đang bị khoá làm cột locked_until thành kiểu ngày giờ, các tài khoản khác là NaT
+    import pandas as pd
+
+    import app.admin_service as sv
+    from app.thoi_gian import utc_bay_gio
+    df = pd.DataFrame({"id": [1, 2], "username": ["a", "b"], "ho_ten": ["", ""], "email": ["", ""],
+                       "role": ["admin", "phong"], "scope": [None, None], "ma_nv": ["", ""], "active": [True, True],
+                       "last_login": [None, None],
+                       "locked_until": pd.to_datetime([utc_bay_gio() + pd.Timedelta(minutes=10), None])})
+    monkeypatch.setattr(sv.pd, "read_sql", lambda *a, **k: df.copy())
+    assert list(sv.danh_sach_user().trang_thai) == ["Đang khoá", "Đang dùng"]

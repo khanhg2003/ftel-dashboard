@@ -37,7 +37,9 @@ def danh_sach_user() -> pd.DataFrame:
     df["pham_vi"] = [_scope_text(s) if r in ("phong", "bay") else "Toàn chi nhánh"
                      for s, r in zip(df["scope"], df["role"])]
     df["trang_thai"] = df.apply(
-        lambda r: "Đang khoá" if (r.locked_until and str(r.locked_until) > str(utc_bay_gio()))
+        # locked_until trống đọc ra NaT - NaT vẫn "đúng" khi xét if và str(NaT)="NaT" > "2026..." nên trước đây mọi
+        # tài khoản bị hiện "Đang khoá" ngay khi có một người bị khoá (cột chuyển sang kiểu ngày giờ)
+        lambda r: "Đang khoá" if (pd.notna(r.locked_until) and pd.Timestamp(r.locked_until) > pd.Timestamp(utc_bay_gio()))
         else ("Đang dùng" if r.active else "Ngừng dùng"), axis=1)
     df["lan_cuoi"] = [chu_gio_vn(v) for v in df["last_login"]]
     return df
