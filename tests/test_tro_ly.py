@@ -129,6 +129,30 @@ def test_phong_chon_o_bao_cao_phong_khong_dinh_sang_trang_khac():
     assert "MỌI phòng/bầy" in dl.ngu_canh_chat(u, "/phong", ky)[0]
 
 
+def test_cot_insight_tinh_san_dung():
+    import pandas as pd
+
+    from app.overview import bang_tong_quan
+    from datetime import date
+    df, _ = bang_tong_quan("2026-09", 11)
+    df = dl._them_insight(df, date(2026, 9, 11), "2026-09-01")
+    phong = df[df.loai_dong == "data"]
+    tong = df[df.loai_dong == "total"].iloc[0]
+    assert (df.chenh_ck == df.online - df.ck_online).all()
+    assert tong.tuan_nay == phong.tuan_nay.sum() and tong.tuan_truoc == phong.tuan_truoc.sum()
+    assert tong.chenh_tien_do == round(tong.htkh_internet - round(11 / 30 * 100))
+    tang = pd.to_numeric(phong.dong_gop[phong.chenh_ck > 0])
+    assert 98 <= tang.sum() <= 102                                           # các phòng tăng cộng lại ~100%
+    assert set(phong[phong.ck_online < 30].mau_nho) == {"có"} and "có" not in set(phong[phong.ck_online >= 30].mau_nho)
+
+
+def test_chan_doan_theo_quyen():
+    admin, nhap_lieu = _nguoi(), _nguoi("operator")
+    co = dl.chay_cong_cu(admin, "chan_doan_phong", {"den": "2026-09-11", "phong": "IBB5"})
+    khong = dl.chay_cong_cu(nhap_lieu, "chan_doan_phong", {"den": "2026-09-11", "phong": "IBB5"})
+    assert "kéo GIẢM" in co and "Online từng ngày" in khong and "Họ tên" not in khong
+
+
 def test_chat_tra_loi_ngan_nhan_xet_moi_day_du():
     u = _nguoi()
     chat = ai.loi_dan("Fox", chat=True) + dl.ngu_canh_chat(u, "/", {})[0]
@@ -184,7 +208,8 @@ def test_ai_tat_thi_bao_ro():
 def test_phan_quyen_cong_cu():
     nhap_lieu = _nguoi("operator")
     assert {c["function"]["name"] for c in dl.cong_cu(nhap_lieu)} == {"bao_cao_tong", "so_theo_ngay",
-                                                                     "du_bao_cuoi_thang", "chat_luong_ban"}
+                                                                     "du_bao_cuoi_thang", "chat_luong_ban",
+                                                                     "chan_doan_phong"}
     with pytest.raises(ai.LoiAI):
         dl.chay_cong_cu(nhap_lieu, "nhan_su_phong", {"phong": "IBB2", "den": "2026-09-11"})
     tp = _nguoi("phong", "kiemthu.tp", ["IBB2"])

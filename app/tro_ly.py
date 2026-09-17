@@ -252,13 +252,36 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
 
 # ------------------------------------------------------------------ lời dặn chung
 # Đổi khi sửa lời dặn: câu trả lời chat đã lưu theo lời dặn cũ tự hết hiệu lực
-PHIEN_LOI_DAN = "3"
+PHIEN_LOI_DAN = "4"
+
+
+# Ngưỡng BGĐ chốt 17/09/2026
+MAU_NHO_CUNG_KY = 30               # cùng kỳ dưới 30 số: không khen/chê theo %
+DANG_KE_PCT, DANG_KE_SO = 10, 10   # "đáng kể" khi chênh từ 10% VÀ từ 10 số
+
+QUY_TAC_INSIGHT = (
+    "CÁCH RÚT RA INSIGHT (không chỉ đọc lại số):\n"
+    "- Mỗi ý: con số chính -> ý nghĩa của nó (vậy thì sao). Ý nghĩa phải dựa trên số liệu được cung cấp.\n"
+    "- Tiến độ: so %HTKH với '% thời gian đã qua' (cột 'Chênh tiến độ' = %HTKH - % thời gian; âm là chậm "
+    "tiến độ). Kịp mục tiêu hay không: dựa dự báo cuối tháng và 'Cần mỗi ngày' so với 'TB/ngày'.\n"
+    "- Xu hướng gần: so '7 ngày gần nhất' với '7 ngày trước đó' để nói đang tăng tốc hay chậm lại.\n"
+    "- Quy mô thật: luôn nhìn 'Chênh cùng kỳ (số)' cạnh %; tăng % lớn trên nền nhỏ ít ý nghĩa hơn tăng nhiều "
+    "số. Cột '% trong tổng tăng/giảm' = phần của phòng trong tổng mức tăng (hoặc giảm) của các phòng: dùng để nói "
+    "phòng nào kéo tăng/giảm nhiều nhất.\n"
+    f"- Mẫu nhỏ: cùng kỳ dưới {MAU_NHO_CUNG_KY} số (cột 'Mẫu nhỏ' = có) thì KHÔNG khen/chê theo %, chỉ ghi "
+    "'quy mô nhỏ'.\n"
+    f"- Chỉ gọi là tăng/giảm 'đáng kể' khi chênh từ {DANG_KE_PCT}% VÀ từ {DANG_KE_SO} số trở lên; dưới "
+    "ngưỡng thì nói 'tương đương'.\n"
+    "- Vì sao: chỉ truy nguyên trong dữ liệu (nhân sự, ngày, gói, số tồn; trong chat dùng công cụ chan_doan_phong); tuyệt "
+    "đối không đoán nguyên nhân bên ngoài (thời tiết, chính sách, đối thủ...).\n"
+    "- Số tồn là dư địa: tồn chờ từ 7 ngày nhiều thì nêu là cơ hội chuyển thành online.\n"
+    "- Ngày đang cập nhật (số tạm tính): không kết luận giảm dựa trên riêng ngày đó.\n")
 
 
 def loi_dan(ten: str, chat: bool = False) -> str:
     dinh_dang = ("" if chat else
-                 "- Viết gạch đầu dòng (3-6 ý), mỗi ý có số cụ thể và so sánh (với mục tiêu, cùng kỳ, mức chung). "
-                 "Kết thúc bằng mục **Việc nên làm** gồm 1-2 việc.\n")
+                 "- Viết gạch đầu dòng (3-6 ý), mỗi ý có số cụ thể và ý nghĩa. Kết thúc bằng mục **Việc nên làm** "
+                 "gồm 1-2 việc cụ thể gắn với số (VD 'xử lý 59 hợp đồng chờ trên 7 ngày').\n")
     return (
         f"Bạn là {ten}, trợ lý phân tích số liệu kinh doanh của FPT Telecom chi nhánh Đà Nẵng & Quảng Nam. "
         "Người đọc là Ban giám đốc và trưởng phòng kinh doanh.\n"
@@ -270,7 +293,7 @@ def loi_dan(ten: str, chat: bool = False) -> str:
         "'cùng kỳ' là cùng khoảng ngày tháng trước; HTKH là % hoàn thành kế hoạch (mục tiêu); "
         "PTTB là số online; V.VIP là gói FPT Play V.VIP. Luôn gọi là 'online', không dùng từ khác.\n"
         "- Số dự báo cuối tháng do hệ thống tính bằng công thức, chỉ diễn giải, không tự tính lại.\n"
-        "- Định dạng số kiểu Việt Nam (1.394), phần trăm làm tròn.")
+        "- Định dạng số kiểu Việt Nam (1.394), phần trăm làm tròn.\n" + QUY_TAC_INSIGHT)
 
 
 # ------------------------------------------------------------------ nhận xét có lưu lại
@@ -284,7 +307,7 @@ def phien_du_lieu() -> str:
 
 
 def _khoa(loai: str, khoa: str) -> str:
-    return hashlib.sha256(f"{loai}|{khoa}|{phien_du_lieu()}".encode()).hexdigest()
+    return hashlib.sha256(f"{loai}|{khoa}|{phien_du_lieu()}|v{PHIEN_LOI_DAN}".encode()).hexdigest()
 
 
 def nhan_xet_da_luu(loai: str, khoa: str) -> dict | None:
