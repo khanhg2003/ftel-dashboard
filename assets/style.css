@@ -847,7 +847,13 @@ table.simple tr:last-child td { border-bottom: none; }
   padding: 6px 11px; border-radius: 999px; font: inherit; font-size: 12.5px; cursor: pointer;
 }
 .ai-goi-y-cau:hover { background: #E3EFFA; }
-.ai-dang-go { display: flex; gap: 4px; padding: 12px 14px; }
+.ai-log { position: relative; }
+.ai-lich { display: flex; flex-direction: column; gap: 10px; }
+.ai-lich:empty { display: none; }
+.ai-dang-go .ai-ten { color: var(--text-muted); font-weight: 600; }
+.ai-cham { display: flex; gap: 4px; padding: 4px 0 2px; }
+.ai-log:has(.ai-dang-go) .ai-goi-y-hang { display: none; }
+.ai-khung:has(.ai-dang-go) #ai-chat-gui { opacity: .55; pointer-events: none; }
 .ai-dang-go i { width: 7px; height: 7px; border-radius: 50%; background: #8FA9C4; animation: ai-nhay 1s infinite; }
 .ai-dang-go i:nth-child(2) { animation-delay: .15s; }
 .ai-dang-go i:nth-child(3) { animation-delay: .3s; }

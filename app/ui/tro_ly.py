@@ -187,7 +187,9 @@ def khung_chat():
                                   title="Xoá hội thoại"),
                       html.Button("×", id="ai-chat-dong", className="modal-x", title="Đóng")],
                      className="ai-dau"),
-            html.Div(id="ai-chat-log", className="ai-log"),
+            # lịch sử do máy chủ vẽ; câu vừa gửi + "đang trả lời" vẽ ngay ở trình duyệt (không chờ máy chủ)
+            html.Div([html.Div(id="ai-chat-lich", className="ai-lich"), html.Div(id="ai-chat-dang", className="ai-lich")],
+                     id="ai-chat-log", className="ai-log"),
             html.Div([dcc.Textarea(id="ai-chat-o", placeholder="VD: IBB5 tháng này so cùng kỳ thế nào?",
                                    className="ai-o", maxLength=600),
                       html.Button("Gửi", id="ai-chat-gui", className="btn primary")], className="ai-go"),
@@ -283,15 +285,39 @@ def register(app):
 
     # gửi: hiện ngay câu hỏi (máy khách), máy chủ trả lời sau. Câu gợi ý và phím Enter: assets/tro_ly_ai.js
     app.clientside_callback(
-        """function(_n, chu) {
+        """function(_n, chu, cho, ls) {
             const nu = window.dash_clientside.no_update;
-            if (window.__aiCau) { chu = window.__aiCau; window.__aiCau = null; }
-            chu = (chu || '').trim();
+            const tu_goi_y = window.__aiCau; window.__aiCau = null;
+            // đang chờ câu trả lời trước thì chưa nhận câu mới (tránh mất câu trả lời đang chạy)
+            if (cho && Date.now() - cho.id < 90000 && !(ls || []).some(function (m) { return m.id === cho.id; })) {
+                return [nu, nu];
+            }
+            chu = ((tu_goi_y || chu) || '').trim();
             if (!chu) { return [nu, nu]; }
-            return [{id: Date.now(), q: chu}, ''];
+            return [{id: Date.now(), q: chu}, tu_goi_y ? nu : ''];
         }""",
         Output("ai-chat-cho", "data"), Output("ai-chat-o", "value"),
-        Input("ai-chat-gui", "n_clicks"), State("ai-chat-o", "value"), prevent_initial_call=True)
+        Input("ai-chat-gui", "n_clicks"), State("ai-chat-o", "value"), State("ai-chat-cho", "data"),
+        State("ai-chat-ls", "data"), prevent_initial_call=True)
+
+    # Hiện ngay câu vừa gửi + "đang trả lời". Chỉ được phụ thuộc ai-chat-cho: callback nào có Input là ai-chat-ls
+    # (đầu ra của _tra_loi) đều bị Dash giữ lại tới khi câu trả lời xong -> người dùng không thấy gì lúc chờ.
+    # Có câu trả lời thì _ve vẽ lịch sử và xoá khối này trong cùng một lần (không nháy trống).
+    app.clientside_callback(
+        """function(cho) {
+            // quá 90 giây chưa có trả lời (mất mạng, máy chủ lỗi) thì thôi hiện "đang trả lời", cho gửi lại
+            if (!cho || Date.now() - cho.id > 90000) { return []; }
+            const div = function (props) { return {type: 'Div', namespace: 'dash_html_components', props: props}; };
+            return [
+                div({className: 'ai-tin ai-toi', children: cho.q}),
+                div({className: 'ai-tin ai-ban ai-dang-go', children: [
+                    div({className: 'ai-ten', children: 'Đang tra số và trả lời…'}),
+                    div({className: 'ai-cham', children: [
+                        {type: 'I', namespace: 'dash_html_components', props: {}},
+                        {type: 'I', namespace: 'dash_html_components', props: {}},
+                        {type: 'I', namespace: 'dash_html_components', props: {}}]})]})];
+        }""",
+        Output("ai-chat-dang", "children"), Input("ai-chat-cho", "data"), prevent_initial_call=True)
 
     @app.callback(Output("ai-chat-ls", "data"), Input("ai-chat-cho", "data"), Input("ai-chat-xoa", "n_clicks"),
                   State("ai-chat-ls", "data"), State("url", "pathname"), State("ky-chung", "data"),
@@ -318,27 +344,24 @@ def register(app):
             dap = {"role": "assistant", "content": "Có lỗi khi lấy số, bạn thử lại hoặc hỏi cách khác.", "loi": True}
         return (ls + [hoi, dap])[-30:]
 
-    @app.callback(Output("ai-chat-log", "children"), Input("ai-chat-ls", "data"), Input("ai-chat-cho", "data"),
-                  Input("url", "pathname"))
-    def _ve(ls, cho, duong_dan):
+    @app.callback(Output("ai-chat-lich", "children"), Output("ai-chat-dang", "children", allow_duplicate=True),
+                  Input("ai-chat-ls", "data"), Input("url", "pathname"), prevent_initial_call="initial_duplicate")
+    def _ve(ls, duong_dan):
         """Hội thoại nối tiếp: câu hỏi của bạn -> câu trả lời -> ... Câu gợi ý (theo trang) nằm cuối dòng hội thoại,
-        cuộn cùng tin nhắn; đang chờ trả lời thì ẩn."""
+        cuộn cùng tin nhắn; đang chờ trả lời thì ẩn (CSS)."""
         ten = _cau_hinh_an_toan()["ten"]
         ls = ls or []
         tin = [html.Div([html.Div(ten, className="ai-ten"),
                          html.Div(f"Chào {current_user.ho_ten}! Mình là {ten}, tra số bán và NSLĐ theo đúng quyền "
                                   "của bạn. Chọn một câu gợi ý hoặc gõ câu hỏi bên dưới.")], className="ai-tin ai-ban")]
         tin += [_tin(m, ten) for m in ls]
-        if cho and not any(m.get("id") == cho["id"] for m in ls):
-            return tin + [_tin({"role": "user", "content": cho["q"]}, ten),
-                          html.Div([html.I(), html.I(), html.I()], className="ai-tin ai-ban ai-dang-go")]
         da_hoi = {m["content"] for m in ls if m["role"] == "user"}
         goi_y = [c for c in goi_y_cho_trang(duong_dan, current_user) if c not in da_hoi]
         if goi_y:
             tin.append(html.Div([html.Div("Gợi ý cho trang này" if not ls else "Hỏi tiếp", className="ai-goi-y-nhan"),
                                  *[html.Button(c, className="ai-goi-y-cau", **{"data-cau": c}) for c in goi_y]],
                                 className="ai-goi-y-hang"))
-        return tin
+        return tin, no_update if ctx.triggered_id == "url" else []
 
     app.clientside_callback(
         """function(_) {
@@ -347,12 +370,13 @@ def register(app):
                 if (!l) { return; }
                 const toi = l.querySelectorAll('.ai-toi'), cuoi = toi[toi.length - 1];
                 // có câu trả lời mới: cuộn để câu hỏi vừa gửi nằm đầu khung, đọc câu trả lời từ đầu
-                if (cuoi && !l.querySelector('.ai-dang-go')) { l.scrollTop = cuoi.offsetTop - l.offsetTop - 8; }
+                if (cuoi && !l.querySelector('.ai-dang-go')) { l.scrollTop = cuoi.offsetTop - 8; }
                 else { l.scrollTop = l.scrollHeight; }
             }, 50);
             return window.dash_clientside.no_update;
         }""",
-        Output("ai-chat-cuon", "data"), Input("ai-chat-log", "children"), prevent_initial_call=True)
+        Output("ai-chat-cuon", "data"), Input("ai-chat-lich", "children"), Input("ai-chat-dang", "children"),
+        prevent_initial_call=True)
 
     # ---------------- Quản trị → Trợ lý AI
     cb = callback_can_quyen(app, "duoc_cau_hinh")
