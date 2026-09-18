@@ -114,12 +114,12 @@ NAV = [
         ("/", "Báo cáo Tổng", "dashboard", None),
         ("/tracking", "Tracking ngày & So sánh", "trend", None),
     ]),
-    ("Phân tích", [
-        ("/phantich", "Phân tích bán hàng", "pie", None),
-    ]),
     ("Phòng & nhân sự", [
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
         ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
+    ]),
+    ("Phân tích", [
+        ("/phantich", "Phân tích bán hàng", "pie", None),
     ]),
     ("Dữ liệu", [
         ("/upload", "Nạp dữ liệu", "upload", "upload"),

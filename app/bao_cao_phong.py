@@ -54,7 +54,10 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     hd = pt.hop_dong_online(tu, den, [code])
     ton = pt.hop_dong_ton([code])
 
-    staff = _q("""SELECT acc, acc_norm, ghi_chu FROM staff_map WHERE phong_code = :c""", c=code)
+    # chỉ dòng danh mục có hiệu lực trong kỳ (người đã chuyển phòng không còn hiện ở phòng cũ)
+    staff = _q("""SELECT acc, acc_norm, ghi_chu FROM staff_map WHERE phong_code = :c
+                  AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu) AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)""",
+               c=code, tu=tu, den=den)
     vvip = _dem_theo_acc("fact_fptplay", "ngay_online", tu, den, code, " AND la_vvip = TRUE")
     camera = _dem_theo_acc("fact_camera", "ngay_online", tu, den, code)
     ban_moi = _dem_theo_acc("fact_internet", "ngay_tao_hd", tu, den, code)

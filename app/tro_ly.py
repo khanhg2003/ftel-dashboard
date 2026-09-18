@@ -259,7 +259,7 @@ def _muc_suy_nghi(model: str) -> str | None:
 
 
 def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
-        tools: list | None = None, han: float = HAN_GIAY, toi_da: int = 6000) -> dict:
+        tools: list | None = None, han: float = HAN_GIAY, toi_da: int = 6000, suy_nghi: str | None = None) -> dict:
     """Một lượt Chat Completions, ghi lượt dùng. Trả về message của AI.
 
     Tự xử lý 2 trường hợp hay gặp với model suy luận:
@@ -268,6 +268,8 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
       đôi giới hạn. Vẫn không được thì báo lỗi rõ ràng thay vì trả về rỗng.
     """
     muc = _muc_suy_nghi(model)
+    if suy_nghi and muc:              # nhận xét trang: nghĩ kỹ hơn một chút để tuân thủ lời dặn về giọng văn
+        muc = suy_nghi
     bat_dau = datetime.utcnow()
     for lan in range(3):
         body = {"model": model, "messages": messages, "max_completion_tokens": toi_da}
@@ -300,7 +302,7 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
 
 # ------------------------------------------------------------------ lời dặn chung
 # Đổi khi sửa lời dặn: câu trả lời chat đã lưu theo lời dặn cũ tự hết hiệu lực
-PHIEN_LOI_DAN = "7"
+PHIEN_LOI_DAN = "8"
 
 
 # Ngưỡng BGĐ chốt 17/09/2026
@@ -314,8 +316,8 @@ QUY_TAC_INSIGHT = (
     "tiến độ). Kịp mục tiêu hay không: dựa dự báo cuối tháng và 'Cần mỗi ngày' so với 'TB/ngày'.\n"
     "- Xu hướng gần: so '7 ngày gần nhất' với '7 ngày trước đó' để nói đang tăng tốc hay chậm lại.\n"
     "- Quy mô thật: luôn nhìn 'Chênh cùng kỳ (số)' cạnh %; tăng % lớn trên nền nhỏ ít ý nghĩa hơn tăng nhiều "
-    "số. Cột '% trong tổng tăng/giảm' = phần của phòng trong tổng mức tăng (hoặc giảm) của các phòng: dùng để nói "
-    "phòng nào kéo tăng/giảm nhiều nhất.\n"
+    "số. Cột '% phần tăng/giảm của cả chi nhánh' = phần của phòng trong tổng mức tăng (hoặc giảm) của các phòng: "
+    "dùng để nói phòng nào đóng góp / sụt nhiều nhất.\n"
     f"- Mẫu nhỏ: cùng kỳ dưới {MAU_NHO_CUNG_KY} số (cột 'Mẫu nhỏ' = có) thì KHÔNG khen/chê theo %, chỉ ghi "
     "'quy mô nhỏ'.\n"
     f"- Chỉ gọi là tăng/giảm 'đáng kể' khi chênh từ {DANG_KE_PCT}% VÀ từ {DANG_KE_SO} số trở lên; dưới "
@@ -326,27 +328,84 @@ QUY_TAC_INSIGHT = (
     "- Ngày đang cập nhật (số tạm tính): không kết luận giảm dựa trên riêng ngày đó.\n")
 
 
-# Nhận xét trên trang: người đọc ĐÃ thấy bảng số ngay bên trên -> chỉ cần kết luận, insight và việc cần làm.
+# Giọng văn chung cho nhận xét và chat (chốt 18/09/2026: bớt "robot", nói như người quản lý)
+GIONG_VAN = (
+    "GIỌNG VĂN (bắt buộc):\n"
+    "- Viết như một giám đốc kinh doanh đang báo cáo nhanh trong buổi giao ban với BGĐ: câu ngắn, tự nhiên, nói "
+    "thẳng vấn đề, nói rõ ai cần làm gì. Nhận định trước, số làm bằng chứng sau.\n"
+    "- KHÔNG dùng các cụm máy móc: 'kéo tăng', 'kéo giảm', 'kéo tụt', 'kéo lên', 'đòn bẩy', 'tác động ~X%', "
+    "'lấp khoảng X/Y', 'chênh tiến độ', 'mẫu nhỏ', 'tồn ≥7', 'dư địa', ký hiệu '~', '→', và tên cột trong dữ liệu.\n"
+    "- Thay bằng lời thường: 'đóng góp nhiều nhất', 'sụt so với tháng trước', 'hợp đồng đã chờ quá 7 ngày', 'gỡ "
+    "được khoảng một phần ba phần còn thiếu', 'chậm hơn nhịp tháng trước', 'khoảng 40 số'.\n"
+    "- Nêu tên người khi cần hành động, giọng xây dựng (cần kèm, cần hỗ trợ), không phán xét.\n"
+    "- Không mở đầu bằng câu chung chung ('Nhìn chung...', 'Có thể thấy...'), không rào đón.\n")
+
+VI_DU_NHAN_XET = (
+    "VÍ DỤ VIẾT ĐẠT (chỉ để học giọng văn, KHÔNG dùng số trong ví dụ):\n"
+    "**Nhận định:** Tháng này vẫn trong tầm với: đang đi đúng nhịp tháng trước và dự báo đạt 96% mục tiêu. Điều "
+    "đáng lo không nằm ở số lượng mà ở chỗ khách phải chờ lắp đặt lâu hơn tháng trước.\n"
+    "**Vì sao:**\n"
+    "- Kỹ thuật Đà Nẵng 1 và Quảng Nam triển khai chậm đi rõ: tỷ lệ online trong ngày giảm 10 điểm, trong khi hai "
+    "khu vực này chiếm hơn nửa số hợp đồng.\n"
+    "- IBB2 có 4 sale đang dưới một nửa mặt bằng phòng; nếu họ lên được mức trung bình, phòng có thêm khoảng 40 "
+    "số, đủ bù phần hụt.\n"
+    "**Việc cần làm:**\n"
+    "- Kỹ thuật Đà Nẵng 1, Quảng Nam: rà lịch lắp đặt, đưa tỷ lệ online trong ngày về lại 80% trong tuần này.\n"
+    "- Trưởng phòng IBB2: kèm riêng 4 sale số thấp, theo dõi số online từng người mỗi ngày.\n"
+    "VÍ DỤ CHƯA ĐẠT (tránh): 'Kéo giảm: Lê Văn A (16 online, giảm 7 so cùng kỳ), Trần B (25, giảm 6)... tác động "
+    "~33%, lấp khoảng 120/366 phần thiếu' - chỉ liệt kê số, dùng từ máy móc, không nói vì sao và ai làm gì.\n")
+
+# Nhận xét trên trang: người đọc ĐÃ thấy bảng số ngay bên trên -> chỉ cần nhận định, nguyên nhân và việc cần làm.
 DINH_DANG_NHAN_XET = (
-    "- Người đọc đang nhìn bảng số ngay phía trên: KHÔNG chép lại bảng, KHÔNG liệt kê số từng phòng. Mỗi ý chỉ "
-    "dùng 1-2 con số then chốt làm bằng chứng.\n"
-    "- Tối đa khoảng 150 từ, đúng 3 phần, dùng tiêu đề in đậm:\n"
-    "  **Kết luận:** 1 câu - đang đi đúng hay chậm, dự báo cuối tháng đạt bao nhiêu % mục tiêu.\n"
-    "  **Insight:** 2-3 gạch đầu dòng về NGUYÊN NHÂN và XU HƯỚNG (điều bảng không tự nói ra): nhóm/phòng kéo "
-    "tụt hay kéo lên nhiều nhất tính bằng số tuyệt đối, đang tăng tốc hay chậm lại 7 ngày gần, dư địa từ số tồn "
-    "chờ lâu. Mỗi gạch nêu tối đa 3 phòng.\n"
-    "  **Việc cần làm:** 2-3 gạch đầu dòng hành động cụ thể: ai (phòng / nhóm) - làm gì - con số cần đạt "
-    "(VD 'IBB2, IBB6: đẩy 60 hợp đồng chờ ≥7 ngày lên online trong tuần này').\n"
-    "- Không nêu chỉ số không phục vụ kết luận (V.VIP, Camera, FPT Play chỉ nói khi thật sự bất thường). Không "
-    "viết câu rào đón, không giải thích cách tính.\n"
-    "- ĐỘ SÂU: dựa phần 'TÍN HIỆU CHÍNH'. Mỗi insight phải NỐI ít nhất 2 chỉ số để chỉ ra nguyên nhân (VD 'thiếu mục "
-    "tiêu chủ yếu do IBB2 và IBB6 - hai phòng đông người nhưng năng suất thấp nhất', 'không phải do thiếu người mà do "
-    "tồn chờ lâu chưa chuyển online'), không chỉ nhắc lại một con số.\n"
-    "- Dùng mốc 'cùng thời điểm tháng trước' để đánh giá mức thiếu hiện tại là bình thường (tháng trước cũng mới "
-    "đạt tỷ trọng tương tự rồi bứt lên cuối tháng) hay đáng lo (chậm hơn nhịp tháng trước).\n"
-    "- Việc cần làm xếp theo TÁC ĐỘNG lớn nhất tới phần thiếu mục tiêu, mỗi việc ghi tác động ước tính (VD 'lấp khoảng "
-    "120/462 phần thiếu'). Chỉ giao việc cho phòng / bầy có trong dữ liệu; KHÔNG bịa bộ phận, KPI hay chính sách không "
-    "có trong số liệu; không diễn giải 'Cần mỗi ngày' thành chỉ tiêu tuần.\n")
+    "- Người đọc đang nhìn bảng số ngay phía trên: KHÔNG chép lại bảng, KHÔNG liệt kê số từng phòng / từng người. "
+    "Cả bài dùng tối đa 4-5 con số then chốt làm bằng chứng; phần còn lại là nhận định.\n"
+    "- Tối đa khoảng 140 từ, đúng 3 phần, tiêu đề in đậm:\n"
+    "  **Nhận định:** 1-2 câu: tình hình và mức độ đáng lo, đặt trong BỐI CẢNH THÁNG (so nhịp tháng trước, rủi ro "
+    "chung của chi nhánh) - không chỉ nhắc lại một con số.\n"
+    "  **Vì sao:** 2-3 gạch đầu dòng, mỗi gạch MỘT nguyên nhân gắn với người / bộ phận cụ thể (phòng, sale, kỹ thuật "
+    "khu vực) và nối ít nhất 2 tín hiệu (VD 'hụt không phải do thiếu người mà do 4 sale số thấp hẳn mặt bằng').\n"
+    "  **Việc cần làm:** 2-3 gạch theo mẫu 'Ai: làm gì, theo dõi bằng chỉ số nào'. Giao đúng vai: "
+    "sale và trưởng phòng (bán, bán kèm, kèm sale yếu, bám hợp đồng chờ), kỹ thuật khu vực (triển khai nhanh), BGĐ "
+    "(điều phối, hỗ trợ phòng rủi ro). Xếp việc có tác động lớn nhất lên trước; nếu có số ước tính thì nói bằng "
+    "lời (VD 'thêm khoảng 40 số').\n"
+    "- Chỉ nói điều bảng không tự nói ra. Không nhắc chỉ số không phục vụ nhận định.\n"
+    "- Dựa vào phần BỐI CẢNH THÁNG và TÍN HIỆU (app đã tính sẵn). Mỗi trang nhận xét theo LĂNG KÍNH của trang (nêu "
+    "trong yêu cầu), chỉ mượn bối cảnh chung để giải thích.\n"
+    "- Chỉ giao việc cho phòng / bầy / khu vực / người có trong dữ liệu; KHÔNG bịa bộ phận, KPI, chính sách; không "
+    "diễn giải 'Cần mỗi ngày' thành chỉ tiêu tuần. Không nêu tên trưởng phòng hay người đã nghỉ như người cần kèm.\n"
+    "- KHÔNG tự đặt con số mục tiêu mới (VD 'đưa về 80%', 'trên 75% trong tuần', 'giảm xuống 20 trong 10 ngày', "
+    "'mỗi người thêm 2 số/tuần'); chỉ dùng số app đã tính (VD 'phòng thêm khoảng 39 số nếu họ đạt mặt bằng', mức "
+    "cùng kỳ tháng trước). KHÔNG đề xuất nguồn lực, phương tiện, thời hạn không có trong dữ liệu (thêm người, thêm "
+    "đội, tăng ca, xe, 'tối nay', 'họp gấp', 'phê duyệt').\n"
+    "- Mỗi gạch đầu dòng tối đa khoảng 30 từ, 1 ý, không lặp tên người.\n"
+    + VI_DU_NHAN_XET +
+    "TRƯỚC KHI TRẢ LỜI, TỰ SOÁT: (1) không có chữ 'kéo', 'đòn bẩy', 'dư địa', ký hiệu '~', '→', '≥', '>'; (2) không "
+    "tự đặt con số mục tiêu mới; (3) cả bài không quá 5 con số; (4) mỗi việc cần làm có đúng người làm; (5) viết "
+    "lại câu nào còn giống liệt kê số.\n")
+
+
+# Làm sạch sau khi AI trả lời: model nhỏ đôi khi vẫn lọt ký hiệu / cụm máy móc dù đã dặn -> sửa chắc chắn ở đây
+_THAY = [
+    (r"[>≥]\s*=?\s*(\d+)\s*ngày", r"quá \1 ngày"),            # ">7 ngày", "≥7 ngày" -> "quá 7 ngày"
+    (r"(?<![\w])~\s*", "khoảng "),                               # "~39" -> "khoảng 39"
+    (r"(?<=\d),(?=\d{3}(?!\d))", "."),                           # 4,211 (kiểu Anh) -> 4.211
+    (r"(?<=\d)\.(?=\d(?!\d))", ","),                            # 129.8 -> 129,8 (1 chữ số thập phân)
+    (r"(?<=\d)\.(?=\d{2}(?!\d))", ","),                          # 7.25 -> 7,25
+    (r"\s*→\s*", " → "),
+    (r"\bkéo (tụt|giảm|xuống)\b", r"làm \1"),
+    (r"\bkéo (tăng|lên)\b", "đóng góp tăng"),
+    (r"\bkéo tiến độ\b", "ảnh hưởng tiến độ"),
+    (r"\bđòn bẩy\b", "cơ hội"),
+    (r"\bdư địa\b", "cơ hội"),
+    (r"\s*\((?:số này )?do hệ thống tính[^)]*\)", ""),
+]
+
+
+def lam_sach(chu: str) -> str:
+    import re
+    for mau, thay in _THAY:
+        chu = re.sub(mau, thay, chu)
+    return re.sub(r"làm (tụt|giảm) giảm", r"làm \1", chu).strip()
 
 
 def loi_dan(ten: str, chat: bool = False) -> str:
@@ -357,7 +416,7 @@ def loi_dan(ten: str, chat: bool = False) -> str:
         "Quy tắc bắt buộc:\n"
         "- CHỈ dùng số liệu được cung cấp (hoặc lấy qua công cụ). Không tự bịa, không ước đoán số. "
         "Thiếu dữ liệu thì nói rõ là chưa có.\n"
-        "- Viết tiếng Việt.\n" + dinh_dang + 
+        "- Viết tiếng Việt.\n" + GIONG_VAN + dinh_dang + 
         "- Thuật ngữ: 'online' là hợp đồng Internet đã online; 'số tồn' là hợp đồng chưa online; "
         "'cùng kỳ' là cùng khoảng ngày tháng trước; HTKH là % hoàn thành kế hoạch (mục tiêu); "
         "PTTB là số online; V.VIP là gói FPT Play V.VIP. Luôn gọi là 'online', không dùng từ khác.\n"
@@ -391,8 +450,8 @@ def tao_nhan_xet(user, loai: str, khoa: str, du_lieu: str, yeu_cau: str) -> dict
     ch = kiem_tra(user)
     msg = hoi([{"role": "system", "content": loi_dan(ch["ten"])},
                {"role": "user", "content": f"{yeu_cau}\n\nSỐ LIỆU:\n{du_lieu}"}],
-              ch["model_nhan_xet"], ch["key"], user.username, "nhan_xet")
-    noi_dung = (msg.get("content") or "").strip()
+              ch["model_nhan_xet"], ch["key"], user.username, "nhan_xet", toi_da=8000, suy_nghi="low")
+    noi_dung = lam_sach(msg.get("content") or "")
     if not noi_dung:
         raise LoiAI("AI chưa trả lời được, bấm tạo lại.")
     k = _khoa(loai, khoa)
@@ -456,7 +515,7 @@ def _chat(user, ch, lich_su, cau_hoi, ngu_canh, cong_cu, chay_cong_cu, k) -> str
                   tools=cong_cu if vong < 4 else None, han=con, toi_da=4000)
         goi = msg.get("tool_calls") or []
         if not goi:
-            tra_loi = (msg.get("content") or "").strip()
+            tra_loi = lam_sach(msg.get("content") or "")
             if not tra_loi:
                 raise LoiAI("Mình chưa trả lời được câu này, bạn hỏi lại cụ thể hơn nhé.")
             with session_scope() as s:

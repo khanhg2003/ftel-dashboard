@@ -312,7 +312,10 @@ def bang_ngay_theo_acc(thang: str, metric: str = "online", chi_phong: list[str] 
         df["ngay"] = pd.to_datetime(df["ngay"]).dt.day
 
     nguoi = pd.read_sql(text("""SELECT phong_code, acc, acc_norm FROM staff_map
-                                WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'"""), engine)
+                                WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'
+                                  AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu)
+                                  AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)"""),
+                        engine, params={"tu": start.isoformat(), "den": str(end)[:10]})
     nguoi = nguoi[nguoi.phong_code.isin(codes)]
     ds = pd.concat([nguoi[["phong_code", "acc", "acc_norm"]],
                     df[["phong_code", "acc", "acc_norm"]] if not df.empty else pd.DataFrame()],

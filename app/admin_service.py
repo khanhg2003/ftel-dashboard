@@ -515,7 +515,8 @@ def nv_thieu_ho_so(thang: str) -> pd.DataFrame:
     """Nhân sự phòng kinh doanh (đang làm) không có trong file NSLĐ gần nhất của kỳ."""
     df = _sql_df("""SELECT s.acc, s.acc_norm, s.ma_nv, p.ten AS phong, p.chi_nhanh, p.thu_tu
                     FROM staff_map s JOIN dim_phong p ON p.code = s.phong_code
-                    WHERE p.loai IN ('IBB', 'DIABAN') AND COALESCE(s.ghi_chu, '') NOT LIKE '%Nghỉ%'""")
+                    WHERE p.loai IN ('IBB', 'DIABAN') AND COALESCE(s.ghi_chu, '') NOT LIKE '%Nghỉ%'
+                      AND (s.hieu_luc_den IS NULL OR s.hieu_luc_den >= CURRENT_DATE)""")
     t = _sql_df("SELECT MAX(thang) AS t FROM hr_monthly WHERE thang <= :t", {"t": thang}).iloc[0, 0]
     if df.empty:
         return pd.DataFrame(columns=["acc", "phong", "ma_nv", "chi_nhanh"])

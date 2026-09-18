@@ -207,7 +207,7 @@ def test_menu_con_8_muc_theo_nhom():
     muc = [href for _, ds in NAV for href, *_ in ds]
     assert len(muc) == 8 and len(set(muc)) == 8
     assert "/settings" not in muc and "/sosanh" not in muc
-    assert [n for n, _ in NAV] == ["Hằng ngày", "Phân tích", "Phòng & nhân sự", "Dữ liệu", "Hệ thống"]
+    assert [n for n, _ in NAV] == ["Hằng ngày", "Phòng & nhân sự", "Phân tích", "Dữ liệu", "Hệ thống"]
 
 
 @pytest.mark.parametrize("duong_dan, tim_thay", [

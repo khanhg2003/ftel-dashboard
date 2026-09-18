@@ -118,8 +118,8 @@ def gan_nhan_xet(app, prefix: str, loai: str, inputs: list[tuple[str, str]], ngu
             if ctx.triggered_id == f"{prefix}-ai-tao":
                 ban = ai.tao_nhan_xet(current_user, loai, khoa, du_lieu(), yeu_cau)
             if not ban:
-                return (html.Div(f"Bấm “{ch['ten']} nhận xét” để trợ lý đọc số của kỳ đang xem: kết luận, "
-                                 "insight và việc cần làm.", className="ai-goi-y"),
+                return (html.Div(f"Bấm “{ch['ten']} nhận xét” để trợ lý đọc số của kỳ đang xem: nhận định, "
+                                 "vì sao và việc cần làm.", className="ai-goi-y"),
                         f"{ch['ten']} nhận xét", False)
             return noi_dung_nhan_xet(ban, ch["ten"]), "Tạo lại nhận xét", False
         except ai.LoiAI as e:

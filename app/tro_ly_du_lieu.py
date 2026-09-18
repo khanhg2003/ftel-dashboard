@@ -13,6 +13,7 @@ from datetime import date
 import pandas as pd
 
 from app import bao_cao_phong as bp
+from app import fox_insight as fi
 from app import nsld
 from app import phan_tich as pt
 from app.du_bao import du_bao_thang
@@ -28,15 +29,15 @@ COT_TONG = {"phong": "Phòng", "nhan_su": "Nhân sự", "mt_internet": "MT Inter
             "camera": "Camera", "mt_camera": "MT Camera", "htkh_camera": "%HTKH Camera",
             "cnql": "PTTB CNQL", "ngay_online": "Online ngày cuối", "mt_ngay": "MT ngày",
             # tính sẵn cho insight - AI không phải tự làm phép tính
-            "chenh_tien_do": "Chênh tiến độ", "chenh_ck": "Chênh cùng kỳ (số)", "dong_gop": "% trong tổng tăng/giảm",
+            "chenh_tien_do": "Chênh tiến độ", "chenh_ck": "Chênh cùng kỳ (số)", "dong_gop": "% phần tăng/giảm của cả chi nhánh",
             "mau_nho": "Mẫu nhỏ", "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó",
-            "ton_qua_7": "Tồn chờ ≥7 ngày"}
+            "ton_qua_7": "Hợp đồng chờ quá 7 ngày"}
 COT_DU_BAO = {"phong": "Phòng", "mt": "MT tháng", "luy_ke": "Luỹ kế", "tb_ngay": "TB/ngày",
               "du_bao": "Dự báo cuối tháng", "pct_mt": "%MT dự báo", "can_moi_ngay": "Cần mỗi ngày",
               "danh_gia": "Đánh giá"}
 COT_NV = {"ho_ten": "Họ tên", "acc": "Acc", "hang": "Hạng", "online": "Online", "ck_online": "Cùng kỳ",
           "online_ngay": "Online ngày cuối", "vvip": "V.VIP", "camera": "Camera", "ban_moi": "Bán mới",
-          "ton": "Tồn", "ton_qua_7": "Tồn ≥7 ngày", "ngay_lien_chua_co_so": "Ngày liền chưa có số",
+          "ton": "Tồn", "ton_qua_7": "Hợp đồng chờ quá 7 ngày", "ngay_lien_chua_co_so": "Ngày liền chưa có số",
           "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó", "ket_luan": "NSLĐ tháng gần nhất",
           "muc_chu_y": "Mức chú ý", "chu_y": "Cần chú ý"}
 TEN_CHI_SO = {"online": "Số online", "vvip": "V.VIP", "fptplay": "FPT Play (combo)", "camera": "Camera",
@@ -83,13 +84,19 @@ def _chan_nhan_su(user, code: str | None = None) -> None:
 
 
 # ------------------------------------------------------------------ nhận xét từng trang
+def _quyen_ns(user) -> str:
+    """Phần khoá lưu theo quyền xem nhân sự: nhận xét có thể nêu tên nhân sự, không dùng chung giữa các quyền."""
+    return "ns=" + ("-" if not user.duoc_xem_nhan_su else
+                    "all" if user.phong_nhan_su() is None else ",".join(sorted(user.phong_nhan_su())))
+
+
 def ngu_canh_tong(user, tu: str | None, den: str | None, chi_nhanh: str | None) -> tuple[str, Callable[[], str]]:
     """(khoá lưu, hàm dựng số liệu) cho Báo cáo Tổng - khoá tính nhanh để tra bản đã lưu trước."""
     d = _ngay_hop_le(den)
     thang, cn = f"{d.year}-{d.month:02d}", chi_nhanh or "all"
     tu = tu[:10] if tu and tu[:10] <= d.isoformat() else d.replace(day=1).isoformat()
     scope = loc_chi_nhanh(user.phong_duoc_xem(), cn, thang)
-    return f"{tu}|{d}|{cn}|{scope}", lambda: _du_lieu_tong(d, thang, cn, tu, scope)
+    return f"{tu}|{d}|{cn}|{scope}|{_quyen_ns(user)}", lambda: _du_lieu_tong(user, d, thang, cn, tu, scope)
 
 
 def thoi_gian_da_qua(d: date) -> int:
@@ -142,10 +149,20 @@ def _them_insight(df: pd.DataFrame, d: date, tu: str) -> pd.DataFrame:
     return df
 
 
+def _bang_insight(d: date, thang: str, cn: str, tu: str, scope) -> pd.DataFrame:
+    def dung():
+        df, _ = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=cn, tu=tu)
+        return _them_insight(df, d, tu)
+    return fi.nho("bang_insight", (d, thang, cn, tu, fi._tuple(scope)), dung)
+
+
+def _nhan_su_phong(thang: str, ngay: int, code: str) -> pd.DataFrame:
+    return fi.nho("nhan_su_phong", (thang, ngay, code), lambda: bp.bang_nhan_su(thang, ngay, code))
+
+
 def _bang_tong(d: date, thang: str, cn: str, tu: str, scope, chi: set[str] | None = None) -> str:
     """Bảng Báo cáo Tổng dạng CSV. `chi`: chỉ lấy các phòng này (kèm dòng tổng) - chat hỏi vài phòng cho gọn token."""
-    df, _ = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=cn, tu=tu)
-    df = _them_insight(df, d, tu)
+    df = _bang_insight(d, thang, cn, tu, scope)
     if chi:
         df = df[df.phong_code.isin(chi) | (df.loai_dong == "total")]
     return (f"Kỳ: {tu} đến {d.isoformat()} · phạm vi {TEN_PHAM_VI.get(cn, cn)}. Cột 'Online ngày cuối' "
@@ -162,8 +179,7 @@ def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
     """Các tín hiệu then chốt app TÍNH SẴN để AI suy luận sâu mà không phải tự làm phép tính:
     ai gây ra phần thiếu mục tiêu, đòn bẩy nào lấp được bao nhiêu, năng suất, xu hướng 7 ngày đã chốt."""
     from app.overview import phong_khong_cong_tong
-    df, _ = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=cn, tu=tu)
-    df = _them_insight(df, d, tu)
+    df = _bang_insight(d, thang, cn, tu, scope)
     db = du_bao_thang(thang, d.day, scope).set_index("phong_code")
     meta = {p["code"]: p for p in phong_order(thang)}
     bo = phong_khong_cong_tong()
@@ -186,8 +202,8 @@ def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
                 for c, v in top.items()) + f"; {len(gap)} phòng dự báo không đạt.")
         ton7 = int(ph.ton_qua_7.sum())
         if ton7:
-            dong.append(f"- Đòn bẩy số tồn: {_so(ton7)} hợp đồng chờ ≥7 ngày. Nếu chuyển được một nửa thành online thì "
-                        f"dự báo lên khoảng {round((tong.du_bao + ton7 / 2) / tong.mt * 100)}% mục tiêu. Tồn ≥7 ngày "
+            dong.append(f"- Hợp đồng chờ lâu: {_so(ton7)} hợp đồng đã chờ quá 7 ngày. Nếu chuyển được một nửa thành online thì "
+                        f"dự báo lên khoảng {round((tong.du_bao + ton7 / 2) / tong.mt * 100)}% mục tiêu. Chờ lâu "
                         "nhiều nhất ở: " + ", ".join(f"{meta[c]['ten']} {v}" for c, v in
                                                       ph.ton_qua_7.sort_values(ascending=False).head(3).items()) + ".")
     kd = ph[[meta[c].get("loai") in ("IBB", "DIABAN") for c in ph.index]]
@@ -252,7 +268,7 @@ def tin_hieu_phong(d: date, code: str) -> str:
     thang = f"{d.year}-{d.month:02d}"
     ten = bp.ten_phong(code)
     db = du_bao_thang(thang, d.day, [code]).set_index("phong_code").loc[code]
-    nv = bp.bang_nhan_su(thang, d.day, code)
+    nv = _nhan_su_phong(thang, d.day, code)
     nv = nv[(nv.loai_dong == "data") & (nv.khong_xet != "Trưởng phòng")].copy()   # TP không xếp hạng
     for c in ("online", "ck_online", "ton_qua_7", "ngay_lien_chua_co_so"):
         nv[c] = pd.to_numeric(nv[c], errors="coerce").fillna(0).astype(int)
@@ -278,7 +294,7 @@ def tin_hieu_phong(d: date, code: str) -> str:
         giam = nv.assign(ch=chenh).nsmallest(3, "ch")
         giam = giam[giam.ch < 0]
         if len(giam):
-            dong.append("- Kéo giảm so cùng kỳ nhiều nhất: " + ", ".join(f"{r.ho_ten} {r.ch:+d}"
+            dong.append("- Giảm nhiều nhất so cùng kỳ: " + ", ".join(f"{r.ho_ten} {r.ch:+d}"
                                                                           for r in giam.itertuples()) + ".")
         khong_so = nv[(nv.ngay_lien_chua_co_so >= 7) & (nv.khong_xet.fillna("") == "")]
         if len(khong_so):
@@ -287,7 +303,7 @@ def tin_hieu_phong(d: date, code: str) -> str:
                         + ".")
         ton = nv[nv.ton_qua_7 > 0].nlargest(3, "ton_qua_7")
         if len(ton):
-            dong.append(f"- Đòn bẩy tồn: {int(nv.ton_qua_7.sum())} hợp đồng chờ ≥7 ngày, nhiều nhất ở "
+            dong.append(f"- Hợp đồng chờ lâu: {int(nv.ton_qua_7.sum())} hợp đồng đã chờ quá 7 ngày, nhiều nhất ở "
                         + ", ".join(f"{r.ho_ten} {r.ton_qua_7}" for r in ton.itertuples()) + ".")
         # 7 ngày ĐÃ CHỐT theo acc (bảng nhân sự tính cả ngày đang cập nhật)
         c = ngay_chot_7(d)
@@ -306,16 +322,18 @@ def tin_hieu_phong(d: date, code: str) -> str:
     return "TÍN HIỆU CHÍNH (app đã tính sẵn - ưu tiên dùng):\n" + "\n".join(dong)
 
 
-def _du_lieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
+def _du_lieu_tong(user, d: date, thang: str, cn: str, tu: str, scope) -> str:
     db = du_bao_thang(thang, d.day, scope)
-    return (f"{tin_hieu_tong(d, thang, cn, tu, scope)}\n\n"
+    return (f"{fi.boi_canh_chung(user, d, scope)}\n\n{tin_hieu_tong(d, thang, cn, tu, scope)}\n\n"
             f"{_bang_tong(d, thang, cn, tu, scope)}\n\n"
             f"DỰ BÁO CUỐI THÁNG {d.month} (luỹ kế từ 01, hệ số cuối tháng {db.attrs['he_so']}):\n"
             f"{csv(db, COT_DU_BAO)}")
 
 
-YEU_CAU_TONG = ("Nhận xét Báo cáo Tổng cho Ban giám đốc: toàn chi nhánh có kịp mục tiêu tháng không, phòng / "
-                "bầy nào quyết định kết quả (kéo tụt hoặc kéo lên nhiều nhất), và BGĐ nên chỉ đạo gì trong tuần này.")
+YEU_CAU_TONG = ("LĂNG KÍNH BÁO CÁO TỔNG - KẾT QUẢ & TIẾN ĐỘ cho Ban giám đốc: tháng này có kịp mục tiêu không (đặt "
+                "cạnh nhịp tháng trước), rủi ro nằm ở bầy / phòng nào và vì sao (thiếu người, năng suất thấp, hợp "
+                "đồng chờ lâu, triển khai chậm...), BGĐ cần điều phối gì trong tuần này. Chất lượng bán và nhân sự "
+                "chỉ nhắc khi chúng là nguyên nhân của rủi ro.")
 YEU_CAU_ANH = ("Viết nhận xét RẤT NGẮN để in dưới ảnh báo cáo gửi nhóm Zalo: đúng 3 gạch đầu dòng bắt đầu "
                "bằng '- ', mỗi dòng tối đa 25 từ, có số cụ thể, không tiêu đề, không in đậm, không mục "
                "Việc nên làm.")
@@ -324,16 +342,18 @@ YEU_CAU_ANH = ("Viết nhận xét RẤT NGẮN để in dưới ảnh báo cáo
 def ngu_canh_phong(user, den: str | None, code: str) -> tuple[str, Callable[[], str]]:
     _chan_nhan_su(user, code)
     d = _ngay_hop_le(den)
-    return f"{d}|{code}", lambda: _du_lieu_phong(d, code)
+    return f"{d}|{code}|{_quyen_ns(user)}", lambda: _du_lieu_phong(user, d, code)
 
 
-def _du_lieu_phong(d: date, code: str) -> str:
+def _du_lieu_phong(user, d: date, code: str) -> str:
     thang = f"{d.year}-{d.month:02d}"
     ss, _ = bp.so_sanh_phong(thang, d.day, code)
-    nv = bp.bang_nhan_su(thang, d.day, code)
+    nv = _nhan_su_phong(thang, d.day, code)
     db = du_bao_thang(thang, d.day, [code])
     ss = ss.assign(vi_tri=[f"{h}/{n}" if h else "" for h, n in zip(ss.hang, ss.so_phong)])
-    return (f"{tin_hieu_phong(d, code)}\n\n"
+    rieng = fi.nhan_su_yeu(user, d, [code]) + fi.phong_lam_tut(*fi._hai_ky(d, [code])[:2], thang)
+    return (f"{fi.boi_canh_chung(user, d, user.phong_duoc_xem(), nhan_su=False)}\n\n{tin_hieu_phong(d, code)}\n"
+            + "\n".join(rieng) + "\n\n"
             f"Phòng {bp.ten_phong(code)} · luỹ kế 01 đến {d:%d/%m/%Y}. {dong_thoi_gian(d)}\n"
                "VỊ TRÍ SO VỚI CÁC PHÒNG KINH DOANH (mức chung: tỷ lệ là toàn chi nhánh, số lượng là "
                f"bình quân một phòng):\n"
@@ -342,20 +362,21 @@ def _du_lieu_phong(d: date, code: str) -> str:
                f"NHÂN SỰ (dòng cuối là tổng phòng):\n{csv(nv, COT_NV)}")
 
 
-YEU_CAU_PHONG = ("Nhận xét cho trưởng phòng: phòng có kịp mục tiêu tháng không (so cả với cùng thời điểm tháng "
-                 "trước), nguyên nhân nằm ở nhân sự nào (năng suất, chững lại 7 ngày, người lâu không có số, phụ "
-                 "thuộc vào vài người), và trưởng phòng nên làm gì với tối đa 3 nhân sự - mỗi việc ghi tác động ước "
-                 "tính tới phần thiếu.")
+YEU_CAU_PHONG = ("LĂNG KÍNH BÁO CÁO PHÒNG - CON NGƯỜI cho trưởng phòng: phòng có kịp mục tiêu không (đặt cạnh nhịp "
+                 "tháng trước và mặt bằng các phòng), phòng đang hụt vì AI (sale số thấp hẳn so mặt bằng, người chững "
+                 "lại 7 ngày gần, người lâu không có số, phụ thuộc vào vài người, bán nhiều nhưng ít bán kèm), và "
+                 "trưởng phòng cần kèm ai, giao việc gì - tối đa 3 người, ghi rõ phòng thêm được bao nhiêu nếu làm "
+                 "được.")
 
 
 def ngu_canh_phan_tich(user, den: str | None, chi_nhanh: str | None) -> tuple[str, Callable[[], str]]:
     d = _ngay_hop_le(den)
     cn = chi_nhanh or "all"
     scope = loc_chi_nhanh(user.phong_duoc_xem(), cn, f"{d.year}-{d.month:02d}")
-    return f"{d}|{cn}|{scope}", lambda: _du_lieu_phan_tich(d, cn, scope)
+    return f"{d}|{cn}|{scope}|{_quyen_ns(user)}", lambda: _du_lieu_phan_tich(user, d, cn, scope)
 
 
-def _du_lieu_phan_tich(d: date, cn: str, scope) -> str:
+def _du_lieu_phan_tich(user, d: date, cn: str, scope) -> str:
     thang, ngay = f"{d.year}-{d.month:02d}", d.day
     df = pt.hop_dong_online(f"{thang}-01", d.isoformat(), scope)
     tu_t, den_t = pt.cung_ky_thang_truoc(thang, ngay)
@@ -370,17 +391,21 @@ def _du_lieu_phan_tich(d: date, cn: str, scope) -> str:
     if len(tuoi):
         tuoi = tuoi.rename(columns={f"m{i}": m[2] for i, m in enumerate(pt.MOC_TON)})
     db = du_bao_thang(thang, ngay, scope)
-    return (f"Phạm vi {TEN_PHAM_VI.get(cn, cn)} · luỹ kế 01 đến {d:%d/%m/%Y}. Tỷ lệ tính trên số online. "
+    return (f"{fi.boi_canh_chung(user, d, scope)}\n\n{fi.tin_hieu_phan_tich(user, d, scope)}\n\n"
+            f"Phạm vi {TEN_PHAM_VI.get(cn, cn)} · luỹ kế 01 đến {d:%d/%m/%Y}. Tỷ lệ tính trên số online. "
             f"{dong_thoi_gian(d)}\n"
                f"CHỈ SỐ CHUNG:\n{csv(chung, {'ky': 'Kỳ', 'online': 'Online', **ty_le})}\n\n"
-               f"THEO PHÒNG:\n{csv(bang, {'phong': 'Phòng', 'online': 'Online', **ty_le, 'ton': 'Tồn', 'ton_qua_7': 'Tồn ≥7 ngày'})}\n\n"
+               f"THEO PHÒNG:\n{csv(bang, {'phong': 'Phòng', 'online': 'Online', **ty_le, 'ton': 'Tồn', 'ton_qua_7': 'Chờ quá 7 ngày'})}\n\n"
                f"SỐ TỒN THEO THỜI GIAN CHỜ:\n{csv(tuoi, {'phong': 'Phòng', 'tong': 'Tổng', **{m[2]: m[2] for m in pt.MOC_TON}})}\n\n"
                f"BÁN KÈM THEO NHÓM GÓI:\n{csv(pt.kem_theo_goi(df), {'nhom_goi': 'Nhóm gói', 'so_hd': 'Số HĐ', 'vvip': '%V.VIP', 'camera': '%Camera', 'du_3': '%đủ 3'})}\n\n"
                f"DỰ BÁO CUỐI THÁNG (tổng):\n{csv(db[db.phong_code == 'TOTAL'], COT_DU_BAO)}")
 
 
-YEU_CAU_PHAN_TICH = ("Nhận định chất lượng bán: tỷ lệ bán kèm đang tốt lên hay xấu đi so cùng kỳ và phòng nào "
-                     "kéo tụt, số tồn chờ lâu cần rà soát - và nên làm gì để cải thiện.")
+YEU_CAU_PHAN_TICH = ("LĂNG KÍNH PHÂN TÍCH BÁN HÀNG - CHẤT LƯỢNG & VẬN HÀNH: chất lượng bán (bán kèm, trả trước, "
+                     "cơ cấu gói) đang tốt lên hay xấu đi và vì sao; tốc độ triển khai (online trong 1 ngày) chậm ở "
+                     "khu vực kỹ thuật nào; phòng / sale nào làm tụt chất lượng hoặc làm phòng chững lại; hợp đồng "
+                     "chờ lâu. Việc cần làm phải giao đúng vai: kỹ thuật khu vực (triển khai nhanh hơn), trưởng phòng "
+                     "và sale (bán kèm, kèm sale yếu), BGĐ (điều phối). Không chỉ nói về số tồn.")
 
 
 # ------------------------------------------------------------------ công cụ chatbot
@@ -413,7 +438,7 @@ def cong_cu(user) -> list[dict]:
                  phong={"type": "string", "description": "Mã phòng, bỏ trống = mọi phòng", "tuy_chon": True}),
         _cong_cu("chan_doan_phong", "Tìm VÌ SAO một phòng (hoặc cả phạm vi) tăng/giảm: online từng ngày 14 ngày "
                  "gần nhất, ngày thấp bất thường, 7 ngày gần so 7 ngày trước; nếu người hỏi được xem nhân sự thì "
-                 "kèm nhân sự kéo tăng/kéo giảm nhiều nhất so cùng kỳ và so 7 ngày trước.",
+                 "kèm nhân sự tăng / giảm nhiều nhất so cùng kỳ và so 7 ngày trước.",
                  den=_ngay("Ngày luỹ kế đến"),
                  phong={"type": "string", "description": "Mã phòng; bỏ trống = cả phạm vi được xem", "tuy_chon": True}),
         _cong_cu("du_bao_cuoi_thang", "Dự báo online cuối tháng của từng phòng so với mục tiêu tháng "
@@ -434,7 +459,7 @@ def cong_cu(user) -> list[dict]:
 
 
 def chan_doan(user, den: str | None, code: str | None) -> str:
-    """Số để trả lời 'vì sao': nhịp từng ngày, ngày thấp bất thường, nhân sự kéo tăng/giảm (nếu có quyền)."""
+    """Số để trả lời 'vì sao': nhịp từng ngày, ngày thấp bất thường, nhân sự tăng / giảm nhiều nhất (nếu có quyền)."""
     d = _ngay_hop_le(den)
     thang = f"{d.year}-{d.month:02d}"
     pv = user.phong_duoc_xem()
@@ -463,8 +488,8 @@ def chan_doan(user, den: str | None, code: str | None) -> str:
     nv["chenh_tuan"] = nv.tuan_nay - nv.tuan_truoc
     cot = {"ho_ten": "Họ tên", "online": "Online", "ck_online": "Cùng kỳ", "chenh_ck": "Chênh cùng kỳ",
            "tuan_nay": "7 ngày gần", "tuan_truoc": "7 ngày trước", "ngay_lien_chua_co_so": "Ngày liền chưa có số"}
-    kq += [f"Nhân sự kéo TĂNG nhiều nhất so cùng kỳ:\n{csv(nv.nlargest(3, 'chenh_ck'), cot)}",
-           f"Nhân sự kéo GIẢM nhiều nhất so cùng kỳ:\n{csv(nv.nsmallest(3, 'chenh_ck'), cot)}",
+    kq += [f"Nhân sự tăng nhiều nhất so cùng kỳ:\n{csv(nv.nlargest(3, 'chenh_ck'), cot)}",
+           f"Nhân sự giảm nhiều nhất so cùng kỳ:\n{csv(nv.nsmallest(3, 'chenh_ck'), cot)}",
            f"Nhân sự chậm lại nhiều nhất 7 ngày gần so 7 ngày trước:\n{csv(nv.nsmallest(3, 'chenh_tuan'), cot)}"]
     return "\n\n".join(kq)
 
@@ -540,6 +565,10 @@ QUY_TAC_CHAT = (
     "   - Chỉ trả lời dài, liệt kê đủ số khi người dùng yêu cầu rõ ('chi tiết', 'liệt kê', 'đầy đủ', 'tất cả').\n"
     "   - Câu 'phòng nào/bầy nào/ai ... nhất': tối đa 3 đơn vị mỗi chiều, kèm số và ý nghĩa ngắn.\n"
     "   - Câu 'vì sao/tại sao/do đâu': gọi công cụ chan_doan_phong rồi nêu 1-2 nguyên nhân có số.\n"
+    "   - Câu về nhân sự ('ai cần quan tâm', 'nhân sự nào yếu'...): nêu tối đa 3 người đáng lo nhất, mỗi người 1 lý "
+    "do ngắn và 1 việc nên làm; KHÔNG chia thành nhiều nhóm / nhiều danh sách.\n"
+    "   - Dùng phần BỐI CẢNH THÁNG để giải thích ý nghĩa (VD tăng nhưng vẫn chậm hơn nhịp tháng trước), không chép "
+    "lại bối cảnh nếu câu hỏi không cần.\n"
     "2. HỎI TIẾP NGẮN (VD 'các phòng IBB á', 'còn IBB5?', 'tháng trước thì sao?') là giữ nguyên câu hỏi trước "
     "và chỉ đổi điều kiện đó rồi trả lời lại theo đúng ý câu hỏi trước.\n"
     "3. NHÓM PHÒNG: dùng cột 'loại' trong danh sách phòng (IBB, DIABAN = địa bàn, KT, CUS, ECOM, KHAC). "
@@ -555,7 +584,9 @@ QUY_TAC_CHAT = (
     "báo, NSLĐ/tân binh; ngoài phạm vi thì từ chối lịch sự.\n"
     "7. Câu 'phòng nào/bầy nào' xét MỌI phòng/bầy trong phạm vi được xem, không thu hẹp về phòng đang chọn trên "
     "trang; chỉ giới hạn khi câu hỏi nói 'phòng này', 'phòng mình' hoặc nêu tên.\n"
-    "8. Gọi ít công cụ nhất có thể.")
+    "8. Gọi ít công cụ nhất có thể.\n"
+    "9. KHÔNG tự đặt chỉ tiêu mới, KHÔNG đề xuất 'họp gấp', thêm người, tăng ca hay việc không có trong dữ liệu; "
+    "không nói 'số do hệ thống tính, tôi chỉ báo cáo'. Không xưng 'tôi', không gọi 'anh/chị'.")
 
 # Bộ lọc chung (ky-chung) được nhiều trang cùng ghi: chỉ lấy các ô mà trang đang xem thật sự có,
 # tránh VD phòng chọn ở Báo cáo phòng vẫn "dính" khi đang hỏi ở Báo cáo Tổng.
@@ -593,4 +624,10 @@ def ngu_canh_chat(user, duong_dan: str | None, ky: dict | None) -> tuple[str, st
                 + (", ".join(f"{TEN_BO_LOC[k]} {v}" for k, v in bo_loc_trang(duong_dan, ky).items()) or "mặc định")
                 + ". Câu hỏi không nói kỳ thì dùng kỳ đang xem (không có thì luỹ kế tháng có số mới nhất) và nói rõ "
                 "kỳ đã dùng. Chi nhánh, phòng đang chọn chỉ là ngữ cảnh, không phải giới hạn của câu hỏi.")
+    if moi_nhat:
+        try:
+            d = min(_ngay_hop_le(bo_loc_trang(duong_dan, ky).get("den")), date.fromisoformat(moi_nhat))
+            thay_doi += "\n\n" + fi.boi_canh_chung(user, d, pv, nhan_su=False)
+        except Exception:        # bối cảnh chỉ để hiểu thêm, lỗi thì vẫn trả lời bằng công cụ
+            pass
     return co_dinh, thay_doi

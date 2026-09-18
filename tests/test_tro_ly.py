@@ -150,14 +150,16 @@ def test_chan_doan_theo_quyen():
     admin, nhap_lieu = _nguoi(), _nguoi("operator")
     co = dl.chay_cong_cu(admin, "chan_doan_phong", {"den": "2026-09-11", "phong": "IBB5"})
     khong = dl.chay_cong_cu(nhap_lieu, "chan_doan_phong", {"den": "2026-09-11", "phong": "IBB5"})
-    assert "kéo GIẢM" in co and "Online từng ngày" in khong and "Họ tên" not in khong
+    assert "giảm nhiều nhất" in co and "Online từng ngày" in khong and "Họ tên" not in khong
 
 
 def test_chat_tra_loi_ngan_nhan_xet_moi_day_du():
     u = _nguoi()
     chat = ai.loi_dan("Fox", chat=True) + dl.ngu_canh_chat(u, "/", {})[0]
     assert "Việc cần làm" not in ai.loi_dan("Fox", chat=True) and "Việc cần làm" in ai.loi_dan("Fox")
-    assert "KHÔNG chép lại bảng" in ai.loi_dan("Fox") and "150 từ" in ai.loi_dan("Fox")
+    ld = ai.loi_dan("Fox")
+    assert "KHÔNG chép lại bảng" in ld and "140 từ" in ld and "**Nhận định:**" in ld and "kéo giảm" in ld
+    assert "GIỌNG VĂN" in ai.loi_dan("Fox", chat=True) and "VÍ DỤ VIẾT ĐẠT" not in ai.loi_dan("Fox", chat=True)
     assert "NGẮN, ĐÚNG TRỌNG TÂM" in chat and "| IBB |" in chat and "| DIABAN |" in chat
 
 
@@ -315,7 +317,7 @@ def test_tin_hieu_chinh_tinh_san_cho_nhan_xet(monkeypatch):
     monkeypatch.setattr(ov, "trang_thai_ngay", lambda d: (False, None))
     t = dl.tin_hieu_tong(date(2026, 9, 11), "2026-09", "all", "2026-09-01", None)
     assert "THIẾU 319 online" in t and "Phần thiếu tập trung ở: Tam Kỳ" in t
-    assert "Đòn bẩy số tồn" in t and "Năng suất" in t and "7 ngày đã chốt" in t
+    assert "Hợp đồng chờ lâu" in t and "kéo" not in t.lower() and "Năng suất" in t and "7 ngày đã chốt" in t
     assert "TÍN HIỆU CHÍNH" in dl.ngu_canh_tong(_nguoi(), None, "2026-09-11", "all")[1]()
 
 
@@ -339,3 +341,31 @@ def test_tin_hieu_phong_va_so_thang_truoc(monkeypatch):
     ss = dl.so_voi_thang_truoc("2026-09", 11, None)
     assert "tới ngày 11/08" in ss and "% số của cả tháng 08" in ss
     assert "TÍN HIỆU CHÍNH" in dl.ngu_canh_phong(_nguoi(), "2026-09-11", "IBB5")[1]()
+
+
+def test_fox_boi_canh_chung_va_tin_hieu_phan_tich():
+    """Bối cảnh tháng dùng chung + tín hiệu chất lượng & vận hành; không có quyền nhân sự thì không nêu tên ai."""
+    from datetime import date
+
+    from app import fox_insight as fi
+
+    class U:
+        duoc_xem_nhan_su = False
+
+        def phong_nhan_su(self):
+            return []
+
+    d = date(2026, 9, 11)
+    bc = fi.boi_canh_chung(U(), d, None)
+    assert "BỐI CẢNH THÁNG" in bc and "Chất lượng bán" in bc and "Nhân sự:" not in bc
+    th = fi.tin_hieu_phan_tich(U(), d, None)
+    assert "Tỷ lệ chung" in th and "Sale có số" not in th
+    for x in (bc, th):
+        assert "kéo" not in x.lower() and "đòn bẩy" not in x.lower()
+
+
+def test_lam_sach_cau_tra_loi():
+    from app.tro_ly import lam_sach
+    assert lam_sach("làm 129.8/ngày, chờ >7 ngày, thêm ~39, 4.211 số") == "làm 129,8/ngày, chờ quá 7 ngày, thêm khoảng 39, 4.211 số"
+    assert lam_sach("sale kéo giảm tỷ lệ, kéo tụt tiến độ") == "sale làm giảm tỷ lệ, làm tụt tiến độ"
+    assert lam_sach("đạt 93% (số này do hệ thống tính, tôi chỉ báo cáo).") == "đạt 93%."
