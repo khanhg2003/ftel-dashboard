@@ -97,6 +97,21 @@ def test_xem_truoc_nhan_su_nhan_dien_thay_doi_va_loi():
     assert (kq.loai == "Lỗi").sum() == 2
 
 
+def test_file_bo_sung_chi_cap_nhat_acc_trong_file():
+    from openpyxl import Workbook
+
+    from app.mau_nhap import COT_NHAN_SU, SHEET_BO_SUNG, xem_truoc_nhan_su
+    wb = Workbook()
+    ws = wb.active
+    ws.title = SHEET_BO_SUNG
+    ws.append(COT_NHAN_SU + ["Vấn đề app phát hiện"])
+    ws.append(["DNG.KiemThuBoSung", "IBB1", None, None, None, None, "Chưa có trong danh mục"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    kq = xem_truoc_nhan_su(buf.getvalue())
+    assert list(kq.loai) == ["Thêm mới"]           # không đánh dấu nghỉ ai khác
+
+
 def test_file_mau_co_cau_nhap_lai_khong_doi_va_bao_loi_bay_sai():
     from openpyxl import load_workbook
 

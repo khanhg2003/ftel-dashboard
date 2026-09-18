@@ -6,7 +6,8 @@ Cách dùng chung cho cả hai loại:
    dòng lỗi), bấm Áp dụng mới ghi. Dòng lỗi bị bỏ qua, các dòng khác vẫn áp dụng.
 
 Danh mục nhân sự: file là DANH SÁCH ĐẦY ĐỦ - acc đang có trên app mà không có trong file được
-ghi chú "Nghỉ" (không xoá, để giữ lịch sử và sửa lại được).
+ghi chú "Nghỉ" (không xoá, để giữ lịch sử và sửa lại được). Riêng file có sheet "Bổ sung" (file rà soát gửi
+trưởng phòng) chỉ cập nhật các acc có trong file, không đánh dấu nghỉ ai.
 Cơ cấu: chỉ thêm / sửa bầy, phòng có trong file; muốn ngừng dùng thì ghi "Không" ở cột Đang dùng.
 """
 from __future__ import annotations
@@ -30,6 +31,7 @@ COT_BAY = ["Mã bầy", "Tên bầy", "Tên dòng tổng", "Thứ tự", "Đang 
 COT_PHONG = ["Mã phòng", "Tên phòng", "Bầy", "Loại", "Chi nhánh", "Gộp nhóm Khác", "Thứ tự",
              "Đang dùng"]
 XANH, NEN_DAU = "0072BC", "E9F1F9"
+SHEET_BO_SUNG = "Bổ sung"
 LOAI_THAY_DOI = ["Lỗi", "Thêm mới", "Đổi phòng", "Cập nhật", "Đánh dấu nghỉ", "Không đổi"]
 
 
@@ -200,7 +202,8 @@ def la_nghi(ghi_chu: str | None) -> bool:
 
 def xem_truoc_nhan_su(noi_dung: bytes) -> pd.DataFrame:
     """Mỗi dòng một thay đổi: loai, acc, phong_cu, phong_moi, chi_tiet, dong (dòng trong file)."""
-    df = _doc_sheet(noi_dung, "Nhân sự", "Acc")
+    bo_sung = SHEET_BO_SUNG in pd.ExcelFile(io.BytesIO(noi_dung)).sheet_names
+    df = _doc_sheet(noi_dung, SHEET_BO_SUNG if bo_sung else "Nhân sự", "Acc")
     with session_scope() as s:
         phong = s.execute(select(Phong)).scalars().all()
         staff = s.execute(select(StaffMap)).scalars().all()
@@ -259,7 +262,7 @@ def xem_truoc_nhan_su(noi_dung: bytes) -> pd.DataFrame:
         loai = "Đổi phòng" if cu["phong"] != p.code else ("Cập nhật" if doi else "Không đổi")
         out.append({**dong, "loai": loai, "chi_tiet": ", ".join(doi)})
 
-    for h in hien_co:
+    for h in ([] if bo_sung else hien_co):
         if h["acc_norm"] not in acc_trong_file and not la_nghi(h["ghi_chu"]):
             out.append({"dong": None, "acc": h["acc"], "phong_cu": ten.get(h["phong"], h["phong"]),
                         "phong_moi": ten.get(h["phong"], h["phong"]), "phong_code": h["phong"],
