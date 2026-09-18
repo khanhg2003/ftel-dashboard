@@ -148,9 +148,11 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
 
     out["chenh_ck"] = out.online - out.ck_online
     out = out.sort_values(["online", "vvip", "camera"], ascending=False)
-    out["hang"] = out.online.rank(method="min", ascending=False).astype(int)
-    xet = [_chu_y(r) for r in out.itertuples()]
     out["khong_xet"] = out.index.map(cb.acc_khong_xet(out.index)).fillna("")    # đã nghỉ / trưởng phòng: không cảnh báo
+    la_tp = out.khong_xet == "Trưởng phòng"               # trưởng phòng: số vẫn cộng cho phòng, không xếp hạng
+    out["hang"] = out.online.where(~la_tp).rank(method="min", ascending=False)
+    out = pd.concat([out[~la_tp], out[la_tp]])                # trưởng phòng xuống cuối bảng
+    xet = [_chu_y(r) for r in out.itertuples()]
     out["muc_chu_y"] = [("" if kx else m) for (m, _), kx in zip(xet, out.khong_xet)]
     out["chu_y"] = [("" if kx else y) for (_, y), kx in zip(xet, out.khong_xet)]
     out["loai_dong"] = "data"
@@ -183,6 +185,7 @@ def _thang_nsld(t) -> str:
 
 def _dong_tong(out: pd.DataFrame, hd: pd.DataFrame, ton: pd.DataFrame) -> dict:
     c = pt.chi_so_chung(hd)
+    nv = out[out.khong_xet != "Trưởng phòng"]            # bình quân / người không tính trưởng phòng
     so_cot = ["online", "online_ngay", "vvip", "camera", "ban_moi", "ban_moi_ngay", "ck_online",
               "tuan_nay", "tuan_truoc", "ton", "ton_qua_7", "chenh_ck"]
     so_cot += ["mttn"] if "mttn" in out.columns else []
@@ -195,8 +198,8 @@ def _dong_tong(out: pd.DataFrame, hd: pd.DataFrame, ton: pd.DataFrame) -> dict:
                 kem_vvip=ty_le(tong["vvip"]), kem_camera=ty_le(tong["camera"]), du_3=c["du_3"],
                 tra_truoc=c["tra_truoc"], onl_1_ngay=c["onl_1_ngay"],
                 so_ngay_co_so=int(hd.ngay_online.nunique()) if len(hd) else 0,
-                chu_y=f"{len(out)} nhân sự · bình quân {tong['online'] / len(out):.1f} online/người"
-                if len(out) else "")
+                chu_y=f"{len(nv)} nhân sự · bình quân {nv.online.sum() / len(nv):.1f} online/người"
+                if len(nv) else "")
     return tong
 
 

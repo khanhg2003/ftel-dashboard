@@ -145,6 +145,7 @@ def hieu_suat_nhan_su(thang: str, chi_phong: list[str] | None = None,
             | base.ghi_chu.fillna("").str.contains("Nghỉ") | ~hoat_dong)
     base["dang_lam"] = ~nghi
     base = base[~nghi | (base.online > 0)]
+    base = base[~base.index.isin(canh_bao.acc_truong_phong(base.index))]   # trưởng phòng không xếp hạng
     base["hr_thang"] = hr_thang
 
     # so với người cùng mốc thâm niên (trung vị, chỉ tính người đang làm ở phòng kinh doanh)

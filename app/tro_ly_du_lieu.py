@@ -253,7 +253,7 @@ def tin_hieu_phong(d: date, code: str) -> str:
     ten = bp.ten_phong(code)
     db = du_bao_thang(thang, d.day, [code]).set_index("phong_code").loc[code]
     nv = bp.bang_nhan_su(thang, d.day, code)
-    nv = nv[nv.loai_dong == "data"].copy()
+    nv = nv[(nv.loai_dong == "data") & (nv.khong_xet != "Trưởng phòng")].copy()   # TP không xếp hạng
     for c in ("online", "ck_online", "ton_qua_7", "ngay_lien_chua_co_so"):
         nv[c] = pd.to_numeric(nv[c], errors="coerce").fillna(0).astype(int)
     dong = []
@@ -457,7 +457,7 @@ def chan_doan(user, den: str | None, code: str | None) -> str:
     if not user.duoc_xem_nhan_su or (user.phong_nhan_su() is not None and code not in user.phong_nhan_su()):
         return "\n".join(kq + ["(Người hỏi không được xem chi tiết nhân sự nên không có phần nhân sự.)"])
     nv = bp.bang_nhan_su(thang, d.day, code)
-    nv = nv[nv.loai_dong == "data"].copy()
+    nv = nv[(nv.loai_dong == "data") & (nv.khong_xet != "Trưởng phòng")].copy()   # TP không xếp hạng
     for c in ("online", "ck_online", "chenh_ck", "tuan_nay", "tuan_truoc"):
         nv[c] = pd.to_numeric(nv[c]).fillna(0).astype(int)
     nv["chenh_tuan"] = nv.tuan_nay - nv.tuan_truoc

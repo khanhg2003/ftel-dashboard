@@ -52,9 +52,7 @@ def xet(so_ngay_khong_so, tuan_nay: int, tuan_truoc: int, nsld_chua_dat: bool = 
     return muc, ly_do
 
 
-def acc_khong_xet(them_acc=()) -> dict[str, str]:
-    """acc_norm -> lý do không đưa vào cảnh báo ("Đã nghỉ" / "Trưởng phòng"). `them_acc`: acc có số bán
-    nhưng chưa có trong danh mục, vẫn xét trưởng phòng theo tên đăng nhập."""
+def _tp_va_danh_muc():
     from sqlalchemy import text
 
     from app.db import engine
@@ -64,15 +62,26 @@ def acc_khong_xet(them_acc=()) -> dict[str, str]:
         tp = c.execute(text("SELECT username, ma_nv FROM users WHERE role = 'phong' AND active = TRUE")).all()
     ten_tp = {str(u).strip().lower() for u, _ in tp if u}
     ma_tp = {norm_manv(m) for _, m in tp if m} - {""}
-    out: dict[str, str] = {}
-    for acc, ma, ghi_chu in staff:
-        if not acc:
-            continue
-        if acc.split(".")[-1] in ten_tp or (ma and norm_manv(ma) in ma_tp):
-            out[acc] = "Trưởng phòng"
-        elif "nghỉ" in (ghi_chu or "").lower():
-            out.setdefault(acc, "Đã nghỉ")
-    for acc in them_acc:
-        if acc and acc not in out and str(acc).split(".")[-1] in ten_tp:
-            out[acc] = "Trưởng phòng"
+    la_tp = {a for a, ma, _ in staff if a and (a.split(".")[-1] in ten_tp or (ma and norm_manv(ma) in ma_tp))}
+    return staff, ten_tp, la_tp
+
+
+def acc_truong_phong(them_acc=()) -> set[str]:
+    """acc_norm của trưởng phòng (khớp tài khoản Trưởng phòng trên app theo tên đăng nhập = phần sau dấu
+    chấm của acc, hoặc theo mã NV). Trưởng phòng không tính vào mọi chỉ số hiệu suất cá nhân (chốt
+    18/09/2026) - số bán của họ vẫn cộng cho phòng."""
+    _, ten_tp, la_tp = _tp_va_danh_muc()
+    return la_tp | {a for a in them_acc if a and str(a).split(".")[-1] in ten_tp}
+
+
+def acc_khong_xet(them_acc=()) -> dict[str, str]:
+    """acc_norm -> lý do không đưa vào cảnh báo ("Đã nghỉ" / "Trưởng phòng")."""
+    staff, ten_tp, la_tp = _tp_va_danh_muc()
+    out = {a: "Trưởng phòng" for a in la_tp}
+    for a, _, ghi_chu in staff:
+        if a and a not in out and "nghỉ" in (ghi_chu or "").lower():
+            out[a] = "Đã nghỉ"
+    for a in them_acc:
+        if a and a not in out and str(a).split(".")[-1] in ten_tp:
+            out[a] = "Trưởng phòng"
     return out

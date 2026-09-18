@@ -247,6 +247,8 @@ def theo_nhan_vien(df: pd.DataFrame, ton: pd.DataFrame, thang: str) -> pd.DataFr
     ten = pd.read_sql(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
     g["ho_ten"] = ten.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten.reindex(g.index)
     g["phong"] = [meta.get(c, {}).get("ten", "Chưa gán phòng") for c in g.phong_code]
+    from app.canh_bao import acc_truong_phong
+    g = g[~g.index.isin(acc_truong_phong(g.index))]          # trưởng phòng không xếp hạng nhân viên
     return g.reset_index().sort_values("online", ascending=False).replace({np.nan: None})
 
 

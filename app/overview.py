@@ -42,10 +42,13 @@ def _sql_series(sql: str, params: dict) -> pd.Series:
 
 
 def _nhan_su() -> pd.Series:
-    sql = """SELECT phong_code, COUNT(*) n FROM staff_map
-             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'
-               AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE) GROUP BY phong_code"""
-    return _sql_series(sql, {})
+    """Số nhân sự đang làm của phòng: không ghi Nghỉ, dòng danh mục còn hiệu lực, không đếm trưởng phòng."""
+    from app.canh_bao import acc_truong_phong
+    df = pd.read_sql(text("""SELECT acc_norm, phong_code FROM staff_map
+                             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'
+                               AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE)"""), engine)
+    df = df[~df.acc_norm.isin(acc_truong_phong())]
+    return df.groupby("phong_code").size().astype(int)
 
 
 def _pttb_cnql(tu: str, den: str) -> pd.Series:

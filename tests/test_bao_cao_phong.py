@@ -118,3 +118,17 @@ def test_khong_canh_bao_nguoi_nghi_va_truong_phong(monkeypatch):
     monkeypatch.setattr(canh_bao, "acc_khong_xet", lambda them_acc=(): {a: "Trưởng phòng"})
     nv2 = bp.bang_nhan_su(THANG, NGAY, "IBB2").set_index("acc_norm")
     assert nv2.at[a, "muc_chu_y"] == "" and nv2.at[a, "chu_y"] == "" and nv2.at[a, "khong_xet"] == "Trưởng phòng"
+
+
+def test_truong_phong_khong_xep_hang_nhung_van_cong_so(monkeypatch):
+    from app import canh_bao, hr_metrics
+    nv = bp.bang_nhan_su(THANG, NGAY, "IBB2")
+    du_lieu = nv[nv.loai_dong == "data"]
+    a = du_lieu.acc_norm.iloc[0]
+    monkeypatch.setattr(canh_bao, "acc_khong_xet", lambda them_acc=(): {a: "Trưởng phòng"})
+    monkeypatch.setattr(canh_bao, "acc_truong_phong", lambda them_acc=(): {a})
+    nv2 = bp.bang_nhan_su(THANG, NGAY, "IBB2")
+    d2 = nv2[nv2.loai_dong == "data"]
+    assert d2.acc_norm.iloc[-1] == a and d2.hang.iloc[-1] is None          # xuống cuối, không hạng
+    assert nv2[nv2.loai_dong == "total"].online.iloc[0] == nv[nv.loai_dong == "total"].online.iloc[0]
+    assert a not in set(hr_metrics.hieu_suat_nhan_su(THANG, ngay=NGAY).acc_norm)

@@ -215,6 +215,17 @@ def _mau_ty_le(chung) -> dict:
         {"condition": goc + f"params.value >= {chung + 5}", "style": XANH}]}
 
 
+HANG_TP = 999          # trưởng phòng không xếp hạng: hạng giả để luôn nằm cuối bảng, ô hiện "TP"
+
+
+def _dong_bang(df) -> list[dict]:
+    rows = df.to_dict("records")
+    for r in rows:
+        if r.get("khong_xet") == "Trưởng phòng":
+            r["hang"] = HANG_TP
+    return rows
+
+
 def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
     m = int(thang[5:7])
     goc = "params.value != null && !params.node.rowPinned && "
@@ -228,7 +239,8 @@ def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
                 "type": "numericColumn", "valueFormatter": PCT, **kw}
 
     hang = {"field": "hang", "headerName": "Hạng", "pinned": "left", "width": 68,
-            "type": "numericColumn", "sort": "asc"}
+            "type": "numericColumn", "sort": "asc", "headerTooltip": "Trưởng phòng (TP) không xếp hạng",
+            "valueFormatter": {"function": f"params.value >= {HANG_TP} ? 'TP' : params.value"}}
     ten = {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "minWidth": 150,
            "flex": 1.6, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}}
     chu_y = [{"field": "muc_chu_y", "headerName": "Mức", "minWidth": 104, "flex": .9,
@@ -532,7 +544,7 @@ def register(app):
         canh_bao = alert([html.B(f"Ngày {ngay:02d}/{d.month:02d} đang cập nhật. "),
                           f"Số tính đến {luc:%H:%M}, phòng chưa đủ mục tiêu ngày ghi “Chưa đạt”."],
                          "warn") if tam_tinh else ""
-        mo_ta = (f"{len(du_lieu)} nhân sự · {so_ngay_ngay} trao đổi ngay · "
+        mo_ta = (f"{int((du_lieu.khong_xet != 'Trưởng phòng').sum())} nhân sự · {so_ngay_ngay} trao đổi ngay · "
                  f"{len(can_chu_y) - so_ngay_ngay} theo dõi · luỹ kế 01 - {ngay:02d}/{d.month:02d}")
         so_phong = int(ss.so_phong.max() or 0)
         mo_ta_ss = (f"Hạng trong {so_phong} phòng kinh doanh (IBB và địa bàn). Mức chung với tỷ lệ "
@@ -541,7 +553,7 @@ def register(app):
         if mttn.ap_dung(code):
             the.insert(1, _kpi_mttn(mttn.tong_hop(thang, ngay, code)))
         return (the, f"kpi-row kpi-{len(the)}", badge, canh_bao, mo_ta,
-                lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), hien.to_dict("records"), [tong],
+                lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), _dong_bang(hien), [tong],
                 COT_SO_SANH, _dong_so_sanh(ss), mo_ta_ss,
                 _bieu_do(bp.dien_bien_ngay(thang, ngay, code), dong.get("mt_ngay")))
 
