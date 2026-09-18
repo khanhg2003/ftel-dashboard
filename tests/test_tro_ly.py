@@ -265,3 +265,43 @@ def test_cac_trang_dung_duoc_voi_the_ai():
         login_user(admin)
         for trang in (tongquan.layout(), phong.layout(), phantich.layout(), quantri.layout("ai"), serve_layout()):
             assert trang is not None
+
+
+def test_model_suy_luan_het_do_dai_thi_goi_lai_voi_gioi_han_lon_hon(monkeypatch):
+    goi = []
+
+    def gia(duong_dan, key, body=None, han=50):
+        goi.append(dict(body))
+        if body["max_completion_tokens"] < 10000:            # lần đầu: nghĩ hết chỗ, chưa viết chữ nào
+            return {"model": "gpt-5", "usage": {"prompt_tokens": 3000, "completion_tokens": body["max_completion_tokens"]},
+                    "choices": [{"finish_reason": "length", "message": {"content": ""}}]}
+        return {"model": "gpt-5", "usage": {"prompt_tokens": 3000, "completion_tokens": 900},
+                "choices": [{"finish_reason": "stop", "message": {"content": "- Nhận xét"}}]}
+    monkeypatch.setattr(ai, "_goi_api", gia)
+    monkeypatch.setattr(ai, "_ghi_su_dung", lambda *a, **k: 0)
+    msg = ai.hoi([{"role": "user", "content": "x"}], "gpt-5", "sk-x", "kiemthu.ai", "nhan_xet")
+    assert msg["content"] == "- Nhận xét" and [g["max_completion_tokens"] for g in goi] == [6000, 12000]
+    assert goi[0]["reasoning_effort"] == "minimal"
+
+
+def test_model_khong_nhan_muc_minimal_thi_dung_low(monkeypatch):
+    goi = []
+
+    def gia(duong_dan, key, body=None, han=50):
+        goi.append(body.get("reasoning_effort"))
+        if body.get("reasoning_effort") == "minimal":
+            loi = ai.LoiAI("OpenAI báo lỗi 400.")
+            loi.ma, loi.chi_tiet = 400, "Unsupported value: 'minimal' for reasoning_effort"
+            raise loi
+        return {"model": "gpt-5.1", "usage": {}, "choices": [{"finish_reason": "stop", "message": {"content": "ok"}}]}
+    monkeypatch.setattr(ai, "_goi_api", gia)
+    monkeypatch.setattr(ai, "_ghi_su_dung", lambda *a, **k: 0)
+    assert ai.hoi([], "gpt-5.1", "sk-x", "kiemthu.ai", "chat")["content"] == "ok" and goi == ["minimal", "low"]
+
+
+def test_het_do_dai_ca_hai_lan_thi_bao_ro(monkeypatch):
+    monkeypatch.setattr(ai, "_goi_api", lambda *a, **k: {
+        "model": "gpt-5", "usage": {}, "choices": [{"finish_reason": "length", "message": {"content": None}}]})
+    monkeypatch.setattr(ai, "_ghi_su_dung", lambda *a, **k: 0)
+    with pytest.raises(ai.LoiAI, match="giới hạn độ dài"):
+        ai.hoi([], "gpt-5", "sk-x", "kiemthu.ai", "nhan_xet")

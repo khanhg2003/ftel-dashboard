@@ -234,8 +234,10 @@ def _goi_api(duong_dan: str, key: str, body: dict | None = None, han: float = HA
                      403: "Mã API không có quyền dùng model này.",
                      404: "Không tìm thấy model - kiểm tra lại tên model trong cấu hình.",
                      429: "OpenAI báo hết hạn mức (quá nhiều yêu cầu hoặc tài khoản hết tiền)."}
-        raise LoiAI(thong_bao.get(e.code, f"OpenAI báo lỗi {e.code}.")
-                    + (f" ({chi_tiet[:160]})" if chi_tiet and e.code not in (401,) else "")) from None
+        loi = LoiAI(thong_bao.get(e.code, f"OpenAI báo lỗi {e.code}.")
+                    + (f" ({chi_tiet[:160]})" if chi_tiet and e.code not in (401,) else ""))
+        loi.ma, loi.chi_tiet = e.code, chi_tiet
+        raise loi from None
     except (socket.timeout, TimeoutError):
         raise LoiAI("AI trả lời quá lâu, thử lại sau ít phút.") from None
     except urllib.error.URLError:
@@ -248,20 +250,52 @@ def thu_ket_noi(key: str, model: str) -> str:
     return f"Kết nối tốt · mã hợp lệ · dùng được model {model}."
 
 
+def _muc_suy_nghi(model: str) -> str | None:
+    """Model suy luận (gpt-5, o3, o4) tính cả token "suy nghĩ" vào giới hạn độ dài. Diễn giải số liệu không cần
+    suy nghĩ sâu -> để mức thấp nhất, vừa nhanh vừa không bị hết chỗ viết câu trả lời."""
+    if model.startswith("gpt-5"):
+        return "minimal"
+    return "low" if model.startswith(("o3", "o4")) else None
+
+
 def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
-        tools: list | None = None, han: float = HAN_GIAY, toi_da: int = 3000) -> dict:
-    """Một lượt Chat Completions, ghi lượt dùng. Trả về message của AI."""
-    body = {"model": model, "messages": messages, "max_completion_tokens": toi_da}
-    if model.startswith(("gpt-5", "o3", "o4")):
-        body["reasoning_effort"] = "low"          # đủ cho diễn giải số, trả lời nhanh hơn nhiều
-    if tools:
-        body["tools"] = tools
-    kq = _goi_api("chat/completions", key, body, han)
-    dung = kq.get("usage") or {}
-    _ghi_su_dung(username, loai, kq.get("model") or model, int(dung.get("prompt_tokens") or 0),
-                 int(dung.get("completion_tokens") or 0),
-                 int((dung.get("prompt_tokens_details") or {}).get("cached_tokens") or 0))
-    return kq["choices"][0]["message"]
+        tools: list | None = None, han: float = HAN_GIAY, toi_da: int = 6000) -> dict:
+    """Một lượt Chat Completions, ghi lượt dùng. Trả về message của AI.
+
+    Tự xử lý 2 trường hợp hay gặp với model suy luận:
+    - model không nhận mức 'minimal' (bản mới hơn gpt-5) -> gọi lại với 'low';
+    - dùng hết giới hạn độ dài mà chưa viết được chữ nào (finish_reason = length) -> gọi lại một lần với gấp
+      đôi giới hạn. Vẫn không được thì báo lỗi rõ ràng thay vì trả về rỗng.
+    """
+    muc = _muc_suy_nghi(model)
+    bat_dau = datetime.utcnow()
+    for lan in range(3):
+        body = {"model": model, "messages": messages, "max_completion_tokens": toi_da}
+        if muc:
+            body["reasoning_effort"] = muc
+        if tools:
+            body["tools"] = tools
+        con = han - (datetime.utcnow() - bat_dau).total_seconds()
+        try:
+            kq = _goi_api("chat/completions", key, body, con)
+        except LoiAI as e:
+            if getattr(e, "ma", None) == 400 and muc == "minimal" and "reasoning" in (getattr(e, "chi_tiet", "") or ""):
+                muc = "low"
+                continue
+            raise
+        dung = kq.get("usage") or {}
+        _ghi_su_dung(username, loai if lan == 0 else f"{loai}_lai", kq.get("model") or model, int(dung.get("prompt_tokens") or 0),
+                     int(dung.get("completion_tokens") or 0),
+                     int((dung.get("prompt_tokens_details") or {}).get("cached_tokens") or 0))
+        chon = kq["choices"][0]
+        msg = chon["message"]
+        if msg.get("content") or msg.get("tool_calls") or chon.get("finish_reason") != "length":
+            return msg
+        if lan == 2 or con < 15:
+            break
+        toi_da *= 2
+    raise LoiAI("AI dùng hết giới hạn độ dài mà chưa viết xong câu trả lời - bấm tạo lại, hoặc đổi model nhận xét "
+                "sang gpt-5-mini ở Quản trị → Trợ lý AI.")
 
 
 # ------------------------------------------------------------------ lời dặn chung
@@ -398,7 +432,7 @@ def _chat(user, ch, lich_su, cau_hoi, ngu_canh, cong_cu, chay_cong_cu, k) -> str
         if con < 8:
             raise LoiAI("Câu hỏi cần tra nhiều số quá, hãy hỏi hẹp lại (một phòng hoặc một kỳ).")
         msg = hoi(messages, ch["model_chat"], ch["key"], user.username, "chat" if vong == 0 else "chat_tiep",
-                  tools=cong_cu if vong < 4 else None, han=con, toi_da=2000)
+                  tools=cong_cu if vong < 4 else None, han=con, toi_da=4000)
         goi = msg.get("tool_calls") or []
         if not goi:
             tra_loi = (msg.get("content") or "").strip()
