@@ -4,6 +4,8 @@ Hai mức, xét theo nhịp có số online của từng người tại ngày ch
 - Trao đổi ngay: từ 7 ngày không có số online nào (hoặc chưa có số trong cả khoảng xét).
 - Theo dõi: từ 3 ngày liền chưa có số, hoặc tuần này (7 ngày gần nhất) giảm từ một nửa so với
   tuần trước (tuần trước từ 3 số), hoặc NSLĐ tháng gần nhất chưa đạt.
+Không xét (chốt 18/09/2026): người đã ghi "Nghỉ" trong danh mục nhân sự và trưởng phòng (acc khớp tài
+khoản Trưởng phòng trên app theo tên đăng nhập = phần sau dấu chấm của acc, hoặc theo mã NV).
 """
 from __future__ import annotations
 
@@ -18,7 +20,8 @@ TUAN_TRUOC_TOI_THIEU = 3     # chỉ xét sụt khi tuần trước có từ 3 s
 
 MO_TA_TRAO_DOI_NGAY = f"Từ {NGAY_TRAO_DOI_NGAY} ngày không có số online nào."
 MO_TA_THEO_DOI = (f"Từ {NGAY_THEO_DOI} ngày liền chưa có số, tuần này giảm từ một nửa so với tuần trước "
-                  f"(tuần trước từ {TUAN_TRUOC_TOI_THIEU} số), hoặc NSLĐ chưa đạt.")
+                  f"(tuần trước từ {TUAN_TRUOC_TOI_THIEU} số), hoặc NSLĐ chưa đạt. Không xét người đã ghi "
+                  "Nghỉ và trưởng phòng.")
 
 
 def _trong(v) -> bool:
@@ -47,3 +50,29 @@ def xet(so_ngay_khong_so, tuan_nay: int, tuan_truoc: int, nsld_chua_dat: bool = 
         muc = muc or THEO_DOI
         ly_do.append(f"NSLĐ T{thang_nsld} chưa đạt" if thang_nsld else "NSLĐ chưa đạt")
     return muc, ly_do
+
+
+def acc_khong_xet(them_acc=()) -> dict[str, str]:
+    """acc_norm -> lý do không đưa vào cảnh báo ("Đã nghỉ" / "Trưởng phòng"). `them_acc`: acc có số bán
+    nhưng chưa có trong danh mục, vẫn xét trưởng phòng theo tên đăng nhập."""
+    from sqlalchemy import text
+
+    from app.db import engine
+    from app.ingest.normalize import norm_manv
+    with engine.connect() as c:
+        staff = c.execute(text("SELECT acc_norm, ma_nv, ghi_chu FROM staff_map")).all()
+        tp = c.execute(text("SELECT username, ma_nv FROM users WHERE role = 'phong' AND active = TRUE")).all()
+    ten_tp = {str(u).strip().lower() for u, _ in tp if u}
+    ma_tp = {norm_manv(m) for _, m in tp if m} - {""}
+    out: dict[str, str] = {}
+    for acc, ma, ghi_chu in staff:
+        if not acc:
+            continue
+        if acc.split(".")[-1] in ten_tp or (ma and norm_manv(ma) in ma_tp):
+            out[acc] = "Trưởng phòng"
+        elif "nghỉ" in (ghi_chu or "").lower():
+            out.setdefault(acc, "Đã nghỉ")
+    for acc in them_acc:
+        if acc and acc not in out and str(acc).split(".")[-1] in ten_tp:
+            out[acc] = "Trưởng phòng"
+    return out

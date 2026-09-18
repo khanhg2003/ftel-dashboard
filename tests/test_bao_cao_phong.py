@@ -106,3 +106,15 @@ def test_mttn_chi_ap_dung_ibb7_va_cong_khop(ibb2):
     m = mttn.tong_hop(THANG, NGAY, "IBB7")
     assert int(du_lieu.mttn.sum()) == tong.mttn == m["mttn"] and m["tong"] == tong.online
     assert all(0 <= v <= 100 for v in du_lieu.ty_le_mttn.dropna())
+
+
+def test_khong_canh_bao_nguoi_nghi_va_truong_phong(monkeypatch):
+    from app import canh_bao
+    nv = bp.bang_nhan_su(THANG, NGAY, "IBB2")
+    du_lieu = nv[nv.loai_dong == "data"]
+    co_canh_bao = du_lieu[du_lieu.muc_chu_y != ""]
+    assert len(co_canh_bao)
+    a = co_canh_bao.acc_norm.iloc[0]
+    monkeypatch.setattr(canh_bao, "acc_khong_xet", lambda them_acc=(): {a: "Trưởng phòng"})
+    nv2 = bp.bang_nhan_su(THANG, NGAY, "IBB2").set_index("acc_norm")
+    assert nv2.at[a, "muc_chu_y"] == "" and nv2.at[a, "chu_y"] == "" and nv2.at[a, "khong_xet"] == "Trưởng phòng"

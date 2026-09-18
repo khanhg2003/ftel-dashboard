@@ -214,7 +214,7 @@ def canh_bao_nhan_su(thang: str, chi_phong=None, ngay: int | None = None,
     xet = [_xet(r) for r in out.itertuples()]
     out["muc_rui_ro"] = [m for m, _ in xet]
     out["ly_do"] = [l for _, l in xet]
-    out = out[out.muc_rui_ro != ""]
+    out = out[(out.muc_rui_ro != "") & ~out.acc_norm.isin(canh_bao.acc_khong_xet(out.acc_norm))]
     return (out.assign(_o=out.muc_rui_ro.map(canh_bao.THU_TU_MUC),
                        _n=out.so_ngay_khong_so.fillna(99))
             .sort_values(["_o", "_n", "tuan_truoc"], ascending=[True, False, False])

@@ -280,7 +280,7 @@ def tin_hieu_phong(d: date, code: str) -> str:
         if len(giam):
             dong.append("- Kéo giảm so cùng kỳ nhiều nhất: " + ", ".join(f"{r.ho_ten} {r.ch:+d}"
                                                                           for r in giam.itertuples()) + ".")
-        khong_so = nv[nv.ngay_lien_chua_co_so >= 7]
+        khong_so = nv[(nv.ngay_lien_chua_co_so >= 7) & (nv.khong_xet.fillna("") == "")]
         if len(khong_so):
             dong.append(f"- {len(khong_so)} người từ 7 ngày liền chưa có số: "
                         + ", ".join(f"{r.ho_ten} ({r.ngay_lien_chua_co_so} ngày)" for r in khong_so.head(5).itertuples())

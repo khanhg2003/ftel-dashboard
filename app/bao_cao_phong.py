@@ -150,8 +150,9 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     out = out.sort_values(["online", "vvip", "camera"], ascending=False)
     out["hang"] = out.online.rank(method="min", ascending=False).astype(int)
     xet = [_chu_y(r) for r in out.itertuples()]
-    out["muc_chu_y"] = [m for m, _ in xet]
-    out["chu_y"] = [y for _, y in xet]
+    out["khong_xet"] = out.index.map(cb.acc_khong_xet(out.index)).fillna("")    # đã nghỉ / trưởng phòng: không cảnh báo
+    out["muc_chu_y"] = [("" if kx else m) for (m, _), kx in zip(xet, out.khong_xet)]
+    out["chu_y"] = [("" if kx else y) for (_, y), kx in zip(xet, out.khong_xet)]
     out["loai_dong"] = "data"
     out = out.reset_index()
 
@@ -190,6 +191,7 @@ def _dong_tong(out: pd.DataFrame, hd: pd.DataFrame, ton: pd.DataFrame) -> dict:
     if "mttn" in out.columns:
         tong["ty_le_mttn"] = ty_le(tong["mttn"])
     tong.update(acc_norm="TOTAL", acc="", ho_ten="TỔNG PHÒNG", loai_dong="total", hang=None, muc_chu_y="",
+                khong_xet="",
                 kem_vvip=ty_le(tong["vvip"]), kem_camera=ty_le(tong["camera"]), du_3=c["du_3"],
                 tra_truoc=c["tra_truoc"], onl_1_ngay=c["onl_1_ngay"],
                 so_ngay_co_so=int(hd.ngay_online.nunique()) if len(hd) else 0,
