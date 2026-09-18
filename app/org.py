@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 import time
 import unicodedata
+from datetime import date, datetime
 
 from sqlalchemy import select, text
 
@@ -298,21 +299,50 @@ def xoa_co_cau_thang(session, thang: str) -> int:
 
 
 # --------------------------------------------------------------- gán phòng
-def load_staff_map(session) -> dict[str, str]:
-    """acc_norm -> mã phòng (bản ghi còn hiệu lực)."""
-    rows = session.execute(select(StaffMap.acc_norm, StaffMap.phong_code,
+def load_staff_map(session) -> dict[str, list[tuple]]:
+    """acc_norm -> [(hiệu lực từ, hiệu lực đến, mã phòng)] - một acc có thể có nhiều dòng khi chuyển phòng."""
+    rows = session.execute(select(StaffMap.acc_norm, StaffMap.phong_code, StaffMap.hieu_luc_tu,
                                   StaffMap.hieu_luc_den)).all()
-    out: dict[str, str] = {}
-    for acc_norm, code, den in rows:
-        if den is None:
-            out[acc_norm] = code
-        else:
-            out.setdefault(acc_norm, code)
+    out: dict[str, list[tuple]] = {}
+    for acc_norm, code, tu, den in rows:
+        out.setdefault(acc_norm, []).append((tu, den, code))
     return out
 
 
-def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict[str, str]):
-    """Trả về (mã phòng, có phải hợp đồng ECOM không)."""
+def _thanh_ngay(v) -> date | None:
+    if v is None or v == "" or (isinstance(v, float) and v != v):
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    try:
+        return date.fromisoformat(str(v)[:10])
+    except ValueError:
+        return None
+
+
+def phong_theo_danh_muc(dong, ngay=None) -> str | None:
+    """Phòng của acc tại ngày hợp đồng: dòng có hiệu lực bao trùm ngày đó; không dòng nào bao trùm
+    (hoặc không có ngày) thì lấy dòng đang hiệu lực (không có ngày kết thúc), rồi dòng kết thúc muộn nhất."""
+    if not dong:
+        return None
+    if isinstance(dong, str):
+        return dong
+    d = _thanh_ngay(ngay)
+    if d is not None:
+        for tu, den, code in dong:
+            if (tu is None or tu <= d) and (den is None or d <= den):
+                return code
+    mo = [x for x in dong if x[1] is None]
+    if mo:
+        return max(mo, key=lambda x: x[0] or date.min)[2]
+    return max(dong, key=lambda x: x[1])[2]
+
+
+def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=None):
+    """Trả về (mã phòng, có phải hợp đồng ECOM không). `ngay` = ngày online (hoặc ngày tạo) của hợp đồng,
+    dùng để chọn đúng phòng khi nhân sự chuyển phòng (cột Hiệu lực từ / đến của danh mục)."""
     fb = org_config()["fallback"]
     cn_ban = norm_text(cn_ban).upper()
     cn_quan_ly = norm_text(cn_quan_ly).upper()
@@ -324,7 +354,7 @@ def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict[str, s
                 return v, True
         return rule["_default"], True
 
-    code = staff_map.get(norm_acc(acc))
+    code = phong_theo_danh_muc(staff_map.get(norm_acc(acc)), ngay)
     if code:
         return code, False
 

@@ -68,6 +68,17 @@ def test_gan_phong_theo_quy_tac():
     assert assign_phong("la.hoac", "Phòng nghiệp vụ", "DNG_01", "DNG_01", dm) == ("CHUA_GAN", False)
 
 
+def test_gan_phong_theo_hieu_luc_khi_chuyen_phong():
+    from datetime import date
+    dm = {"qnm.x": [(None, date(2026, 8, 31), "TAMKY"), (date(2026, 9, 1), None, "DAILOC")],
+          "qnm.y": [(date(2026, 9, 1), None, "HOIAN")]}
+    g = lambda acc, ngay: assign_phong(acc, "Phòng kinh doanh 1", "QNM", "QNM", dm, ngay)[0]  # noqa: E731
+    assert g("QNM.X", date(2026, 8, 20)) == "TAMKY"
+    assert g("QNM.X", "2026-09-02") == "DAILOC"
+    assert g("QNM.X", None) == "DAILOC"            # không có ngày -> dòng đang hiệu lực
+    assert g("QNM.Y", date(2026, 8, 1)) == "HOIAN"  # chỉ một dòng -> vẫn dùng dòng đó
+
+
 # --------------------------------------------------------------- số liệu
 def test_tong_thang_khop_so_da_doi_chieu():
     df, ngay = bang_tong_quan(THANG)

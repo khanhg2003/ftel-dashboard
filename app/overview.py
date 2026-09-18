@@ -43,7 +43,8 @@ def _sql_series(sql: str, params: dict) -> pd.Series:
 
 def _nhan_su() -> pd.Series:
     sql = """SELECT phong_code, COUNT(*) n FROM staff_map
-             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%' GROUP BY phong_code"""
+             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'
+               AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE) GROUP BY phong_code"""
     return _sql_series(sql, {})
 
 

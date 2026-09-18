@@ -114,7 +114,7 @@ def _upsert(session, model, rows: list[dict], key: str) -> tuple[int, int]:
     return new, upd
 
 
-def _fact_rows(res: LoadResult, staff_map: dict[str, str], batch_id: int) -> list[dict]:
+def _fact_rows(res: LoadResult, staff_map: dict, batch_id: int) -> list[dict]:
     rules = rules_config()
     goi_vvip = {norm_text(x).lower() for x in rules["vvip"]["goi_tinh_vvip"]}
     df = res.df.copy()
@@ -122,7 +122,7 @@ def _fact_rows(res: LoadResult, staff_map: dict[str, str], batch_id: int) -> lis
     for r in df.to_dict("records"):
         acc = r.get("acc_nhan_vien", "")
         code, la_ecom = assign_phong(acc, r.get("phong_he_thong"), r.get("cn_ban"),
-                                     r.get("cn_quan_ly"), staff_map)
+                                     r.get("cn_quan_ly"), staff_map, r.get("ngay_online") or r.get("ngay_tao_hd"))
         r["phong_code"] = code
         r["la_ecom"] = la_ecom
         if not LUU_TEN_KHACH_HANG:
@@ -312,7 +312,7 @@ def recompute_phong(session) -> int:
     for model in (FactInternet, FactFptPlay, FactCamera):
         for obj in session.execute(select(model)).scalars():
             code, la_ecom = assign_phong(obj.acc_nhan_vien, obj.phong_he_thong, obj.cn_ban,
-                                         obj.cn_quan_ly, staff_map)
+                                         obj.cn_quan_ly, staff_map, obj.ngay_online or obj.ngay_tao_hd)
             if obj.phong_code != code or obj.la_ecom != la_ecom:
                 obj.phong_code, obj.la_ecom = code, la_ecom
                 total += 1
