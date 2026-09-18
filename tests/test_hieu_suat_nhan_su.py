@@ -94,7 +94,7 @@ def test_nhan_su_khong_con_nan_va_nhan_de_doc():
     df = hieu_suat_nhan_su(THANG, ngay=11)
     assert not df.tham_nien.str.contains("nan").any()
     assert set(df.nsld.dropna()) <= {"Đạt", "Chưa đạt", "Không xét"}
-    assert set(df.nhom.dropna()) <= {"Mới", "Đang lên", "Ổn định", "Lâu năm"}
+    assert set(df.nhom.dropna()) <= {"1-3 tháng", "4-6 tháng", "7-12 tháng", "Trên 12 tháng"}
     assert df.ho_ten.notna().all()
 
 

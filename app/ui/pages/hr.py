@@ -350,7 +350,8 @@ def _bieu_do_tham_nien(df):
     fig = go.Figure()
     if g.empty:
         return _fig(_trong(fig, "Chưa có hồ sơ NSLĐ để chia theo thâm niên"))
-    nhan = [f"{m} th" if m in MOC_THAM_NIEN[:6] else f"{m}" for m in g.tham_nien_bucket]
+    nhan = [f"{m} th" if m in MOC_THAM_NIEN[:7] else ("Trên 12 th" if m == "13+" else f"{m}")
+            for m in g.tham_nien_bucket]
     fig.add_trace(go.Bar(
         x=nhan, y=g.tb_online, marker_color=[MAU_NHOM.get(c, "#0072BC") for c in g.nhom_tham_nien],
         text=[f"{v:.1f}".replace(".", ",") for v in g.tb_online], textposition="outside", cliponaxis=False,
@@ -364,7 +365,7 @@ def _bieu_do_tham_nien(df):
     moc = g[g.tham_nien_bucket == "13+"]
     if len(moc):
         fig.add_hline(y=float(moc.tb_online.iloc[0]), line_dash="dot", line_color="#F37021",
-                      annotation_text="Mức nhóm 13+ tháng", annotation_position="bottom left",
+                      annotation_text="Mức nhóm trên 12 tháng", annotation_position="bottom left",
                       annotation_font_color="#B45309")
     fig.update_yaxes(title=None, rangemode="tozero")
     return _fig(fig)
@@ -580,7 +581,7 @@ def register(app):
         theo_doi = len(cb) - cao
         moi = int(dang_lam.nhom_tham_nien.eq("MOI").sum())
         kpis = [
-            kpi("Nhân sự đang làm", f"{n}", f"{moi} người mới, 1-3 tháng" if hr_thang else "Đang làm"),
+            kpi("Nhân sự đang làm", f"{n}", f"{moi} người làm 1-3 tháng" if hr_thang else "Đang làm"),
             kpi("Online bình quân", f"{tong / n:.1f}".replace(".", ",") if n else "–",
                 f"mỗi người · tổng {tong:,} online".replace(",", ".")),
             kpi("Chưa có số", f"{zero}", f"{zero / n * 100:.0f}% nhân sự" if n else "",

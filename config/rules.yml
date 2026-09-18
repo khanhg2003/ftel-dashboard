@@ -10,10 +10,10 @@ fptplay:
 chua_gan_phong:
   cong_vao_tong_chi_nhanh: true
 tham_nien:
-  - {code: MOI,     ten: "Mới (1-3 tháng)",     tu: 1,  den: 3}
-  - {code: DANG_LEN, ten: "Đang lên (4-6)",     tu: 4,  den: 6}
-  - {code: ON_DINH, ten: "Ổn định (7-12)",      tu: 7,  den: 12}
-  - {code: LAU_NAM, ten: "Lâu năm (13+)",       tu: 13, den: 999}
+  - {code: MOI,     ten: "1-3 tháng",          tu: 1,  den: 3}
+  - {code: DANG_LEN, ten: "4-6 tháng",         tu: 4,  den: 6}
+  - {code: ON_DINH, ten: "7-12 tháng",         tu: 7,  den: 12}
+  - {code: LAU_NAM, ten: "Trên 12 tháng",      tu: 13, den: 999}
 ngay_lam_viec:
   tuan_bat_dau: 1   # 1 = Thứ 2
 

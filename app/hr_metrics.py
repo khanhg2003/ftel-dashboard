@@ -22,7 +22,8 @@ from app.org import phong_order
 LOAI_KINH_DOANH = {"IBB", "DIABAN"}
 # thâm niên trong file NSLĐ: 1-6 tháng ghi từng tháng, sau đó gộp 7-12 và 13+
 MOC_THAM_NIEN = ["1", "2", "3", "4", "5", "6", "7-12", "13+"]
-TEN_NHOM = {"MOI": "Mới", "DANG_LEN": "Đang lên", "ON_DINH": "Ổn định", "LAU_NAM": "Lâu năm"}
+# nhóm thâm niên gọi theo mốc thời gian làm việc (file NSLĐ chỉ ghi tới "13+" nên nhóm cao nhất là trên 12 tháng)
+TEN_NHOM = {"MOI": "1-3 tháng", "DANG_LEN": "4-6 tháng", "ON_DINH": "7-12 tháng", "LAU_NAM": "Trên 12 tháng"}
 TEN_NSLD = {"OK": "Đạt", "NOT OK": "Chưa đạt", "KHONG XET": "Không xét", "KHÔNG XÉT": "Không xét"}
 NGAY_KHONG_SO_CAO = 7          # giữ tên cũ; quy tắc cần chú ý dùng chung ở app/canh_bao.py
 NGAY_HOAT_DONG = 60            # acc không có số, không có NSLĐ quá chừng này ngày -> không tính
