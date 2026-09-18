@@ -183,7 +183,9 @@ def test_callback_bao_cao_phong_va_nhan_su_chay_duoc(tai_khoan):
     with server.test_request_context("/"):
         login_user(_user("zz_ht_admin"))
         kq = _callback("bp-kpi.children")("2026-09-11", "IBB2", "chu_y", "ban")
-        assert "trao đổi ngay" in kq[3] and all(r["muc_chu_y"] for r in kq[5])
+        assert "trao đổi ngay" in kq[4] and all(r["muc_chu_y"] for r in kq[6]) and kq[1] == "kpi-row kpi-6"
+        kq = _callback("bp-kpi.children")("2026-09-11", "IBB7", "all", "ban")   # IBB7 có thêm thẻ MTTN
+        assert kq[1] == "kpi-row kpi-7" and "mttn" in kq[6][0]
         kq = _callback("hr-kpi.children")("2026-09-11", "all", "__kd")
         assert kq[4] is not None and all(r["muc"] in ("Trao đổi ngay", "Theo dõi") for r in kq[4])
 

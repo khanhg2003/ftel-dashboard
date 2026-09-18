@@ -13,6 +13,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from app import canh_bao as cb
+from app import mttn
 from app import phan_tich as pt
 from app.db import engine
 from app.metrics import daily_counts, prev_month
@@ -88,6 +89,10 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     out["ban_moi"] = ban_moi.reindex(out.index).fillna(0).astype(int)
     out["ban_moi_ngay"] = _dem_theo_acc("fact_internet", "ngay_tao_hd", den, den, code
                                         ).reindex(out.index).fillna(0).astype(int)
+    if mttn.ap_dung(code):                    # số online có khách ở tỉnh MTTN (chỉ phòng áp dụng)
+        out["mttn"] = (hd[mttn.la_mttn(hd.cn_quan_ly)].groupby("acc_norm").size()
+                       .reindex(out.index).fillna(0).astype(int))
+        out["ty_le_mttn"] = (out.mttn / out.online.replace(0, np.nan) * 100).round(0)
 
     # --- cùng kỳ tháng trước (theo acc, dù khi đó ở phòng nào)
     tu_t, den_t = pt.cung_ky_thang_truoc(thang, ngay)
@@ -179,8 +184,11 @@ def _dong_tong(out: pd.DataFrame, hd: pd.DataFrame, ton: pd.DataFrame) -> dict:
     c = pt.chi_so_chung(hd)
     so_cot = ["online", "online_ngay", "vvip", "camera", "ban_moi", "ban_moi_ngay", "ck_online",
               "tuan_nay", "tuan_truoc", "ton", "ton_qua_7", "chenh_ck"]
+    so_cot += ["mttn"] if "mttn" in out.columns else []
     tong = {k: int(out[k].sum()) for k in so_cot}
     ty_le = (lambda a: round(a / tong["online"] * 100, 0) if tong["online"] else None)
+    if "mttn" in out.columns:
+        tong["ty_le_mttn"] = ty_le(tong["mttn"])
     tong.update(acc_norm="TOTAL", acc="", ho_ten="TỔNG PHÒNG", loai_dong="total", hang=None, muc_chu_y="",
                 kem_vvip=ty_le(tong["vvip"]), kem_camera=ty_le(tong["camera"]), du_3=c["du_3"],
                 tra_truoc=c["tra_truoc"], onl_1_ngay=c["onl_1_ngay"],

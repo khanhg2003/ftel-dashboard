@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
+from app import mttn
 from app import bao_cao_phong as bp
 from app import canh_bao as quy_tac   # quy tắc cần chú ý dùng chung
 from app import tro_ly_du_lieu as dl
@@ -248,6 +249,10 @@ def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
                         {"condition": goc + "params.value < 0", "style": {"color": "#B42318",
                                                                           "fontWeight": "600"}}]}),
         "vvip": so("vvip", "V.VIP"),
+        "mttn": so("mttn", "MTTN", 66, headerTooltip="Online có khách ở tỉnh Miền Trung - Tây Nguyên "
+                   "(theo CN Quản lý)"),
+        "ty_le_mttn": pct("ty_le_mttn", "% MTTN", "Số online MTTN / số online", 70,
+                          cellStyle=_mau_ty_le(tong.get("ty_le_mttn"))),
         "kem_vvip": pct("kem_vvip", "VVIP/PTTB", "Số V.VIP / số online",
                         cellStyle=_mau_ty_le(tong.get("kem_vvip"))),
         "camera": so("camera", "Camera"),
@@ -279,8 +284,9 @@ def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
     nhom_thang = {"headerName": f"LUỸ KẾ THÁNG {m}", "children": []}
     nhom_ngay = {"headerName": f"NGÀY {ngay:02d}/{m:02d}", "children": [c["ban_moi_ngay"],
                                                                         c["online_ngay"]]}
+    co_mttn = ("mttn", "ty_le_mttn") if "mttn" in tong else ()
     if xem == "ban":
-        nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", "vvip", "kem_vvip",
+        nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", *co_mttn, "vvip", "kem_vvip",
                                                  "camera", "kem_camera")]
         return [hang, ten, nhom_thang, nhom_ngay, *chu_y]
     if xem == "theo_doi":
@@ -289,8 +295,8 @@ def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
                                                           c["tuan_nay"], c["tuan_truoc"]]},
                 {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
                 c["nsld"], *chu_y]
-    nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", "ban_moi", "vvip", "kem_vvip",
-                                             "camera", "kem_camera", "du3", "tra_truoc", "onl1")]
+    nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", *co_mttn, "ban_moi", "vvip",
+                                             "kem_vvip", "camera", "kem_camera", "du3", "tra_truoc", "onl1")]
     return [hang, ten, c["tham_nien"], nhom_thang, nhom_ngay,
             {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
             {"headerName": "NHỊP CÓ SỐ", "children": [c["so_ngay"], c["ngay_lien"], c["tuan_nay"],
@@ -370,6 +376,16 @@ def _kpis(thang: str, ngay: int, dong: dict, ss, tam_tinh: bool) -> list:
             "" if not h.hang else ("ok" if h.hang <= h.so_phong / 3 else
                                    ("bad" if h.hang > h.so_phong * 2 / 3 else "warn"))),
     ]
+
+
+def _kpi_mttn(m: dict):
+    """Thẻ MTTN: tỷ lệ số online có khách ở tỉnh MTTN, so với mục tiêu % của tháng."""
+    tl_ = "–" if m["ty_le"] is None else f"{m['ty_le']:.0f}%"
+    phu = f"{_so(m['mttn'])}/{_so(m['tong'])} online"
+    if m["muc_tieu"] is None:
+        return kpi(m["ten"], tl_, phu + " · chưa nhập mục tiêu %")
+    phu += f" · mục tiêu {m['muc_tieu']:.0f}%" + (f" · cần thêm {_so(m['can_them'])} số MTTN" if m["can_them"] else " · đạt")
+    return kpi(m["ten"], tl_, phu, "" if m["dat"] is None else ("ok" if m["dat"] else "bad"))
 
 
 def _fig(fig: go.Figure, height: int = 330) -> go.Figure:
@@ -482,7 +498,7 @@ def register(app):
         return tl.dong_du_bao(db[db.phong_code == code].iloc[0].to_dict(), "Phòng")
 
     @app.callback(
-        Output("bp-kpi", "children"), Output("bp-badge", "children"),
+        Output("bp-kpi", "children"), Output("bp-kpi", "className"), Output("bp-badge", "children"),
         Output("bp-canh-bao", "children"), Output("bp-mo-ta-nv", "children"),
         Output("bp-nv", "columnDefs"), Output("bp-nv", "rowData"),
         Output("bp-nv", "pinnedBottomRowData"),
@@ -493,7 +509,7 @@ def register(app):
     def _cap_nhat(ngay_iso, code, loc, xem):
         if not duoc_xem_phong(code) or not ngay_iso:
             chan = alert("Không có quyền xem phòng này." if ngay_iso else "Chưa có số liệu.", "bad")
-            return [], "", chan, "", [], [], [], [], [], "", go.Figure()
+            return [], "kpi-row kpi-6", "", chan, "", [], [], [], [], [], "", go.Figure()
         d = date.fromisoformat(ngay_iso)
         thang, ngay = f"{d.year}-{d.month:02d}", d.day
         tam_tinh, luc = trang_thai_ngay(ngay_iso)
@@ -521,7 +537,10 @@ def register(app):
         so_phong = int(ss.so_phong.max() or 0)
         mo_ta_ss = (f"Hạng trong {so_phong} phòng kinh doanh (IBB và địa bàn). Mức chung với tỷ lệ "
                     "là của toàn chi nhánh, với số lượng là bình quân một phòng.")
-        return (_kpis(thang, ngay, dong, ss, tam_tinh), badge, canh_bao, mo_ta,
+        the = _kpis(thang, ngay, dong, ss, tam_tinh)
+        if mttn.ap_dung(code):
+            the.insert(1, _kpi_mttn(mttn.tong_hop(thang, ngay, code)))
+        return (the, f"kpi-row kpi-{len(the)}", badge, canh_bao, mo_ta,
                 lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), hien.to_dict("records"), [tong],
                 COT_SO_SANH, _dong_so_sanh(ss), mo_ta_ss,
                 _bieu_do(bp.dien_bien_ngay(thang, ngay, code), dong.get("mt_ngay")))

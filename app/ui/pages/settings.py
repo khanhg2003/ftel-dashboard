@@ -33,7 +33,7 @@ CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned
 
 SO_DONG_NHAT_KY = 200
 CHI_TIEU = [("internet", "Chỉ tiêu Internet"), ("camera", "Chỉ tiêu Camera"),
-            ("ngay", "Chỉ tiêu mỗi ngày")]
+            ("ngay", "Chỉ tiêu mỗi ngày"), ("mttn", "Tỷ lệ MTTN (%)")]
 TRANG_THAI = [{"label": "Đang dùng", "value": "Có"}, {"label": "Ngừng dùng", "value": "Không"}]
 NHOM_KHAC = [{"label": "Không gộp", "value": ""}, {"label": "DNG Khác", "value": "DNG"},
              {"label": "QNM Khác", "value": "QNM"}]
@@ -118,8 +118,8 @@ def _hop_thoai_cocau():
 def _hop_thoai_chitieu():
     return modal("st-modal-target", html.Span("Chỉ tiêu", id="st-target-tieu-de"), [
         dcc.Store(id="st-target-dang-sua"),
-        html.Div([_o(ten, _so_nhap(f"st-t-{ma}", step="any", placeholder="Chưa có"))
-                  for ma, ten in CHI_TIEU], className="form-grid"),
+        html.Div([_o(ten, _so_nhap(f"st-t-{ma}", step="any", placeholder="Chưa có"), id_=f"st-t-{ma}-o",
+                     an=ma == "mttn") for ma, ten in CHI_TIEU], className="form-grid"),
         html.Div("Để trống ô nào là xoá chỉ tiêu đó của phòng trong kỳ này.", className="desc",
                  style={"marginTop": "12px"}),
         html.Div(id="st-modal-target-msg"),
@@ -292,7 +292,13 @@ def _target_rows(thang: str):
     cols = [{"field": "phong", "headerName": "Phòng", "pinned": "left", "minWidth": 180, "flex": 1.4},
             {"field": "bay", "headerName": "Bầy", "minWidth": 110, "flex": .9}]
     cols += [{"field": k, "headerName": t, "type": "numericColumn", "minWidth": 150, "flex": 1,
-              "valueFormatter": SO} for k, t in CHI_TIEU]
+              "valueFormatter": SO} for k, t in CHI_TIEU if k != "mttn"]
+    from app import mttn
+    if mttn.cau_hinh()["phong"]:
+        cols.append({"field": "mttn", "headerName": "Tỷ lệ MTTN %", "type": "numericColumn", "minWidth": 130,
+                     "flex": .8, "headerTooltip": "Chỉ áp dụng " + ", ".join(mttn.cau_hinh()["phong"]) +
+                     ": % số online có khách ở tỉnh Miền Trung - Tây Nguyên",
+                     "valueFormatter": {"function": "params.value == null ? '' : params.value + '%'"}})
     cols.append(COT_SUA)
     return cols, rows
 
@@ -610,21 +616,22 @@ def register(app):
     # ------------------------------------------------ chỉ tiêu
     @cb(Output("st-modal-target", "className"), Output("st-target-tieu-de", "children"),
         Output("st-target-dang-sua", "data"),
-        *[Output(f"st-t-{ma}", "value") for ma, _ in CHI_TIEU],
+        *[Output(f"st-t-{ma}", "value") for ma, _ in CHI_TIEU], Output("st-t-mttn-o", "style"),
         Output("st-modal-target-msg", "children", allow_duplicate=True),
         Input("st-target-grid", "cellClicked"), Input("st-target-grid", "cellDoubleClicked"),
         Input("st-modal-target-dong", "n_clicks"), Input("st-modal-target-huy", "n_clicks"),
         Input("st-target-msg", "children"), State("st-thang", "value"), prevent_initial_call=True)
     def _mo_dong_target(bam, bam_dup, _d, _h, _m, thang):
-        giu = (no_update,) * (3 + len(CHI_TIEU))
+        giu = (no_update,) * (4 + len(CHI_TIEU))
         if ctx.triggered_id == "st-target-grid":
             code = dong_can_sua(bam, bam_dup)
             _, rows = _target_rows(thang)
             r = next((x for x in rows if x["phong_code"] == code), None)
             if not r:
                 return (no_update,) + giu
+            from app import mttn
             return ("modal mo", f"Chỉ tiêu tháng {_ten_ky(thang)} · {r['phong']}", code,
-                    *[r.get(ma) for ma, _ in CHI_TIEU], "")
+                    *[r.get(ma) for ma, _ in CHI_TIEU], {} if mttn.ap_dung(code) else AN, "")
         return ("modal",) + giu
 
     @cb(Output("st-target-msg", "children"), Output("st-modal-target-msg", "children"),
@@ -646,6 +653,8 @@ def register(app):
             for (ma, ten), v in zip(CHI_TIEU, gia_tri):
                 if v not in (None, "") and (not isinstance(v, (int, float)) or v < 0):
                     return no_update, alert(f"{ten} phải là số từ 0.", "bad")
+                if ma == "mttn" and v not in (None, "") and v > 100:
+                    return no_update, alert("Tỷ lệ MTTN là phần trăm, từ 0 đến 100 (VD 70).", "bad")
                 d[ma] = v
             _luu_target_rows(thang, [d], f"Cập nhật bởi {current_user.username}", xoa_o_trong=True)
             ten_p = next(p["ten"] for p in phong_order(thang) if p["code"] == code)

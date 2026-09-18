@@ -62,7 +62,9 @@ def layout():
                     "Sáu chỉ số và hạng của phòng, bảng nhân sự xếp hạng trong phòng, mức cần chú ý "
                     "của từng người (Trao đổi ngay / Theo dõi - xem mục Thuật ngữ). Bấm một người để xem chi "
                     "tiết. Nút ", html.B("Chụp ảnh"), " tạo ảnh gửi nhóm Zalo của phòng. Trưởng phòng "
-                    "chỉ xem được phòng mình phụ trách."]),
+                    "chỉ xem được phòng mình phụ trách. Riêng IBB7 có thêm thẻ và cột ", html.B("MTTN"),
+                    ": số online có khách ở tỉnh Miền Trung - Tây Nguyên (theo CN Quản lý), so với mục tiêu "
+                    "tỷ lệ % nhập ở Quản trị → Chỉ tiêu."]),
                 _muc("Phân tích bán hàng", "Bán có tốt không, đang tắc ở đâu", [
                     "Tỷ lệ bán kèm V.VIP / Camera, trả trước, online trong 1 ngày theo từng phòng và "
                     "nhân viên - màu so với mức chung chi nhánh. Mục ", html.B("Số tồn theo thời "

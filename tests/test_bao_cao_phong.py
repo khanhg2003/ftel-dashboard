@@ -92,3 +92,17 @@ def test_anh_va_excel_bao_cao_phong():
     xls, ten_x = xuat_bao_cao_phong(THANG, NGAY, "IBB2")
     ws = load_workbook(io.BytesIO(xls)).active
     assert ten_x.endswith(".xlsx") and "BÁO CÁO PHÒNG IBB2" in ws["A1"].value
+
+
+def test_mttn_chi_ap_dung_ibb7_va_cong_khop(ibb2):
+    import pandas as pd
+
+    from app import mttn
+    assert mttn.ap_dung("IBB7") and not mttn.ap_dung("IBB2")
+    assert "mttn" not in ibb2.columns
+    assert list(mttn.la_mttn(pd.Series(["dng_02", " GLI", "HCM_01", None]))) == [True, True, False, False]
+    nv = bp.bang_nhan_su(THANG, NGAY, "IBB7")
+    du_lieu, tong = nv[nv.loai_dong == "data"], nv[nv.loai_dong == "total"].iloc[0]
+    m = mttn.tong_hop(THANG, NGAY, "IBB7")
+    assert int(du_lieu.mttn.sum()) == tong.mttn == m["mttn"] and m["tong"] == tong.online
+    assert all(0 <= v <= 100 for v in du_lieu.ty_le_mttn.dropna())

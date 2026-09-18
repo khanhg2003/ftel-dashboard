@@ -706,6 +706,9 @@ table.simple tr:last-child td { border-bottom: none; }
 .kpi-row.kpi-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (min-width: 1280px) { .kpi-row.kpi-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 @media (max-width: 767px) { .kpi-row.kpi-6 { grid-template-columns: 1fr 1fr; } }
+.kpi-row.kpi-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (min-width: 1440px) { .kpi-row.kpi-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .kpi-row.kpi-7 { grid-template-columns: 1fr 1fr; } }
 
 /* ---------- Báo cáo phòng + Phân tích bán hàng (đợt hoàn thiện) ---------- */
 /* laptop từ 1200px: biểu đồ / bảng phụ xếp đôi cho trang đỡ dài */

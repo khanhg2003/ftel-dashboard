@@ -46,3 +46,12 @@ nsld:
 # làm như Google Sheet (chốt 14/09/2026). ANCS vẫn hiện dòng riêng; số thực hiện vẫn tính đủ.
 tong_chi_nhanh:
   khong_cong: [ANCS]
+
+# MTTN (Miền Trung - Tây Nguyên): hợp đồng của các phòng dưới đây có CN Quản lý (tỉnh của khách) thuộc danh
+# sách mã tỉnh thì tính là số MTTN. Mục tiêu = tỷ lệ % số online MTTN / số online phòng, nhập ở Quản trị →
+# Chỉ tiêu (cột "Tỷ lệ MTTN %"). Chốt 18/09/2026: chỉ áp dụng IBB7.
+mttn:
+  ten: MTTN
+  ten_day_du: Miền Trung - Tây Nguyên
+  phong: [IBB7]
+  cn_quan_ly: [BDH, DLK, DNG_01, DNG_02, GLI, HUE, KHA_01, KHA_02, KTM, PYN, QBH, QNM, QTI]
