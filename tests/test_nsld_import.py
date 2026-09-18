@@ -348,7 +348,13 @@ def test_chat_luong_du_lieu_cac_muc_kiem_tra():
     th = nv_thieu_ho_so("2026-09")
     assert set(th.chi_nhanh) <= {"DNG", "QNM"}
     trung = acc_trung_danh_muc()
-    assert "tin.minhlh1" not in set(trung.acc.str.lower())        # DB kiểm thử đã khai đúng CUS DNG2
+    # acc chốt trong staff_overrides.yml (TIN.MinhLH1 -> IBB3) chỉ bị báo khi danh mục khai khác phòng đã chốt
+    from sqlalchemy import text
+
+    from app.db import engine
+    with engine.connect() as c:
+        khai = {r[0] for r in c.execute(text("SELECT phong_code FROM staff_map WHERE acc_norm = 'tin.minhlh1'"))}
+    assert ("tin.minhlh1" in set(trung.acc.str.lower())) == bool(khai and "IBB3" not in khai)
     assert "phong" in hd_bat_thuong("2026-09").columns
 
 

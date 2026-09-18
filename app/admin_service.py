@@ -560,7 +560,7 @@ def hd_bat_thuong(thang: str) -> pd.DataFrame:
 def acc_trung_danh_muc() -> pd.DataFrame:
     """Danh mục có vấn đề làm số về sai phòng:
     - một acc có nhiều dòng mà không phân biệt được ngày hiệu lực;
-    - acc đang khai khác phòng đã chốt trong config/staff_overrides.yml (VD TIN.MinhLH1 -> CUS DNG2).
+    - acc đang khai khác phòng đã chốt trong config/staff_overrides.yml (VD TIN.MinhLH1 -> IBB3).
     """
     from app.config import load_yaml
     df = _sql_df("""SELECT s.acc, s.acc_norm, s.phong_code, p.ten AS phong, s.hieu_luc_tu, s.hieu_luc_den
