@@ -300,7 +300,7 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
 
 # ------------------------------------------------------------------ lời dặn chung
 # Đổi khi sửa lời dặn: câu trả lời chat đã lưu theo lời dặn cũ tự hết hiệu lực
-PHIEN_LOI_DAN = "5"
+PHIEN_LOI_DAN = "6"
 
 
 # Ngưỡng BGĐ chốt 17/09/2026
@@ -338,7 +338,13 @@ DINH_DANG_NHAN_XET = (
     "  **Việc cần làm:** 2-3 gạch đầu dòng hành động cụ thể: ai (phòng / nhóm) - làm gì - con số cần đạt "
     "(VD 'IBB2, IBB6: đẩy 60 hợp đồng chờ ≥7 ngày lên online trong tuần này').\n"
     "- Không nêu chỉ số không phục vụ kết luận (V.VIP, Camera, FPT Play chỉ nói khi thật sự bất thường). Không "
-    "viết câu rào đón, không giải thích cách tính.\n")
+    "viết câu rào đón, không giải thích cách tính.\n"
+    "- ĐỘ SÂU: dựa phần 'TÍN HIỆU CHÍNH'. Mỗi insight phải NỐI ít nhất 2 chỉ số để chỉ ra nguyên nhân (VD 'thiếu mục "
+    "tiêu chủ yếu do IBB2 và IBB6 - hai phòng đông người nhưng năng suất thấp nhất', 'không phải do thiếu người mà do "
+    "tồn chờ lâu chưa chuyển online'), không chỉ nhắc lại một con số.\n"
+    "- Việc cần làm xếp theo TÁC ĐỘNG lớn nhất tới phần thiếu mục tiêu, mỗi việc ghi tác động ước tính (VD 'lấp khoảng "
+    "120/462 phần thiếu'). Chỉ giao việc cho phòng / bầy có trong dữ liệu; KHÔNG bịa bộ phận, KPI hay chính sách không "
+    "có trong số liệu; không diễn giải 'Cần mỗi ngày' thành chỉ tiêu tuần.\n")
 
 
 def loi_dan(ten: str, chat: bool = False) -> str:

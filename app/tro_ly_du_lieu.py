@@ -101,6 +101,12 @@ def dong_thoi_gian(d: date) -> str:
             f"{thoi_gian_da_qua(d)}% thời gian.")
 
 
+def ngay_chot_7(d: date) -> date:
+    """Ngày cuối của cửa sổ '7 ngày gần nhất': bỏ ngày d nếu d còn đang nạp số (tạm tính)."""
+    from app.overview import trang_thai_ngay
+    return d - pd.Timedelta(days=1) if trang_thai_ngay(d.isoformat())[0] else d
+
+
 def _them_insight(df: pd.DataFrame, d: date, tu: str) -> pd.DataFrame:
     """Thêm cột tính sẵn: chênh tiến độ, chênh cùng kỳ bằng số, % đóng góp, mẫu nhỏ, 7 ngày gần / trước."""
     df = df.copy()
@@ -114,8 +120,9 @@ def _them_insight(df: pd.DataFrame, d: date, tu: str) -> pd.DataFrame:
         return [int(s.reindex(ma_cua_dong.get(l, lambda c: [])(c)).fillna(0).sum())
                 for l, c in zip(df.loai_dong, df.phong_code)]
     tuan = pd.Timedelta(days=7)
-    df["tuan_nay"] = theo_khoang(d - pd.Timedelta(days=6), d)
-    df["tuan_truoc"] = theo_khoang(d - tuan - pd.Timedelta(days=6), d - tuan)
+    c = ngay_chot_7(d)                     # ngày cuối đang tạm tính thì so 7 ngày ĐÃ CHỐT, tránh báo "chậm lại" sai
+    df["tuan_nay"] = theo_khoang(c - pd.Timedelta(days=6), c)
+    df["tuan_truoc"] = theo_khoang(c - tuan - pd.Timedelta(days=6), c - tuan)
     ton = pt.hop_dong_ton()
     ton7 = ton[ton.so_ngay_cho >= 7].groupby("phong_code").size() if len(ton) else pd.Series(dtype=int)
     df["ton_qua_7"] = [int(ton7.reindex(ma_cua_dong.get(l, lambda c: [])(c)).fillna(0).sum())
@@ -142,15 +149,74 @@ def _bang_tong(d: date, thang: str, cn: str, tu: str, scope, chi: set[str] | Non
         df = df[df.phong_code.isin(chi) | (df.loai_dong == "total")]
     return (f"Kỳ: {tu} đến {d.isoformat()} · phạm vi {TEN_PHAM_VI.get(cn, cn)}. Cột 'Online ngày cuối' "
             f"và 'MT ngày' là của riêng ngày {d:%d/%m}. {dong_thoi_gian(d)} '7 ngày gần nhất' = "
-            f"{(d - pd.Timedelta(days=6)):%d/%m}-{d:%d/%m}.\n"
+            f"{(ngay_chot_7(d) - pd.Timedelta(days=6)):%d/%m}-{ngay_chot_7(d):%d/%m} (chỉ ngày đã chốt số).\n"
             f"BẢNG KẾT QUẢ THEO PHÒNG (dòng TỔNG ... là tổng bầy / chi nhánh):\n{csv(df, COT_TONG)}")
+
+
+def _so(v) -> str:
+    return f"{int(round(v)):,}".replace(",", ".")
+
+
+def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
+    """Các tín hiệu then chốt app TÍNH SẴN để AI suy luận sâu mà không phải tự làm phép tính:
+    ai gây ra phần thiếu mục tiêu, đòn bẩy nào lấp được bao nhiêu, năng suất, xu hướng 7 ngày đã chốt."""
+    from app.overview import phong_khong_cong_tong
+    df, _ = bang_tong_quan(thang, d.day, chi_phong=scope, chi_nhanh=cn, tu=tu)
+    df = _them_insight(df, d, tu)
+    db = du_bao_thang(thang, d.day, scope).set_index("phong_code")
+    meta = {p["code"]: p for p in phong_order(thang)}
+    bo = phong_khong_cong_tong()
+    ph = df[(df.loai_dong == "data") & ~df.phong_code.isin(bo)].set_index("phong_code")
+    ph = ph[ph.index.isin(db.index)]
+    tong = db.loc["TOTAL"]
+    dong = []
+    if tong.mt:
+        thieu = max(int(tong.mt) - int(tong.du_bao), 0)
+        dong.append(f"- Dự báo toàn phạm vi {_so(tong.du_bao)}/{_so(tong.mt)} = {int(tong.pct_mt)}% mục tiêu, THIẾU "
+                    f"{_so(thieu)} online. Cần {_so(tong.can_moi_ngay or 0)}/ngày trong khi đang {tong.tb_ngay}/ngày "
+                    + (f"(phải nhanh hơn {round((tong.can_moi_ngay / tong.tb_ngay - 1) * 100)}%)."
+                       if tong.can_moi_ngay and tong.tb_ngay else "."))
+        gap = pd.Series({c: max(int(db.at[c, "mt"] or 0) - int(db.at[c, "du_bao"] or 0), 0) for c in ph.index})
+        gap = gap[gap > 0].sort_values(ascending=False)
+        if thieu and len(gap):
+            top = gap.head(3)
+            dong.append("- Phần thiếu tập trung ở: " + ", ".join(
+                f"{meta[c]['ten']} thiếu {_so(v)} ({round(v / gap.sum() * 100)}% tổng phần thiếu các phòng)"
+                for c, v in top.items()) + f"; {len(gap)} phòng dự báo không đạt.")
+        ton7 = int(ph.ton_qua_7.sum())
+        if ton7:
+            dong.append(f"- Đòn bẩy số tồn: {_so(ton7)} hợp đồng chờ ≥7 ngày. Nếu chuyển được một nửa thành online thì "
+                        f"dự báo lên khoảng {round((tong.du_bao + ton7 / 2) / tong.mt * 100)}% mục tiêu. Tồn ≥7 ngày "
+                        "nhiều nhất ở: " + ", ".join(f"{meta[c]['ten']} {v}" for c, v in
+                                                      ph.ton_qua_7.sort_values(ascending=False).head(3).items()) + ".")
+    kd = ph[[meta[c].get("loai") in ("IBB", "DIABAN") for c in ph.index]]
+    kd = kd[pd.to_numeric(kd.nhan_su, errors="coerce").fillna(0) >= 5]
+    if len(kd):
+        ns = (kd.online / kd.nhan_su.astype(float)).round(1)
+        tb = round(float(kd.online.sum() / kd.nhan_su.astype(float).sum()), 1)
+        dong.append(f"- Năng suất (online / nhân sự, phòng kinh doanh từ 5 người): bình quân {tb}. Thấp nhất: "
+                    + ", ".join(f"{meta[c]['ten']} {v} ({int(kd.at[c, 'nhan_su'])} người)"
+                                for c, v in ns.sort_values().head(2).items())
+                    + "; cao nhất: " + ", ".join(f"{meta[c]['ten']} {v}" for c, v in
+                                                  ns.sort_values(ascending=False).head(2).items()) + ".")
+    t = df[df.loai_dong == "total"].iloc[0]
+    if t.tuan_truoc:
+        chenh = (ph.tuan_nay - ph.tuan_truoc).sort_values()
+        dong.append(f"- 7 ngày đã chốt gần nhất: {_so(t.tuan_nay)} online so với {_so(t.tuan_truoc)} 7 ngày trước đó "
+                    f"({round((t.tuan_nay / t.tuan_truoc - 1) * 100):+d}%). Giảm nhiều nhất: "
+                    + ", ".join(f"{meta[c]['ten']} {v:+d}" for c, v in chenh.head(2).items() if v < 0)
+                    + "; tăng nhiều nhất: " + ", ".join(f"{meta[c]['ten']} {v:+d}" for c, v in
+                                                        chenh.sort_values(ascending=False).head(2).items() if v > 0)
+                    + ".")
+    return "TÍN HIỆU CHÍNH (app đã tính sẵn - ưu tiên dùng):\n" + "\n".join(dong)
 
 
 def _du_lieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
     db = du_bao_thang(thang, d.day, scope)
-    return (f"{_bang_tong(d, thang, cn, tu, scope)}\n\n"
-               f"DỰ BÁO CUỐI THÁNG {d.month} (luỹ kế từ 01, hệ số cuối tháng {db.attrs['he_so']}):\n"
-               f"{csv(db, COT_DU_BAO)}")
+    return (f"{tin_hieu_tong(d, thang, cn, tu, scope)}\n\n"
+            f"{_bang_tong(d, thang, cn, tu, scope)}\n\n"
+            f"DỰ BÁO CUỐI THÁNG {d.month} (luỹ kế từ 01, hệ số cuối tháng {db.attrs['he_so']}):\n"
+            f"{csv(db, COT_DU_BAO)}")
 
 
 YEU_CAU_TONG = ("Nhận xét Báo cáo Tổng cho Ban giám đốc: toàn chi nhánh có kịp mục tiêu tháng không, phòng / "

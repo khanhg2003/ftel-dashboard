@@ -306,3 +306,24 @@ def test_het_do_dai_ca_hai_lan_thi_bao_ro(monkeypatch):
     monkeypatch.setattr(ai, "_ghi_su_dung", lambda *a, **k: 0)
     with pytest.raises(ai.LoiAI, match="giới hạn độ dài"):
         ai.hoi([], "gpt-5", "sk-x", "kiemthu.ai", "nhan_xet")
+
+
+def test_tin_hieu_chinh_tinh_san_cho_nhan_xet(monkeypatch):
+    from datetime import date
+
+    import app.overview as ov
+    monkeypatch.setattr(ov, "trang_thai_ngay", lambda d: (False, None))
+    t = dl.tin_hieu_tong(date(2026, 9, 11), "2026-09", "all", "2026-09-01", None)
+    assert "THIẾU 319 online" in t and "Phần thiếu tập trung ở: Tam Kỳ" in t
+    assert "Đòn bẩy số tồn" in t and "Năng suất" in t and "7 ngày đã chốt" in t
+    assert "TÍN HIỆU CHÍNH" in dl.ngu_canh_tong(_nguoi(), None, "2026-09-11", "all")[1]()
+
+
+def test_ngay_dang_tam_tinh_khong_tinh_vao_7_ngay_gan(monkeypatch):
+    from datetime import date
+
+    import app.overview as ov
+    monkeypatch.setattr(ov, "trang_thai_ngay", lambda d: (True, None))
+    assert dl.ngay_chot_7(date(2026, 9, 18)) == date(2026, 9, 17)
+    monkeypatch.setattr(ov, "trang_thai_ngay", lambda d: (False, None))
+    assert dl.ngay_chot_7(date(2026, 9, 18)) == date(2026, 9, 18)
