@@ -16,7 +16,8 @@ from app import bao_cao_phong as bp
 from app import nsld
 from app import phan_tich as pt
 from app.du_bao import du_bao_thang
-from app.metrics import METRICS, cac_ngay_co_du_lieu, daily_counts, month_range, tong_theo_phong
+from app.metrics import (METRICS, cac_ngay_co_du_lieu, daily_counts, month_range, prev_month, tong_theo_acc,
+                         tong_theo_phong)
 from app.org import loc_chi_nhanh, phong_order
 from app.overview import TEN_PHAM_VI, bang_tong_quan
 from app.tro_ly import MAU_NHO_CUNG_KY, LoiAI
@@ -208,6 +209,100 @@ def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
                     + "; tăng nhiều nhất: " + ", ".join(f"{meta[c]['ten']} {v:+d}" for c, v in
                                                         chenh.sort_values(ascending=False).head(2).items() if v > 0)
                     + ".")
+    ss = so_voi_thang_truoc(thang, d.day, scope)
+    if ss:
+        dong.insert(1, ss)
+    return "TÍN HIỆU CHÍNH (app đã tính sẵn - ưu tiên dùng):\n" + "\n".join(dong)
+
+
+def so_voi_thang_truoc(thang: str, ngay: int, codes: list[str] | None) -> str:
+    """Cùng thời điểm tháng trước: tới ngày này tháng trước đã làm được bao nhiêu % số của CẢ tháng đó (nhịp
+    cuối tháng thường bứt lên), và nếu có mục tiêu tháng trước thì kèm % mục tiêu lúc đó / lúc cuối tháng."""
+    from app.overview import _targets, phong_khong_cong_tong
+    chot = ngay_chot_7(date.fromisoformat(f"{thang}-{ngay:02d}"))     # ngày đang tạm tính thì so tới hôm trước
+    if chot.month == int(thang[5:7]):
+        ngay = chot.day
+    pm = prev_month(thang)
+    k = min(ngay, month_range(pm)[2])
+    d_nay, d_truoc = daily_counts(thang, "online"), daily_counts(pm, "online")
+    giu = lambda d: [c for c in d.index if codes is None or c in codes]      # noqa: E731
+    nay = int(d_nay.loc[giu(d_nay), :ngay].to_numpy().sum())
+    truoc_ngay = int(d_truoc.loc[giu(d_truoc), :k].to_numpy().sum())
+    truoc_ca = int(d_truoc.loc[giu(d_truoc)].to_numpy().sum())
+    if not truoc_ca:
+        return ""
+    ty_trong = truoc_ngay / truoc_ca
+    dong = (f"- So cùng thời điểm tháng trước: tới ngày {k:02d}/{pm[5:7]} tháng trước có {_so(truoc_ngay)} online = "
+            f"{round(ty_trong * 100)}% số của cả tháng {pm[5:7]} ({_so(truoc_ca)}); nếu tháng này giữ đúng nhịp đó thì "
+            f"cuối tháng khoảng {_so(nay / ty_trong)} online (luỹ kế hiện {_so(nay)}). Luỹ kế hiện tại so cùng kỳ "
+            f"{round((nay / truoc_ngay - 1) * 100) if truoc_ngay else 0:+d}%.")
+    tg = _targets(pm)
+    if "internet" in tg.columns:
+        bo = phong_khong_cong_tong()
+        mt = float(tg["internet"].reindex([c for c in giu(d_truoc) if codes is not None or c not in bo]).fillna(0).sum())
+        if mt:
+            dong += (f" Tháng trước ở ngày {k:02d} đạt {round(truoc_ngay / mt * 100)}% mục tiêu, cuối tháng về "
+                     f"{round(truoc_ca / mt * 100)}%.")
+    return dong
+
+
+def tin_hieu_phong(d: date, code: str) -> str:
+    """Tín hiệu then chốt ở mức NHÂN SỰ cho Báo cáo phòng: ai gây phần thiếu, năng suất từng người, ai chững lại
+    7 ngày đã chốt, tồn chờ lâu nằm ở ai, phụ thuộc vào vài người."""
+    thang = f"{d.year}-{d.month:02d}"
+    ten = bp.ten_phong(code)
+    db = du_bao_thang(thang, d.day, [code]).set_index("phong_code").loc[code]
+    nv = bp.bang_nhan_su(thang, d.day, code)
+    nv = nv[nv.loai_dong == "data"].copy()
+    for c in ("online", "ck_online", "ton_qua_7", "ngay_lien_chua_co_so"):
+        nv[c] = pd.to_numeric(nv[c], errors="coerce").fillna(0).astype(int)
+    dong = []
+    if db.mt:
+        thieu = max(int(db.mt) - int(db.du_bao), 0)
+        dong.append(f"- {ten}: dự báo {_so(db.du_bao)}/{_so(db.mt)} = {int(db.pct_mt)}% mục tiêu"
+                    + (f", THIẾU {_so(thieu)} online. Cần {_so(db.can_moi_ngay or 0)}/ngày, đang {db.tb_ngay}/ngày."
+                       if thieu else ", dự báo đạt."))
+    ss = so_voi_thang_truoc(thang, d.day, [code])
+    if ss:
+        dong.append(ss)
+    if len(nv):
+        tb = round(float(nv.online.mean()), 1)
+        dong.append(f"- {len(nv)} nhân sự, bình quân {tb} online/người. Cao nhất: " + ", ".join(
+            f"{r.ho_ten} {r.online}" for r in nv.nlargest(3, "online").itertuples()) + ". Thấp nhất: " + ", ".join(
+            f"{r.ho_ten} {r.online}" for r in nv.nsmallest(3, "online").itertuples()) + ".")
+        top3 = int(nv.nlargest(3, "online").online.sum())
+        if nv.online.sum():
+            dong.append(f"- Mức phụ thuộc: 3 người đứng đầu làm {round(top3 / nv.online.sum() * 100)}% số online "
+                        "của phòng.")
+        chenh = (nv.online - nv.ck_online)
+        giam = nv.assign(ch=chenh).nsmallest(3, "ch")
+        giam = giam[giam.ch < 0]
+        if len(giam):
+            dong.append("- Kéo giảm so cùng kỳ nhiều nhất: " + ", ".join(f"{r.ho_ten} {r.ch:+d}"
+                                                                          for r in giam.itertuples()) + ".")
+        khong_so = nv[nv.ngay_lien_chua_co_so >= 7]
+        if len(khong_so):
+            dong.append(f"- {len(khong_so)} người từ 7 ngày liền chưa có số: "
+                        + ", ".join(f"{r.ho_ten} ({r.ngay_lien_chua_co_so} ngày)" for r in khong_so.head(5).itertuples())
+                        + ".")
+        ton = nv[nv.ton_qua_7 > 0].nlargest(3, "ton_qua_7")
+        if len(ton):
+            dong.append(f"- Đòn bẩy tồn: {int(nv.ton_qua_7.sum())} hợp đồng chờ ≥7 ngày, nhiều nhất ở "
+                        + ", ".join(f"{r.ho_ten} {r.ton_qua_7}" for r in ton.itertuples()) + ".")
+        # 7 ngày ĐÃ CHỐT theo acc (bảng nhân sự tính cả ngày đang cập nhật)
+        c = ngay_chot_7(d)
+        tuan = pd.Timedelta(days=7)
+        nay = tong_theo_acc((c - pd.Timedelta(days=6)).isoformat(), c.isoformat()).groupby("acc_norm").n.sum()
+        truoc = tong_theo_acc((c - tuan - pd.Timedelta(days=6)).isoformat(), (c - tuan).isoformat()
+                              ).groupby("acc_norm").n.sum()
+        nv["tuan_chot"] = nay.reindex(nv.acc_norm).fillna(0).astype(int).to_numpy()
+        nv["tuan_chot_truoc"] = truoc.reindex(nv.acc_norm).fillna(0).astype(int).to_numpy()
+        nv["ch7"] = nv.tuan_chot - nv.tuan_chot_truoc
+        cham = nv[nv.ch7 <= -3].nsmallest(3, "ch7")
+        dong.append(f"- 7 ngày đã chốt ({(c - pd.Timedelta(days=6)):%d/%m}-{c:%d/%m}): phòng {int(nv.tuan_chot.sum())} "
+                    f"online so với {int(nv.tuan_chot_truoc.sum())} 7 ngày trước đó"
+                    + ("; chững lại rõ nhất: " + ", ".join(f"{r.ho_ten} {r.tuan_chot_truoc}→{r.tuan_chot}"
+                                                             for r in cham.itertuples()) if len(cham) else "") + ".")
     return "TÍN HIỆU CHÍNH (app đã tính sẵn - ưu tiên dùng):\n" + "\n".join(dong)
 
 
@@ -238,7 +333,8 @@ def _du_lieu_phong(d: date, code: str) -> str:
     nv = bp.bang_nhan_su(thang, d.day, code)
     db = du_bao_thang(thang, d.day, [code])
     ss = ss.assign(vi_tri=[f"{h}/{n}" if h else "" for h, n in zip(ss.hang, ss.so_phong)])
-    return (f"Phòng {bp.ten_phong(code)} · luỹ kế 01 đến {d:%d/%m/%Y}. {dong_thoi_gian(d)}\n"
+    return (f"{tin_hieu_phong(d, code)}\n\n"
+            f"Phòng {bp.ten_phong(code)} · luỹ kế 01 đến {d:%d/%m/%Y}. {dong_thoi_gian(d)}\n"
                "VỊ TRÍ SO VỚI CÁC PHÒNG KINH DOANH (mức chung: tỷ lệ là toàn chi nhánh, số lượng là "
                f"bình quân một phòng):\n"
                f"{csv(ss, {'chi_so': 'Chỉ số', 'gia_tri': 'Phòng', 'muc_chung': 'Mức chung', 'vi_tri': 'Hạng'})}\n\n"
@@ -246,9 +342,10 @@ def _du_lieu_phong(d: date, code: str) -> str:
                f"NHÂN SỰ (dòng cuối là tổng phòng):\n{csv(nv, COT_NV)}")
 
 
-YEU_CAU_PHONG = ("Nhận xét cho trưởng phòng: phòng có kịp mục tiêu tháng không và vì sao (nhân sự nào kéo lên / "
-                 "kéo xuống, nhịp 7 ngày gần), và trưởng phòng nên làm gì với tối đa 3 nhân sự cần trao đổi "
-                 "(dựa cột Cần chú ý, số tồn chờ lâu).")
+YEU_CAU_PHONG = ("Nhận xét cho trưởng phòng: phòng có kịp mục tiêu tháng không (so cả với cùng thời điểm tháng "
+                 "trước), nguyên nhân nằm ở nhân sự nào (năng suất, chững lại 7 ngày, người lâu không có số, phụ "
+                 "thuộc vào vài người), và trưởng phòng nên làm gì với tối đa 3 nhân sự - mỗi việc ghi tác động ước "
+                 "tính tới phần thiếu.")
 
 
 def ngu_canh_phan_tich(user, den: str | None, chi_nhanh: str | None) -> tuple[str, Callable[[], str]]:

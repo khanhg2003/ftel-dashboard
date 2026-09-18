@@ -327,3 +327,15 @@ def test_ngay_dang_tam_tinh_khong_tinh_vao_7_ngay_gan(monkeypatch):
     assert dl.ngay_chot_7(date(2026, 9, 18)) == date(2026, 9, 17)
     monkeypatch.setattr(ov, "trang_thai_ngay", lambda d: (False, None))
     assert dl.ngay_chot_7(date(2026, 9, 18)) == date(2026, 9, 18)
+
+
+def test_tin_hieu_phong_va_so_thang_truoc(monkeypatch):
+    from datetime import date
+
+    import app.overview as ov
+    monkeypatch.setattr(ov, "trang_thai_ngay", lambda d: (False, None))
+    t = dl.tin_hieu_phong(date(2026, 9, 11), "IBB5")
+    assert "IBB5: dự báo" in t and "nhân sự, bình quân" in t and "Mức phụ thuộc" in t and "7 ngày đã chốt" in t
+    ss = dl.so_voi_thang_truoc("2026-09", 11, None)
+    assert "tới ngày 11/08" in ss and "% số của cả tháng 08" in ss
+    assert "TÍN HIỆU CHÍNH" in dl.ngu_canh_phong(_nguoi(), "2026-09-11", "IBB5")[1]()

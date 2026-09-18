@@ -300,7 +300,7 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
 
 # ------------------------------------------------------------------ lời dặn chung
 # Đổi khi sửa lời dặn: câu trả lời chat đã lưu theo lời dặn cũ tự hết hiệu lực
-PHIEN_LOI_DAN = "6"
+PHIEN_LOI_DAN = "7"
 
 
 # Ngưỡng BGĐ chốt 17/09/2026
@@ -342,6 +342,8 @@ DINH_DANG_NHAN_XET = (
     "- ĐỘ SÂU: dựa phần 'TÍN HIỆU CHÍNH'. Mỗi insight phải NỐI ít nhất 2 chỉ số để chỉ ra nguyên nhân (VD 'thiếu mục "
     "tiêu chủ yếu do IBB2 và IBB6 - hai phòng đông người nhưng năng suất thấp nhất', 'không phải do thiếu người mà do "
     "tồn chờ lâu chưa chuyển online'), không chỉ nhắc lại một con số.\n"
+    "- Dùng mốc 'cùng thời điểm tháng trước' để đánh giá mức thiếu hiện tại là bình thường (tháng trước cũng mới "
+    "đạt tỷ trọng tương tự rồi bứt lên cuối tháng) hay đáng lo (chậm hơn nhịp tháng trước).\n"
     "- Việc cần làm xếp theo TÁC ĐỘNG lớn nhất tới phần thiếu mục tiêu, mỗi việc ghi tác động ước tính (VD 'lấp khoảng "
     "120/462 phần thiếu'). Chỉ giao việc cho phòng / bầy có trong dữ liệu; KHÔNG bịa bộ phận, KPI hay chính sách không "
     "có trong số liệu; không diễn giải 'Cần mỗi ngày' thành chỉ tiêu tuần.\n")
