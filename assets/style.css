@@ -893,3 +893,5 @@ table.simple tr:last-child td { border-bottom: none; }
 .ai-goi-y-nhan { font-size: 11px; font-weight: 650; color: var(--text-soft); text-transform: uppercase; letter-spacing: .5px; }
 .ai-goi-y-cau { text-align: left; max-width: 92%; }
 .ai-tin { flex: none; }
+/* ô nhập bí mật dạng chữ thường nhưng hiện dấu chấm (tránh trình duyệt tự điền mật khẩu đã lưu) */
+.o-an input, input.o-an { -webkit-text-security: disc; text-security: disc; }

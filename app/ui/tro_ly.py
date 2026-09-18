@@ -245,8 +245,11 @@ def pane_cau_hinh(tab: str):
                           value=[], className="ai-bat"),
             html.Div([
                 o("Tên trợ lý", dcc.Input(id="ai-ten", type="text", className="inp", maxLength=20)),
-                o("Mã API ChatGPT (OpenAI)", dcc.Input(id="ai-key", type="password", className="inp",
-                                                       autoComplete="off", placeholder="sk-...")),
+                # ô chữ thường che bằng CSS (không phải type=password) để trình duyệt KHÔNG tự điền mật khẩu
+                # đăng nhập đã lưu vào đây - trước đây bị điền sẵn nên mỗi lần Lưu lại phải dán lại mã
+                o("Mã API ChatGPT (OpenAI)", dcc.Input(id="ai-key", type="text", className="inp o-an",
+                                                       autoComplete="off", spellCheck=False, name="ftel-ai-ma",
+                                                       placeholder="sk-...")),
                 o("Model cho chat", dcc.Input(id="ai-model-chat", type="text", className="inp", list="ai-ds-model")),
                 o("Model cho nhận xét", dcc.Input(id="ai-model-nx", type="text", className="inp", list="ai-ds-model")),
                 o("Trần chi phí mỗi tháng (USD)", dcc.Input(id="ai-tran", type="number", min=0.5, step=0.5,
@@ -409,11 +412,11 @@ def register(app):
         Output("ai-model-nx", "value"), Output("ai-tran", "value"), Output("ai-luot", "value"),
         Output("ai-key-hien", "children"), Output("ai-dung-kpi", "children"), Output("ai-dung-grid", "rowData"),
         Output("ai-vai-tro", "value"), Output("ai-tai-khoan", "options"), Output("ai-tai-khoan", "value"),
-        Output("ai-quyen-hien", "children"),
+        Output("ai-quyen-hien", "children"), Output("ai-key", "placeholder"),
         Input("qt-tab", "value"), Input("ai-da-luu", "data"))
     def _nap(tab, _luu):
         if tab != "ai":
-            return (no_update,) * 13
+            return (no_update,) * 14
         ch = ai.cau_hinh()
         users = danh_sach_user()
         tk = [] if users.empty else [{"label": f"{r.username} · {r.ho_ten or ''} ({r.vai_tro})", "value": r.username}
@@ -443,7 +446,8 @@ def register(app):
         for r in dung:
             r["chi_phi"] = round(r["chi_phi"], 4)
         return (["bat"] if ch["bat"] else [], ch["ten"], ch["model_chat"], ch["model_nhan_xet"], ch["tran_usd"],
-                ch["luot_ngay"], key, kpis, dung, ch["vai_tro"], tk, ch["tai_khoan"], quyen)
+                ch["luot_ngay"], key, kpis, dung, ch["vai_tro"], tk, ch["tai_khoan"], quyen,
+                f"Đã lưu {ai.key_an(ch['key'])} · để trống là giữ mã này" if ch["key"] else "sk-...")
 
     @cb(Output("ai-msg", "children"), Output("ai-key", "value"), Output("ai-da-luu", "data"),
         Input("ai-luu", "n_clicks"), Input("ai-thu", "n_clicks"), Input("ai-xoa-key", "n_clicks"),
@@ -470,14 +474,16 @@ def register(app):
             return alert("Điền đủ tên trợ lý và hai model.", "warn"), no_update, no_update
         if not tran or float(tran) <= 0 or not luot or int(luot) < 1:
             return alert("Trần chi phí phải lớn hơn 0 và số câu mỗi ngày từ 1.", "warn"), no_update, no_update
-        if key and not key.startswith("sk-"):
-            return alert("Mã API OpenAI bắt đầu bằng “sk-”. Kiểm tra lại mã vừa dán.", "warn"), no_update, no_update
+        bo_qua_ma = bool(key) and not key.startswith("sk-")      # không phải mã OpenAI -> giữ mã cũ, vẫn lưu phần khác
+        if bo_qua_ma:
+            key = ""
         ai.luu_cau_hinh({"bat": "bat" in (bat or []), "ten": ten.strip(), "key": key, "model_chat": m_chat,
                          "model_nhan_xet": m_nx, "tran_usd": float(tran), "luot_ngay": int(luot),
                          "vai_tro": list(vai_tro or []), "tai_khoan": list(tai_khoan or [])},
                         current_user.username)
         ch = ai.cau_hinh()
-        nhac = (" Chưa có mã API nên AI chưa chạy." if ch["bat"] and not ch["key"] else
+        nhac = (" Ô mã API không phải mã OpenAI (phải bắt đầu bằng “sk-”) nên vẫn giữ mã đã lưu." if bo_qua_ma else
+                " Chưa có mã API nên AI chưa chạy." if ch["bat"] and not ch["key"] else
                 " Chưa mở quyền cho vai trò hay tài khoản nào nên chưa ai dùng được." if ch["bat"]
                 and not (ch["vai_tro"] or ch["tai_khoan"]) else "")
         return alert(f"Đã lưu cấu hình ({gio_viet_nam():%H:%M:%S}). Tải lại trang (F5) để thấy nút chat "
