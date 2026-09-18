@@ -28,7 +28,8 @@ COT_TONG = {"phong": "Phòng", "nhan_su": "Nhân sự", "mt_internet": "MT Inter
             "cnql": "PTTB CNQL", "ngay_online": "Online ngày cuối", "mt_ngay": "MT ngày",
             # tính sẵn cho insight - AI không phải tự làm phép tính
             "chenh_tien_do": "Chênh tiến độ", "chenh_ck": "Chênh cùng kỳ (số)", "dong_gop": "% trong tổng tăng/giảm",
-            "mau_nho": "Mẫu nhỏ", "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó"}
+            "mau_nho": "Mẫu nhỏ", "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó",
+            "ton_qua_7": "Tồn chờ ≥7 ngày"}
 COT_DU_BAO = {"phong": "Phòng", "mt": "MT tháng", "luy_ke": "Luỹ kế", "tb_ngay": "TB/ngày",
               "du_bao": "Dự báo cuối tháng", "pct_mt": "%MT dự báo", "can_moi_ngay": "Cần mỗi ngày",
               "danh_gia": "Đánh giá"}
@@ -115,6 +116,10 @@ def _them_insight(df: pd.DataFrame, d: date, tu: str) -> pd.DataFrame:
     tuan = pd.Timedelta(days=7)
     df["tuan_nay"] = theo_khoang(d - pd.Timedelta(days=6), d)
     df["tuan_truoc"] = theo_khoang(d - tuan - pd.Timedelta(days=6), d - tuan)
+    ton = pt.hop_dong_ton()
+    ton7 = ton[ton.so_ngay_cho >= 7].groupby("phong_code").size() if len(ton) else pd.Series(dtype=int)
+    df["ton_qua_7"] = [int(ton7.reindex(ma_cua_dong.get(l, lambda c: [])(c)).fillna(0).sum())
+                       for l, c in zip(df.loai_dong, df.phong_code)]
     df["chenh_ck"] = (df.online - df.ck_online).astype(int)
     # % trong tổng mức tăng (phòng tăng) hoặc tổng mức giảm (phòng giảm) của các phòng - không chia cho chênh ròng
     # vì chênh ròng nhỏ sẽ ra % vô nghĩa (VD 138%)
@@ -148,8 +153,8 @@ def _du_lieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
                f"{csv(db, COT_DU_BAO)}")
 
 
-YEU_CAU_TONG = ("Nhận xét Báo cáo Tổng: tình hình chung so với mục tiêu và cùng kỳ; phòng nổi bật; "
-                "phòng rủi ro không đạt mục tiêu tháng theo dự báo; điểm đáng chú ý về V.VIP, Camera, số tồn.")
+YEU_CAU_TONG = ("Nhận xét Báo cáo Tổng cho Ban giám đốc: toàn chi nhánh có kịp mục tiêu tháng không, phòng / "
+                "bầy nào quyết định kết quả (kéo tụt hoặc kéo lên nhiều nhất), và BGĐ nên chỉ đạo gì trong tuần này.")
 YEU_CAU_ANH = ("Viết nhận xét RẤT NGẮN để in dưới ảnh báo cáo gửi nhóm Zalo: đúng 3 gạch đầu dòng bắt đầu "
                "bằng '- ', mỗi dòng tối đa 25 từ, có số cụ thể, không tiêu đề, không in đậm, không mục "
                "Việc nên làm.")
@@ -175,9 +180,9 @@ def _du_lieu_phong(d: date, code: str) -> str:
                f"NHÂN SỰ (dòng cuối là tổng phòng):\n{csv(nv, COT_NV)}")
 
 
-YEU_CAU_PHONG = ("Nhận xét cho trưởng phòng: phòng đang ở đâu so với mục tiêu (theo dự báo) và các phòng "
-                 "khác; nhân sự nổi bật; nhân sự cần trao đổi ngay / theo dõi và lý do (dựa cột Cần chú ý); "
-                 "gợi ý việc cụ thể cho từng người cần chú ý (tối đa 5 người).")
+YEU_CAU_PHONG = ("Nhận xét cho trưởng phòng: phòng có kịp mục tiêu tháng không và vì sao (nhân sự nào kéo lên / "
+                 "kéo xuống, nhịp 7 ngày gần), và trưởng phòng nên làm gì với tối đa 3 nhân sự cần trao đổi "
+                 "(dựa cột Cần chú ý, số tồn chờ lâu).")
 
 
 def ngu_canh_phan_tich(user, den: str | None, chi_nhanh: str | None) -> tuple[str, Callable[[], str]]:
@@ -211,8 +216,8 @@ def _du_lieu_phan_tich(d: date, cn: str, scope) -> str:
                f"DỰ BÁO CUỐI THÁNG (tổng):\n{csv(db[db.phong_code == 'TOTAL'], COT_DU_BAO)}")
 
 
-YEU_CAU_PHAN_TICH = ("Nhận định chất lượng bán: xu hướng tỷ lệ bán kèm so cùng kỳ, nhóm gói, phòng kéo tụt "
-                     "tỷ lệ, số tồn chờ lâu cần rà soát, rủi ro mục tiêu tháng theo dự báo.")
+YEU_CAU_PHAN_TICH = ("Nhận định chất lượng bán: tỷ lệ bán kèm đang tốt lên hay xấu đi so cùng kỳ và phòng nào "
+                     "kéo tụt, số tồn chờ lâu cần rà soát - và nên làm gì để cải thiện.")
 
 
 # ------------------------------------------------------------------ công cụ chatbot

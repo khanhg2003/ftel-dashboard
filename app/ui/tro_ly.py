@@ -91,24 +91,39 @@ def noi_dung_nhan_xet(ban: dict, ten: str):
 
 def gan_nhan_xet(app, prefix: str, loai: str, inputs: list[tuple[str, str]], ngu_canh, yeu_cau: str):
     """Mở trang / đổi bộ lọc: hiện nhận xét đã lưu (nếu có). Bấm nút: gọi AI tạo mới rồi lưu."""
+    # Bấm là hiện ngay "đang viết" + khoá nút (AI mất 10-40 giây); máy chủ trả kết quả thì mở lại nút.
+    app.clientside_callback(
+        """function(n) {
+            if (!n) { return [window.dash_clientside.no_update, window.dash_clientside.no_update]; }
+            const div = function (p) { return {type: 'Div', namespace: 'dash_html_components', props: p}; };
+            return [div({className: 'ai-dang-viet', children: [
+                div({className: 'ai-cham', children: [0, 1, 2].map(function () {
+                    return {type: 'I', namespace: 'dash_html_components', props: {}}; })}),
+                'Đang đọc số của kỳ đang xem và viết nhận xét… thường mất 10-40 giây.']}), true];
+        }""",
+        Output(f"{prefix}-ai-kq", "children", allow_duplicate=True), Output(f"{prefix}-ai-tao", "disabled"),
+        Input(f"{prefix}-ai-tao", "n_clicks"), prevent_initial_call=True)
+
     @app.callback(Output(f"{prefix}-ai-kq", "children"), Output(f"{prefix}-ai-nhan", "children"),
-                  Input(f"{prefix}-ai-tao", "n_clicks"), *[Input(i, p) for i, p in inputs])
+                  Output(f"{prefix}-ai-tao", "disabled", allow_duplicate=True),
+                  Input(f"{prefix}-ai-tao", "n_clicks"), *[Input(i, p) for i, p in inputs],
+                  prevent_initial_call="initial_duplicate")
     def _nhan_xet(_n, *gia_tri):
         ch = _cau_hinh_an_toan()
         if not _dung_duoc(ch):
-            return "", no_update
+            return "", no_update, False
         try:
             khoa, du_lieu = ngu_canh(current_user, *gia_tri)
             ban = ai.nhan_xet_da_luu(loai, khoa)
             if ctx.triggered_id == f"{prefix}-ai-tao":
                 ban = ai.tao_nhan_xet(current_user, loai, khoa, du_lieu(), yeu_cau)
             if not ban:
-                return (html.Div(f"Bấm “{ch['ten']} nhận xét” để trợ lý đọc số của kỳ đang xem, chỉ ra điểm "
-                                 "nổi bật, rủi ro và việc nên làm.", className="ai-goi-y"),
-                        f"{ch['ten']} nhận xét")
-            return noi_dung_nhan_xet(ban, ch["ten"]), "Tạo lại nhận xét"
+                return (html.Div(f"Bấm “{ch['ten']} nhận xét” để trợ lý đọc số của kỳ đang xem: kết luận, "
+                                 "insight và việc cần làm.", className="ai-goi-y"),
+                        f"{ch['ten']} nhận xét", False)
+            return noi_dung_nhan_xet(ban, ch["ten"]), "Tạo lại nhận xét", False
         except ai.LoiAI as e:
-            return alert(str(e), "warn"), no_update
+            return alert(str(e), "warn"), no_update, False
 
 
 def nhan_xet_anh(tu: str | None, den: str | None, chi_nhanh: str | None) -> tuple[str, str] | None:

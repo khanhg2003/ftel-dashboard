@@ -300,7 +300,7 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
 
 # ------------------------------------------------------------------ lời dặn chung
 # Đổi khi sửa lời dặn: câu trả lời chat đã lưu theo lời dặn cũ tự hết hiệu lực
-PHIEN_LOI_DAN = "4"
+PHIEN_LOI_DAN = "5"
 
 
 # Ngưỡng BGĐ chốt 17/09/2026
@@ -326,10 +326,23 @@ QUY_TAC_INSIGHT = (
     "- Ngày đang cập nhật (số tạm tính): không kết luận giảm dựa trên riêng ngày đó.\n")
 
 
+# Nhận xét trên trang: người đọc ĐÃ thấy bảng số ngay bên trên -> chỉ cần kết luận, insight và việc cần làm.
+DINH_DANG_NHAN_XET = (
+    "- Người đọc đang nhìn bảng số ngay phía trên: KHÔNG chép lại bảng, KHÔNG liệt kê số từng phòng. Mỗi ý chỉ "
+    "dùng 1-2 con số then chốt làm bằng chứng.\n"
+    "- Tối đa khoảng 150 từ, đúng 3 phần, dùng tiêu đề in đậm:\n"
+    "  **Kết luận:** 1 câu - đang đi đúng hay chậm, dự báo cuối tháng đạt bao nhiêu % mục tiêu.\n"
+    "  **Insight:** 2-3 gạch đầu dòng về NGUYÊN NHÂN và XU HƯỚNG (điều bảng không tự nói ra): nhóm/phòng kéo "
+    "tụt hay kéo lên nhiều nhất tính bằng số tuyệt đối, đang tăng tốc hay chậm lại 7 ngày gần, dư địa từ số tồn "
+    "chờ lâu. Mỗi gạch nêu tối đa 3 phòng.\n"
+    "  **Việc cần làm:** 2-3 gạch đầu dòng hành động cụ thể: ai (phòng / nhóm) - làm gì - con số cần đạt "
+    "(VD 'IBB2, IBB6: đẩy 60 hợp đồng chờ ≥7 ngày lên online trong tuần này').\n"
+    "- Không nêu chỉ số không phục vụ kết luận (V.VIP, Camera, FPT Play chỉ nói khi thật sự bất thường). Không "
+    "viết câu rào đón, không giải thích cách tính.\n")
+
+
 def loi_dan(ten: str, chat: bool = False) -> str:
-    dinh_dang = ("" if chat else
-                 "- Viết gạch đầu dòng (3-6 ý), mỗi ý có số cụ thể và ý nghĩa. Kết thúc bằng mục **Việc nên làm** "
-                 "gồm 1-2 việc cụ thể gắn với số (VD 'xử lý 59 hợp đồng chờ trên 7 ngày').\n")
+    dinh_dang = ("" if chat else DINH_DANG_NHAN_XET)
     return (
         f"Bạn là {ten}, trợ lý phân tích số liệu kinh doanh của FPT Telecom chi nhánh Đà Nẵng & Quảng Nam. "
         "Người đọc là Ban giám đốc và trưởng phòng kinh doanh.\n"

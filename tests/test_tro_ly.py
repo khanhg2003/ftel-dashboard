@@ -156,7 +156,8 @@ def test_chan_doan_theo_quyen():
 def test_chat_tra_loi_ngan_nhan_xet_moi_day_du():
     u = _nguoi()
     chat = ai.loi_dan("Fox", chat=True) + dl.ngu_canh_chat(u, "/", {})[0]
-    assert "Việc nên làm" not in ai.loi_dan("Fox", chat=True) and "Việc nên làm" in ai.loi_dan("Fox")
+    assert "Việc cần làm" not in ai.loi_dan("Fox", chat=True) and "Việc cần làm" in ai.loi_dan("Fox")
+    assert "KHÔNG chép lại bảng" in ai.loi_dan("Fox") and "150 từ" in ai.loi_dan("Fox")
     assert "NGẮN, ĐÚNG TRỌNG TÂM" in chat and "| IBB |" in chat and "| DIABAN |" in chat
 
 

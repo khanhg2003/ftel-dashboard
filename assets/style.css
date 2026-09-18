@@ -895,3 +895,10 @@ table.simple tr:last-child td { border-bottom: none; }
 .ai-tin { flex: none; }
 /* ô nhập bí mật dạng chữ thường nhưng hiện dấu chấm (tránh trình duyệt tự điền mật khẩu đã lưu) */
 .o-an input, input.o-an { -webkit-text-security: disc; text-security: disc; }
+.ai-dang-viet { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fpt-blue-700);
+  padding: 12px 14px; border: 1px dashed #CFE1F2; border-radius: 8px; background: #F7FBFF; }
+.ai-dang-viet .ai-cham { display: flex; gap: 4px; }
+.ai-dang-viet i { width: 7px; height: 7px; border-radius: 50%; background: #5B9BD5; animation: ai-nhay 1s infinite; }
+.ai-dang-viet i:nth-child(2) { animation-delay: .15s; }
+.ai-dang-viet i:nth-child(3) { animation-delay: .3s; }
+.the-ai .btn.primary:disabled { opacity: .6; cursor: progress; }
