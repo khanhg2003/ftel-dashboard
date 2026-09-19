@@ -5,7 +5,10 @@ Thay cho file Google Sheet mỗi tháng một file, mỗi page một trang tính
 - Page mới: lần đầu n8n / bot gửi dữ liệu của page lạ thì app tự tạo page (chưa phân công sale).
 - Phân công (PIC) khai theo khoảng ngày (`ads_pic`), tối đa 3 sale mỗi ngày: chi tiêu mỗi ngày chia đều cho các
   sale chạy page ngày đó (giống cột Tiền/Người của sheet). Page tài khoản công ty (loại 'cong_ty') không chia.
-- Đánh giá page theo chi phí / PTTB (USD): <= 6 Tốt, <= 10 Bình thường, còn lại Cao (như DASHBOARD của sheet).
+- Đánh giá page theo chi phí / PTTB (USD): <= 6 Tốt, <= 10 Trung bình, còn lại Kém (như DASHBOARD của sheet);
+  chưa có PTTB mà đã tiêu từ 10$ cũng là Kém, dưới 10$ là Chưa đủ số.
+- Chi tiêu về trễ một ngày (n8n gửi 7h sáng hôm sau) còn PTTB về ngay: chi phí / số ĐT, chi phí / PTTB chỉ tính lead /
+  PTTB tới ngày đã có chi tiêu, để tiền và kết quả cùng khoảng ngày.
 Tiền lưu bằng USD như Facebook; đổi VNĐ theo tỷ giá từng tháng (`ads_thang`).
 """
 from __future__ import annotations
@@ -31,6 +34,7 @@ NGUONG_TOT, NGUONG_BINH_THUONG = 6.0, 10.0      # USD / PTTB
 CONG_TY, CHUA_PHAN_CONG = "Công ty", "Chưa phân công"
 TINH_TRANG_PAGE = ["Đang chạy", "Đang nuôi", "Tắt"]
 TOI_DA_PIC = 3
+CAMP_TONG_THANG = "Nhập tay (tổng tháng từ sheet)"     # tiền cả tháng ghi vào ngày 01 (không có số từng ngày)
 KHOA_TOKEN = "ads.token"
 _da_tao = False
 
@@ -284,21 +288,27 @@ def theo_ngay(tu: date, den: date) -> pd.DataFrame:
     return df.merge(pg, on="page_id", how="left")
 
 
-def danh_gia(cp_pttb: float | None, pttb: float) -> str:
-    if cp_pttb is None or pd.isna(cp_pttb):
-        return "Chưa có PTTB" if not pttb else "Chưa có chi tiêu"
-    if not pttb:
-        return "Chưa có PTTB"
-    if cp_pttb <= NGUONG_TOT:
-        return "Tốt"
-    return "Bình thường" if cp_pttb <= NGUONG_BINH_THUONG else "Cao"
+DANH_GIA = {"Hiệu quả cao": "Tốt", "Trung bình": "Trung bình", "Kém": "Kém", "Chưa đủ dữ liệu": "Chưa đủ số"}
+
+
+def danh_gia(chi: float, pttb: float) -> str:
+    """Nhãn ngắn của nhóm hiệu quả (cùng quy tắc với tab Nhận định)."""
+    if not chi and not pttb:
+        return ""
+    if not chi:
+        return "Chưa có chi tiêu"
+    return DANH_GIA[nhom_hieu_qua(chi, pttb)]
 
 
 def _chi_so(g: pd.DataFrame) -> pd.DataFrame:
+    """CPL, CP/PTTB dùng lead / PTTB khớp ngày chi tiêu (cột lead_cp / pttb_cp nếu có), tỷ lệ chốt dùng số đầy đủ."""
     g = g.copy()
     co_chi = g.chi_tieu > 0
-    g["cpl"] = (g.chi_tieu / g.lead.where(g.lead > 0)).where(co_chi).round(2)
-    g["cp_pttb"] = (g.chi_tieu / g.pttb.where(g.pttb > 0)).where(co_chi).round(2)
+    ld = g["lead_cp"] if "lead_cp" in g else g.lead
+    pt = g["pttb_cp"] if "pttb_cp" in g else g.pttb
+    ch = g["chi_cp"] if "chi_cp" in g else g.chi_tieu
+    g["cpl"] = (ch / ld.where(ld > 0)).where(co_chi).round(2)
+    g["cp_pttb"] = (ch / pt.where(pt > 0)).where(co_chi).round(2)
     g["ty_le_chot"] = (g.pttb / g.lead.where(g.lead > 0) * 100).round(0)
     g["cp_tin_nhan"] = (g.chi_tieu / g.tin_nhan.where(g.tin_nhan > 0)).round(2)
     return g
@@ -309,23 +319,34 @@ def lui_thang(d: date) -> date:
     return dau.replace(day=min(d.day, dau.day))
 
 
-def theo_page(tu: date, den: date) -> pd.DataFrame:
-    """Dòng = page: tổng chi tiêu / tin nhắn / lead / PTTB, CPL, CP/PTTB, tỷ lệ chốt, đánh giá, cùng kỳ tháng trước."""
-    df = theo_ngay(tu, den)
+def theo_page(tu: date, den: date, ck: tuple[date, date] | None = None, df: pd.DataFrame | None = None) \
+        -> pd.DataFrame:
+    """Dòng = page: tổng chi tiêu / tin nhắn / lead / PTTB, CPL, CP/PTTB, tỷ lệ chốt, đánh giá, kỳ so sánh (mặc định
+    cùng kỳ tháng trước)."""
+    df = theo_ngay(tu, den) if df is None else df
     pg = ds_page()
     cot = ["chi_tieu", "tin_nhan", "lead", "pttb"]
     g = df.groupby("page_id")[cot].sum() if len(df) else pd.DataFrame(columns=cot)
     out = pg.set_index("id").join(g, how="left").fillna({c: 0 for c in cot})
+    cuoi = cuoi_tu_bang(df)
+    if cuoi is not None:
+        k = df[df.ngay <= cuoi].groupby("page_id")[["chi_tieu", "lead", "pttb"]].sum()
+        out["chi_cp"] = k["chi_tieu"].reindex(out.index).fillna(0)
+        out["lead_cp"] = k["lead"].reindex(out.index).fillna(0)
+        out["pttb_cp"] = k["pttb"].reindex(out.index).fillna(0)
     out = out[(out[cot].sum(axis=1) > 0) | (out.tinh_trang == "Đang chạy")]
-    ck = theo_ngay(lui_thang(tu), lui_thang(den))
+    ck = theo_ngay(*(ck or (lui_thang(tu), lui_thang(den))))
     ckg = ck.groupby("page_id")[["chi_tieu", "pttb"]].sum() if len(ck) else pd.DataFrame(columns=["chi_tieu", "pttb"])
     out["ck_chi_tieu"] = ckg.chi_tieu.reindex(out.index).fillna(0)
     out["ck_pttb"] = ckg.pttb.reindex(out.index).fillna(0)
     out = _chi_so(out)
-    out["danh_gia"] = [danh_gia(c, p) for c, p in zip(out.cp_pttb, out.pttb)]
+    pt = out["pttb_cp"] if "pttb_cp" in out else out.pttb
+    ch = out["chi_cp"] if "chi_cp" in out else out.chi_tieu
+    out["danh_gia"] = [danh_gia(c, p) if c or not t else danh_gia(t, p) for c, p, t in zip(ch, pt, out.chi_tieu)]
     pics = ds_pic()
     out["pic"] = [", ".join(sale_dang_chay(pics, i, den)) or ("—" if l == "cong_ty" else CHUA_PHAN_CONG)
                   for i, l in zip(out.index, out.loai)]
+    out.attrs.update(cuoi=cuoi)
     return out.reset_index().rename(columns={"index": "page_id", "id": "page_id"}).sort_values(
         "chi_tieu", ascending=False)
 
@@ -391,6 +412,13 @@ def theo_sale(tu: date, den: date) -> pd.DataFrame:
         g["tb_5_ngay"] = (g.sale.map(gan).fillna(0) / so_ngay).round(2)
         con = calendar.monthrange(cuoi.year, cuoi.month)[1] - cuoi.day
         g["du_kien"] = (g.chi_tieu + g.tb_5_ngay * con).round(2)
+    tay = tien_tong_thang(tu, den)
+    g["ghi_chu"] = ""
+    if len(tay):
+        tay_sale = pb.merge(tay[["page_id", "ngay"]].drop_duplicates(), on=["page_id", "ngay"]) \
+            .groupby("sale").chi_tieu.sum()
+        g["ghi_chu"] = [f"Có {_tien(tay_sale[x])}$ nhập tay tổng tháng (không có số từng ngày) nên dự kiến "
+                        "không ước được phần chạy tiếp của page đó" if x in tay_sale.index else "" for x in g.sale]
     g.attrs.update(cuoi=cuoi)
     thu_tu = {CONG_TY: 2, CHUA_PHAN_CONG: 3}
     return g.assign(_o=g.sale.map(thu_tu).fillna(0)).sort_values(["_o", "chi_tieu"], ascending=[True, False]) \
@@ -411,58 +439,41 @@ def tracking(thang: str, chi_so: str = "chi_tieu") -> tuple[pd.DataFrame, int]:
         pv = (c / p.where(p > 0)).round(2).reindex(columns=range(1, so_ngay + 1))
         tc, tp_ = c.sum(axis=1), p.sum(axis=1)
         pv["tong"] = (tc / tp_.where(tp_ > 0)).round(2)
-        return pv.sort_values("tong").reset_index(), so_ngay
+        cn, pn = c.sum(axis=0), p.sum(axis=0)
+        tong = {str(d): round(float(cn.get(d, 0)) / float(pn[d]), 2) for d in range(1, so_ngay + 1)
+                if d in pn.index and pn[d] > 0}
+        tong["tong"] = round(float(tc.sum()) / float(tp_.sum()), 2) if tp_.sum() else None
+        pv = pv.sort_values("tong").reset_index()
+        pv.attrs.update(tong=tong)
+        return pv, so_ngay
     pv = df.pivot_table(index=["page_id", "ten"], columns="d", values=chi_so, aggfunc="sum", fill_value=0)
     pv = pv.reindex(columns=range(1, so_ngay + 1), fill_value=0)
     pv["tong"] = pv.sum(axis=1)
-    return pv.sort_values("tong", ascending=False).reset_index(), so_ngay
+    tong = {str(k): round(float(v), 2) for k, v in pv.sum(axis=0).items()}
+    pv = pv.sort_values("tong", ascending=False).reset_index()
+    pv.attrs.update(tong=tong)
+    return pv, so_ngay
 
 
-def hoach_dinh(thang: str, den: date) -> pd.DataFrame:
-    """Như trang 'Hoạch định PTTB': dự kiến chi tiêu / PTTB cả tháng theo nhịp hiện tại, ngân sách cần để đạt KPI."""
-    from app.metrics import month_range
-    dau, _, so_ngay = month_range(thang)
-    da_chay = max((den - dau).days + 1, 1)
-    con = max(so_ngay - da_chay, 0)
-    tp = theo_page(dau, den)
-    if tp.empty:
-        return tp
-    kpi = _q("SELECT page_id, kpi_pttb FROM ads_kpi WHERE thang = :t", t=thang).set_index("page_id").kpi_pttb
-    tp["kpi"] = tp.page_id.map(kpi)
-    tp["tb_ngay"] = tp.chi_tieu / da_chay
-    tp["du_kien_chi"] = tp.tb_ngay * so_ngay
-    tp["du_kien_pttb"] = tp.pttb / da_chay * so_ngay
-    tp["ngan_sach_can"] = tp.kpi * tp.cp_pttb
-    tp["can_them_ngay"] = [((n - c) / con - t) if con and pd.notna(n) else None
-                           for n, c, t in zip(tp.ngan_sach_can, tp.chi_tieu, tp.tb_ngay)]
-    tp["tien_do"] = (tp.pttb / tp.kpi * 100).round(0)
-
-    def khuyen_nghi(r):
-        if pd.isna(r.kpi):
-            return "Chưa có KPI"
-        if pd.notna(r.cp_pttb) and r.cp_pttb >= 4:
-            return "Tối ưu camp"
-        if r.pttb >= r.kpi or r.du_kien_pttb >= r.kpi:
-            return "Giữ vững tiến độ"
-        return "Tăng nhẹ ngân sách"
-    tp["khuyen_nghi"] = [khuyen_nghi(r) for r in tp.itertuples()]
-    tp.attrs.update(da_chay=da_chay, so_ngay=so_ngay)
-    return tp
-
-
-def tong_quan(tu: date, den: date) -> dict:
-    df = theo_ngay(tu, den)
-    ck = theo_ngay(lui_thang(tu), lui_thang(den))
+def tong_quan(tu: date, den: date, ck: tuple[date, date] | None = None, df: pd.DataFrame | None = None) -> dict:
+    """Số chính của kỳ. Chi phí / số ĐT, chi phí / PTTB chỉ tính lead / PTTB tới ngày đã có chi tiêu (`den_cp`)."""
+    df = theo_ngay(tu, den) if df is None else df
+    ck = theo_ngay(*(ck or (lui_thang(tu), lui_thang(den))))
     t = {c: float(df[c].sum()) if len(df) else 0.0 for c in ("chi_tieu", "tin_nhan", "lead", "pttb")}
     c = {c: float(ck[c].sum()) if len(ck) else 0.0 for c in ("chi_tieu", "tin_nhan", "lead", "pttb")}
+    cuoi = cuoi_tu_bang(df)
+    khop = df[df.ngay <= cuoi] if cuoi else df.iloc[0:0]
+    chi_cp = float(khop.chi_tieu.sum()) if len(khop) else 0.0
+    lead_cp, pttb_cp = float(khop.lead.sum()) if len(khop) else 0.0, float(khop.pttb.sum()) if len(khop) else 0.0
     rate = ty_gia(f"{den.year}-{den.month:02d}")
     return {**t, "ck": c, "ty_gia": rate, "vnd": t["chi_tieu"] * rate,
-            "cpl": t["chi_tieu"] / t["lead"] if t["lead"] else None,
-            "cp_pttb": t["chi_tieu"] / t["pttb"] if t["pttb"] else None,
+            "cpl": chi_cp / lead_cp if lead_cp and chi_cp else None,
+            "cp_pttb": chi_cp / pttb_cp if pttb_cp and chi_cp else None,
             "ty_le_chot": t["pttb"] / t["lead"] * 100 if t["lead"] else None,
-            "ck_cp_pttb": c["chi_tieu"] / c["pttb"] if c["pttb"] else None,
+            "ck_cp_pttb": c["chi_tieu"] / c["pttb"] if c["pttb"] and c["chi_tieu"] else None,
             "so_page": int((df.groupby("page_id").chi_tieu.sum() > 0).sum()) if len(df) else 0,
-            "ngay_moi_nhat": max(df.ngay) if len(df) else None}
+            "den_cp": cuoi, "pttb_chua_khop": t["pttb"] - pttb_cp if cuoi else 0.0,
+            "ngay_moi_nhat": cuoi}
 
 
 def nhat_ky_lead(tu: date, den: date) -> pd.DataFrame:
@@ -894,10 +905,30 @@ def _tien(v) -> str:
     return "–" if v is None or pd.isna(v) else f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _ngay_du(dem: pd.Series) -> date | None:
+    """Ngày gần nhất đã có chi tiêu của đa số page (>= nửa số page của ngày đông nhất trong 8 ngày cuối). Một page
+    nhập tay trước ngày n8n gửi thì chưa tính là ngày đã có số."""
+    dem = dem[dem > 0].sort_index()
+    if dem.empty:
+        return None
+    moc = dem.tail(8).max() * 0.5
+    return max(d for d, n in dem.items() if n >= moc)
+
+
+def cuoi_tu_bang(df: pd.DataFrame) -> date | None:
+    """`_ngay_du` từ bảng theo_ngay (page × ngày)."""
+    if df is None or df.empty or not (df.chi_tieu > 0).any():
+        return None
+    return _ngay_du(df[df.chi_tieu > 0].groupby("ngay").page_id.nunique())
+
+
 def ngay_cuoi_chi(tu: date, den: date) -> date | None:
-    r = _q("SELECT MAX(ngay) AS d FROM ads_ngay WHERE ngay >= :tu AND ngay <= :den", tu=tu, den=den)
-    v = r.d.iloc[0] if len(r) else None
-    return pd.to_datetime(v).date() if v is not None and not pd.isna(v) else None
+    r = _q("""SELECT ngay, COUNT(DISTINCT page_id) AS n FROM ads_ngay WHERE ngay >= :tu AND ngay <= :den
+              AND chi_tieu > 0 GROUP BY ngay""", tu=tu, den=den)
+    if r.empty:
+        return None
+    r["ngay"] = pd.to_datetime(r["ngay"]).dt.date
+    return _ngay_du(r.set_index("ngay").n)
 
 
 def nhan_dinh(tu: date, den: date) -> dict:
@@ -1079,3 +1110,85 @@ def ten_gon_ds(ds) -> list[str]:
         g = ten_gon(x)
         out.append(g if len(gon_all[g.upper()]) == 1 else (x if len(x) <= 40 else x[:39] + "…"))
     return out
+
+
+# ------------------------------------------------------------------ tiền nhập tay tổng tháng, kiểm tra dữ liệu
+def tien_tong_thang(tu: date, den: date) -> pd.DataFrame:
+    """Chi tiêu cả tháng nạp từ BẢNG TỔNG của sheet (page không có số từng ngày) - ghi ở ngày 01 nên làm cột ngày 01 cao
+    bất thường; biểu đồ theo ngày và dự kiến tách phần này ra."""
+    df = _q("""SELECT n.page_id, p.ten, n.ngay, n.chi_tieu FROM ads_ngay n JOIN ads_page p ON p.id = n.page_id
+                 WHERE n.camp = :c AND n.ngay >= :tu AND n.ngay <= :den""", c=CAMP_TONG_THANG, tu=tu, den=den)
+    df["ngay"] = pd.to_datetime(df["ngay"]).dt.date
+    return df
+
+
+def kiem_tra(tu: date, den: date, hom_nay: date) -> list[tuple[str, str]]:
+    """Những chỗ số liệu có thể thiếu / sai để người quản trị xử lý: [(mức 'bad' | 'warn' | 'info', câu)]."""
+    ds = []
+    df = theo_ngay(tu, den)
+    cuoi = cuoi_tu_bang(df)
+    hom_qua = hom_nay - timedelta(days=1)
+    if tu <= hom_qua <= den and (cuoi is None or cuoi < hom_qua - timedelta(days=1)):
+        ds.append(("bad", (f"Chi tiêu mới có đến {cuoi:%d/%m}" if cuoi else "Tháng này chưa có chi tiêu nào")
+                   + " - kiểm tra workflow n8n (bình thường 7h sáng đã có số của hôm qua)."))
+    if cuoi is not None:
+        gan = df[(df.ngay > cuoi - timedelta(days=3)) & (df.ngay < cuoi) & (df.chi_tieu > 0)]
+        co_cuoi = set(df[(df.ngay == cuoi) & (df.chi_tieu > 0)].page_id)
+        thieu = gan[~gan.page_id.isin(co_cuoi) & (gan.tinh_trang == "Đang chạy")].ten.dropna().unique().tolist()
+        som = df[(df.ngay > cuoi) & (df.chi_tieu > 0)]
+        if len(som):
+            ds.append(("info", f"{', '.join(sorted(som.ten.dropna().unique()))} đã có chi tiêu sau {cuoi:%d/%m} (nhập tay"
+                               f" / gửi sớm) - các page khác chưa có nên số chung vẫn tính tới {cuoi:%d/%m}."))
+        if thieu:
+            ds.append(("warn", f"{len(thieu)} page đang chạy mà ngày {cuoi:%d/%m} không có chi tiêu: {', '.join(thieu)} - "
+                               "đã tắt camp thì đổi tình trạng page, còn chạy thì kiểm tra n8n."))
+    pb = phan_bo(tu, den)
+    if len(pb):
+        cpc = pb[pb.sale == CHUA_PHAN_CONG]
+        if len(cpc) and cpc.chi_tieu.sum() > 0:
+            ten = ds_page().set_index("id").ten
+            ds.append(("warn", f"{_tien(cpc.chi_tieu.sum())}$ chưa chia cho sale nào (page chưa khai người chạy: "
+                               f"{', '.join(sorted({str(ten.get(i, i)) for i in cpc.page_id}))}) - khai ở Cấu hình → "
+                               "Người chạy page."))
+    if len(df):
+        g = df.groupby(["page_id", "ten"])[["chi_tieu", "lead", "pttb"]].sum().reset_index()
+        la = g[(g.chi_tieu == 0) & ((g.lead > 0) | (g.pttb > 0))]
+        if len(la):
+            ds.append(("warn", f"Có lead / PTTB nhưng cả tháng không có chi tiêu: {', '.join(la.ten.astype(str))} - "
+                               "thường do gõ sai tên page khi báo qua bot (app tự tạo page mới). Xoá dòng sai ở Nhật ký."))
+        vuot = g[g.pttb > g.lead]
+        if len(vuot):
+            ds.append(("info", f"PTTB nhiều hơn số điện thoại ở: {', '.join(vuot.ten.astype(str))} - kiểm tra lại lần báo."))
+    tay = tien_tong_thang(tu, den)
+    if len(tay):
+        ds.append(("info", f"{_tien(tay.chi_tieu.sum())}$ là tiền nhập tay tổng tháng ({', '.join(tay.ten.astype(str))})"
+                           " - không có số từng ngày nên không vẽ vào biểu đồ theo ngày và không tính vào dự kiến."))
+    thang = f"{tu.year}-{tu.month:02d}"
+    if _q("SELECT COUNT(*) AS n FROM ads_thang WHERE thang = :t", t=thang).n.iloc[0] == 0:
+        ds.append(("info", f"Chưa lưu tỷ giá tháng {tu.month:02d}/{tu.year} - VNĐ đang đổi theo {ty_gia(thang):,.0f}"
+                   .replace(",", ".") + " (tab Theo sale → Lưu tỷ giá)."))
+    return ds
+
+
+def chi_tiet_sale(sale: str, tu: date, den: date) -> pd.DataFrame:
+    """Các page một sale được chia tiền: số ngày chạy, tiền được chia, phần của sale trong tiền page, người chạy cùng."""
+    pb = phan_bo(tu, den)
+    if pb.empty:
+        return pd.DataFrame()
+    x = pb[pb.sale == sale]
+    if x.empty:
+        return pd.DataFrame()
+    tong_page = pb.groupby("page_id").chi_tieu.sum()
+    co = x[x.chi_tieu > 0]
+    g = co.groupby("page_id").agg(chi_tieu=("chi_tieu", "sum"), so_ngay=("ngay", "nunique"),
+                                  tu=("ngay", "min"), den=("ngay", "max")).reset_index()
+    if g.empty:
+        return pd.DataFrame()
+    g["phan"] = (g.chi_tieu / g.page_id.map(tong_page) * 100).round(0)
+    cung = pb[pb.page_id.isin(g.page_id) & (pb.sale != sale)].groupby("page_id").sale \
+        .agg(lambda v: ", ".join(sorted(set(v))))
+    g["cung"] = g.page_id.map(cung).fillna("")
+    g["ten"] = g.page_id.map(ds_page().set_index("id").ten)
+    g["tu"] = [f"{d:%d/%m}" for d in g.tu]
+    g["den"] = [f"{d:%d/%m}" for d in g.den]
+    return g.sort_values("chi_tieu", ascending=False).reset_index(drop=True)

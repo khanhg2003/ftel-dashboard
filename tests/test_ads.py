@@ -58,8 +58,21 @@ def test_lead_pttb_va_danh_gia():
     ads.nhan_lead([{"page": "ZZ KT MỘT", "ngay": "2026-08-02", "lead": 1}])
     assert ads.nhan_lead({"page": "ZZ KT MỘT", "lead": 0, "pttb": 0})["loi"]
     tp = ads.theo_page(*T).set_index("ma").loc["ZZ KT MỘT"]
-    assert (tp.lead, tp.pttb, tp.cp_pttb, tp.danh_gia) == (2, 1, 7, "Bình thường")
-    assert ads.danh_gia(5, 3) == "Tốt" and ads.danh_gia(12, 1) == "Cao" and ads.danh_gia(None, 0) == "Chưa có PTTB"
+    assert (tp.lead, tp.pttb, tp.cp_pttb, tp.danh_gia) == (2, 1, 7, "Trung bình")
+    assert ads.danh_gia(15, 3) == "Tốt" and ads.danh_gia(12, 1) == "Kém" and ads.danh_gia(12, 0) == "Kém"
+    assert ads.danh_gia(5, 0) == "Chưa đủ số" and ads.danh_gia(0, 2) == "Chưa có chi tiêu"
+
+
+def test_cp_pttb_chi_tinh_toi_ngay_da_co_chi_tieu():
+    # chi tiêu về trễ 1 ngày: PTTB báo ngày chưa có chi tiêu không làm chi phí / PTTB rẻ đi
+    ads.nhan_chi_tieu({"page": "ZZ KT BỐN", "camp": "Q", "ngay": "2026-08-20", "chi_tieu": 12})
+    ads.nhan_lead([{"page": "ZZ KT BỐN", "ngay": "2026-08-20", "lead": 2, "pttb": 2},
+                   {"page": "ZZ KT BỐN", "ngay": "2026-08-21", "lead": 2, "pttb": 2}])
+    d = date(2026, 8, 20), date(2026, 8, 21)
+    tp = ads.theo_page(*d).set_index("ma").loc["ZZ KT BỐN"]
+    assert tp.pttb == 4 and tp.cp_pttb == 6 and tp.ty_le_chot == 100
+    t = ads.tong_quan(*d)
+    assert t["den_cp"] == date(2026, 8, 20) and t["pttb_chua_khop"] >= 2
 
 
 def test_doi_nguoi_chay_giua_thang_va_ty_le_rieng():
@@ -85,13 +98,22 @@ def test_page_cong_ty_khong_chia_cho_sale():
     assert set(pb[pb.page_id == _pid("ZZ KT TRUNG LẬP")].sale) == {ads.CONG_TY}
 
 
-def test_hoach_dinh_va_ky_tu_so():
+def test_ty_gia_va_ky_tu_so():
     assert ads.doc_so("1.234,5") == 1234.5 and ads.doc_so("4,93") == 4.93 and ads.doc_so(None) == 0
     assert ads.chuan_ma("  Kon   tum ") == "KON TUM" and ads.khoa_sale("C.HỒNG") == ads.khoa_sale("C. Hồng")
-    ads.luu_thang("2026-08", 26000, {_pid("ZZ KT MỘT"): 5}, "kt")
-    hd = ads.hoach_dinh("2026-08", date(2026, 8, 31)).set_index("ma").loc["ZZ KT MỘT"]
-    assert hd.kpi == 5 and hd.ngan_sach_can == 35 and hd.khuyen_nghi == "Tối ưu camp"
+    ads.luu_thang("2026-08", 26000, {}, "kt")
     assert ads.ty_gia("2026-08") == 26000
+
+
+def test_chi_tiet_sale_tracking_tong_va_kiem_tra():
+    ct = ads.chi_tiet_sale("ZZ A", *T)
+    r = ct.set_index("ten").iloc[0]
+    assert r.chi_tieu == 17 and r.so_ngay == 3 and r.cung == "ZZ B, ZZ C" and r.phan == 57
+    pv, _ = ads.tracking("2026-08", "chi_tieu")
+    assert pv.attrs["tong"]["5"] >= 10 and pv.attrs["tong"]["tong"] == round(float(pv.tong.sum()), 2)
+    loi = ads.kiem_tra(*T, date(2026, 9, 19))
+    assert all(m in ("bad", "warn", "info") for m, _ in loi)
+    assert any("chưa chia cho sale" in c for _, c in loi)                     # ZZ KT MỘT chưa khai người chạy
 
 
 def test_api_can_ma_ket_noi_va_trang_can_dang_nhap():
