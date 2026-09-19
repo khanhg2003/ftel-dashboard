@@ -10,6 +10,7 @@ Tiền lưu bằng USD như Facebook; đổi VNĐ theo tỷ giá từng tháng (
 """
 from __future__ import annotations
 
+import calendar
 import hashlib
 import hmac
 import math
@@ -369,8 +370,8 @@ def phan_bo(tu: date, den: date) -> pd.DataFrame:
 
 
 def theo_sale(tu: date, den: date) -> pd.DataFrame:
-    """Dòng = sale: chi phí được chia, lead / PTTB (chia đều theo page), số page đang chạy, và số bán THẬT trên app
-    (online, online MTTN theo acc đã khai) -> chi phí ads trên mỗi online thực tế."""
+    """Dòng = sale: chi phí được chia, tin nhắn / số ĐT / PTTB (chia cùng cách), số page đang chạy. Chỉ số trong
+    phạm vi Facebook - không so với online trên app vì online của sale đến từ nhiều nguồn, không riêng ads."""
     pb = phan_bo(tu, den)
     if pb.empty:
         return pd.DataFrame()
@@ -380,20 +381,6 @@ def theo_sale(tu: date, den: date) -> pd.DataFrame:
     ds = ds_sale()
     acc = {khoa_sale(t): a for t, a in zip(ds.ten, ds.acc) if a}
     g["acc"] = [acc.get(khoa_sale(t)) or None for t in g.sale]
-    g["online"] = None
-    g["online_mttn"] = None
-    co = [a.lower() for a in g.acc if isinstance(a, str)]
-    if co:
-        from app import mttn
-        on = _q("""SELECT acc_norm, cn_quan_ly FROM fact_internet
-                   WHERE ngay_online >= :tu AND ngay_online <= :den""", tu=tu, den=den)
-        on = on[on.acc_norm.isin(co)]
-        on["mttn"] = mttn.la_mttn(on.cn_quan_ly)
-        tong = on.groupby("acc_norm").size()
-        mt = on[on.mttn].groupby("acc_norm").size()
-        g["online"] = [int(tong.get(a.lower(), 0)) if isinstance(a, str) else None for a in g.acc]
-        g["online_mttn"] = [int(mt.get(a.lower(), 0)) if isinstance(a, str) else None for a in g.acc]
-    g["cp_online"] = [round(c / o, 2) if o else None for c, o in zip(g.chi_tieu, g.online)]
     thu_tu = {CONG_TY: 2, CHUA_PHAN_CONG: 3}
     return g.assign(_o=g.sale.map(thu_tu).fillna(0)).sort_values(["_o", "chi_tieu"], ascending=[True, False]) \
             .drop(columns="_o").reset_index(drop=True)
@@ -935,62 +922,119 @@ def nhan_dinh(tu: date, den: date) -> dict:
                 chuoi.append({"page_id": pid, "ten": g.ten.iloc[0], "so_ngay": n, "tien": round(tien, 2)})
     chuoi = pd.DataFrame(chuoi, columns=["page_id", "ten", "so_ngay", "tien"]).sort_values("tien", ascending=False)
 
-    # thẻ nhận định
+    # thẻ nhận định: mỗi thẻ = con số chính + biểu đồ nhỏ + một câu việc cần làm
     the = []
     kem, tot = tp[tp.nhom == "Kém"], tp[tp.nhom == "Hiệu quả cao"]
+
+    def bar(df, cot, chu, vach=None, ten_vach=None, mau=None):
+        return {"kieu": "bar", "nhan": ten_gon_ds(df.ten), "gia_tri": [float(x) for x in df[cot]],
+                "chu": list(chu), "vach": vach, "ten_vach": ten_vach, "mau": mau}
+
     if len(kem):
         ct = kem.chi_tieu.sum() / tong_chi * 100
         pt = kem.pttb.sum() / tong_pttb * 100 if tong_pttb else 0
-        the.append({"muc": "bad", "tieu_de": f"{len(kem)} page chi phí/PTTB cao đang dùng {ct:.0f}% ngân sách",
-                    "noi_dung": f"Nhóm này chỉ mang về {pt:.0f}% số PTTB. Nặng nhất: "
-                                + ", ".join(f"{r.ten} ({_tien(r.chi_tieu)}$, "
-                                            + (f"{_tien(r.cp_pttb)}$/PTTB)" if r.pttb else "chưa ra PTTB)")
-                                            for r in kem.nlargest(3, "chi_tieu").itertuples())
-                                + ". Nên xem lại nội dung camp, tệp khách hoặc giảm ngân sách."})
+        x = kem.assign(_cp=kem.cp_pttb.fillna(kem.chi_tieu)).nlargest(5, "chi_tieu")
+        the.append({"muc": "bad", "tieu_de": f"{len(kem)} page chi phí/PTTB cao",
+                    "so": f"{ct:.0f}% ngân sách → {pt:.0f}% PTTB",
+                    "bd": bar(x, "_cp", [f"{_tien(c)}$/PTTB" if p else f"{_tien(t)}$, chưa có PTTB"
+                                         for c, p, t in zip(x.cp_pttb, x.pttb, x.chi_tieu)],
+                              NGUONG_TOT, f"mức tốt {NGUONG_TOT:.0f}$", "#D64534"),
+                    "noi_dung": "Xem lại nội dung camp, tệp khách; không cải thiện sau 3-5 ngày thì giảm ngân sách."})
     if len(chuoi):
-        the.append({"muc": "bad", "tieu_de": f"{len(chuoi)} page chạy liền nhiều ngày chưa ra PTTB",
-                    "noi_dung": ", ".join(f"{r.ten}: {r.so_ngay} ngày, {_tien(r.tien)}$"
-                                          for r in chuoi.head(4).itertuples())
-                                + ". Kiểm tra camp có đúng tệp khách, tin nhắn có được trả lời kịp không."})
+        x = chuoi.head(5)
+        the.append({"muc": "bad", "tieu_de": "Chạy liền nhiều ngày chưa ra PTTB",
+                    "so": f"{len(chuoi)} page · {_tien(chuoi.tien.sum())}$ chưa ra PTTB",
+                    "bd": bar(x, "so_ngay", [f"{n} ngày · {_tien(t)}$" for n, t in zip(x.so_ngay, x.tien)],
+                              mau="#D64534"),
+                    "noi_dung": "Kiểm tra camp có đúng tệp khách, tin nhắn có được trả lời kịp; cân nhắc tạm dừng."})
     if len(xu):
         xau = xu[(xu.doi_cp >= 30) & (xu.pttb_nay > 0) & (xu.pttb_truoc >= 2)].sort_values("doi_cp", ascending=False)
         tot_len = xu[(xu.doi_cp <= -30) & (xu.pttb_nay >= 2)].sort_values("doi_cp")
         if len(xau):
-            the.append({"muc": "warn", "tieu_de": "Chi phí/PTTB tăng mạnh trong 7 ngày gần nhất",
-                        "noi_dung": ", ".join(f"{r.ten}: {_tien(r.cp_truoc)} → {_tien(r.cp_nay)}$ (+{r.doi_cp:.0f}%)"
-                                              for r in xau.head(3).itertuples())
-                                    + ". Thường do quảng cáo cũ đã mỏi hoặc tệp khách bão hoà - thử đổi nội dung."})
+            x = xau.head(4)
+            the.append({"muc": "warn", "tieu_de": "Chi phí/PTTB tăng mạnh (7 ngày gần nhất)",
+                        "so": f"{len(xau)} page đắt lên từ 30%",
+                        "bd": {"kieu": "doi", "nhan": ten_gon_ds(x.ten), "truoc": list(x.cp_truoc),
+                               "sau": list(x.cp_nay), "xau": True},
+                        "noi_dung": "Thường do quảng cáo cũ đã mỏi hoặc tệp khách bão hoà: đổi hình / nội dung mới."})
         if len(tot_len):
+            x = tot_len.head(4)
             the.append({"muc": "ok", "tieu_de": "Đang tốt lên so với 7 ngày trước",
-                        "noi_dung": ", ".join(f"{r.ten}: {_tien(r.cp_truoc)} → {_tien(r.cp_nay)}$ ({r.doi_cp:.0f}%)"
-                                              for r in tot_len.head(3).itertuples())})
+                        "so": f"{len(tot_len)} page rẻ đi từ 30%",
+                        "bd": {"kieu": "doi", "nhan": ten_gon_ds(x.ten), "truoc": list(x.cp_truoc),
+                               "sau": list(x.cp_nay), "xau": False},
+                        "noi_dung": "Ghi lại camp / nội dung đang chạy ở các page này để nhân rộng."})
     so = ph[ph.van_de == "Nhiều tin nhắn, ít số điện thoại"]
     chot = ph[ph.van_de == "Có số nhưng chốt được ít"]
     if len(so):
+        x = so.head(5)
         the.append({"muc": "warn", "tieu_de": "Nhiều tin nhắn nhưng ít xin được số",
-                    "noi_dung": ", ".join(f"{r.ten} ({int(r.tin_nhan)} tin → {int(r.lead)} số)"
-                                          for r in so.head(3).itertuples())
-                                + f". Mức chung {tl_so:.0f}% tin nhắn ra số: xem lại kịch bản trả lời, tốc độ phản hồi."})
+                    "so": f"{len(so)} page dưới nửa mức chung {tl_so:.0f}%",
+                    "bd": bar(x, "tl_so", [f"{v:.0f}% ({int(t)} tin → {int(l)} số)"
+                                           for v, t, l in zip(x.tl_so.fillna(0), x.tin_nhan, x.lead)],
+                              tl_so, f"mức chung {tl_so:.0f}%", "#E3A008"),
+                    "noi_dung": "Xem lại kịch bản trả lời và tốc độ phản hồi tin nhắn."})
     if len(chot):
+        x = chot.head(5)
         the.append({"muc": "warn", "tieu_de": "Có số điện thoại nhưng chốt PTTB thấp",
-                    "noi_dung": ", ".join(f"{r.ten} ({int(r.lead)} số → {int(r.pttb)} PTTB)"
-                                          for r in chot.head(3).itertuples())
-                                + f". Mức chung {tl_chot:.0f}%: sale nên gọi lại sớm, bám khách chưa chốt."})
+                    "so": f"{len(chot)} page dưới nửa mức chung {tl_chot:.0f}%",
+                    "bd": bar(x, "tl_chot", [f"{v:.0f}% ({int(l)} số → {int(p)} PTTB)"
+                                             for v, l, p in zip(x.tl_chot.fillna(0), x.lead, x.pttb)],
+                              tl_chot, f"mức chung {tl_chot:.0f}%", "#E3A008"),
+                    "noi_dung": "Sale gọi lại sớm trong ngày, bám khách chưa chốt."})
     if len(tot):
-        the.append({"muc": "ok", "tieu_de": f"{len(tot)} page hiệu quả cao (≤ {NGUONG_TOT:.0f}$/PTTB)",
-                    "noi_dung": "Tốt nhất: " + ", ".join(f"{r.ten} ({_tien(r.cp_pttb)}$/PTTB, {int(r.pttb)} PTTB)"
-                                                        for r in tot.nsmallest(3, "cp_pttb").itertuples())
-                                + ". Có thể tăng ngân sách từ từ (10-20% mỗi lần) và xem chi phí/PTTB có giữ được không."})
+        x = tot.nsmallest(5, "cp_pttb")
+        the.append({"muc": "ok", "tieu_de": f"{len(tot)} page hiệu quả cao",
+                    "so": f"≤ {NGUONG_TOT:.0f}$/PTTB · {tot.pttb.sum() / tong_pttb * 100:.0f}% tổng PTTB"
+                    if tong_pttb else f"≤ {NGUONG_TOT:.0f}$/PTTB",
+                    "bd": bar(x, "cp_pttb", [f"{_tien(c)}$/PTTB · {int(p)} PTTB" for c, p in zip(x.cp_pttb, x.pttb)],
+                              NGUONG_TOT, f"mức tốt {NGUONG_TOT:.0f}$", "#1E9E5A"),
+                    "noi_dung": "Tăng ngân sách từ từ (10-20% mỗi lần), theo dõi chi phí/PTTB có giữ được không."})
     if len(kem) and len(tot) and tot.pttb.sum():
         ngay_chay = max((cuoi - tu).days + 1, 1)
+        so_ngay_thang = calendar.monthrange(tu.year, tu.month)[1]
         doi = kem.chi_tieu.sum() / ngay_chay * 0.3
         cp_tot = tot.chi_tieu.sum() / tot.pttb.sum()
         cp_kem = kem.chi_tieu.sum() / kem.pttb.sum() if kem.pttb.sum() else None
-        them = doi / cp_tot - (doi / cp_kem if cp_kem else 0)
+        them = (doi / cp_tot - (doi / cp_kem if cp_kem else 0)) * so_ngay_thang
+        hien = tong_pttb / ngay_chay * so_ngay_thang
         if them > 0:
             the.append({"muc": "info", "tieu_de": "Gợi ý dời ngân sách",
-                        "noi_dung": f"Dời 30% ngân sách nhóm Kém (khoảng {_tien(doi)}$/ngày) sang nhóm Hiệu quả cao có "
-                                    f"thể thêm khoảng {them * 30:.0f} PTTB/tháng nếu giữ được mức {_tien(cp_tot)}$/PTTB "
-                                    "(ước tính - hiệu quả thường giảm dần khi tăng ngân sách)."})
+                        "so": f"+{them:.0f} PTTB/tháng (ước tính)",
+                        "bd": {"kieu": "cot", "nhan": ["Giữ như hiện tại", "Dời 30% nhóm Kém"],
+                               "gia_tri": [round(hien), round(hien + them)],
+                               "chu": [f"{hien:.0f} PTTB", f"{hien + them:.0f} PTTB"]},
+                        "noi_dung": f"Chuyển khoảng {_tien(doi)}$/ngày từ nhóm Kém sang nhóm hiệu quả cao (đang "
+                                    f"{_tien(cp_tot)}$/PTTB). Hiệu quả thường giảm dần khi tăng ngân sách."})
     return {**rong, "page": tp, "the": the, "xu_huong": xu, "pheu": ph, "chuoi": chuoi,
             "cp_tb": cp_tb, "tl_so": tl_so, "tl_chot": tl_chot}
+
+
+BO_DAU_TEN = ("LẮP MẠNG WIFI FPT ", "LẮP MẠNG WIFI ", "LẮP WIFI FPT ", "LẮP WIFI ", "LẮP ĐẶT WIFI ", "LẮP INTERNET ",
+              "LẮP MẠNG FPT ", "FPT TELECOM - ", "FPT TELECOM ", "PAGE ")
+
+
+def ten_gon(ten, toi_da: int = 24) -> str:
+    """Tên ngắn cho biểu đồ: bỏ tiền tố quảng cáo ('Lắp WIFI FPT Kon Tum' -> 'Kon Tum'), cắt nếu còn dài."""
+    s = str(ten or "").strip()
+    for d in BO_DAU_TEN:
+        if s.upper().startswith(d) and len(s) > len(d) + 2:
+            s = s[len(d):]
+            break
+    return s if len(s) <= toi_da else s[:toi_da - 1].rstrip() + "…"
+
+
+
+def ten_gon_ds(ds) -> list[str]:
+    """Tên ngắn cho biểu đồ. Chỉ rút gọn khi tên ngắn không trùng với page nào khác (VD đã có page 'Huế' thì 'Lắp Mạng
+    WIFI Huế' giữ nguyên) - tránh gộp nhầm hai page vào một thanh hoặc đọc nhầm page."""
+    ds = [str(x or "") for x in ds]
+    tat_ca = [str(x) for x in ds_page().ten] + ds
+    gon_all = {}
+    for x in dict.fromkeys(tat_ca):
+        gon_all.setdefault(ten_gon(x).upper(), set()).add(x)
+    out = []
+    for x in ds:
+        g = ten_gon(x)
+        out.append(g if len(gon_all[g.upper()]) == 1 else (x if len(x) <= 40 else x[:39] + "…"))
+    return out

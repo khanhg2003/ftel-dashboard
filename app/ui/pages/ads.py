@@ -31,8 +31,8 @@ TAB = [("tong", "Tổng quan"), ("nhan_dinh", "Nhận định"), ("sale", "Theo 
 HUONG_DAN_TAB = [
     ("Tổng quan", "số chính của tháng, điểm cần chú ý và hiệu quả từng page. Bấm một page để xem chi tiết."),
     ("Nhận định", "page nào hiệu quả / đốt tiền, đang tốt lên hay xấu đi, kẹt ở khâu nào (tin nhắn → số → PTTB)."),
-    ("Theo sale", "chi phí ads chia cho từng sale, so với số online thật trên app."),
-    ("Theo ngày", "chi tiết một page từng ngày từng camp (như trang tính cũ) và bảng màu page × ngày."),
+    ("Theo sale", "chi phí ads chia cho từng sale và hiệu quả (số ĐT, PTTB) phần page sale đó chạy."),
+    ("Theo ngày", "chi tiết một page từng ngày từng camp (như trang tính cũ) và Tracking ngày (page × ngày)."),
     ("Kế hoạch", "nhập KPI PTTB từng page, app dự kiến cả tháng và gợi ý tăng / giữ / tối ưu ngân sách."),
     ("Cấu hình", "kết nối n8n, người chạy page, tên page, tên sale ↔ acc, nhập tay, nhật ký lead."),
 ]
@@ -41,6 +41,8 @@ USD = {"function": "params.value == null ? '' : Number(params.value).toLocaleStr
 SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
                   "{maximumFractionDigits: 1})"}
 VND = {"function": "params.value == null ? '' : Math.round(params.value).toLocaleString('vi-VN')"}
+USD_D = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
+                     "{minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' $'"}
 PCT = {"function": "params.value == null ? '' : Math.round(params.value) + '%'"}
 PCT_DAU = {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + Math.round(params.value) + '%'"}
 # 3 màu: xanh tốt · vàng trung bình · đỏ cần xử lý
@@ -216,13 +218,19 @@ def layout(tab: str | None = None):
                  "xanh lá = đang tốt. Tính tới ngày đã có chi tiêu để tiền và PTTB cùng khoảng.",
                  html.Div(id="ads-nd-the", className="nd-luoi"), nut=html.Div(id="ads-nd-den")),
             html.Div([
-                _the("Ma trận hiệu quả", f"Mỗi chấm là một page: càng sang phải càng tiêu nhiều, càng lên cao chi "
-                     f"phí/PTTB càng đắt; chấm to = nhiều PTTB. Vùng dưới đường {ads.NGUONG_TOT:.0f}$ là hiệu quả. "
-                     "Page phải-trên (tiêu nhiều mà đắt) là chỗ cần xử lý trước.",
+                _the("Chi phí / PTTB từng page", f"Thanh càng dài càng đắt. Xanh ≤ {ads.NGUONG_TOT:.0f}$, vàng ≤ "
+                     f"{ads.NGUONG_BINH_THUONG:.0f}$, đỏ cao hơn; xám = chưa có PTTB (độ dài = số tiền đã tiêu). Chữ "
+                     "bên phải là số tiền page đã tiêu trong tháng.",
                      dcc.Graph(id="ads-nd-ma-tran", config={"displayModeBar": False})),
-                _the("Ngân sách đi đâu, PTTB đến từ đâu", "So phần trăm ngân sách mỗi nhóm page đang dùng với phần "
-                     "trăm PTTB nhóm đó mang về. Nhóm Kém dùng nhiều tiền hơn phần PTTB là đang lãng phí.",
-                     dcc.Graph(id="ads-nd-nhom", config={"displayModeBar": False})),
+                html.Div([
+                    _the("Ngân sách đi đâu, PTTB đến từ đâu", "So phần trăm ngân sách mỗi nhóm page đang dùng với "
+                         "phần trăm PTTB nhóm đó mang về. Nhóm Kém dùng nhiều tiền hơn phần PTTB là đang lãng phí.",
+                         dcc.Graph(id="ads-nd-nhom", config={"displayModeBar": False})),
+                    _the("Phễu tin nhắn → số điện thoại → PTTB", "Bao nhiêu tin nhắn thành số điện thoại, bao nhiêu "
+                         "số thành PTTB. Chọn page để so với mức chung.",
+                         dcc.Graph(id="ads-nd-pheu-bd", config={"displayModeBar": False}),
+                         nut=dcc.Dropdown(id="ads-pheu-page", placeholder="Tất cả page", style={"minWidth": "200px"})),
+                ], style={"display": "flex", "flexDirection": "column", "gap": "16px", "minWidth": 0}),
             ], className="hai-cot"),
             _the("Xu hướng 7 ngày", "Chi phí/PTTB 7 ngày gần nhất so với 7 ngày trước đó. Tăng mạnh thường là quảng "
                  "cáo đã mỏi (chạy lâu, tệp khách bão hoà) - nên đổi nội dung. Chỉ tính page tiêu từ 5$.",
@@ -235,7 +243,7 @@ def layout(tab: str | None = None):
                      _so("PTTB trước", "pttb_truoc", SO, 90), _so("PTTB gần nhất", "pttb_nay", SO, 100),
                      _so("Chi 7 ngày gần nhất ($)", "chi_tieu_nay", USD, 130),
                  ], cao=380)),
-            _the("Phễu: tin nhắn → số điện thoại → PTTB", "Tìm page kẹt ở khâu nào: nhiều tin nhắn mà ít xin được số "
+            _the("Phễu từng page", "Tìm page kẹt ở khâu nào: nhiều tin nhắn mà ít xin được số "
                  "(xem lại kịch bản chat, tốc độ trả lời) hay có số mà chốt ít (sale gọi lại chậm, tư vấn chưa tới). "
                  "Đánh dấu khi thấp hơn một nửa mức chung.",
                  _grid("ads-nd-pheu", [
@@ -251,19 +259,17 @@ def layout(tab: str | None = None):
         # ---------------- Theo sale
         html.Div(id="ads-p-sale", style=AN, children=[
             _the("Chi phí từng sale", "Chi tiêu mỗi page mỗi ngày chia cho các sale chạy page ngày đó (đều nhau, "
-                 "hoặc theo tỷ lệ đã khai); số điện thoại / PTTB chia cùng cách. Online thật lấy từ số bán trên app "
-                 "theo acc đã khai ở Cấu hình → Tên sale ↔ acc.",
+                 "hoặc theo tỷ lệ đã khai); tin nhắn / số điện thoại / PTTB chia cùng cách. Chỉ tính trong phạm vi "
+                 "quảng cáo Facebook.",
                  _grid("ads-g-sale", [
                      {"field": "sale", "headerName": "Sale", "pinned": "left", "minWidth": 130, "flex": 1.2},
                      {"field": "acc", "headerName": "Acc", "minWidth": 130, "flex": 1.2},
                      _so("Số page", "so_page", SO, 80),
                      _so("Chi phí ($)", "chi_tieu", USD, 105), _so("≈ VNĐ", "vnd", VND, 115),
                      _so("Số ĐT", "lead", SO, 75), _so("PTTB", "pttb", SO, 70),
-                     _so("CP/PTTB", "cp_pttb", USD, 90, cellStyle=MAU_CP),
-                     _so("Online thật", "online", SO, 95, headerTooltip="Số online của acc trên app trong kỳ"),
-                     _so("Online MTTN", "online_mttn", SO, 100),
-                     _so("CP / online thật", "cp_online", USD, 115,
-                         headerTooltip="Chi phí ads được chia / số online thật của sale (USD)"),
+                     _so("Tin nhắn", "tin_nhan", SO, 85),
+                     _so("CP/số ĐT", "cpl", USD, 90), _so("CP/PTTB", "cp_pttb", USD, 90, cellStyle=MAU_CP),
+                     _so("Tỷ lệ chốt", "ty_le_chot", PCT, 90, headerTooltip="PTTB / số điện thoại"),
                  ], cao=460)),
         ]),
 
@@ -279,8 +285,8 @@ def layout(tab: str | None = None):
                      html.Button([icon("settings", 14), html.Span("Sửa tên / link")], id="ads-ct-sua",
                                  className="btn", disabled=True),
                  ], style={"display": "flex", "gap": "8px", "alignItems": "center", "flexWrap": "wrap"})),
-            _the("Bảng màu page × ngày", "Mỗi dòng một page, mỗi cột một ngày; màu cho thấy ngày nào nhiều / ít. "
-                 "Bấm vào một dòng để xem chi tiết page đó ở trên.",
+            _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày; màu cho thấy ngày nào nhiều / ít. Tổng VNĐ "
+                 "đổi theo tỷ giá tháng (tab Kế hoạch). Bấm vào một dòng để xem chi tiết page đó ở trên.",
                  _grid("ads-g-ngay", [], cao=400, opts=CHON_1_DONG),
                  html.Div(id="ads-chu-mau"),
                  nut=seg_control("ads-chi-so", [("chi_tieu", "Chi tiêu"), ("tin_nhan", "Tin nhắn"),
@@ -449,12 +455,57 @@ def _link_md(link) -> str:
     return f"[↗]({link})" if isinstance(link, str) and link.startswith("http") else ""
 
 
+def _bd_the(bd) -> go.Figure:
+    """Biểu đồ nhỏ trong thẻ nhận định."""
+    f = go.Figure()
+    if bd["kieu"] == "bar":
+        n = len(bd["nhan"])
+        f.add_bar(y=bd["nhan"], x=bd["gia_tri"], orientation="h", marker_color=bd.get("mau") or "#0072BC",
+                  text=bd["chu"], textposition="auto", insidetextanchor="start", cliponaxis=False,
+                  textfont={"size": 11}, hoverinfo="skip")
+        if bd.get("vach") is not None:
+            f.add_vline(x=bd["vach"], line={"color": "#51606F", "dash": "dot", "width": 1},
+                        annotation_text=bd.get("ten_vach"), annotation_position="top",
+                        annotation_font={"size": 10, "color": "#51606F"})
+        cao = 44 + 28 * n
+        f.update_yaxes(autorange="reversed", tickfont={"size": 11})
+        f.update_xaxes(visible=False)
+    elif bd["kieu"] == "doi":
+        mau_sau = "#D64534" if bd["xau"] else "#1E9E5A"
+        for t, a, b in zip(bd["nhan"], bd["truoc"], bd["sau"]):
+            f.add_scatter(x=[a, b], y=[t, t], mode="lines", line={"color": "#C9D3DE", "width": 3},
+                          hoverinfo="skip", showlegend=False)
+        f.add_scatter(x=bd["truoc"], y=bd["nhan"], mode="markers+text", marker={"size": 10, "color": "#9AA9BA"},
+                      text=[ads._tien(v) + "$" for v in bd["truoc"]], textposition="middle left",
+                      textfont={"size": 10, "color": "#51606F"}, name="7 ngày trước", hoverinfo="skip")
+        f.add_scatter(x=bd["sau"], y=bd["nhan"], mode="markers+text", marker={"size": 11, "color": mau_sau},
+                      text=[ads._tien(v) + "$" for v in bd["sau"]], textposition="middle right",
+                      textfont={"size": 10, "color": mau_sau}, name="7 ngày gần nhất", hoverinfo="skip")
+        cao = 64 + 30 * len(bd["nhan"])
+        f.update_yaxes(autorange="reversed", tickfont={"size": 11})
+        lon = max(bd["truoc"] + bd["sau"])
+        f.update_xaxes(visible=False, range=[-lon * .25, lon * 1.3])
+        f.update_layout(showlegend=True, legend={"orientation": "h", "y": -0.05, "font": {"size": 10}})
+    else:                                                          # cot: so sánh 2 cột
+        f.add_bar(x=bd["nhan"], y=bd["gia_tri"], text=bd["chu"], textposition="outside",
+                  marker_color=["#9AA9BA", "#0072BC"], hoverinfo="skip", cliponaxis=False)
+        cao = 170
+        f.update_yaxes(visible=False, range=[0, max(bd["gia_tri"]) * 1.25])
+    f.update_layout(height=cao, margin={"l": 8, "r": 8, "t": 18, "b": 8}, plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)", font={"size": 11}, bargap=.35,
+                    showlegend=f.layout.showlegend or False)
+    return f
+
+
 def _the_nd(ds, toi_da=None):
     if not ds:
         return [html.Div("Chưa đủ số liệu để nhận định.", className="ghi-chu-nhan")]
     thu_tu = {"bad": 0, "warn": 1, "info": 2, "ok": 3}
     ds = sorted(ds, key=lambda x: thu_tu[x["muc"]])[:toi_da]
-    return [html.Div([html.B(t["tieu_de"]), html.Span(t["noi_dung"])], className=f"nd-the {t['muc']}") for t in ds]
+    return [html.Div([html.Div(t["tieu_de"], className="nd-ten"), html.Div(t.get("so", ""), className="nd-so"),
+                      dcc.Graph(figure=_bd_the(t["bd"]), config={"displayModeBar": False, "staticPlot": True}),
+                      html.Div(["→ ", t["noi_dung"]], className="nd-viec")], className=f"nd-the {t['muc']}")
+            for t in ds]
 
 
 def _mau_json(host: str) -> str:
@@ -473,9 +524,9 @@ def _mau_json(host: str) -> str:
 
 
 def _bo_cuc(fig, cao=300, **kw):
-    fig.update_layout(height=cao, margin={"l": 44, "r": 20, "t": 10, "b": 36}, plot_bgcolor="white",
-                      paper_bgcolor="white", legend={"orientation": "h", "y": 1.12}, font={"size": 12},
-                      hoverlabel={"bgcolor": "white"}, **kw)
+    fig.update_layout(**{"height": cao, "margin": {"l": 44, "r": 20, "t": 10, "b": 36}, "plot_bgcolor": "white",
+                         "paper_bgcolor": "white", "legend": {"orientation": "h", "y": 1.12}, "font": {"size": 12},
+                         "hoverlabel": {"bgcolor": "white"}, **kw})
     return fig
 
 
@@ -546,22 +597,27 @@ def register(app):
         tu, den = _ky(thang)
         nd = ads.nhan_dinh(tu, den)
         tp = nd["page"]
-        mau = {"Hiệu quả cao": "#1E9E5A", "Trung bình": "#E3A008", "Kém": "#D64534", "Chưa đủ dữ liệu": "#9AA9BA"}
+        mau = {"Hiệu quả cao": "#1E9E5A", "Trung bình": "#E3A008", "Kém": "#D64534", "Chưa đủ dữ liệu": "#B7C2CE"}
         f1, f2 = go.Figure(), go.Figure()
+        cao1 = 380
         if len(tp):
-            co = tp[tp.pttb > 0]
-            for nhom in ads.NHOM_HQ[:3]:
-                x = co[co.nhom == nhom]
-                if len(x):
-                    f1.add_scatter(x=x.chi_tieu, y=x.cp_pttb, mode="markers+text", name=nhom, text=x.ten,
-                                   textposition="top center", textfont={"size": 10, "color": "#51606F"},
-                                   marker={"size": 9 + np.sqrt(x.pttb) * 3, "color": mau[nhom], "opacity": .8,
-                                           "line": {"color": "white", "width": 1}},
-                                   customdata=np.stack([x.pttb], axis=-1),
-                                   hovertemplate="<b>%{text}</b><br>Chi %{x:,.2f} $ · %{customdata[0]:.0f} PTTB"
-                                                 "<br>%{y:,.2f} $/PTTB<extra></extra>")
-            f1.add_hline(y=ads.NGUONG_TOT, line={"color": "#1E9E5A", "dash": "dot", "width": 1})
-            f1.add_hline(y=ads.NGUONG_BINH_THUONG, line={"color": "#D64534", "dash": "dot", "width": 1})
+            x = tp.assign(_v=tp.cp_pttb.where(tp.pttb > 0)).copy()
+            x["_ve"] = x._v.fillna(x.chi_tieu.clip(upper=ads.NGUONG_BINH_THUONG * 1.6))
+            x = x.sort_values(["_v"], ascending=False, na_position="first")
+            x["_n"] = ads.ten_gon_ds(x.ten)
+            f1.add_bar(y=x._n, x=x._ve, orientation="h", marker_color=[mau[n] for n in x.nhom],
+                       text=[(f"{ads._tien(v)}$/PTTB" if v == v else "chưa có PTTB") for v in x._v],
+                       textposition="inside", insidetextanchor="end", textfont={"size": 10, "color": "white"},
+                       customdata=np.stack([x.ten, x.chi_tieu, x.pttb], axis=-1),
+                       hovertemplate="<b>%{customdata[0]}</b><br>Tiêu %{customdata[1]:,.2f} $ · "
+                                     "%{customdata[2]:.0f} PTTB<extra></extra>")
+            f1.add_scatter(y=x._n, x=[max(x._ve) * 1.02] * len(x), mode="text", hoverinfo="skip",
+                           text=[f"{ads._tien(c)}$" for c in x.chi_tieu], textposition="middle right",
+                           textfont={"size": 10, "color": "#51606F"}, showlegend=False)
+            f1.add_vline(x=ads.NGUONG_TOT, line={"color": "#1E9E5A", "dash": "dot", "width": 1})
+            f1.add_vline(x=ads.NGUONG_BINH_THUONG, line={"color": "#D64534", "dash": "dot", "width": 1})
+            cao1 = 60 + 22 * len(x)
+            f1.update_xaxes(range=[0, max(x._ve) * 1.22])
             g = tp.groupby("nhom")[["ty_trong_chi", "ty_trong_pttb"]].sum().reindex(ads.NHOM_HQ).dropna(how="all")
             f2.add_bar(x=g.index, y=g.ty_trong_chi, name="% ngân sách", marker_color="#0072BC",
                        text=[f"{v:.0f}%" for v in g.ty_trong_chi], textposition="outside",
@@ -569,9 +625,10 @@ def register(app):
             f2.add_bar(x=g.index, y=g.ty_trong_pttb, name="% PTTB", marker_color="#F37021",
                        text=[f"{v:.0f}%" for v in g.ty_trong_pttb], textposition="outside",
                        hovertemplate="%{x}: %{y:.1f}% PTTB<extra></extra>")
-        _bo_cuc(f1, 380, xaxis={"title": "Chi tiêu tháng ($)", "gridcolor": "#EEF2F6", "rangemode": "tozero"},
-                yaxis={"title": "Chi phí / PTTB ($)", "gridcolor": "#EEF2F6", "rangemode": "tozero"})
-        _bo_cuc(f2, 380, barmode="group", yaxis={"title": None, "ticksuffix": "%", "gridcolor": "#EEF2F6"})
+        _bo_cuc(f1, cao1, showlegend=False, bargap=.25,
+                xaxis={"title": "Chi phí / PTTB ($)", "gridcolor": "#EEF2F6", "side": "top"},
+                yaxis={"autorange": "reversed", "tickfont": {"size": 11}}, margin={"l": 10, "r": 10, "t": 40, "b": 10})
+        _bo_cuc(f2, 300, barmode="group", yaxis={"title": None, "ticksuffix": "%", "gridcolor": "#EEF2F6"})
         den_ = html.Span(f"Tính đến {nd['den']:%d/%m}", className="badge muted") if nd["den"] else None
         muc = []
         if nd["tl_so"]:
@@ -587,27 +644,59 @@ def register(app):
                    .drop(columns="_c")
         return (_the_nd(nd["the"], 4), _the_nd(nd["the"]), den_, f1, f2, _ban_ghi(xu), _ban_ghi(ph), " · ".join(muc))
 
-    # ------------------------------------------------ bảng màu page × ngày
+    @cb(Output("ads-pheu-page", "options"), Output("ads-nd-pheu-bd", "figure"),
+        Input("ads-pheu-page", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"))
+    def _pheu(pid, thang, _s):
+        tu, den = _ky(thang)
+        nd = ads.nhan_dinh(tu, den)
+        ph = nd["pheu"]
+        opts = [] if ph.empty else [{"label": t, "value": int(i)} for i, t in
+                                    zip(ph.sort_values("tin_nhan", ascending=False).page_id,
+                                        ph.sort_values("tin_nhan", ascending=False).ten)]
+        f = go.Figure()
+        if len(ph):
+            x = ph[ph.page_id == pid] if pid else ph
+            v = [float(x.tin_nhan.sum()), float(x.lead.sum()), float(x.pttb.sum())]
+            f.add_funnel(y=["Tin nhắn", "Số điện thoại", "PTTB"], x=v, textinfo="value+percent previous",
+                         marker={"color": ["#8DB8E3", "#0072BC", "#F37021"]}, connector={"fillcolor": "#EEF2F6"},
+                         hovertemplate="%{y}: %{x}<extra></extra>")
+            if pid and nd["tl_so"] and nd["tl_chot"]:
+                f.add_annotation(text=f"Mức chung: {nd['tl_so']:.0f}% tin nhắn ra số · {nd['tl_chot']:.0f}% số ra PTTB",
+                                 xref="paper", yref="paper", x=0.5, y=-0.12, showarrow=False,
+                                 font={"size": 11, "color": "#51606F"})
+        _bo_cuc(f, 270, margin={"l": 100, "r": 20, "t": 10, "b": 36})
+        return opts, f
+
+    # ------------------------------------------------ tracking ngày (page × ngày)
     @cb(Output("ads-g-ngay", "columnDefs"), Output("ads-g-ngay", "rowData"), Output("ads-chu-mau", "children"),
         Input("ads-thang", "value"), Input("ads-chi-so", "value"), Input("ads-sua", "data"))
     def _tracking(thang, chi_so, _s):
         chi_so = chi_so or "chi_tieu"
         pv, so_ngay = ads.tracking(thang, chi_so)
-        fmt = USD if chi_so in ("chi_tieu", "cp_pttb") else SO
+        tien = chi_so in ("chi_tieu", "cp_pttb")
+        fmt = USD_D if tien else SO
         huong = HUONG_CHI_SO[chi_so]
         ngay = [str(i) for i in range(1, so_ngay + 1)]
         gia_tri = pv[[c for c in pv.columns if str(c).isdigit()]].values.ravel().tolist() if len(pv) else []
         nhiet = _mau_nhiet(gia_tri, huong)
-        cot = [{"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 190, "tooltipField": "ten"},
-               {"field": "tong", "headerName": "Cả tháng" if chi_so == "cp_pttb" else "Tổng", "pinned": "left",
-                "width": 95, "type": "numericColumn", "valueFormatter": fmt,
-                "cellStyle": MAU_CP if chi_so == "cp_pttb" else {"fontWeight": "700"}}]
-        cot += [{"field": d, "headerName": d, "width": 60 if chi_so in ("chi_tieu", "cp_pttb") else 50,
-                 "type": "numericColumn", "cellStyle": nhiet, "sortable": False, "filter": False,
+        cot = [{"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 180, "tooltipField": "ten"}]
+        if chi_so == "chi_tieu":
+            cot += [{"field": "tong", "headerName": "Tổng ($)", "pinned": "left", "width": 100,
+                     "type": "numericColumn", "valueFormatter": USD_D, "cellStyle": {"fontWeight": "700"}},
+                    {"field": "vnd", "headerName": "≈ VNĐ", "pinned": "left", "width": 115, "type": "numericColumn",
+                     "valueFormatter": VND, "headerTooltip": "Tổng USD × tỷ giá tháng"}]
+        else:
+            cot.append({"field": "tong", "headerName": "Cả tháng" if chi_so == "cp_pttb" else "Tổng",
+                        "pinned": "left", "width": 95, "type": "numericColumn", "valueFormatter": fmt,
+                        "cellStyle": MAU_CP if chi_so == "cp_pttb" else {"fontWeight": "700"}})
+        cot += [{"field": d, "headerName": d, "width": 76 if tien else 52, "type": "numericColumn",
+                 "cellStyle": nhiet, "sortable": False, "filter": False,
                  "valueFormatter": {"function": "params.value ? " + fmt["function"] + " : ''"}} for d in ngay]
         if pv.empty:
             return cot, [], _chu_mau(huong)
         pv.columns = [str(c) for c in pv.columns]
+        if chi_so == "chi_tieu":
+            pv["vnd"] = pv["tong"] * ads.ty_gia(thang)
         return cot, _ban_ghi(pv), _chu_mau(huong)
 
     # ------------------------------------------------ chi tiết một page
@@ -639,8 +728,8 @@ def register(app):
         opts = dict(opts or {})
         opts["pinnedBottomRowData"] = []
         if not pid:
-            return [], [], opts, html.Span("Chọn một page ở ô bên phải, hoặc bấm vào page ở tab Tổng quan / bảng "
-                                           "màu bên dưới.", className="ghi-chu-nhan"), True
+            return [], [], opts, html.Span("Chọn một page ở ô bên phải, hoặc bấm vào page ở tab Tổng quan / "
+                                           "Tracking ngày bên dưới.", className="ghi-chu-nhan"), True
         tu, den = _ky(thang)
         ct = ads.chi_tiet_page(int(pid), tu, den)
         so_pic = max(ct["so_pic"], 1)
