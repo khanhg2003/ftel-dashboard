@@ -341,5 +341,5 @@ def test_trang_thai_tai_khoan_khong_bi_khoa_nham_khi_co_nguoi_khac_bi_khoa(monke
                        "role": ["admin", "phong"], "scope": [None, None], "ma_nv": ["", ""], "active": [True, True],
                        "last_login": [None, None],
                        "locked_until": pd.to_datetime([utc_bay_gio() + pd.Timedelta(minutes=10), None])})
-    monkeypatch.setattr(sv.pd, "read_sql", lambda *a, **k: df.copy())
+    monkeypatch.setattr(sv.pd, "read_sql_query", lambda *a, **k: df.copy())
     assert list(sv.danh_sach_user().trang_thai) == ["Đang khoá", "Đang dùng"]

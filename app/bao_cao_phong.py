@@ -26,7 +26,7 @@ TON_LAU_CANH_BAO = 3                    # từ 3 hợp đồng chờ online từ
 
 
 def _q(sql: str, **params) -> pd.DataFrame:
-    return pd.read_sql(text(sql), engine, params=params)
+    return pd.read_sql_query(text(sql), engine, params=params)
 
 
 def _dem_theo_acc(bang: str, cot: str, tu: str, den: str, code: str, them: str = "") -> pd.Series:

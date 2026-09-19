@@ -270,7 +270,7 @@ def _cocau_rows(thang: str):
 
 
 def _target_rows(thang: str):
-    df = pd.read_sql(text("""SELECT ma_doi_tuong, chi_tieu, gia_tri FROM target_monthly
+    df = pd.read_sql_query(text("""SELECT ma_doi_tuong, chi_tieu, gia_tri FROM target_monthly
                              WHERE thang = :t AND doi_tuong = 'PHONG'"""),
                      engine, params={"t": thang})
     pv = (df.pivot_table(index="ma_doi_tuong", columns="chi_tieu", values="gia_tri")
@@ -410,7 +410,7 @@ def register(app):
     def _nhat_ky(tab):
         if tab != "nhatky":
             return no_update
-        log = pd.read_sql(text(f"""SELECT ts, username, action, detail FROM audit_log
+        log = pd.read_sql_query(text(f"""SELECT ts, username, action, detail FROM audit_log
                                    ORDER BY id DESC LIMIT {SO_DONG_NHAT_KY}"""), engine)
         return [{"luc": chu_gio_vn(r.ts, "%H:%M:%S %d/%m/%Y"), "username": r.username or "",
                  "action": r.action, "detail": r.detail or ""} for r in log.itertuples()]

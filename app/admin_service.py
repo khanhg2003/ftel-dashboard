@@ -26,7 +26,7 @@ FACTS = {"internet": FactInternet, "fptplay": FactFptPlay, "camera": FactCamera}
 
 # ------------------------------------------------------------------ tài khoản
 def danh_sach_user() -> pd.DataFrame:
-    df = pd.read_sql(text("""SELECT id, username, ho_ten, email, role, scope, ma_nv, active,
+    df = pd.read_sql_query(text("""SELECT id, username, ho_ten, email, role, scope, ma_nv, active,
                                     last_login, locked_until
                              FROM users ORDER BY role, username"""), engine)
     if df.empty:
@@ -274,7 +274,7 @@ def dat_lai_mat_khau(username: str, nguoi_thuc_hien: str) -> str:
 
 # ------------------------------------------------------- danh mục nhân sự
 def danh_sach_staff() -> pd.DataFrame:
-    df = pd.read_sql(text("""SELECT s.id, s.acc, s.ma_nv, s.phong_code, p.ten AS phong,
+    df = pd.read_sql_query(text("""SELECT s.id, s.acc, s.ma_nv, s.phong_code, p.ten AS phong,
                                     s.hieu_luc_tu, s.hieu_luc_den, s.ghi_chu
                              FROM staff_map s LEFT JOIN dim_phong p ON p.code = s.phong_code
                              ORDER BY p.thu_tu, s.acc"""), engine)
@@ -392,7 +392,7 @@ def xoa_staff(ids: list[int], nguoi_thuc_hien: str) -> int:
 
 # ------------------------------------------------------- lịch sử nạp dữ liệu
 def lich_su_nap(limit: int = 50) -> pd.DataFrame:
-    df = pd.read_sql(text("""SELECT id, dataset, file_name, thang, rows_total, rows_valid,
+    df = pd.read_sql_query(text("""SELECT id, dataset, file_name, thang, rows_total, rows_valid,
                                     rows_invalid, rows_new, rows_updated, rows_duplicate,
                                     uploaded_by, uploaded_at, note
                              FROM upload_batch ORDER BY id DESC LIMIT :n"""),
@@ -410,7 +410,7 @@ def _dem_dong_batch(batch_id: int, dataset: str) -> int:
             "nhan_su": "hr_monthly"}.get(dataset)
     if not bang:
         return 0
-    df = pd.read_sql(text(f"SELECT COUNT(*) n FROM {bang} WHERE batch_id = :b"),
+    df = pd.read_sql_query(text(f"SELECT COUNT(*) n FROM {bang} WHERE batch_id = :b"),
                      engine, params={"b": batch_id})
     return int(df.iloc[0, 0])
 
@@ -449,7 +449,7 @@ def go_bo_lan_nap(batch_id: int, nguoi_thuc_hien: str, loai_cho_phep: set[str] |
 
 # ------------------------------------------------------- chất lượng dữ liệu
 def _sql_df(sql: str, params: dict | None = None) -> pd.DataFrame:
-    return pd.read_sql(text(sql), engine, params=params or {})
+    return pd.read_sql_query(text(sql), engine, params=params or {})
 
 
 def _khoang(thang: str) -> dict:

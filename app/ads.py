@@ -253,7 +253,7 @@ def nhan_lead(du_lieu, nguon: str = "telegram", nguoi: str | None = None) -> dic
 # ------------------------------------------------------------------ đọc số liệu
 def _q(sql: str, **p) -> pd.DataFrame:
     dam_bao_bang()
-    return pd.read_sql(text(sql), engine, params=p)
+    return pd.read_sql_query(text(sql), engine, params=p)
 
 
 @nho("ads")

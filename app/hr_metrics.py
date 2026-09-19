@@ -31,7 +31,7 @@ SUT_TUAN = 0.5                 # tuần này giảm từ một nửa so với tu
 
 
 def _q(sql: str, **params) -> pd.DataFrame:
-    return pd.read_sql(text(sql), engine, params=params)
+    return pd.read_sql_query(text(sql), engine, params=params)
 
 
 def hr_thang_gan_nhat(thang: str) -> str | None:

@@ -81,7 +81,7 @@ def test_ban_ngoai_tinh_la_phan_bu_cua_pttb_cnql():
 def _gia_lap_lan_nap(monkeypatch, dong):
     import app.metrics as m
     df = pd.DataFrame(dong, columns=["batch_id", "cn_ban", "n"])
-    monkeypatch.setattr(m.pd, "read_sql", lambda *a, **k: df)
+    monkeypatch.setattr(m.pd, "read_sql_query", lambda *a, **k: df)
     return m
 
 

@@ -40,14 +40,14 @@ def _dem(bang: str, code: str, tu: str, den: str, them: str = "") -> tuple[int, 
                           SUM(CASE WHEN UPPER(TRIM(COALESCE(cn_quan_ly, ''))) IN :ds THEN 1 ELSE 0 END) AS mttn
                    FROM {bang} WHERE phong_code = :c AND ngay_online >= :tu AND ngay_online <= :den{them}"""
                ).bindparams(bindparam("ds", expanding=True))
-    r = pd.read_sql(sql, engine, params={"ds": cau_hinh()["cn_quan_ly"] or [""], "c": code, "tu": tu,
+    r = pd.read_sql_query(sql, engine, params={"ds": cau_hinh()["cn_quan_ly"] or [""], "c": code, "tu": tu,
                                          "den": den}).iloc[0]
     return int(r.mttn or 0), int(r.tong or 0)
 
 
 def muc_tieu(thang: str, code: str) -> float | None:
     """Mục tiêu tỷ lệ MTTN (%) của phòng trong tháng, None nếu chưa nhập."""
-    r = pd.read_sql(text("""SELECT gia_tri FROM target_monthly WHERE thang = :t AND doi_tuong = 'PHONG'
+    r = pd.read_sql_query(text("""SELECT gia_tri FROM target_monthly WHERE thang = :t AND doi_tuong = 'PHONG'
                             AND ma_doi_tuong = :c AND chi_tieu = :k"""), engine,
                     params={"t": thang, "c": code, "k": CHI_TIEU})
     return float(r.gia_tri.iloc[0]) if len(r) and pd.notna(r.gia_tri.iloc[0]) else None

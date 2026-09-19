@@ -23,7 +23,7 @@ from app.org import phong_order
 
 
 def _q(sql: str, **params) -> pd.DataFrame:
-    return pd.read_sql(text(sql), engine, params=params)
+    return pd.read_sql_query(text(sql), engine, params=params)
 
 
 def _cau_hinh() -> dict:

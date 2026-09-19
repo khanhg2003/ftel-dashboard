@@ -18,7 +18,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from app.db import engine
-from app.metrics import daily_counts, month_range, ngay_co_du_lieu
+from app.metrics import month_range, ngay_co_du_lieu
 from app.org import bay_info, phong_order
 
 CN_NOI_BO = ("DNG_01", "DNG_02", "QNM")
@@ -29,51 +29,74 @@ COT_KHONG_CONG = ["nhan_su", "mt_internet", "mt_camera", "mt_ngay"]
 LECH_GIO_VN = timedelta(hours=7)          # database lưu giờ UTC
 
 
-def _ngay_don(thang: str, metric: str, ngay: int) -> pd.Series:
-    d = daily_counts(thang, metric)
-    return d[ngay] if ngay in d.columns else pd.Series(0, index=d.index)
+def _sql_bang(sql: str, params: dict) -> pd.DataFrame:
+    df = pd.read_sql_query(text(sql), engine, params=params)
+    return df.set_index("phong_code") if not df.empty else pd.DataFrame()
 
 
-def _sql_series(sql: str, params: dict) -> pd.Series:
-    df = pd.read_sql(text(sql), engine, params=params)
-    if df.empty:
-        return pd.Series(dtype=int)
-    return df.set_index("phong_code")["n"]
+def _dem(dk: str) -> str:
+    return f"SUM(CASE WHEN {dk} THEN 1 ELSE 0 END)"
+
+
+def _so_lieu_phong(d_tu: date, d_den: date) -> pd.DataFrame:
+    """Mọi cột đếm của Báo cáo Tổng theo phòng, trong 3 câu hỏi database (trước đây ~14 câu lẻ):
+    - Internet: online trong kỳ, cùng kỳ tháng trước, PTTB CNQL, số tồn, online / bán mới trong ngày cuối;
+    - FPT Play: combo, V.VIP trong kỳ, V.VIP tạo trong ngày cuối (Kết quả ngày đếm V.VIP theo NGÀY TẠO);
+    - Camera trong kỳ.
+    Cách đếm giữ nguyên như từng hàm cũ (đã đối chiếu khớp sheet)."""
+    from app.metrics import dieu_kien_ton
+    ck_tu, ck_den = lui_mot_thang(d_tu), lui_mot_thang(d_den)
+    dk_ton, p = dieu_kien_ton()
+    p.update({"tu": d_tu.isoformat(), "den": d_den.isoformat(), "ck_tu": ck_tu.isoformat(),
+              "ck_den": ck_den.isoformat(), "d": d_den.isoformat(), "lo": min(d_tu, ck_tu).isoformat(),
+              "hi": max(d_den, ck_den).isoformat(), **{f"cnql_{i}": c for i, c in enumerate(CN_NOI_BO)}})
+    trong_ky = "ngay_online >= :tu AND ngay_online <= :den"
+    cnql = ", ".join(f":cnql_{i}" for i in range(len(CN_NOI_BO)))
+    net = _sql_bang(f"""
+        SELECT phong_code, {_dem(trong_ky)} AS online,
+               {_dem("ngay_online >= :ck_tu AND ngay_online <= :ck_den")} AS ck_online,
+               {_dem(f"{trong_ky} AND cn_quan_ly IN ({cnql})")} AS cnql,
+               {_dem(dk_ton)} AS so_ton,
+               {_dem("ngay_online = :d")} AS ngay_online,
+               {_dem("ngay_tao_hd = :d")} AS ngay_ban_moi
+        FROM fact_internet
+        WHERE (ngay_online >= :lo AND ngay_online <= :hi) OR ngay_tao_hd = :d OR ({dk_ton})
+        GROUP BY phong_code""", p)
+    ky = {"tu": p["tu"], "den": p["den"], "d": p["d"]}
+    fpl = _sql_bang(f"""
+        SELECT phong_code, {_dem(trong_ky)} AS fpl_combo, {_dem(f"{trong_ky} AND la_vvip = TRUE")} AS vvip,
+               {_dem("ngay_tao_hd = :d AND la_vvip = TRUE")} AS ngay_vvip
+        FROM fact_fptplay WHERE ({trong_ky}) OR ngay_tao_hd = :d
+        GROUP BY phong_code""", ky)
+    cam = _sql_bang(f"""SELECT phong_code, COUNT(*) AS camera FROM fact_camera WHERE {trong_ky}
+                        GROUP BY phong_code""", ky)
+    return pd.concat([x for x in (net, fpl, cam) if not x.empty], axis=1) if any(
+        not x.empty for x in (net, fpl, cam)) else pd.DataFrame()
 
 
 def _nhan_su() -> pd.Series:
     """Số nhân sự đang làm của phòng: không ghi Nghỉ, dòng danh mục còn hiệu lực, không đếm trưởng phòng."""
     from app.canh_bao import acc_truong_phong
-    df = pd.read_sql(text("""SELECT acc_norm, phong_code FROM staff_map
+    df = pd.read_sql_query(text("""SELECT acc_norm, phong_code FROM staff_map
                              WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'
                                AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE)"""), engine)
     df = df[~df.acc_norm.isin(acc_truong_phong())]
     return df.groupby("phong_code").size().astype(int)
 
 
-def _pttb_cnql(tu: str, den: str) -> pd.Series:
-    start = date.fromisoformat(tu)
-    sql = f"""SELECT phong_code, COUNT(*) n FROM fact_internet
-              WHERE ngay_online >= :start AND ngay_online <= :den
-                AND cn_quan_ly IN ({','.join(repr(c) for c in CN_NOI_BO)})
-              GROUP BY phong_code"""
-    return _sql_series(sql, {"start": start.isoformat(), "den": den})
-
-
-def _so_ton() -> pd.Series:
-    from app.metrics import dieu_kien_ton
-    dk, p = dieu_kien_ton()
-    return _sql_series(f"SELECT phong_code, COUNT(*) n FROM fact_internet WHERE {dk} "
-                       "GROUP BY phong_code", p)
-
-
 def _targets(thang: str) -> pd.DataFrame:
-    df = pd.read_sql(text("""SELECT ma_doi_tuong, chi_tieu, gia_tri FROM target_monthly
-                             WHERE thang = :t AND doi_tuong = 'PHONG'"""),
-                     engine, params={"t": thang})
-    if df.empty:
-        return pd.DataFrame()
-    return df.pivot_table(index="ma_doi_tuong", columns="chi_tieu", values="gia_tri")
+    """Bảng mục tiêu phòng × chỉ tiêu của một tháng."""
+    return _targets_thang([thang]).get(thang, pd.DataFrame())
+
+
+def _targets_thang(cac_thang: list[str]) -> dict[str, pd.DataFrame]:
+    """{tháng: bảng mục tiêu phòng × chỉ tiêu} của các tháng, đọc trong một câu hỏi."""
+    ten = ", ".join(f":t{i}" for i in range(len(cac_thang)))
+    df = pd.read_sql_query(text(f"""SELECT thang, ma_doi_tuong, chi_tieu, gia_tri FROM target_monthly
+                                   WHERE thang IN ({ten}) AND doi_tuong = 'PHONG'"""),
+                           engine, params={f"t{i}": t for i, t in enumerate(cac_thang)})
+    return {t: g.pivot_table(index="ma_doi_tuong", columns="chi_tieu", values="gia_tri")
+            for t, g in df.groupby("thang")}
 
 
 def lui_mot_thang(d: date) -> date:
@@ -102,7 +125,6 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
     `chi_nhanh` chỉ đổi tên dòng tổng (TỔNG ĐÀ NẴNG...). `tam_tinh` = ngày còn đang nạp số:
     phòng chưa đủ mục tiêu ghi "Chưa đạt" thay vì "Không đạt".
     """
-    from app.metrics import tong_theo_phong
     ngay = ngay or ngay_co_du_lieu(thang) or month_range(thang)[2]
     d_den = date.fromisoformat(f"{thang}-{ngay:02d}")
     d_tu = date.fromisoformat(tu) if tu else d_den.replace(day=1)
@@ -114,27 +136,20 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
     def s(series: pd.Series) -> pd.Series:
         return series.reindex(codes).fillna(0).astype(int)
 
-    def khoang(metric: str, a: date, b: date) -> pd.Series:
-        return s(tong_theo_phong(a.isoformat(), b.isoformat(), metric).set_index("phong_code")["n"])
+    so = _so_lieu_phong(d_tu, d_den)
 
-    online = khoang("online", d_tu, d_den)
-    vvip = khoang("vvip", d_tu, d_den)
-    fpl = khoang("fptplay", d_tu, d_den)
-    camera = khoang("camera", d_tu, d_den)
-    ck = khoang("online", lui_mot_thang(d_tu), lui_mot_thang(d_den))
-    cnql = s(_pttb_cnql(d_tu.isoformat(), d_den.isoformat()))
-    ton = s(_so_ton())
+    def cot(ten: str) -> pd.Series:
+        return s(so[ten]) if ten in so.columns else pd.Series(0, index=codes)
+
     nhan_su = s(_nhan_su())
-    ngay_ban_moi = s(_ngay_don(thang, "ban_moi", ngay))
-    ngay_online = s(_ngay_don(thang, "online", ngay))
-    ngay_vvip_tao = _vvip_tao_trong_ngay(thang, ngay).reindex(codes).fillna(0).astype(int)
 
     so_thang = (d_den.year - d_tu.year) * 12 + d_den.month - d_tu.month
     cac_thang = [f"{(d_tu.year * 12 + d_tu.month - 1 + i) // 12}-{(d_tu.month - 1 + i) % 12 + 1:02d}"
                  for i in range(so_thang + 1)]
-    ds_tgt = [t for t in (_targets(m) for m in cac_thang) if not t.empty]
+    moi_thang = _targets_thang(sorted(set(cac_thang) | {thang}))
+    ds_tgt = [moi_thang[m] for m in cac_thang if m in moi_thang]
     tgt = pd.concat(ds_tgt).groupby(level=0).sum() if len(ds_tgt) > 1 else (ds_tgt[0] if ds_tgt else pd.DataFrame())
-    tgt_thang = _targets(thang)                  # mục tiêu ngày luôn lấy của tháng ngày cuối
+    tgt_thang = moi_thang.get(thang, pd.DataFrame())     # mục tiêu ngày luôn lấy của tháng ngày cuối
 
     def target(col: str, bang: pd.DataFrame | None = None) -> pd.Series:
         bang = tgt if bang is None else bang
@@ -148,18 +163,18 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         "bay": [meta[c]["bay"] for c in codes],
         "nhan_su": nhan_su,
         "mt_internet": target("internet"),
-        "so_ton": ton,
-        "online": online,
-        "ck_online": ck,
-        "fpl_combo": fpl,
-        "cnql": cnql,
-        "vvip": vvip,
+        "so_ton": cot("so_ton"),
+        "online": cot("online"),
+        "ck_online": cot("ck_online"),
+        "fpl_combo": cot("fpl_combo"),
+        "cnql": cot("cnql"),
+        "vvip": cot("vvip"),
         "mt_camera": target("camera"),
-        "camera": camera,
+        "camera": cot("camera"),
         "mt_ngay": target("ngay", tgt_thang),
-        "ngay_ban_moi": ngay_ban_moi,
-        "ngay_online": ngay_online,
-        "ngay_vvip": ngay_vvip_tao,
+        "ngay_ban_moi": cot("ngay_ban_moi"),
+        "ngay_online": cot("ngay_online"),
+        "ngay_vvip": cot("ngay_vvip"),
     }, index=codes)
 
     rows = []
@@ -204,14 +219,6 @@ def phong_khong_cong_tong() -> set[str]:
     return set((rules_config().get("tong_chi_nhanh") or {}).get("khong_cong") or [])
 
 
-def _vvip_tao_trong_ngay(thang: str, ngay: int) -> pd.Series:
-    """Cột VVIP trong khối 'Kết quả thực hiện ngày' đếm theo NGÀY TẠO hợp đồng."""
-    d = f"{thang}-{ngay:02d}"
-    return _sql_series("""SELECT phong_code, COUNT(*) n FROM fact_fptplay
-                          WHERE ngay_tao_hd = :d AND la_vvip = TRUE GROUP BY phong_code""",
-                       {"d": d})
-
-
 def _ty_le(tu: pd.Series, mau: pd.Series) -> pd.Series:
     return (tu / mau.replace(0, np.nan) * 100).round(0)
 
@@ -235,7 +242,7 @@ def _them_ty_le(out: pd.DataFrame, tam_tinh: bool = False) -> pd.DataFrame:
 
 def lan_nap_so_cuoi() -> datetime | None:
     """Giờ Việt Nam của lần nạp file Internet gần nhất (file quyết định số online)."""
-    df = pd.read_sql(text("SELECT MAX(uploaded_at) AS t FROM upload_batch "
+    df = pd.read_sql_query(text("SELECT MAX(uploaded_at) AS t FROM upload_batch "
                           "WHERE dataset = 'internet'"), engine)
     v = df["t"].iloc[0] if not df.empty else None
     if v is None or pd.isna(v):

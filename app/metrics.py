@@ -50,7 +50,7 @@ def daily_counts(thang: str, metric: str = "online") -> pd.DataFrame:
                    FROM {table}
                    WHERE {col} >= :start AND {col} <= :end{extra}
                    GROUP BY phong_code, {col}""")
-    df = pd.read_sql(sql, engine, params={"start": start.isoformat(), "end": end.isoformat()})
+    df = pd.read_sql_query(sql, engine, params={"start": start.isoformat(), "end": end.isoformat()})
     codes = [p["code"] for p in phong_order(thang)]
     out = pd.DataFrame(0, index=codes, columns=range(1, days + 1), dtype=int)
     if not df.empty:
@@ -120,13 +120,14 @@ def tracking_table(thang: str, metric: str = "online", cong_don: bool = False,
 NHOM_FILE_INTERNET = {"DNG": ("DNG_01", "DNG_02"), "QNM": ("QNM",)}
 
 
+@nho("so_lieu", 30)
 def lan_nap_moi_nhat_theo_chi_nhanh() -> dict[str, int]:
     """{nhóm chi nhánh: mã lần nạp đầy đủ gần nhất của file chi nhánh đó}.
 
     Đếm trên chính bảng hợp đồng: dòng mang mã lần nạp cuối cùng đã ghi nó. Lần nạp mới nhất có số
     hợp đồng của chi nhánh chỉ bằng dưới một nửa lần nhiều nhất thì coi là file lẻ, bỏ qua.
     """
-    df = pd.read_sql(text("""SELECT batch_id, cn_ban, COUNT(*) AS n FROM fact_internet
+    df = pd.read_sql_query(text("""SELECT batch_id, cn_ban, COUNT(*) AS n FROM fact_internet
                              WHERE batch_id IS NOT NULL GROUP BY batch_id, cn_ban"""), engine)
     out = {}
     for nhom, cns in NHOM_FILE_INTERNET.items():
@@ -187,11 +188,11 @@ def summary_phong(thang: str, den_ngay: int | None = None,
     prev = d_prev.loc[:, [c for c in d_prev.columns if c <= den_ngay]].sum(axis=1)
 
     dk_ton, p_ton = dieu_kien_ton()
-    ton = pd.read_sql(text(f"""SELECT phong_code, COUNT(*) n FROM fact_internet
+    ton = pd.read_sql_query(text(f"""SELECT phong_code, COUNT(*) n FROM fact_internet
                                WHERE {dk_ton} GROUP BY phong_code"""), engine, params=p_ton)
     ton = ton.set_index("phong_code")["n"] if not ton.empty else pd.Series(dtype=int)
 
-    tgt = pd.read_sql(text("""SELECT ma_doi_tuong, chi_tieu, gia_tri FROM target_monthly
+    tgt = pd.read_sql_query(text("""SELECT ma_doi_tuong, chi_tieu, gia_tri FROM target_monthly
                               WHERE thang = :t AND doi_tuong = 'PHONG'"""),
                       engine, params={"t": thang})
     tgt_pv = (tgt.pivot_table(index="ma_doi_tuong", columns="chi_tieu", values="gia_tri")
@@ -230,7 +231,7 @@ def tien_do_thang(thang: str, den_ngay: int | None = None, chi_phong=None) -> di
     if chi_phong is not None:
         daily = daily.loc[[c for c in daily.index if c in set(chi_phong)]]
     hien_tai = int(daily.loc[:, :den_ngay].to_numpy().sum())
-    tgt = pd.read_sql(text("""SELECT ma_doi_tuong, gia_tri FROM target_monthly
+    tgt = pd.read_sql_query(text("""SELECT ma_doi_tuong, gia_tri FROM target_monthly
                               WHERE thang = :t AND doi_tuong = 'PHONG' AND chi_tieu = 'internet'"""),
                       engine, params={"t": thang})
     bo = phong_khong_cong_tong()
@@ -264,7 +265,7 @@ def ngay_co_du_lieu(thang: str) -> int:
 @nho("so_lieu", 30)
 def cac_ngay_co_du_lieu() -> list[str]:
     """Danh sách ngày (YYYY-MM-DD) đã có số Online - dùng cho bộ chọn ngày."""
-    df = pd.read_sql(text("""SELECT DISTINCT ngay_online AS d FROM fact_internet
+    df = pd.read_sql_query(text("""SELECT DISTINCT ngay_online AS d FROM fact_internet
                              WHERE ngay_online IS NOT NULL ORDER BY d"""), engine)
     return [str(x)[:10] for x in df["d"].dropna().tolist()]
 
@@ -277,7 +278,7 @@ def ngay_moi_nhat() -> str | None:
 @nho("so_lieu", 30)
 def cac_thang_co_du_lieu() -> list[str]:
     from app.sql_dialect import thang_cua
-    df = pd.read_sql(text(f"""SELECT DISTINCT {thang_cua('ngay_online')} AS thang
+    df = pd.read_sql_query(text(f"""SELECT DISTINCT {thang_cua('ngay_online')} AS thang
                              FROM fact_internet WHERE ngay_online IS NOT NULL
                              ORDER BY thang DESC"""), engine)
     return df["thang"].dropna().tolist()
@@ -289,7 +290,7 @@ def tong_theo_phong(tu: str, den: str, metric: str = "online") -> pd.DataFrame:
     sql = text(f"""SELECT phong_code, COUNT(*) AS n FROM {table}
                    WHERE {col} >= :tu AND {col} <= :den{extra}
                    GROUP BY phong_code""")
-    return pd.read_sql(sql, engine, params={"tu": tu, "den": den})
+    return pd.read_sql_query(sql, engine, params={"tu": tu, "den": den})
 
 
 def bang_ngay_theo_acc(thang: str, metric: str = "online", chi_phong: list[str] | None = None,
@@ -303,7 +304,7 @@ def bang_ngay_theo_acc(thang: str, metric: str = "online", chi_phong: list[str] 
     start, _, days = month_range(thang)
     den_ngay = den_ngay or days
     end = f"{thang}-{den_ngay:02d}"
-    df = pd.read_sql(text(f"""SELECT phong_code, acc_nhan_vien AS acc, acc_norm, {col} AS ngay,
+    df = pd.read_sql_query(text(f"""SELECT phong_code, acc_nhan_vien AS acc, acc_norm, {col} AS ngay,
                                      COUNT(*) AS n
                               FROM {table}
                               WHERE {col} >= :tu AND {col} <= :den{extra}
@@ -315,7 +316,7 @@ def bang_ngay_theo_acc(thang: str, metric: str = "online", chi_phong: list[str] 
         df = df[df.phong_code.isin(codes)]
         df["ngay"] = pd.to_datetime(df["ngay"]).dt.day
 
-    nguoi = pd.read_sql(text("""SELECT phong_code, acc, acc_norm FROM staff_map
+    nguoi = pd.read_sql_query(text("""SELECT phong_code, acc, acc_norm FROM staff_map
                                 WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'
                                   AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu)
                                   AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)"""),
@@ -324,7 +325,7 @@ def bang_ngay_theo_acc(thang: str, metric: str = "online", chi_phong: list[str] 
     ds = pd.concat([nguoi[["phong_code", "acc", "acc_norm"]],
                     df[["phong_code", "acc", "acc_norm"]] if not df.empty else pd.DataFrame()],
                    ignore_index=True).drop_duplicates("acc_norm")
-    ten = pd.read_sql(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
+    ten = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
     ho_ten = dict(zip(ten.acc_norm, ten.ho_ten)) if not ten.empty else {}
 
     cot_ngay = list(range(1, den_ngay + 1))
@@ -375,7 +376,7 @@ def tong_theo_acc(tu: str, den: str, metric: str = "online") -> pd.DataFrame:
                    FROM {table} f
                    WHERE f.{col} >= :tu AND f.{col} <= :den{extra}
                    GROUP BY f.acc_nhan_vien, f.acc_norm, f.phong_code""")
-    return pd.read_sql(sql, engine, params={"tu": tu, "den": den})
+    return pd.read_sql_query(sql, engine, params={"tu": tu, "den": den})
 
 
 def so_sanh_ky(ky1: tuple[str, str], ky2: tuple[str, str], metric: str = "online",

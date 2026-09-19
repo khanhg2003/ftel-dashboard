@@ -52,7 +52,7 @@ def nhom_goi(goi) -> str:
 @nho("so_lieu")
 def hop_dong_online(tu: str, den: str, chi_phong: list[str] | None = None) -> pd.DataFrame:
     """Một dòng = một hợp đồng Internet online trong [tu, den], kèm các cờ phân tích."""
-    df = pd.read_sql(text("""
+    df = pd.read_sql_query(text("""
         SELECT f.hop_dong, f.phong_code, f.acc_nhan_vien, f.acc_norm, f.goi_dich_vu,
                f.ngay_tao_hd, f.ngay_online, f.so_thang_tra_truoc, f.cn_quan_ly,
                CASE WHEN EXISTS (SELECT 1 FROM fact_fptplay v
@@ -80,7 +80,7 @@ def hop_dong_online(tu: str, den: str, chi_phong: list[str] | None = None) -> pd
 
 
 def ngay_du_lieu_moi_nhat() -> pd.Timestamp | None:
-    v = pd.read_sql(text("SELECT MAX(ngay_tao_hd) d FROM fact_internet"), engine).iloc[0, 0]
+    v = pd.read_sql_query(text("SELECT MAX(ngay_tao_hd) d FROM fact_internet"), engine).iloc[0, 0]
     return pd.Timestamp(str(v)[:10]) if v else None
 
 
@@ -88,7 +88,7 @@ def ngay_du_lieu_moi_nhat() -> pd.Timestamp | None:
 def hop_dong_ton(chi_phong: list[str] | None = None) -> pd.DataFrame:
     """Hợp đồng đã ký, chưa online, còn trong file mới nhất - kèm số ngày đã chờ."""
     dk, p = dieu_kien_ton("f.")
-    df = pd.read_sql(text(f"""SELECT f.hop_dong, f.phong_code, f.acc_nhan_vien, f.acc_norm,
+    df = pd.read_sql_query(text(f"""SELECT f.hop_dong, f.phong_code, f.acc_nhan_vien, f.acc_norm,
                                      f.goi_dich_vu, f.ngay_tao_hd, f.nguon_ban
                               FROM fact_internet f WHERE {dk}"""), engine, params=p)
     if chi_phong is not None:
@@ -248,7 +248,7 @@ def theo_nhan_vien(df: pd.DataFrame, ton: pd.DataFrame, thang: str) -> pd.DataFr
         g["ton_qua_7"] = t7.reindex(g.index).fillna(0).astype(int)
     else:
         g["ton"] = g["ton_qua_7"] = 0
-    ten = pd.read_sql(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
+    ten = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
     g["ho_ten"] = ten.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten.reindex(g.index)
     g["phong"] = [meta.get(c, {}).get("ten", "Chưa gán phòng") for c in g.phong_code]
     from app.canh_bao import acc_truong_phong
@@ -271,7 +271,7 @@ def hd_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None, theo: st
     chưa online)."""
     from app.tinh import ma_tinh, ten_tinh
     cot = "ngay_tao_hd" if theo == "ban" else "ngay_online"
-    df = pd.read_sql(text(f"""SELECT phong_code, cn_quan_ly, goi_dich_vu, quan_huyen, acc_norm, acc_nhan_vien, ngay_online
+    df = pd.read_sql_query(text(f"""SELECT phong_code, cn_quan_ly, goi_dich_vu, quan_huyen, acc_norm, acc_nhan_vien, ngay_online
                               FROM fact_internet WHERE {cot} >= :tu AND {cot} <= :den"""), engine,
                      params={"tu": tu, "den": den})
     if chi_phong is not None:

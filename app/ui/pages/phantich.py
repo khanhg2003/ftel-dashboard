@@ -480,7 +480,7 @@ def _ten_nhan_vien() -> dict:
     from sqlalchemy import text
 
     from app.db import engine
-    df = pd.read_sql(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
+    df = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
     return dict(zip(df.acc_norm, df.ho_ten))
 
 
