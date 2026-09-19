@@ -316,3 +316,16 @@ def test_ky_khoang_ngay_tu_chon():
     k = phantich._ky((d - timedelta(days=6)).isoformat(), den)
     assert not k.luy_ke and k.ten_ck == "khoảng trước đó" and k.truoc.startswith("trước")
     assert k.ck == ((d - timedelta(days=13)).isoformat(), (d - timedelta(days=7)).isoformat())
+
+
+def test_so_sanh_ca_nhan_bo_nhan_su_nghi_va_truong_phong():
+    from app.canh_bao import acc_khong_xet
+    from app.metrics import so_sanh_acc, tong_theo_acc
+    ky1, ky2 = ("2026-09-01", "2026-09-05"), ("2026-09-06", "2026-09-10")
+    du = so_sanh_acc(ky1, ky2)
+    loc = so_sanh_acc(ky1, ky2, bo_khong_xet=True)
+    acc = pd.concat([tong_theo_acc(*ky1), tong_theo_acc(*ky2)]).drop_duplicates("acc_norm")
+    bo = set(acc_khong_xet(set(acc.acc_norm.dropna())))
+    ten_bo = set(acc[acc.acc_norm.isin(bo)].acc)
+    assert not (set(loc.acc) & ten_bo) and set(loc.acc) <= set(du.acc)
+    assert len(du) - len(loc) == len(set(du.acc) & ten_bo)

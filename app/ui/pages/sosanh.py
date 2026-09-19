@@ -116,7 +116,7 @@ def layout(ky: dict | None = None):
                     dashGridOptions={"suppressCellFocus": True, "domLayout": "normal"},
                     style={"width": "100%", "height": "420px"}))],
                 title=f"Top {TOP_N} giảm sâu nhất",
-                desc="Giảm nhiều nhất so với kỳ 1 - ưu tiên trao đổi trước"),
+                desc="Giảm nhiều nhất so với kỳ 1 - ưu tiên trao đổi trước. Không tính nhân sự đã nghỉ và trưởng phòng."),
                 className="chart-col"),
             html.Div(card([
                 dcc.Loading(dag.AgGrid(
@@ -125,7 +125,7 @@ def layout(ky: dict | None = None):
                     dashGridOptions={"suppressCellFocus": True, "domLayout": "normal"},
                     style={"width": "100%", "height": "420px"}))],
                 title=f"Top {TOP_N} tăng mạnh nhất",
-                desc="Tăng nhiều nhất so với kỳ 1 - nên ghi nhận kịp thời"),
+                desc="Tăng nhiều nhất so với kỳ 1 - nên ghi nhận kịp thời. Không tính nhân sự đã nghỉ và trưởng phòng."),
                 className="chart-col"),
         ], className="chart-row"),
     ])
@@ -296,7 +296,8 @@ def _tinh(k1_tu, k1_den, k2_tu, k2_den, metric, nhom, chi_nhanh):
         scope = kd if scope is None else [c for c in scope if c in set(kd)]
     ky1, ky2 = (k1_tu, k1_den), (k2_tu, k2_den)
     dfp = so_sanh_ky(ky1, ky2, metric, chi_phong=scope)
-    dfa = so_sanh_acc(ky1, ky2, metric, chi_phong=loc_nhan_su(scope, current_user.phong_nhan_su()))
+    dfa = so_sanh_acc(ky1, ky2, metric, chi_phong=loc_nhan_su(scope, current_user.phong_nhan_su()),
+                      bo_khong_xet=True)
     so_ngay1 = (date.fromisoformat(k1_den) - date.fromisoformat(k1_tu)).days + 1
     so_ngay2 = (date.fromisoformat(k2_den) - date.fromisoformat(k2_tu)).days + 1
     dfp["tb1"] = (dfp.ky1 / so_ngay1).round(1)

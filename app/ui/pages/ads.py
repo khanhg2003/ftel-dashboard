@@ -310,7 +310,8 @@ def layout(tab: str | None = None):
         # ---------------- Theo ngày
         html.Div(id="ads-p-ngay", style=AN, children=[
             _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày; màu cho thấy ngày nào nhiều / ít. Tổng VNĐ "
-                 "đổi theo tỷ giá tháng (tab Theo sale). Bấm đúp vào một page để xem từng camp từng ngày.",
+                 "và dòng '≈ VNĐ từng ngày' đổi theo tỷ giá tháng (tab Theo sale). Bấm đúp vào một page để xem "
+                 "từng camp từng ngày.",
                  _grid("ads-g-ngay", [], cao=400, opts=CHON_1_DONG),
                  html.Div(id="ads-chu-mau"),
                  nut=seg_control("ads-chi-so", [("chi_tieu", "Chi tiêu"), ("tin_nhan", "Tin nhắn"),
@@ -803,22 +804,32 @@ def register(app):
                         "pinned": "left", "width": 95, "type": "numericColumn", "valueFormatter": fmt,
                         "cellStyle": MAU_CP if chi_so == "cp_pttb" else {"fontWeight": "700"}})
         dau = date.fromisoformat(f"{thang}-01")
+        dinh_dang = "params.value ? " + fmt["function"] + " : ''"
+        if chi_so == "chi_tieu":           # dòng '≈ VNĐ từng ngày' ghim cuối bảng: số VNĐ, không tô màu
+            dinh_dang = ("params.data && params.data.la_vnd ? (params.value ? Math.round(params.value)"
+                         ".toLocaleString('vi-VN') : '') : (" + dinh_dang + ")")
+            nhiet = {"styleConditions": [{"condition": "params.data && params.data.la_vnd",
+                                          "style": {"backgroundColor": "#FFF8E6", "fontWeight": "700"}},
+                                         *(nhiet or {}).get("styleConditions", [])]}
         cot += [{"field": d, "headerName": f"{d} {THU[(dau + timedelta(days=int(d) - 1)).weekday()]}",
-                 "width": 88 if tien else 58, "type": "numericColumn", "cellStyle": nhiet, "sortable": False,
+                 "width": 92 if tien else 58, "type": "numericColumn", "cellStyle": nhiet, "sortable": False,
                  "filter": False, "wrapHeaderText": True, "autoHeaderHeight": True,
                  "headerClass": "cot-cn" if (dau + timedelta(days=int(d) - 1)).weekday() == 6 else None,
-                 "valueFormatter": {"function": "params.value ? " + fmt["function"] + " : ''"}} for d in ngay]
+                 "valueFormatter": {"function": dinh_dang}} for d in ngay]
         opts["pinnedBottomRowData"] = []
         if pv.empty:
             return cot, [], _chu_mau(huong), opts
         tong = dict(pv.attrs.get("tong") or {})
         pv.columns = [str(c) for c in pv.columns]
+        dong_vnd = []
         if chi_so == "chi_tieu":
             rate = ads.ty_gia(thang)
             pv["vnd"] = pv["tong"] * rate
             tong["vnd"] = (tong.get("tong") or 0) * rate
+            dong_vnd = [{"ten": "≈ VNĐ từng ngày", "la_vnd": True, "vnd": tong["vnd"],
+                         **{d: v * rate for d, v in tong.items() if d.isdigit() and v}}]
         opts["pinnedBottomRowData"] = [{"ten": "Tổng từng ngày" if chi_so != "cp_pttb" else "Chung từng ngày",
-                                        **tong}]
+                                        **tong}] + dong_vnd
         return cot, _ban_ghi(pv), _chu_mau(huong), opts
 
     # ------------------------------------------------ chi tiết một page

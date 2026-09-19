@@ -397,8 +397,9 @@ def so_sanh_ky(ky1: tuple[str, str], ky2: tuple[str, str], metric: str = "online
 
 
 def so_sanh_acc(ky1: tuple[str, str], ky2: tuple[str, str], metric: str = "online",
-                chi_phong: list[str] | None = None) -> pd.DataFrame:
-    """Khối D2: từng acc nhân viên, kỳ 1 vs kỳ 2, sắp theo mức hụt."""
+                chi_phong: list[str] | None = None, bo_khong_xet: bool = False) -> pd.DataFrame:
+    """Khối D2: từng acc nhân viên, kỳ 1 vs kỳ 2, sắp theo mức hụt. `bo_khong_xet` = bỏ nhân sự đã nghỉ và
+    trưởng phòng (không so sánh cá nhân; số của họ vẫn nằm trong bảng theo phòng)."""
     meta = {p["code"]: p for p in phong_order()}
     def _gop(df: pd.DataFrame) -> pd.DataFrame:
         # một acc có số ở nhiều phòng -> gộp một dòng, phòng = nơi có nhiều số nhất
@@ -417,6 +418,9 @@ def so_sanh_acc(ky1: tuple[str, str], ky2: tuple[str, str], metric: str = "onlin
     m["phong"] = [meta.get(c, {}).get("ten", "Chưa gán phòng") for c in m.phong_code]
     if chi_phong is not None:
         m = m[m.phong_code.isin(set(chi_phong))]
+    if bo_khong_xet and len(m):
+        from app.canh_bao import acc_khong_xet
+        m = m[~m.acc_norm.isin(set(acc_khong_xet(set(m.acc_norm.dropna()))))]
     return m[["acc", "phong", "phong_code", "ky1", "ky2", "chenh"]].sort_values("chenh")
 
 
