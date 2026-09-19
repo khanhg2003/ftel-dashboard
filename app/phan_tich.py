@@ -260,18 +260,103 @@ def muc_chung_kinh_doanh(df: pd.DataFrame, thang: str) -> dict:
 
 
 # ------------------------------------------------------------------ bán theo tỉnh (CN quản lý của hợp đồng)
-def online_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None) -> pd.DataFrame:
-    """Một dòng = một hợp đồng Internet online trong kỳ: phòng bán + mã / tên tỉnh của khách (theo CN quản lý)."""
+def hd_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None, theo: str = "online") -> pd.DataFrame:
+    """Một dòng = một hợp đồng Internet: phòng bán, tỉnh của khách (CN quản lý), gói, phường/xã, nhân viên.
+    theo = 'online' (ngày online trong kỳ) hoặc 'ban' (ngày tạo hợp đồng trong kỳ - số bán mới, gồm cả hợp đồng
+    chưa online)."""
     from app.tinh import ma_tinh, ten_tinh
-    df = pd.read_sql(text("""SELECT phong_code, cn_quan_ly FROM fact_internet
-                             WHERE ngay_online >= :tu AND ngay_online <= :den"""), engine,
+    cot = "ngay_tao_hd" if theo == "ban" else "ngay_online"
+    df = pd.read_sql(text(f"""SELECT phong_code, cn_quan_ly, goi_dich_vu, quan_huyen, acc_norm, acc_nhan_vien
+                              FROM fact_internet WHERE {cot} >= :tu AND {cot} <= :den"""), engine,
                      params={"tu": tu, "den": den})
     if chi_phong is not None:
         df = df[df.phong_code.isin(set(chi_phong))]
     df = df.copy()
     df["ma_tinh"] = [ma_tinh(x) for x in df.cn_quan_ly]
     df["tinh"] = [ten_tinh(m) for m in df.ma_tinh]
+    df["nhom_goi"] = [nhom_goi(g) for g in df.goi_dich_vu]
+    df["xa"] = [ten_xa(x) for x in df.quan_huyen]
     return df
+
+
+def online_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None) -> pd.DataFrame:
+    """Hợp đồng online trong kỳ kèm tỉnh (xem hd_theo_tinh)."""
+    return hd_theo_tinh(tu, den, chi_phong, "online")
+
+
+def ten_xa(v) -> str:
+    """Phường / xã trong file (cột Quận huyện - sau sáp nhập 07/2025 chỉ còn xã/phường, tên không dấu)."""
+    s = " ".join(str(v or "").split())
+    if not s or s.lower().startswith("không"):
+        return "Không rõ"
+    for a, b in (("Phuong ", "Phường "), ("Xa ", "Xã "), ("Thi tran ", "Thị trấn "), ("Dac khu ", "Đặc khu ")):
+        if s.startswith(a):
+            return b + s[len(a):]
+    return s
+
+
+def co_cau_goi_tinh(df: pd.DataFrame, toi_da: int = 15) -> pd.DataFrame:
+    """Dòng = tỉnh (nhiều hợp đồng nhất trước): số hợp đồng từng nhóm gói + tỷ trọng %, gói chi tiết hay bán nhất."""
+    nhom = list(NHOM_GOI + ("Khác",))
+    if df.empty:
+        return pd.DataFrame(columns=["ma_tinh", "tinh", "so_hd", *nhom, *[f"{g}_pct" for g in nhom], "goi_nhieu"])
+    pv = pd.crosstab([df.ma_tinh, df.tinh], df.nhom_goi).reindex(columns=nhom, fill_value=0)
+    pv["so_hd"] = pv.sum(axis=1)
+    for g in nhom:
+        pv[f"{g}_pct"] = (pv[g] / pv.so_hd * 100).round(1)
+    top = df.groupby(["ma_tinh", "tinh"]).goi_dich_vu.agg(lambda x: x.fillna("?").value_counts().index[0])
+    pv["goi_nhieu"] = top.reindex(pv.index)
+    return pv.sort_values("so_hd", ascending=False).head(toi_da).reset_index()
+
+
+def chi_tiet_tinh(df: pd.DataFrame, ma: str, ten_nv: dict | None = None, ten_phong: dict | None = None) -> dict:
+    """Đi sâu một tỉnh: phường/xã, nhân viên, gói cước, phòng bán (số hợp đồng, tỷ trọng trong tỉnh)."""
+    x = df[df.ma_tinh == ma]
+    tong = len(x)
+
+    def dem(cot, ten):
+        if not tong:
+            return pd.DataFrame(columns=[ten, "so", "ty_trong"])
+        g = x.groupby(cot, dropna=False).size().rename("so").reset_index().rename(columns={cot: ten})
+        g["ty_trong"] = (g.so / tong * 100).round(1)
+        return g.sort_values("so", ascending=False).reset_index(drop=True)
+
+    nv = x.assign(_a=x.acc_norm.fillna(x.acc_nhan_vien)).groupby(["_a", "phong_code"]).agg(
+        so=("_a", "size"), acc=("acc_nhan_vien", "first")).reset_index() if tong else pd.DataFrame()
+    if len(nv):
+        nv["ho_ten"] = [(ten_nv or {}).get(a) or c for a, c in zip(nv._a, nv.acc)]
+        nv["phong"] = [(ten_phong or {}).get(c, "Chưa gán phòng") for c in nv.phong_code]
+        nv["ty_trong"] = (nv.so / tong * 100).round(1)
+        nv = nv.sort_values("so", ascending=False).reset_index(drop=True)
+    ph = dem("phong_code", "phong_code")
+    if len(ph):
+        ph["phong"] = [(ten_phong or {}).get(c, "Chưa gán phòng") for c in ph.phong_code]
+    return {"tong": tong, "xa": dem("xa", "xa"), "goi": dem("goi_dich_vu", "goi"), "nv": nv, "phong": ph}
+
+
+def ban_online_ngay(ngay: str, chi_phong: list[str] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Một ngày: (hợp đồng tạo trong ngày = số bán, hợp đồng online trong ngày), kèm tỉnh."""
+    return hd_theo_tinh(ngay, ngay, chi_phong, "ban"), hd_theo_tinh(ngay, ngay, chi_phong, "online")
+
+
+def bang_ngay_tinh(ban: pd.DataFrame, onl: pd.DataFrame, phong: list[str]) -> pd.DataFrame:
+    """Dòng = tỉnh; cột: tong_ban, tong_onl và <phòng>_ban, <phòng>_onl cho từng phòng trong `phong`."""
+    from app.tinh import NOI_TINH
+    k = ["ma_tinh", "tinh"]
+    if ban.empty and onl.empty:
+        return pd.DataFrame(columns=[*k, "tong_ban", "tong_onl", "noi_tinh"])
+    b = ban.pivot_table(index=k, columns="phong_code", aggfunc="size", fill_value=0) if len(ban) else pd.DataFrame()
+    o = onl.pivot_table(index=k, columns="phong_code", aggfunc="size", fill_value=0) if len(onl) else pd.DataFrame()
+    idx = b.index.union(o.index)
+    b, o = b.reindex(idx, fill_value=0), o.reindex(idx, fill_value=0)
+    out = pd.DataFrame(index=idx)
+    out["tong_ban"], out["tong_onl"] = b.sum(axis=1), o.sum(axis=1)
+    for c in phong:
+        out[f"{c}_ban"] = b[c] if c in b else 0
+        out[f"{c}_onl"] = o[c] if c in o else 0
+    out = out.reset_index()
+    out["noi_tinh"] = out.ma_tinh.isin(NOI_TINH)
+    return out.sort_values(["tong_ban", "tong_onl"], ascending=False).reset_index(drop=True)
 
 
 def bang_tinh(df: pd.DataFrame, df_ck: pd.DataFrame) -> pd.DataFrame:

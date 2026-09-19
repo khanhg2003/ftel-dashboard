@@ -1,8 +1,10 @@
 """Trang Phân tích bán hàng - trả lời "bán TỐT không" và "đang tắc ở đâu", bổ sung cho Báo cáo Tổng.
 
 Bố cục theo câu hỏi người xem đặt ra trong giao ban:
-1. Chọn NGÀY (luỹ kế 01 -> ngày chọn) giống Báo cáo Tổng + chi nhánh; một nút Excel cho cả trang.
-2. Sáu chỉ số chất lượng, mỗi chỉ số so với cùng kỳ tháng trước; khối "Cách tính" gập được.
+1. Chọn KỲ như Báo cáo Tổng: mặc định luỹ kế 01 -> ngày có số mới nhất, hoặc khoảng ngày tự chọn / chọn nhanh
+   (7 ngày, tuần này, tháng trước...) + chi nhánh; một nút Excel cho cả trang.
+2. Sáu chỉ số chất lượng, so với cùng kỳ tháng trước (xem luỹ kế) hoặc khoảng liền trước cùng số ngày (khoảng tự
+   chọn); khối "Cách tính" gập được. Số tồn luôn là số hiện tại, không theo kỳ.
 3. Bảng theo phòng: chỉ tô màu các phòng kinh doanh, mốc so sánh là mức chung của phòng kinh doanh
    (phòng KT/CUS/ECOM đặc thù bán kèm thấp nên để chữ nhạt, không tô).
 4. Số tồn theo thời gian chờ + danh sách hợp đồng chờ từ 7 ngày (lọc phòng, tìm kiếm).
@@ -11,12 +13,14 @@ Bố cục theo câu hỏi người xem đặt ra trong giao ban:
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
+from types import SimpleNamespace
 
 import dash_ag_grid as dag
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Input, Output, Patch, State, dcc, html, no_update
+from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
+from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
 from app import phan_tich as pt
@@ -28,8 +32,8 @@ from app.export_phan_tich import xuat_phan_tich
 from app.metrics import cac_ngay_co_du_lieu
 from app.org import loc_chi_nhanh, phong_order
 from app.overview import TEN_DONG_TONG, TEN_PHAM_VI
-from app.ui.components import (LOCALE_VI, alert, card, chi_nhanh_control, chon_ngay, chu_giai, field,
-                               gan_chon_ngay, kpi, seg_control, ghi_chu)
+from app.ui.components import (LOCALE_VI, alert, card, chi_nhanh_control, chu_giai, field, kpi, seg_control,
+                               ghi_chu)
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui import tro_ly as tl
@@ -106,13 +110,35 @@ def _dau_the(tieu_de: str, mo_ta_id: str | None, *dieu_khien):
 def layout(ky: dict | None = None):
     ky = ky or {}
     ngays = cac_ngay_co_du_lieu()
+    den = kc.ngay_co_so(ky.get("den"), ngays)
+    tu = ky.get("tu") if ky.get("tu") and den and ky["tu"] <= den else ((den[:8] + "01") if den else None)
     xem_nv = current_user.duoc_xem_nhan_su
+    admin = current_user.role == "admin"
     lua_chon_phong = [{"label": "Mọi phòng được xem", "value": "all"}] + [
         {"label": p["ten"], "value": p["code"]} for p in phong_order()
         if current_user.phong_nhan_su() is None or p["code"] in set(current_user.phong_nhan_su())]
     return html.Div([
         html.Div([
-            field("Kỳ báo cáo · luỹ kế đến ngày", chon_ngay("pt", ngays, kc.ngay_co_so(ky.get("den"), ngays))),
+            field("Kỳ báo cáo · từ ngày - đến ngày", html.Div([
+                html.Button("‹", id="pt-lui", className="nut-ky", title="Lùi một ngày"),
+                dcc.DatePickerRange(
+                    id="pt-khoang", start_date=tu, end_date=den, display_format="DD/MM/YYYY",
+                    min_date_allowed=(ngays[0][:8] + "01") if ngays else None,
+                    max_date_allowed=ngays[-1] if ngays else None, initial_visible_month=den,
+                    first_day_of_week=1, clearable=False, minimum_nights=0,
+                    start_date_placeholder_text="Từ ngày", end_date_placeholder_text="Đến ngày",
+                    className="date-pick khoang"),
+                html.Button("›", id="pt-toi", className="nut-ky", title="Tới một ngày"),
+                html.Button("Mới nhất", id="pt-p-moinhat", className="btn nho",
+                            title="Luỹ kế từ ngày 01 đến ngày có số mới nhất"),
+                dcc.Dropdown(id="pt-nhanh", placeholder="Chọn nhanh", searchable=False, clearable=False,
+                             className="chon-nhanh", options=[
+                                 {"label": "Luỹ kế tháng này", "value": "luyke"},
+                                 {"label": "Riêng ngày mới nhất", "value": "motngay"},
+                                 {"label": "7 ngày gần nhất", "value": "7ngay"},
+                                 {"label": "Tuần này (từ thứ 2)", "value": "tuan"},
+                                 {"label": "Cả tháng trước", "value": "thangtruoc"}]),
+            ], className="chon-ngay")),
             field("Chi nhánh", chi_nhanh_control("pt-cn", ky.get("cn", "all"))),
             html.Div(className="grow"),
             field(" ", html.Button([icon("download", 14), html.Span("Excel")], id="pt-xls",
@@ -140,18 +166,50 @@ def layout(ky: dict | None = None):
                      dcc.Dropdown(id="pt-tinh-pv", value="all", clearable=False, style={"width": "240px"},
                                   options=[{"label": "Toàn bộ phạm vi", "value": "all"}]),
                      seg_control("pt-tinh-loai", [("tat_ca", "Tất cả tỉnh"), ("ngoai", "Chỉ ngoại tỉnh")], "tat_ca")),
-            html.Div(id="pt-tinh-tom-tat", className="chips", style={"margin": "4px 0 10px"}),
+            html.Div(seg_control("pt-tinh-xem", [("tong", "Số online theo tỉnh"), ("goi", "Gói cước theo tỉnh"),
+                                                 ("ngay", "Một ngày: bán & online")], "tong"),
+                     style={"margin": "2px 0 12px"}),
             html.Div([
-                html.Div(dcc.Loading(_graph("pt-tinh-bd")), className="chart-col"),
-                html.Div(_grid("pt-tinh-bang", cao=420, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
-                         className="chart-col"),
-            ], className="chart-row doi"),
-            html.H3("Mỗi phòng bán ở tỉnh nào", style={"margin": "18px 0 4px", "fontSize": "14px"}),
-            ghi_chu("Mỗi cột là một phòng, mỗi dòng một tỉnh; số là hợp đồng online. Màu theo tỷ trọng trong chính "
-                    "phòng đó: xanh đậm = tỉnh chiếm từ 20% số của phòng, xanh nhạt 5-20%.", nhan="Cách đọc bảng",
-                    style={"margin": "0 0 8px"}),
-            _grid("pt-tinh-ma-tran", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
-        ], className="card", style={} if current_user.role == "admin" else {"display": "none"}),
+                html.Div(id="pt-tinh-tom-tat", className="chips", style={"margin": "4px 0 10px"}),
+                html.Div([
+                    html.Div(dcc.Loading(_graph("pt-tinh-bd")), className="chart-col"),
+                    html.Div([_grid("pt-tinh-bang", cao=420, className="ag-theme-quartz ag-theme-ftel luoi-ke", dashGridOptions={
+                                  "rowSelection": {"mode": "singleRow", "checkboxes": False,
+                                                   "enableClickSelection": True}}),
+                              html.Div("Bấm một tỉnh trong bảng để xem phường/xã, nhân viên và gói cước của tỉnh "
+                                       "đó.", className="ghi-chu-nhan", style={"marginTop": "6px"})],
+                             className="chart-col"),
+                ], className="chart-row doi"),
+                html.Div(id="pt-tinh-ct", className="ct-tinh", hidden=True),     # dựng khi bấm một tỉnh
+                html.H3("Mỗi phòng bán ở tỉnh nào", style={"margin": "18px 0 4px", "fontSize": "14px"}),
+                ghi_chu("Mỗi cột là một phòng, mỗi dòng một tỉnh; số là hợp đồng online. Màu theo tỷ trọng trong chính "
+                        "phòng đó: xanh đậm = tỉnh chiếm từ 20% số của phòng, xanh nhạt 5-20%.", nhan="Cách đọc bảng",
+                        style={"margin": "0 0 8px"}),
+                _grid("pt-tinh-ma-tran", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
+            ], id="pt-tinh-v-tong"),
+            html.Div([
+                html.Div(id="pt-tinh-goi-mo-ta", className="desc", style={"margin": "0 0 8px"}),
+                html.Div([
+                    html.Div(dcc.Loading(_graph("pt-tinh-goi-bd")), className="chart-col"),
+                    html.Div(_grid("pt-tinh-goi", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"), className="chart-col"),
+                ], className="chart-row doi"),
+            ], id="pt-tinh-v-goi", hidden=True),
+            html.Div([
+                html.Div([
+                    field("Ngày", dcc.DatePickerSingle(id="pt-tinh-ngay", date=den, display_format="DD/MM/YYYY",
+                                                       min_date_allowed=ngays[0] if ngays else None,
+                                                       max_date_allowed=ngays[-1] if ngays else None,
+                                                       first_day_of_week=1, clearable=False, className="date-pick")),
+                    field("Phòng", seg_control("pt-tinh-ngay-pv", [("ibb", "IBB1 - IBB7"), ("all", "Tất cả phòng")],
+                                               "ibb")),
+                ], className="toolbar", style={"flexWrap": "wrap", "margin": "0 0 8px"}),
+                html.Div(id="pt-tinh-ngay-tom-tat", className="chips", style={"margin": "0 0 10px"}),
+                dcc.Loading(_grid("pt-tinh-ngay-bang", cao=460, className="ag-theme-quartz ag-theme-ftel luoi-ke")),
+                ghi_chu("Bán = hợp đồng tạo trong ngày (gồm cả hợp đồng chưa online). Online = hợp đồng online trong "
+                        "ngày (có thể tạo từ hôm trước). Tỉnh theo CN quản lý của hợp đồng (nơi khách ở). Ngày đang "
+                        "cập nhật thì số còn tăng.", style={"margin": "8px 0 0"}),
+            ], id="pt-tinh-v-ngay", hidden=True),
+        ], className="card", style={} if admin else {"display": "none"}),
 
         html.Div([
             _dau_the("Số tồn theo thời gian chờ", "pt-mo-ta-ton",
@@ -442,14 +500,34 @@ def _kpis(nay: dict, truoc: dict, ton: pd.DataFrame, ten_truoc: str) -> list:
 
 
 # ------------------------------------------------------------------ dữ liệu theo bộ lọc
-def _ky(ngay_iso: str | None):
+def _ky(tu_iso: str | None, den_iso: str | None):
+    """Kỳ đang xem. Luỹ kế (từ ngày 01) so với cùng kỳ tháng trước; khoảng tự chọn so với khoảng liền trước cùng số
+    ngày. `thang` = tháng của ngày cuối (dùng cho cơ cấu phòng, dự báo)."""
     ngays = cac_ngay_co_du_lieu()
-    ngay_iso = ngay_iso or (ngays[-1] if ngays else None)
-    if not ngay_iso:
+    den = kc.ngay_co_so((den_iso or "")[:10] or None, ngays)
+    if not den:
         return None
-    d = date.fromisoformat(ngay_iso)
+    d = date.fromisoformat(den)
+    tu = (tu_iso or "")[:10]
+    if not tu or tu > den:
+        tu = den[:8] + "01"
+    d_tu = date.fromisoformat(tu)
     thang = f"{d.year}-{d.month:02d}"
-    return thang, d.day, f"{thang}-01", ngay_iso
+    luy_ke = d_tu == d.replace(day=1)
+    if luy_ke:
+        ck = pt.cung_ky_thang_truoc(thang, d.day)
+        ten_ck = f"cùng kỳ T{int(ck[0][5:7])}"
+        nhan = f"01 - {d:%d/%m/%Y}"
+    else:
+        so = (d - d_tu).days + 1
+        e = d_tu - timedelta(days=1)
+        ck = ((e - timedelta(days=so - 1)).isoformat(), e.isoformat())
+        ten_ck = "kỳ trước"
+        nhan = f"{d:%d/%m/%Y}" if so == 1 else f"{d_tu:%d/%m} - {d:%d/%m/%Y}"
+    ten_ck_day = (f"{ten_ck} ({date.fromisoformat(ck[0]):%d/%m}" +
+                  (f" - {date.fromisoformat(ck[1]):%d/%m})" if ck[0] != ck[1] else ")"))
+    return SimpleNamespace(thang=thang, ngay=d.day, tu=tu, den=den, luy_ke=luy_ke, ck=ck, ten_ck=ten_ck,
+                           ten_ck_day=ten_ck_day, nhan=nhan)
 
 
 def _ten_nhan_vien() -> dict:
@@ -492,9 +570,22 @@ def _nhan_vien(df, ton, thang, pham_vi_nv, phong_loc, loc) -> pd.DataFrame:
 # ------------------------------------------------------------------ callback
 def register(app):
     lk.gan_mo_phong(app, "pt-phong")
-    kc.ghi(app, ("pt-date", "date"), ("pt-cn", "value"),
-           chuyen=lambda den, cn: {**kc.luy_ke(den), "cn": cn})
-    gan_chon_ngay(app, "pt")
+    kc.ghi(app, ("pt-khoang", "start_date"), ("pt-khoang", "end_date"), ("pt-cn", "value"),
+           chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
+
+    @app.callback(Output("pt-khoang", "start_date"), Output("pt-khoang", "end_date"), Output("pt-nhanh", "value"),
+                  Input("pt-lui", "n_clicks"), Input("pt-toi", "n_clicks"), Input("pt-p-moinhat", "n_clicks"),
+                  Input("pt-nhanh", "value"), State("pt-khoang", "start_date"), State("pt-khoang", "end_date"),
+                  prevent_initial_call=True)
+    def _chon_ky(_a, _b, _c, nhanh, tu, den):
+        from app.ui.pages.tongquan import doi_ky
+        ngays = cac_ngay_co_du_lieu()
+        if not ngays:
+            return no_update, no_update, None
+        nut = {"pt-lui": "tq-lui", "pt-toi": "tq-toi", "pt-p-moinhat": "tq-p-moinhat",
+               "pt-nhanh": "tq-nhanh"}.get(ctx.triggered_id)
+        kq = doi_ky(nut, nhanh, tu, den, ngays)
+        return (kq[0], kq[1], None) if kq else (no_update, no_update, None)
 
     @app.callback(Output("pt-ton-phong-hop", "hidden"), Output("pt-ton-ds-hop", "hidden"),
                   Input("pt-ton-xem", "value"))
@@ -519,27 +610,27 @@ def register(app):
         Output("pt-ton-phong", "pinnedBottomRowData"),
         Output("pt-kem-goi", "figure"), Output("pt-toc-do", "figure"),
         Output("pt-co-cau", "figure"), Output("pt-nhip", "figure"),
-        Input("pt-date", "date"), Input("pt-cn", "value"), Input("pt-nhom", "value"))
-    def _cap_nhat(ngay_iso, chi_nhanh, nhom):
-        ky = _ky(ngay_iso)
+        Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
+        Input("pt-nhom", "value"))
+    def _cap_nhat(tu_iso, den_iso, chi_nhanh, nhom):
+        k = _ky(tu_iso, den_iso)
+        ky = k
         if ky is None:
             trong = _fig(_trong(go.Figure()))
             return ([], "", alert("Chưa có số liệu. Nạp file Internet để bắt đầu.", "warn"), "",
                     [], [], "", [], [], [], trong, trong, trong, trong)
-        thang, ngay, tu, den = ky
+        thang, ngay, tu, den = k.thang, k.ngay, k.tu, k.den
         nguong = _nguong()
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         df = pt.hop_dong_online(tu, den, scope)
-        tu_t, den_t = pt.cung_ky_thang_truoc(thang, ngay)
-        truoc = pt.chi_so_chung(pt.hop_dong_online(tu_t, den_t, scope))
+        truoc = pt.chi_so_chung(pt.hop_dong_online(*k.ck, scope))
         ton = pt.hop_dong_ton(scope)
         nay = pt.chi_so_chung(df)
         chung_kd = pt.muc_chung_kinh_doanh(df, thang)
 
         pham_vi = TEN_PHAM_VI.get(chi_nhanh, TEN_PHAM_VI["all"])
-        badge = html.Span(f"01 - {ngay:02d}/{thang[5:7]}/{thang[:4]} · {pham_vi}",
-                          className="badge muted")
-        kpis = _kpis(nay, truoc, ton, f"cùng kỳ T{int(tu_t[5:7])}")
+        badge = html.Span(f"{k.nhan} · {pham_vi}", className="badge muted", title=f"So với {k.ten_ck_day}")
+        kpis = _kpis(nay, truoc, ton, k.ten_ck)
 
         bang = pt.bang_theo_phong(df, ton, thang, TEN_DONG_TONG.get(chi_nhanh, TEN_DONG_TONG["all"]))
         if nhom == "kd":
@@ -547,8 +638,7 @@ def register(app):
             bay_kd = {f"SUB_{p['bay']}" for p in phong_order(thang)
                       if p.get("loai") in pt.LOAI_KINH_DOANH}
             bang = bang[(bang.loai_dong != "subtotal") | bang.phong_code.isin(bay_kd)]
-        mo_ta = (f"{nay['online']:,} hợp đồng online từ 01 đến {ngay:02d}/{thang[5:7]} · {pham_vi}"
-                 ).replace(",", ".")
+        mo_ta = f"{nay['online']:,} hợp đồng online {k.nhan} · {pham_vi}".replace(",", ".")
         chu_giai = html.Span([
             html.Span("■ ", style={"color": "#5CBF7A"}), f"Cao hơn mức chung từ {nguong['tot']} điểm   ",
             html.Span("■ ", style={"color": "#F5B942"}), f"Thấp hơn {nguong['tot']}-{nguong['kem']} điểm   ",
@@ -580,13 +670,13 @@ def register(app):
                 _bd_nhip(nhip))
 
     @app.callback(Output("pt-ton-ds", "columnDefs"), Output("pt-ton-ds", "rowData"),
-                  Input("pt-date", "date"), Input("pt-cn", "value"),
+                  Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
                   Input("pt-ton-phong-loc", "value"), Input("pt-ton-xem", "value"))
-    def _ton_ds(ngay_iso, chi_nhanh, phong_loc, xem):
-        ky = _ky(ngay_iso)
+    def _ton_ds(den_iso, chi_nhanh, phong_loc, xem):
+        ky = _ky(None, den_iso)
         if xem != "ds" or ky is None or not current_user.duoc_xem_nhan_su:
             return COT_DS_TON, []
-        thang = ky[0]
+        thang = ky.thang
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         ds = _ds_ton(pt.hop_dong_ton(scope), thang, loc_nhan_su(scope, current_user.phong_nhan_su()),
                      phong_loc)
@@ -595,13 +685,13 @@ def register(app):
 
     @app.callback(Output("pt-nv", "columnDefs"), Output("pt-nv", "rowData"),
                   Output("pt-mo-ta-nv", "children"),
-                  Input("pt-date", "date"), Input("pt-cn", "value"), Input("pt-nv-phong", "value"),
-                  Input("pt-nv-loc", "value"))
-    def _nv(ngay_iso, chi_nhanh, phong_loc, loc):
-        ky = _ky(ngay_iso)
+                  Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
+                  Input("pt-nv-phong", "value"), Input("pt-nv-loc", "value"))
+    def _nv(tu_iso, den_iso, chi_nhanh, phong_loc, loc):
+        ky = _ky(tu_iso, den_iso)
         if ky is None or not current_user.duoc_xem_nhan_su:
             return [], [], ""
-        thang, _, tu, den = ky
+        thang, tu, den = ky.thang, ky.tu, ky.den
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         df = pt.hop_dong_online(tu, den, scope)
         nv = _nhan_vien(df, pt.hop_dong_ton(scope), thang,
@@ -611,24 +701,26 @@ def register(app):
         return (_cot_nv(pt.muc_chung_kinh_doanh(df, thang), _nguong()),
                 [] if nv.empty else nv.to_dict("records"), mo_ta)
 
-    tl.gan_nhan_xet(app, "pt", "phan_tich", [("pt-date", "date"), ("pt-cn", "value")], dl.ngu_canh_phan_tich,
+    tl.gan_nhan_xet(app, "pt", "phan_tich", [("pt-khoang", "end_date"), ("pt-cn", "value"),
+                                             ("pt-khoang", "start_date")], dl.ngu_canh_phan_tich,
                     dl.YEU_CAU_PHAN_TICH)
 
     @app.callback(Output("pt-tinh-pv", "options"), Output("pt-mo-ta-tinh", "children"),
                   Output("pt-tinh-tom-tat", "children"), Output("pt-tinh-bd", "figure"),
                   Output("pt-tinh-bang", "columnDefs"), Output("pt-tinh-bang", "rowData"),
                   Output("pt-tinh-ma-tran", "columnDefs"), Output("pt-tinh-ma-tran", "rowData"),
-                  Input("pt-date", "date"), Input("pt-cn", "value"), Input("pt-tinh-pv", "value"),
-                  Input("pt-tinh-loai", "value"))
-    def _tinh(ngay_iso, chi_nhanh, pv, loai):
-        ky = _ky(ngay_iso)
+                  Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
+                  Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"))
+    def _tinh(tu_iso, den_iso, chi_nhanh, pv, loai):
+        if current_user.role != "admin":
+            raise PreventUpdate
+        ky = _ky(tu_iso, den_iso)
         if ky is None:
             return [], "", [], _fig(_trong(go.Figure())), [], [], [], []
-        thang, ngay, tu, den = ky
+        thang, tu, den = ky.thang, ky.tu, ky.den
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         df = pt.online_theo_tinh(tu, den, scope)
-        tu_t, den_t = pt.cung_ky_thang_truoc(thang, ngay)
-        df_ck = pt.online_theo_tinh(tu_t, den_t, scope)
+        df_ck = pt.online_theo_tinh(*ky.ck, scope)
         mt, phong = pt.ma_tran_tinh_phong(df, thang)
         pham_vi = TEN_PHAM_VI.get(chi_nhanh, TEN_PHAM_VI["all"])
         opts = [{"label": f"Toàn bộ · {pham_vi}", "value": "all"}] + [
@@ -649,8 +741,7 @@ def register(app):
             if len(ngoai):
                 r = ngoai.iloc[0]
                 chips.append(html.Span(f"Ngoại tỉnh nhiều nhất: {r.tinh} ({int(r.online)})", className="chip"))
-        mo_ta = (f"{ten_pv} · online 01-{ngay:02d}/{thang[5:7]}, so cùng kỳ T{int(tu_t[5:7])} · tỉnh theo CN quản lý "
-                 "của hợp đồng (nơi khách ở)")
+        mo_ta = f"{ten_pv} · online {ky.nhan}, so {ky.ten_ck_day} · tỉnh theo CN quản lý của hợp đồng (nơi khách ở)"
         x = bang[~bang.noi_tinh] if loai == "ngoai" and len(bang) else bang
         x = x[x.online > 0].head(15)
         fig = go.Figure()
@@ -659,7 +750,7 @@ def register(app):
                         marker_color=["#0072BC" if n else "#37A5E6" for n in x.noi_tinh],
                         text=[f"{int(o)} · {t:.0f}%" for o, t in zip(x.online, x.ty_trong)], textposition="outside",
                         cliponaxis=False, hovertemplate="%{y}: %{x} hợp đồng<extra></extra>")
-            fig.add_scatter(y=x.tinh, x=x.ck, mode="markers", name=f"Cùng kỳ T{int(tu_t[5:7])}",
+            fig.add_scatter(y=x.tinh, x=x.ck, mode="markers", name=ky.ten_ck.capitalize(),
                             marker={"symbol": "line-ns", "size": 16, "line": {"width": 3, "color": "#F37021"}},
                             hovertemplate="%{y}: cùng kỳ %{x}<extra></extra>")
             fig.update_yaxes(autorange="reversed")
@@ -671,7 +762,8 @@ def register(app):
                      "valueFormatter": SO},
                     {"field": "ty_trong", "headerName": "Tỷ trọng", "type": "numericColumn", "minWidth": 80, "flex": 1,
                      "valueFormatter": {"function": "params.value == null ? '' : params.value.toFixed(1) + '%'"}},
-                    {"field": "ck", "headerName": f"Cùng kỳ T{int(tu_t[5:7])}", "type": "numericColumn", "minWidth": 90, "flex": 1,
+                    {"field": "ck", "headerName": ky.ten_ck.capitalize(), "headerTooltip": ky.ten_ck_day,
+                     "type": "numericColumn", "minWidth": 90, "flex": 1,
                      "valueFormatter": SO},
                     {"field": "chenh", "headerName": "+/-", "type": "numericColumn", "minWidth": 65, "flex": .8,
                      "valueFormatter": {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + "
@@ -695,22 +787,23 @@ def register(app):
         return (opts, mo_ta, chips, fig, cot_bang, bang.to_dict("records") if len(bang) else [], cot_mt,
                 mt.to_dict("records") if len(mt) else [])
 
-    @app.callback(Output("pt-du-bao", "children"), Input("pt-date", "date"), Input("pt-cn", "value"))
-    def _du_bao(ngay_iso, chi_nhanh):
-        ky = _ky(ngay_iso)
+    @app.callback(Output("pt-du-bao", "children"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"))
+    def _du_bao(den_iso, chi_nhanh):
+        ky = _ky(None, den_iso)
         if ky is None:
             return ""
-        thang, ngay, _, _ = ky
+        thang, ngay = ky.thang, ky.ngay
         db = du_bao_thang(thang, ngay, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
         return tl.dong_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), TEN_PHAM_VI.get(chi_nhanh or "all"))
 
     @app.callback(Output("pt-tai-xuong", "data"), Input("pt-xls", "n_clicks"),
-                  State("pt-date", "date"), State("pt-cn", "value"), prevent_initial_call=True)
-    def _excel(_n, ngay_iso, chi_nhanh):
-        ky = _ky(ngay_iso)
+                  State("pt-khoang", "start_date"), State("pt-khoang", "end_date"), State("pt-cn", "value"),
+                  prevent_initial_call=True)
+    def _excel(_n, tu_iso, den_iso, chi_nhanh):
+        ky = _ky(tu_iso, den_iso)
         if ky is None:
             return no_update
-        thang, ngay, tu, den = ky
+        thang, ngay, tu, den = ky.thang, ky.ngay, ky.tu, ky.den
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         df = pt.hop_dong_online(tu, den, scope)
         ton = pt.hop_dong_ton(scope)
@@ -744,8 +837,169 @@ def register(app):
                                         ("onl_1_ngay", "Online trong 1 ngày", "pct"),
                                         ("ton", "Chưa online", "so"), ("ton_qua_7", "Chờ từ 7 ngày", "so")]),
             ]
-        tieu_de = f"PHÂN TÍCH BÁN HÀNG · {pham_vi.upper()} · 01-{ngay:02d}/{thang[5:7]}/{thang[:4]}"
+        tieu_de = f"PHÂN TÍCH BÁN HÀNG · {pham_vi.upper()} · {ky.nhan}"
         noi_dung = xuat_phan_tich("", tieu_de, bang_xuat)
-        ghi_log("xuat_phan_tich", f"{chi_nhanh} {ngay_iso}")
-        return dcc.send_bytes(noi_dung, f"PhanTich_{thang.replace('-', '')}_ngay{ngay:02d}.xlsx")
+        ghi_log("xuat_phan_tich", f"{chi_nhanh} {tu} - {den}")
+        ten = (f"PhanTich_{thang.replace('-', '')}_ngay{ngay:02d}" if ky.luy_ke
+               else f"PhanTich_{tu.replace('-', '')}-{den.replace('-', '')}")
+        return dcc.send_bytes(noi_dung, f"{ten}.xlsx")
+
+    # ------------------------------------------------ bán theo tỉnh: cách xem, đi sâu một tỉnh, gói, một ngày
+    @app.callback(Output("pt-tinh-v-tong", "hidden"), Output("pt-tinh-v-goi", "hidden"),
+                  Output("pt-tinh-v-ngay", "hidden"), Input("pt-tinh-xem", "value"))
+    def _doi_xem_tinh(xem):
+        return xem not in (None, "tong"), xem != "goi", xem != "ngay"
+
+    @app.callback(Output("pt-tinh-ngay", "date"), Input("pt-khoang", "end_date"), prevent_initial_call=True)
+    def _ngay_theo_ky(den):
+        return den[:10] if den else no_update
+
+    @app.callback(Output("pt-tinh-ct", "hidden"), Output("pt-tinh-ct", "children"),
+                  Input("pt-tinh-bang", "selectedRows"), Input("pt-khoang", "start_date"),
+                  Input("pt-khoang", "end_date"), Input("pt-cn", "value"), Input("pt-tinh-pv", "value"))
+    def _ct_tinh(chon, tu_iso, den_iso, chi_nhanh, pv):
+        if current_user.role != "admin":
+            raise PreventUpdate
+        r = (chon or [None])[0]
+        ky = _ky(tu_iso, den_iso)
+        if not r or ky is None:
+            return True, []
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
+        df = pt.online_theo_tinh(ky.tu, ky.den, scope)
+        if pv and pv != "all":
+            df = df[df.phong_code == pv]
+        ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
+        ct = pt.chi_tiet_tinh(df, r["ma_tinh"], _ten_nhan_vien(), ten_phong)
+        tieu_de = f"{r['tinh']} · {ct['tong']:,} hợp đồng online {ky.nhan}".replace(",", ".")
+        chips = [html.Span(f"{x.phong}: {int(x.so)} ({x.ty_trong:.0f}%)", className="chip")
+                 for x in ct["phong"].head(8).itertuples()]
+        tl_ = {"field": "ty_trong", "headerName": "%", "type": "numericColumn", "width": 70,
+               "valueFormatter": {"function": "params.value == null ? '' : Math.round(params.value) + '%'"}}
+        so_ = {"field": "so", "headerName": "HĐ", "type": "numericColumn", "width": 70, "valueFormatter": SO}
+        cot_xa = [{"field": "xa", "headerName": "Phường / xã", "flex": 1, "minWidth": 150, "tooltipField": "xa"},
+                  so_, tl_]
+        cot_nv = [{"field": "ho_ten", "headerName": "Nhân viên", "flex": 1, "minWidth": 140, "tooltipField": "acc"},
+                  {"field": "phong", "headerName": "Phòng", "width": 100}, so_]
+        cot_goi = [{"field": "goi", "headerName": "Gói", "flex": 1, "minWidth": 110}, so_, tl_]
+        luoi = "ag-theme-quartz ag-theme-ftel luoi-ke"
+
+        def khoi(ten, gid, cot, d, c):
+            g = _grid(gid, cao=320, className=luoi)
+            g.columnDefs, g.rowData = cot, (d[c].to_dict("records") if len(d) else [])
+            return html.Div([html.Div(ten, className="ct-tinh-ten"), g])
+        return False, [
+            html.Div([html.H3(tieu_de, style={"margin": 0, "fontSize": "15px"}),
+                      html.Div(chips, className="chips")], className="ct-tinh-dau"),
+            html.Div([khoi("Phường / xã", "pt-tinh-ct-xa", cot_xa, ct["xa"], ["xa", "so", "ty_trong"]),
+                      khoi("Nhân viên bán", "pt-tinh-ct-nv", cot_nv, ct["nv"], ["ho_ten", "acc", "phong", "so"]),
+                      khoi("Gói cước", "pt-tinh-ct-goi", cot_goi, ct["goi"], ["goi", "so", "ty_trong"])],
+                     className="ba-cot"),
+            ghi_chu("File Inside chỉ có phường / xã (từ 07/2025 không còn cấp quận / huyện), tên không dấu như file "
+                    "gốc. Số là hợp đồng online trong kỳ đang xem, theo phạm vi đang chọn.", style={"margin": "8px 0 0"}),
+        ]
+
+    @app.callback(Output("pt-tinh-goi-bd", "figure"), Output("pt-tinh-goi", "columnDefs"),
+                  Output("pt-tinh-goi", "rowData"), Output("pt-tinh-goi-mo-ta", "children"),
+                  Input("pt-tinh-xem", "value"), Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"),
+                  Input("pt-cn", "value"), Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"))
+    def _goi_tinh(xem, tu_iso, den_iso, chi_nhanh, pv, loai):
+        if xem != "goi" or current_user.role != "admin":
+            raise PreventUpdate
+        ky = _ky(tu_iso, den_iso)
+        if ky is None:
+            return _fig(_trong(go.Figure())), [], [], ""
+        from app.tinh import NOI_TINH
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
+        df = pt.online_theo_tinh(ky.tu, ky.den, scope)
+        if pv and pv != "all":
+            df = df[df.phong_code == pv]
+        if loai == "ngoai":
+            df = df[~df.ma_tinh.isin(NOI_TINH)]
+        bang = pt.co_cau_goi_tinh(df, 20)
+        chung = pt.co_cau_goi_tinh(df.assign(ma_tinh="ALL", tinh="Chung"), 1)
+        fig = go.Figure()
+        nhom = list(pt.NHOM_GOI) + ["Khác"]
+        if len(bang):
+            x = bang.head(15)
+            for g in nhom:
+                fig.add_bar(y=x.tinh, x=x[f"{g}_pct"], name=g, orientation="h", marker_color=MAU_GOI.get(g, "#B9C5D3"),
+                            text=[f"{v:.0f}%" if v >= 8 else "" for v in x[f"{g}_pct"]], textposition="inside",
+                            customdata=x[g], hovertemplate="%{y} · " + g + ": %{x:.1f}% (%{customdata} HĐ)<extra></extra>")
+            fig.update_yaxes(autorange="reversed")
+            fig.update_xaxes(range=[0, 100], ticksuffix="%")
+        fig = _fig(fig, max(320, 70 + 28 * min(len(bang), 15)))
+        fig.update_layout(barmode="stack", legend={"orientation": "h", "y": 1.08},
+                          margin={"l": 110, "r": 20, "t": 30, "b": 20})
+        pct = {"function": "params.value == null ? '' : Math.round(params.value) + '%'"}
+        cot = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 120, "flex": 1.2},
+               {"field": "so_hd", "headerName": "HĐ", "type": "numericColumn", "width": 70, "valueFormatter": SO}]
+        c0 = chung.iloc[0] if len(chung) else None
+        for g in nhom:
+            muc = float(c0[f"{g}_pct"]) if c0 is not None else 0
+            cot.append({"field": f"{g}_pct", "headerName": f"% {g}", "type": "numericColumn", "width": 82,
+                        "valueFormatter": pct, "headerTooltip": f"Mức chung {muc:.0f}%. Xanh: cao hơn mức chung "
+                                                                 "từ 10 điểm, cam: thấp hơn từ 10 điểm",
+                        "cellStyle": {"styleConditions": [
+                            {"condition": f"params.value >= {muc + 10}", "style": {"backgroundColor": "#DDF1E3"}},
+                            {"condition": f"params.value <= {muc - 10} && params.data.so_hd >= 5",
+                             "style": {"backgroundColor": "#FDE7D6"}}]}})
+        cot.append({"field": "goi_nhieu", "headerName": "Gói bán nhiều nhất", "minWidth": 120, "flex": 1})
+        mo_ta = (f"Tỷ trọng nhóm gói trong số online {ky.nhan} của từng tỉnh (15 tỉnh nhiều hợp đồng nhất trên biểu "
+                 "đồ, 20 tỉnh trong bảng)")
+        if c0 is not None:
+            mo_ta += " · mức chung: " + ", ".join(f"{g} {c0[f'{g}_pct']:.0f}%" for g in nhom)
+        return fig, cot, bang.to_dict("records") if len(bang) else [], mo_ta
+
+    @app.callback(Output("pt-tinh-ngay-bang", "columnDefs"), Output("pt-tinh-ngay-bang", "rowData"),
+                  Output("pt-tinh-ngay-bang", "dashGridOptions"), Output("pt-tinh-ngay-tom-tat", "children"),
+                  Input("pt-tinh-xem", "value"), Input("pt-tinh-ngay", "date"), Input("pt-cn", "value"),
+                  Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"), Input("pt-tinh-ngay-pv", "value"),
+                  State("pt-tinh-ngay-bang", "dashGridOptions"))
+    def _ngay_tinh(xem, ngay, chi_nhanh, pv, loai, nhom, opts):
+        if xem != "ngay" or current_user.role != "admin" or not ngay:
+            raise PreventUpdate
+        from app.tinh import NOI_TINH
+        ngay = ngay[:10]
+        thang = ngay[:7]
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
+        ban, onl = pt.ban_online_ngay(ngay, scope)
+        phong = [p for p in phong_order(thang) if nhom != "ibb" or p["code"].startswith("IBB")]
+        if nhom == "ibb":                                           # IBB1 -> IBB7 theo số
+            phong = sorted(phong, key=lambda p: (len(p["code"]), p["code"]))
+        if pv and pv != "all":
+            phong = [p for p in phong if p["code"] == pv]
+        ma = {p["code"] for p in phong}
+        ban, onl = ban[ban.phong_code.isin(ma)], onl[onl.phong_code.isin(ma)]
+        if loai == "ngoai":
+            ban, onl = ban[~ban.ma_tinh.isin(NOI_TINH)], onl[~onl.ma_tinh.isin(NOI_TINH)]
+        co = set(ban.phong_code) | set(onl.phong_code)
+        phong = [p for p in phong if p["code"] in co]
+        bang = pt.bang_ngay_tinh(ban, onl, [p["code"] for p in phong])
+        so0 = {"function": "params.value ? params.value : ''"}
+        dam = {"styleConditions": [{"condition": "params.value > 0", "style": {"fontWeight": "700"}}]}
+
+        def cap(field_, ten, w=62, **kw):
+            return {"field": field_, "headerName": ten, "type": "numericColumn", "width": w, "valueFormatter": so0,
+                    "cellStyle": dam, **kw}
+        cot = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130},
+               {"headerName": "Tổng", "children": [cap("tong_ban", "Bán", 66, pinned="left"),
+                                                   cap("tong_onl", "Online", 70, pinned="left")]}]
+        cot += [{"headerName": p["ten"], "children": [cap(f"{p['code']}_ban", "Bán"),
+                                                      cap(f"{p['code']}_onl", "Online", 68)]} for p in phong]
+        opts = dict(opts or {})
+        tong = {"tinh": "Tổng", "tong_ban": int(len(ban)), "tong_onl": int(len(onl))}
+        for p in phong:
+            tong[f"{p['code']}_ban"] = int((ban.phong_code == p["code"]).sum())
+            tong[f"{p['code']}_onl"] = int((onl.phong_code == p["code"]).sum())
+        opts["pinnedBottomRowData"] = [tong] if len(bang) else []
+        d = date.fromisoformat(ngay)
+        chips = [html.Span(f"Ngày {d:%d/%m/%Y}", className="chip"),
+                 html.Span(f"Bán {len(ban)} · Online {len(onl)}", className="chip")]
+        if len(ban):
+            ngoai = ban[~ban.ma_tinh.isin(NOI_TINH)]
+            chips.append(html.Span(f"Bán ngoại tỉnh {len(ngoai)} ({len(ngoai) / len(ban) * 100:.0f}%) · "
+                                   f"{ngoai.ma_tinh.nunique()} tỉnh", className="chip"))
+        if not len(bang):
+            chips.append(html.Span("Ngày này chưa có số", className="chip"))
+        return cot, bang.to_dict("records") if len(bang) else [], opts, chips
 

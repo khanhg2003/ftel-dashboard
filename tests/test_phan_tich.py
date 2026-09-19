@@ -275,3 +275,34 @@ def test_file_dang_dung_it_dong_hon_lan_truoc_thi_bao(monkeypatch):
     monkeypatch.setattr(cl, "_q", lambda *a, **k: df)
     out = cl.lan_nap_bat_thuong(THANG, "all")
     assert list(out.lan_nap) == [3] and "14%" in out.van_de.iloc[0]      # QN không bị đem so với DN; camera trùng bỏ qua
+
+
+def test_ban_theo_tinh_goi_di_sau_va_mot_ngay():
+    tu, den, _ = pt.ky_phan_tich(THANG)
+    df = pt.hd_theo_tinh(tu, den)
+    assert len(df) == len(pt.hop_dong_online(tu, den)) and {"xa", "nhom_goi", "tinh"} <= set(df.columns)
+    goi = pt.co_cau_goi_tinh(df, 50)
+    assert goi.so_hd.sum() == len(df)
+    assert all(abs(sum(r[f"{g}_pct"] for g in (*pt.NHOM_GOI, "Khác")) - 100) < 0.5 for _, r in goi.iterrows())
+    ma = goi.ma_tinh.iloc[0]
+    ct = pt.chi_tiet_tinh(df, ma)
+    assert ct["tong"] == goi.so_hd.iloc[0] == ct["xa"].so.sum() == ct["goi"].so.sum() == ct["nv"].so.sum()
+    ban, onl = pt.ban_online_ngay(den)
+    phong = sorted(set(ban.phong_code) | set(onl.phong_code))
+    b = pt.bang_ngay_tinh(ban, onl, phong)
+    assert b.tong_ban.sum() == len(ban) and b.tong_onl.sum() == len(onl)
+    assert sum(b[f"{p}_ban"].sum() for p in phong) == len(ban)
+    assert pt.ten_xa("Phuong Hoa Khanh") == "Phường Hoa Khanh" and pt.ten_xa("Không xác định") == "Không rõ"
+
+
+def test_ky_khoang_ngay_tu_chon():
+    from app.ui.pages import phantich
+    from app.metrics import cac_ngay_co_du_lieu
+    den = cac_ngay_co_du_lieu()[-1]
+    k = phantich._ky(None, den)
+    assert k.luy_ke and k.tu == den[:8] + "01" and k.ten_ck.startswith("cùng kỳ")
+    from datetime import date, timedelta
+    d = date.fromisoformat(den)
+    k = phantich._ky((d - timedelta(days=6)).isoformat(), den)
+    assert not k.luy_ke and k.ten_ck == "kỳ trước"
+    assert k.ck == ((d - timedelta(days=13)).isoformat(), (d - timedelta(days=7)).isoformat())

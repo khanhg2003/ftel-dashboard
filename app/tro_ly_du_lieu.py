@@ -8,7 +8,7 @@ Bảng gửi đi dạng CSV cho gọn token. Không có tên khách hàng.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -369,21 +369,34 @@ YEU_CAU_PHONG = ("LĂNG KÍNH BÁO CÁO PHÒNG - CON NGƯỜI cho trưởng phò
                  "được.")
 
 
-def ngu_canh_phan_tich(user, den: str | None, chi_nhanh: str | None) -> tuple[str, Callable[[], str]]:
+def ngu_canh_phan_tich(user, den: str | None, chi_nhanh: str | None,
+                       tu: str | None = None) -> tuple[str, Callable[[], str]]:
+    """`tu` trống hoặc là ngày 01 = luỹ kế tháng; khác = khoảng tự chọn (so với khoảng liền trước cùng số ngày)."""
     d = _ngay_hop_le(den)
     cn = chi_nhanh or "all"
+    d_tu = _ngay_hop_le(tu) if tu else d.replace(day=1)
+    if d_tu > d:
+        d_tu = d.replace(day=1)
     scope = loc_chi_nhanh(user.phong_duoc_xem(), cn, f"{d.year}-{d.month:02d}")
-    return f"{d}|{cn}|{scope}|{_quyen_ns(user)}", lambda: _du_lieu_phan_tich(user, d, cn, scope)
+    return (f"{d_tu}|{d}|{cn}|{scope}|{_quyen_ns(user)}",
+            lambda: _du_lieu_phan_tich(user, d, cn, scope, d_tu))
 
 
-def _du_lieu_phan_tich(user, d: date, cn: str, scope) -> str:
+def _du_lieu_phan_tich(user, d: date, cn: str, scope, d_tu: date | None = None) -> str:
     thang, ngay = f"{d.year}-{d.month:02d}", d.day
-    df = pt.hop_dong_online(f"{thang}-01", d.isoformat(), scope)
-    tu_t, den_t = pt.cung_ky_thang_truoc(thang, ngay)
+    d_tu = d_tu or d.replace(day=1)
+    luy_ke = d_tu == d.replace(day=1)
+    df = pt.hop_dong_online(d_tu.isoformat(), d.isoformat(), scope)
+    if luy_ke:
+        tu_t, den_t = pt.cung_ky_thang_truoc(thang, ngay)
+        ten_ck = f"cùng kỳ {tu_t[8:]}-{den_t[8:]}/{den_t[5:7]}"
+    else:
+        e = d_tu - timedelta(days=1)
+        tu_t, den_t = (e - timedelta(days=(d - d_tu).days)).isoformat(), e.isoformat()
+        ten_ck = f"kỳ trước {tu_t[8:]}/{tu_t[5:7]}-{den_t[8:]}/{den_t[5:7]}"
     ton = pt.hop_dong_ton(scope)
-    chung = pd.DataFrame([{"ky": f"01-{ngay:02d}/{d.month:02d}", **pt.chi_so_chung(df)},
-                          {"ky": f"cùng kỳ {tu_t[8:]}-{den_t[8:]}/{den_t[5:7]}",
-                           **pt.chi_so_chung(pt.hop_dong_online(tu_t, den_t, scope))}])
+    chung = pd.DataFrame([{"ky": f"{d_tu:%d/%m}-{d:%d/%m}", **pt.chi_so_chung(df)},
+                          {"ky": ten_ck, **pt.chi_so_chung(pt.hop_dong_online(tu_t, den_t, scope))}])
     ty_le = {"kem_vvip": "%kèm V.VIP", "kem_camera": "%kèm Camera", "du_3": "%đủ 3 DV",
              "tra_truoc": "%trả trước", "onl_1_ngay": "%online trong 1 ngày", "ngoai_tinh": "%bán ngoại tỉnh"}
     bang = pt.bang_theo_phong(df, ton, thang)
@@ -392,7 +405,9 @@ def _du_lieu_phan_tich(user, d: date, cn: str, scope) -> str:
         tuoi = tuoi.rename(columns={f"m{i}": m[2] for i, m in enumerate(pt.MOC_TON)})
     db = du_bao_thang(thang, ngay, scope)
     return (f"{fi.boi_canh_chung(user, d, scope)}\n\n{fi.tin_hieu_phan_tich(user, d, scope)}\n\n"
-            f"Phạm vi {TEN_PHAM_VI.get(cn, cn)} · luỹ kế 01 đến {d:%d/%m/%Y}. Tỷ lệ tính trên số online. "
+            f"Phạm vi {TEN_PHAM_VI.get(cn, cn)} · "
+            + (f"luỹ kế 01 đến {d:%d/%m/%Y}" if luy_ke else f"khoảng {d_tu:%d/%m/%Y} - {d:%d/%m/%Y}")
+            + ". Tỷ lệ tính trên số online. "
             f"{dong_thoi_gian(d)}\n"
                f"CHỈ SỐ CHUNG:\n{csv(chung, {'ky': 'Kỳ', 'online': 'Online', **ty_le})}\n\n"
                f"THEO PHÒNG:\n{csv(bang, {'phong': 'Phòng', 'online': 'Online', **ty_le, 'ton': 'Tồn', 'ton_qua_7': 'Chờ quá 7 ngày'})}\n\n"
