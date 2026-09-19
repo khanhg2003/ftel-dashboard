@@ -200,13 +200,16 @@ def layout(tab: str | None = None):
         html.Div(id="ads-p-tong", children=[
             html.Div([
                 field("Khoảng ngày", seg_control("ads-khoang", KHOANG, "thang")),
+                field("Loại page", seg_control("ads-loc-loai", [("all", "Tất cả"), ("sale", "Page sale"),
+                                                         ("cong_ty", "Trung lập")], "all")),
                 field("Sale", dcc.Dropdown(id="ads-loc-sale", placeholder="Tất cả sale", style={"minWidth": "170px"})),
                 field("Đánh giá", dcc.Dropdown(id="ads-loc-dg", multi=True, placeholder="Tất cả",
                                                options=[{"label": x, "value": x} for x in DANH_GIA_LOC],
                                                style={"minWidth": "200px"})),
                 html.Div([tip("Khoảng ngày tính tới ngày đã có chi tiêu (chi tiêu về lúc 7h sáng hôm sau), so với "
                               "khoảng liền trước cùng độ dài; Cả tháng so với cùng kỳ tháng trước. Lọc theo sale = "
-                              "các page sale đó chạy trong khoảng, số là của cả page (không chia). Tab Nhận định, Theo "
+                              "các page sale đó chạy trong khoảng, số là của cả page (không chia). Trung lập = page chạy tài khoản công ty "
+                              "(không chia cho sale). Tab Nhận định, Theo "
                               "sale, Theo ngày luôn xem cả tháng."),
                           html.Span(id="ads-ky-chu", className="ghi-chu-nhan")], className="ghi-chu ads-tab-tip"),
             ], className="toolbar loc-trang", style={"flexWrap": "wrap"}),
@@ -684,8 +687,9 @@ def register(app):
         Output("ads-bieu-do", "figure"), Output("ads-bd-chu", "children"), Output("ads-loc-sale", "options"),
         Output("ads-ky-chu", "children"), Output("ads-kiem-tra", "children"),
         Input("ads-thang", "value"), Input("ads-khoang", "value"), Input("ads-loc-sale", "value"),
-        Input("ads-loc-dg", "value"), Input("ads-bd-kieu", "value"), Input("ads-sua", "data"))
-    def _nap(thang, khoang, loc_sale, loc_dg, kieu, _s):
+        Input("ads-loc-dg", "value"), Input("ads-bd-kieu", "value"), Input("ads-loc-loai", "value"),
+        Input("ads-sua", "data"))
+    def _nap(thang, khoang, loc_sale, loc_dg, kieu, loai, _s):
         dau, den_t = _ky(thang)
         cuoi_t = ads.ngay_cuoi_chi(dau, den_t)
         tu, den, ck, ten_ck = _khoang(dau, den_t, cuoi_t, khoang)
@@ -698,6 +702,10 @@ def register(app):
         tp = ads.theo_page(tu, den, ck, df)
         if loc_dg:
             giu = set(tp[tp.danh_gia.isin(loc_dg)].page_id)
+            chon = giu if chon is None else chon & giu
+        if loai in ("sale", "cong_ty"):
+            pg = ads.ds_page()
+            giu = set(pg[(pg.loai == "cong_ty") == (loai == "cong_ty")].id)
             chon = giu if chon is None else chon & giu
         if chon is not None:
             df = df[df.page_id.isin(chon)]
