@@ -99,6 +99,19 @@ def _graph(gid: str):
                                  style={"width": "100%"}))
 
 
+def _cua_so(id_: str):
+    """Cửa sổ nổi (bấm × hoặc nền để đóng); nội dung dựng khi mở."""
+    return html.Div([
+        html.Div(className="modal-nen", id=f"{id_}-nen"),
+        html.Div([
+            html.Div([html.H3(id=f"{id_}-tieu-de"), html.Div(className="grow"),
+                      html.Button("×", id=f"{id_}-dong", className="modal-x", title="Đóng",
+                                  style={"marginLeft": "auto"})], className="modal-dau"),
+            html.Div(id=f"{id_}-than", className="modal-than", style={"paddingBottom": "16px"}),
+        ], className="modal-hop modal-rong"),
+    ], id=id_, className="modal")
+
+
 def _dau_the(tieu_de: str, mo_ta_id: str | None, *dieu_khien):
     return html.Div([
         html.Div([html.H3(tieu_de, style={"margin": 0}),
@@ -146,6 +159,8 @@ def layout(ky: dict | None = None):
                                                           "một sheet")),
         ], className="toolbar loc-trang"),
         dcc.Download(id="pt-tai-xuong"),
+        _cua_so("pt-md-tinh"),
+        _cua_so("pt-md-nv"),
 
         dcc.Loading(html.Div(id="pt-kpi", className="kpi-row kpi-6"), type="dot"),
         tl.the_ai("pt", "Dự báo cuối tháng & nhận định chất lượng bán", tl.MO_TA_DU_BAO, html.Div(id="pt-du-bao")),
@@ -180,7 +195,6 @@ def layout(ky: dict | None = None):
                                        "đó.", className="ghi-chu-nhan", style={"marginTop": "6px"})],
                              className="chart-col"),
                 ], className="chart-row doi"),
-                html.Div(id="pt-tinh-ct", className="ct-tinh", hidden=True),     # dựng khi bấm một tỉnh
                 html.Div([html.H3("Ai bán ở tỉnh nào", style={"margin": 0, "fontSize": "14px"}),
                           html.Div(className="grow"),
                           seg_control("pt-tinh-mt-xem", [("phong", "Theo phòng"), ("nv", "Theo nhân viên")], "phong")],
@@ -193,7 +207,7 @@ def layout(ky: dict | None = None):
                 ], id="pt-tinh-mt-phong"),
                 html.Div([
                     ghi_chu("Mỗi dòng một nhân viên (xếp theo phòng), mỗi cột một tỉnh có số (nhiều trước, kéo ngang "
-                            "để xem hết). Bấm một nhân viên để xem số bán + số online từng tỉnh, từng phường / xã. Chọn "
+                            "để xem hết). Bấm một nhân viên để mở cửa sổ số bán + số online từng tỉnh, từng phường / xã. Chọn "
                             "phòng ở ô bên dưới để xem riêng nhân viên một phòng. Màu "
                             "theo tỷ trọng trong số của chính người đó: xanh đậm từ 20%, xanh nhạt 5-20%. Trưởng phòng "
                             "không đưa vào (số của họ vẫn tính cho phòng).", nhan="Cách đọc bảng",
@@ -208,7 +222,6 @@ def layout(ky: dict | None = None):
                     _grid("pt-tinh-nv", cao=480, className="ag-theme-quartz ag-theme-ftel luoi-ke",
                           dashGridOptions={"rowSelection": {"mode": "singleRow", "checkboxes": False,
                                                             "enableClickSelection": True}}),
-                    html.Div(id="pt-tinh-nv-ct", className="ct-tinh", hidden=True),       # dựng khi bấm một người
                 ], id="pt-tinh-mt-nv", hidden=True),
             ], id="pt-tinh-v-tong"),
             html.Div([
@@ -924,7 +937,8 @@ def register(app):
                  "cellStyle": nhiet} for ma, ten in tinh]
         return cot, mt.to_dict("records") if len(mt) else []
 
-    @app.callback(Output("pt-tinh-nv-ct", "hidden"), Output("pt-tinh-nv-ct", "children"),
+    @app.callback(Output("pt-md-nv", "className"), Output("pt-md-nv-tieu-de", "children"),
+                  Output("pt-md-nv-than", "children"),
                   Input("pt-tinh-nv", "selectedRows"), Input("pt-khoang", "start_date"),
                   Input("pt-khoang", "end_date"), Input("pt-cn", "value"))
     def _ct_nv_tinh(chon, tu_iso, den_iso, chi_nhanh):
@@ -933,7 +947,7 @@ def register(app):
         r = (chon or [None])[0]
         ky = _ky(tu_iso, den_iso)
         if not r or not r.get("acc_key") or ky is None:
-            return True, []
+            return "modal", "", []
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
         ct = pt.chi_tiet_nv_tinh(r["acc_key"], ky.tu, ky.den, scope)
         luoi = "ag-theme-quartz ag-theme-ftel luoi-ke"
@@ -965,10 +979,8 @@ def register(app):
         if ct["goi"]:
             chips.append(html.Span(f"Gói: {ct['goi']}", className="chip"))
         cao = min(max(160, 44 + 34 * len(ct["tinh"])), 360)
-        return False, [
-            html.Div([html.H3(f"{r.get('ho_ten')} · {r.get('phong')} · {ky.nhan}",
-                              style={"margin": 0, "fontSize": "15px"}),
-                      html.Div(chips, className="chips")], className="ct-tinh-dau"),
+        return "modal mo", f"{r.get('ho_ten')} · {r.get('phong')} · {ky.nhan}", [
+            html.Div(chips, className="chips", style={"margin": "0 0 12px"}),
             html.Div([
                 html.Div([html.Div("Theo tỉnh", className="ct-tinh-ten"), luoi_("pt-tinh-nv-ct-tinh", cot_tinh,
                                                                                ct["tinh"], cao)]),
@@ -980,11 +992,19 @@ def register(app):
                     "trong phạm vi chi nhánh đang chọn.", style={"margin": "8px 0 0"}),
         ]
 
+    for md, bang in (("pt-md-tinh", "pt-tinh-bang"), ("pt-md-nv", "pt-tinh-nv")):
+        def _dong(_a, _b):
+            return "modal", []
+        app.callback(Output(md, "className", allow_duplicate=True), Output(bang, "selectedRows", allow_duplicate=True),
+                     Input(f"{md}-dong", "n_clicks"), Input(f"{md}-nen", "n_clicks"),
+                     prevent_initial_call=True)(_dong)
+
     @app.callback(Output("pt-tinh-ngay", "date"), Input("pt-khoang", "end_date"), prevent_initial_call=True)
     def _ngay_theo_ky(den):
         return den[:10] if den else no_update
 
-    @app.callback(Output("pt-tinh-ct", "hidden"), Output("pt-tinh-ct", "children"),
+    @app.callback(Output("pt-md-tinh", "className"), Output("pt-md-tinh-tieu-de", "children"),
+                  Output("pt-md-tinh-than", "children"),
                   Input("pt-tinh-bang", "selectedRows"), Input("pt-khoang", "start_date"),
                   Input("pt-khoang", "end_date"), Input("pt-cn", "value"), Input("pt-tinh-pv", "value"))
     def _ct_tinh(chon, tu_iso, den_iso, chi_nhanh, pv):
@@ -993,7 +1013,7 @@ def register(app):
         r = (chon or [None])[0]
         ky = _ky(tu_iso, den_iso)
         if not r or ky is None:
-            return True, []
+            return "modal", "", []
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
         df = pt.online_theo_tinh(ky.tu, ky.den, scope)
         if pv and pv != "all":
@@ -1017,9 +1037,8 @@ def register(app):
             g = _grid(gid, cao=320, className=luoi)
             g.columnDefs, g.rowData = cot, (d[c].to_dict("records") if len(d) else [])
             return html.Div([html.Div(ten, className="ct-tinh-ten"), g])
-        return False, [
-            html.Div([html.H3(tieu_de, style={"margin": 0, "fontSize": "15px"}),
-                      html.Div(chips, className="chips")], className="ct-tinh-dau"),
+        return "modal mo", tieu_de, [
+            html.Div(chips, className="chips", style={"margin": "0 0 12px"}),
             html.Div([khoi("Phường / xã", "pt-tinh-ct-xa", cot_xa, ct["xa"], ["xa", "so", "ty_trong"]),
                       khoi("Nhân viên bán", "pt-tinh-ct-nv", cot_nv, ct["nv"], ["ho_ten", "acc", "phong", "so"]),
                       khoi("Gói cước", "pt-tinh-ct-goi", cot_goi, ct["goi"], ["goi", "so", "ty_trong"])],
