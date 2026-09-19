@@ -370,8 +370,9 @@ def phan_bo(tu: date, den: date) -> pd.DataFrame:
 
 
 def theo_sale(tu: date, den: date) -> pd.DataFrame:
-    """Dòng = sale: chi phí được chia, tin nhắn / số ĐT / PTTB (chia cùng cách), số page đang chạy. Chỉ số trong
-    phạm vi Facebook - không so với online trên app vì online của sale đến từ nhiều nguồn, không riêng ads."""
+    """Dòng = sale: số page, chi phí được chia (USD) và dự kiến chi tới hết tháng.
+    Dự kiến = đã chi + (trung bình/ngày của 5 ngày gần nhất có số chi tiêu) × số ngày còn lại của tháng. Trung bình
+    tính trên phần tiền được chia của mọi page sale chạy trong 5 ngày đó (ngày không chạy tính 0)."""
     pb = phan_bo(tu, den)
     if pb.empty:
         return pd.DataFrame()
@@ -381,6 +382,16 @@ def theo_sale(tu: date, den: date) -> pd.DataFrame:
     ds = ds_sale()
     acc = {khoa_sale(t): a for t, a in zip(ds.ten, ds.acc) if a}
     g["acc"] = [acc.get(khoa_sale(t)) or None for t in g.sale]
+    cuoi = ngay_cuoi_chi(tu, den)
+    g["tb_5_ngay"], g["du_kien"] = None, g.chi_tieu
+    if cuoi:
+        a = max(tu, cuoi - timedelta(days=4))
+        so_ngay = (cuoi - a).days + 1
+        gan = pb[(pb.ngay >= a) & (pb.ngay <= cuoi)].groupby("sale").chi_tieu.sum()
+        g["tb_5_ngay"] = (g.sale.map(gan).fillna(0) / so_ngay).round(2)
+        con = calendar.monthrange(cuoi.year, cuoi.month)[1] - cuoi.day
+        g["du_kien"] = (g.chi_tieu + g.tb_5_ngay * con).round(2)
+    g.attrs.update(cuoi=cuoi)
     thu_tu = {CONG_TY: 2, CHUA_PHAN_CONG: 3}
     return g.assign(_o=g.sale.map(thu_tu).fillna(0)).sort_values(["_o", "chi_tieu"], ascending=[True, False]) \
             .drop(columns="_o").reset_index(drop=True)
