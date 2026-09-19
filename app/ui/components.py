@@ -175,6 +175,22 @@ def modal(id: str, tieu_de: str, noi_dung: list, nut_chinh: str = "Lưu"):
     ], id=id, className="modal")
 
 
+def cua_so(id: str, than=None, ghi_chu=None, nut=None):
+    """Cửa sổ xem chi tiết (không có nút Lưu): bấm × hoặc nền tối để đóng. Mở/đóng bằng className "modal mo".
+
+    Sinh sẵn id `<id>-nen`, `<id>-dong`, `<id>-tieu-de`; `than` = nội dung cố định, bỏ trống thì có `<id>-than` để
+    callback dựng nội dung khi mở. `nut` = nút thêm ở đầu cửa sổ (cạnh dấu ×)."""
+    return html.Div([
+        html.Div(className="modal-nen", id=f"{id}-nen"),
+        html.Div([
+            html.Div([html.H3(id=f"{id}-tieu-de"), tip(ghi_chu) if ghi_chu else None, html.Div(className="grow"),
+                      nut, html.Button("×", id=f"{id}-dong", className="modal-x", title="Đóng")], className="modal-dau"),
+            html.Div(than, className="modal-than", style={"paddingBottom": "16px"}, **({} if than is not None
+                                                                                      else {"id": f"{id}-than"})),
+        ], className="modal-hop modal-rong"),
+    ], id=id, className="modal")
+
+
 def ten_ky(thang: str) -> str:
     return f"Tháng {thang[5:7]}/{thang[:4]}" if thang else ""
 
@@ -291,7 +307,7 @@ LOCALE_VI = {
     "resetColumns": "Đặt lại cột", "sortAscending": "Xếp tăng dần", "sortDescending": "Xếp giảm dần",
     "sortUnSort": "Bỏ sắp xếp", "columns": "Cột", "filters": "Bộ lọc", "copy": "Sao chép",
     "ariaChecked": "đã chọn", "ariaUnchecked": "chưa chọn", "ariaRowSelect": "Chọn dòng",
-    "ariaSearch": "Tìm", "ariaFilterValue": "Giá trị lọc", "filterOoo": "Lọc...",
+    "ariaSearch": "Tìm", "ariaFilterValue": "Giá trị lọc",
 }
 
 

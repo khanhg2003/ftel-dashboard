@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import dash_ag_grid as dag
 import plotly.graph_objects as go
-from dash import Input, Output, State, ctx, dcc, html, no_update
+from dash import Input, Output, State, dcc, html, no_update
 from flask_login import current_user
 
 from app.auth import ghi_log

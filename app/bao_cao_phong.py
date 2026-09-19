@@ -65,7 +65,7 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     # nếu không dòng TỔNG PHÒNG sẽ thiếu so với Báo cáo Tổng
     ban_ra = set(hd.acc_norm) | set(ton.acc_norm) | set(vvip.index) | set(camera.index) | set(ban_moi.index)
     ds_acc = pd.DataFrame({"acc_norm": sorted(set(staff.acc_norm) | ban_ra)})
-    phu = _q(f"""SELECT DISTINCT acc_norm, acc_nhan_vien FROM fact_camera WHERE phong_code = :c
+    phu = _q("""SELECT DISTINCT acc_norm, acc_nhan_vien FROM fact_camera WHERE phong_code = :c
                   AND ngay_online >= :tu AND ngay_online <= :den
                   UNION SELECT DISTINCT acc_norm, acc_nhan_vien FROM fact_fptplay WHERE phong_code = :c
                   AND ngay_online >= :tu AND ngay_online <= :den""", c=code, tu=tu, den=den)

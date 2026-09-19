@@ -25,6 +25,7 @@ from app.org import (LOAI_PHONG, bay_info, bay_options, co_cau_rieng, luu_bay, l
 from app.thoi_gian import chu_gio_vn
 from app.ui.components import (COT_SUA, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card, chon_ky,
                                dong_can_sua, field, gan_dieu_huong_ky, gan_import, modal, nut_import, tieu_de, ghi_chu)
+from app.ui.luoi import SO, bang
 from app.ui.icons import icon
 
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
@@ -38,18 +39,14 @@ TRANG_THAI = [{"label": "Đang dùng", "value": "Có"}, {"label": "Ngừng dùng
 NHOM_KHAC = [{"label": "Không gộp", "value": ""}, {"label": "DNG Khác", "value": "DNG"},
              {"label": "QNM Khác", "value": "QNM"}]
 AN = {"display": "none"}
-SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
 GRID_OPTS = {"rowSelection": "multiple", "suppressRowClickSelection": True, "suppressCellFocus": True,
              "tooltipShowDelay": 300}
 
 
 def _grid(gid, cao: int | None = None, **kw):
     """cao=None -> bảng ngắn, để tự giãn. Có cao -> cuộn trong khung, tiêu đề cột luôn thấy."""
-    kw.setdefault("defaultColDef", {"resizable": True, "sortable": True})
-    opts = {**GRID_OPTS, "domLayout": "normal" if cao else "autoHeight"}
-    style = {"width": "100%", **({"height": f"{cao}px"} if cao else {})}
-    return dag.AgGrid(id=gid, className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
-                      dashGridOptions=opts, style=style, **kw)
+    return bang(gid, cao=cao, tuy_chon=GRID_OPTS,
+                cot_mac_dinh=kw.pop("defaultColDef", {"resizable": True, "sortable": True}), **kw)
 
 
 def _o(label, control, id_=None, an=False):

@@ -19,7 +19,7 @@ from app.db import engine
 from app.ingest.loader import LoadResult
 from app.ingest.normalize import norm_acc, norm_text
 from app.models import (AuditLog, Employee, FactCamera, FactFptPlay, FactInternet,
-                        HrMonthly, Phong, StaffMap, UploadBatch)
+                        HrMonthly, StaffMap, UploadBatch)
 from app.org import assign_phong, load_staff_map, phong_by_name
 
 FACT_MODELS = {"internet": FactInternet, "fptplay": FactFptPlay, "camera": FactCamera}

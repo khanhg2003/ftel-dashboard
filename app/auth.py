@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError

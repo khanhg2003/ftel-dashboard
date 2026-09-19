@@ -34,14 +34,12 @@ from app.overview import trang_thai_ngay
 from app.ui.components import (DONG_TONG_NGAY, HEAT_NGAY, LOCALE_VI, LOP_DONG_NGAY, alert, card,
                                chon_ngay, chu_giai, field, gan_chon_ngay, kpi, lop_cot_ngay,
                                seg_control, ghi_chu)
+from app.ui.luoi import CHENH, SO, PCT_GACH as PCT
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui import tro_ly as tl
 from app.ui.icons import icon
 
-SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
-PCT = {"function": "params.value == null ? '–' : Math.round(params.value) + '%'"}
-CHENH = {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + params.value"}
 DO, VANG, XANH = ({"backgroundColor": "#F7BDBD", "color": "#7F1D1D", "fontWeight": "600"},
                   {"backgroundColor": "#FCEBB4", "color": "#6B5104"},
                   {"backgroundColor": "#D3EBD4", "color": "#14532D", "fontWeight": "600"})

@@ -21,6 +21,7 @@ from app.ingest.commit import commit_result, file_hash, thang_nsld_tu_noi_dung, 
 from app.ingest.loader import load_file
 from app.metrics import cac_thang_co_du_lieu
 from app.ui.components import LOCALE_VI, alert, badge, card, tieu_de
+from app.ui.luoi import SO
 from app.ui.icons import icon
 
 MAX_PREVIEW = 20
@@ -114,7 +115,6 @@ def _the_lich_su():
     ], className="card")
 
 
-SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
 
 
 def _cot_lich_su():
@@ -312,7 +312,7 @@ def register(app):
         if not hang_doi:                     # vừa lưu xong (hàng đợi được xoá) - giữ kết quả đang hiện
             return no_update, True, no_update, no_update
 
-        ui, kho, thang_nhan_su, so_ok = [], [], None, 0
+        ui, kho, so_ok = [], [], 0
         for muc_file in hang_doi:
             noi_dung, ten_file = muc_file["content"], muc_file["name"]
             try:

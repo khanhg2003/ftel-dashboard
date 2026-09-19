@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from datetime import date
 
-import dash_ag_grid as dag
 import plotly.graph_objects as go
 from dash import Input, Output, Patch, State, dcc, html, no_update
 from flask_login import current_user
@@ -25,16 +24,14 @@ from app.hr_metrics import (LOAI_KINH_DOANH, MOC_THAM_NIEN, TEN_NHOM,
                             canh_bao_nhan_su, hieu_suat_nhan_su, tong_hop_tham_nien)
 from app.metrics import cac_ngay_co_du_lieu
 from app.org import phong_order
-from app.ui.components import (LOCALE_VI, alert, chi_nhanh_control, chon_ngay, chu_giai, field,
+from app.ui.components import (alert, chi_nhanh_control, chon_ngay, chu_giai, field,
                                gan_chon_ngay, kpi, seg_control)
+from app.ui.luoi import SO, bang, CHENH_PCT as CHENH, PCT_GACH as PCT
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui.icons import icon
 
 MAU_NHOM = {"MOI": "#F37021", "DANG_LEN": "#37A5E6", "ON_DINH": "#0072BC", "LAU_NAM": "#00A650"}
-SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
-PCT = {"function": "params.value == null ? '–' : Math.round(params.value) + '%'"}
-CHENH = {"function": "params.value == null ? '–' : (params.value > 0 ? '+' : '') + Math.round(params.value) + '%'"}
 MAU_CHENH = {"styleConditions": [
     {"condition": "params.value != null && params.value <= -50",
      "style": {"backgroundColor": "#FBE3E1", "color": "#93241C", "fontWeight": "600"}},
@@ -71,15 +68,8 @@ def topbar():
 
 
 def _grid(id, cao=None, **kw):
-    opts = {"suppressCellFocus": True, "localeText": LOCALE_VI, "tooltipShowDelay": 300,
-            "includeHiddenColumnsInQuickFilter": True,
-            "domLayout": "autoHeight" if cao is None else "normal"}
-    opts.update(kw.pop("dashGridOptions", {}))
-    style = {"width": "100%"} | ({"height": f"{cao}px"} if cao else {})
-    return dag.AgGrid(id=id, className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
-                      defaultColDef={"resizable": True, "sortable": True, "suppressMovable": True,
-                                     "wrapHeaderText": True, "autoHeaderHeight": True},
-                      dashGridOptions=opts, style=style, **kw)
+    return bang(id, cao=cao, tuy_chon={"includeHiddenColumnsInQuickFilter": True,
+                                       **kw.pop("dashGridOptions", {})}, **kw)
 
 
 def khung_cuon(so_dong: int, co_dong_ghim: bool = False) -> dict:

@@ -27,7 +27,7 @@ def sach():
     def xoa():
         with engine.begin() as c:
             ids = [r[0] for r in c.execute(text("SELECT id FROM ads_page WHERE ma LIKE 'ZZ KT%'"))]
-            for bang in ("ads_ngay", "ads_lead", "ads_pic", "ads_kpi"):
+            for bang in ("ads_ngay", "ads_lead", "ads_pic"):
                 for i in ids:
                     c.execute(text(f"DELETE FROM {bang} WHERE page_id = :i"), {"i": i})
             c.execute(text("DELETE FROM ads_page WHERE ma LIKE 'ZZ KT%'"))
@@ -101,7 +101,7 @@ def test_page_cong_ty_khong_chia_cho_sale():
 def test_ty_gia_va_ky_tu_so():
     assert ads.doc_so("1.234,5") == 1234.5 and ads.doc_so("4,93") == 4.93 and ads.doc_so(None) == 0
     assert ads.chuan_ma("  Kon   tum ") == "KON TUM" and ads.khoa_sale("C.HỒNG") == ads.khoa_sale("C. Hồng")
-    ads.luu_thang("2026-08", 26000, {}, "kt")
+    ads.luu_thang("2026-08", 26000, "kt")
     assert ads.ty_gia("2026-08") == 26000
 
 

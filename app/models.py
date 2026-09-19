@@ -340,13 +340,3 @@ class AdsThang(Base):
     __tablename__ = "ads_thang"
     thang: Mapped[str] = mapped_column(String(7), primary_key=True)
     ty_gia: Mapped[float] = mapped_column(Float)
-
-
-class AdsKpi(Base):
-    """KPI PTTB tháng của từng page (trang Hoạch định)."""
-    __tablename__ = "ads_kpi"
-    __table_args__ = (UniqueConstraint("thang", "page_id", name="uq_ads_kpi"),)
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    thang: Mapped[str] = mapped_column(String(7), index=True)
-    page_id: Mapped[int] = mapped_column(ForeignKey("ads_page.id"))
-    kpi_pttb: Mapped[int] = mapped_column(Integer)

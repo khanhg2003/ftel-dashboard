@@ -7,12 +7,9 @@ Số liệu và quy tắc ở app/ads.py.
 """
 from __future__ import annotations
 
-import base64
 import json
-import time
 from datetime import date, timedelta
 
-import dash_ag_grid as dag
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -21,11 +18,11 @@ from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
 from app import ads
-from app.auth import ghi_log
 from app.metrics import month_range
 from app.thoi_gian import gio_viet_nam
-from app.ui.components import (LOCALE_VI, alert, callback_can_quyen, chon_ky, field, gan_dieu_huong_ky, kpi,
+from app.ui.components import (cua_so, alert, callback_can_quyen, chon_ky, field, gan_dieu_huong_ky, kpi,
                                modal, seg_control, so_vn, tieu_de, tip)
+from app.ui.luoi import LOP, PCT, PCT_DAU, USD, USD_D, VND, bang, SO_1 as SO
 from app.ui.icons import icon
 
 AN = {"display": "none"}
@@ -40,15 +37,6 @@ HUONG_DAN_TAB = [
     ("Theo ngày", "Tracking ngày: page × ngày. Bấm đúp một page để xem từng camp từng ngày (như trang tính cũ)."),
     ("Cấu hình", "kết nối n8n, người chạy page, tên page, tên sale ↔ acc, nhập tay, nhật ký lead."),
 ]
-USD = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
-                   "{minimumFractionDigits: 2, maximumFractionDigits: 2})"}
-SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
-                  "{maximumFractionDigits: 1})"}
-VND = {"function": "params.value == null ? '' : Math.round(params.value).toLocaleString('vi-VN')"}
-USD_D = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
-                     "{minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' $'"}
-PCT = {"function": "params.value == null ? '' : Math.round(params.value) + '%'"}
-PCT_DAU = {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + Math.round(params.value) + '%'"}
 # 3 màu: xanh tốt · vàng trung bình · đỏ cần xử lý
 XANH, VANG, DO = ("#DDF1E3", "#14532D"), ("#FFF3D1", "#6B5104"), ("#FCE1DD", "#93241C")
 LAM = ("#EAF3FC", "#D0E4F7", "#A8CBEE")          # chi tiêu: nhiều / ít, không tốt không xấu
@@ -125,12 +113,10 @@ def _chu_mau(huong: str):
 
 
 def _grid(id_, cot, cao=440, **kw):
-    """Bảng cao cố định, nhiều dòng thì cuộn trong khung (không kéo dài trang)."""
-    opts = {"localeText": LOCALE_VI, "suppressCellFocus": False, "enableCellTextSelection": True,
-            "ensureDomOrder": True, "tooltipShowDelay": 300, **kw.pop("opts", {})}
-    return dag.AgGrid(id=id_, className="ag-theme-quartz ag-theme-ftel luoi-ke", columnDefs=cot, rowData=[],
-                      defaultColDef={"resizable": True, "sortable": True, "filter": True},
-                      dashGridOptions=opts, style={"height": f"{cao}px"}, **kw)
+    """Bảng cao cố định, nhiều dòng thì cuộn trong khung (không kéo dài trang); kẻ lưới, lọc được từng cột."""
+    return bang(id_, cot, cao, lop=LOP + " luoi-ke", cot_mac_dinh={"resizable": True, "sortable": True, "filter": True},
+                tuy_chon={"suppressCellFocus": False, "enableCellTextSelection": True, "ensureDomOrder": True,
+                          **kw.pop("opts", {})}, **kw)
 
 
 def _so(label, field_, fmt=SO, w=100, **kw):
@@ -178,6 +164,7 @@ def _huong_dan_tab():
 
 
 def layout(tab: str | None = None):
+    from app.ui.pages import ads_cau_hinh
     if not current_user.duoc_cau_hinh:
         return alert("Chỉ tài khoản Quản trị được xem mục Ads IBB7.", "bad")
     ads.dam_bao_bang()
@@ -331,47 +318,29 @@ def layout(tab: str | None = None):
                                  "chi_tieu")),
         ]),
 
-        html.Div(id="ads-p-cauhinh", style=AN, children=_cau_hinh()),
+        html.Div(id="ads-p-cauhinh", style=AN, children=ads_cau_hinh.layout()),
     ])
 
 
 def _modal_ct():
     """Cửa sổ chi tiết một page (mở bằng bấm đúp ở Tổng quan / Tracking ngày) - như trang tính từng page của sheet."""
-    return html.Div([
-        html.Div(className="modal-nen", id="ads-md-ct-nen"),
-        html.Div([
-            html.Div([html.H3(id="ads-md-ct-tieu-de"), tip("Mỗi dòng một camp một ngày, ngày tăng dần. Số điện thoại / "
-                                                           "PTTB báo qua bot ghi ở dòng đầu của ngày. Tiền/người = chi "
-                                                           "tiêu chia cho người chạy (theo tỷ lệ nếu có)."),
-                      html.Div(className="grow"),
-                      html.Button([icon("settings", 14), html.Span("Sửa tên / link")], id="ads-ct-sua", className="btn"),
-                      html.Button("×", id="ads-md-ct-dong", className="modal-x", title="Đóng")], className="modal-dau"),
-            html.Div([html.Div(id="ads-ct-dau", className="ct-dau"),
-                      _grid("ads-g-ct", [], cao=520, opts={"pinnedBottomRowData": []})], className="modal-than",
-                     style={"paddingBottom": "16px"}),
-        ], className="modal-hop modal-rong"),
-    ], id="ads-md-ct", className="modal")
+    return cua_so("ads-md-ct", [html.Div(id="ads-ct-dau", className="ct-dau"),
+                                _grid("ads-g-ct", [], cao=520, opts={"pinnedBottomRowData": []})],
+                  ghi_chu="Mỗi dòng một camp một ngày, ngày tăng dần. Số điện thoại / PTTB báo qua bot ghi ở dòng đầu "
+                          "của ngày. Tiền/người = chi tiêu chia cho người chạy (theo tỷ lệ nếu có).",
+                  nut=html.Button([icon("settings", 14), html.Span("Sửa tên / link")], id="ads-ct-sua", className="btn"))
 
 
 def _modal_sale():
     """Cửa sổ các page của một sale (bấm đúp ở tab Theo sale)."""
-    return html.Div([
-        html.Div(className="modal-nen", id="ads-md-sale-nen"),
-        html.Div([
-            html.Div([html.H3(id="ads-md-sale-tieu-de"),
-                      tip("Tiền được chia = phần chi tiêu của sale ở page đó (chia đều cho người chạy cùng ngày, hoặc "
-                          "theo tỷ lệ đã khai). Phần của sale = tiền được chia / tổng tiền page trong tháng."),
-                      html.Div(className="grow"),
-                      html.Button("×", id="ads-md-sale-dong", className="modal-x", title="Đóng")], className="modal-dau"),
-            html.Div(_grid("ads-g-ct-sale", [
-                COT_PAGE,
-                _so("Ngày chạy", "so_ngay", SO, 85), {"field": "khoang", "headerName": "Từ - đến", "width": 110},
-                _so("Tiền được chia ($)", "chi_tieu", USD_D, 130), _so("≈ VNĐ", "vnd", VND, 120),
-                _so("Phần của sale", "phan", PCT, 105),
-                {"field": "cung", "headerName": "Chạy cùng", "minWidth": 160, "flex": 1.2, "tooltipField": "cung"},
-            ], cao=380, opts={"pinnedBottomRowData": []}), className="modal-than", style={"paddingBottom": "16px"}),
-        ], className="modal-hop modal-rong"),
-    ], id="ads-md-sale", className="modal")
+    return cua_so("ads-md-sale", _grid("ads-g-ct-sale", [
+        COT_PAGE,
+        _so("Ngày chạy", "so_ngay", SO, 85), {"field": "khoang", "headerName": "Từ - đến", "width": 110},
+        _so("Tiền được chia ($)", "chi_tieu", USD_D, 130), _so("≈ VNĐ", "vnd", VND, 120),
+        _so("Phần của sale", "phan", PCT, 105),
+        {"field": "cung", "headerName": "Chạy cùng", "minWidth": 160, "flex": 1.2, "tooltipField": "cung"},
+    ], cao=380, opts={"pinnedBottomRowData": []}), ghi_chu="Tiền được chia = phần chi tiêu của sale ở page đó (chia đều "
+        "cho người chạy cùng ngày, hoặc theo tỷ lệ đã khai). Phần của sale = tiền được chia / tổng tiền page trong tháng.")
 
 
 def _modal_page():
@@ -387,132 +356,6 @@ def _modal_page():
         html.Div(id="ads-md-ma", className="ghi-chu-nhan", style={"marginTop": "10px"}),
         html.Div(id="ads-md-msg"),
     ], nut_chinh="Lưu")
-
-
-def _cau_hinh():
-    return [
-        _the("Kết nối n8n và bot Telegram", "n8n gửi thẳng vào app thay cho Google Sheet. Gửi lại cùng page + camp "
-             "+ ngày thì ghi đè, không nhân đôi. Page mới tự xuất hiện ở danh mục bên dưới.",
-             html.Div(id="ads-token-tt"),
-             html.Details([html.Summary("Xem mẫu gửi dữ liệu (cho người cài n8n)", className="cg-tieu-de"),
-                           html.Pre(id="ads-mau-json", className="khoi-ma")], className="chu-giai"),
-             nut=html.Button([icon("refresh", 14), html.Span("Tạo mã kết nối mới")], id="ads-tao-ma",
-                             className="btn")),
-        _the("Nạp file Google Sheet cũ", "Tải file 'BÁO CÁO CHI TIÊU ADS' (File → Download → .xlsx, một file gồm mọi "
-             "tab) rồi thả vào đây: chi tiêu, lead / PTTB, người chạy từng page, tỷ lệ chia riêng. Chỉ dùng cho tháng "
-             "chưa nối n8n - nạp lại tháng đã có bot gửi lead sẽ cộng trùng lead.",
-             dcc.Upload(id="ads-file", className="upload-zone", children=html.Div(
-                 [icon("upload", 18), html.Span(" Kéo thả hoặc bấm chọn file .xlsx")])),
-             dcc.Loading(html.Div(id="ads-msg-file"), type="dot")),
-        _the("Người chạy page (PIC)", "Khai ai chạy page từ ngày nào. Đổi người giữa tháng: chọn page, chọn nhóm sale "
-             "mới và ngày bắt đầu - khai báo cũ tự kết thúc ở ngày trước đó. Tối đa 3 sale; để trống tỷ lệ = chia đều.",
-             html.Div([
-                 field("Page", dcc.Dropdown(id="ads-pic-page", style={"minWidth": "220px"})),
-                 field("Sale (tối đa 3)", dcc.Dropdown(id="ads-pic-sale", multi=True, style={"minWidth": "240px"})),
-                 field("Sale mới (chưa có trong danh sách)", dcc.Input(id="ads-pic-moi", className="inp",
-                                                                        placeholder="VD: C. Lan")),
-                 field("Tỷ lệ % (theo thứ tự sale)", dcc.Input(id="ads-pic-tl", className="inp",
-                                                              placeholder="trống = chia đều · VD 70, 30")),
-                 field("Từ ngày", dcc.DatePickerSingle(id="ads-pic-tu", display_format="DD/MM/YYYY",
-                                                       first_day_of_week=1)),
-                 field("Đến ngày (trống = đến nay)", dcc.DatePickerSingle(id="ads-pic-den", display_format="DD/MM/YYYY",
-                                                                          first_day_of_week=1, clearable=True)),
-                 field(" ", html.Button([icon("plus", 14), html.Span("Lưu phân công")], id="ads-pic-luu",
-                                        className="btn primary")),
-             ], className="toolbar", style={"flexWrap": "wrap"}),
-             html.Div(id="ads-msg-pic"),
-             _grid("ads-g-pic", [
-                 {"field": "page", "headerName": "Page", "minWidth": 190, "flex": 2, "checkboxSelection": True},
-                 {"field": "sale", "headerName": "Sale", "minWidth": 120, "flex": 1},
-                 {"field": "tu", "headerName": "Từ ngày", "minWidth": 110},
-                 {"field": "den", "headerName": "Đến ngày", "minWidth": 110},
-                 _so("Tỷ lệ", "ty_le", PCT, 80)], cao=320, getRowId="params.data.id",
-                 opts={"rowSelection": "multiple"}),
-             nut=html.Button([icon("trash", 14), html.Span("Xoá dòng đã chọn")], id="ads-pic-xoa",
-                             className="btn nguy-hiem")),
-        _the("Danh mục page", "Bấm đúp ô có dấu ✎ để sửa rồi Lưu. Loại 'Công ty' = chạy tài khoản công ty, không chia "
-             "chi phí cho sale. Tên chuẩn là tên n8n / bot gửi lên - không sửa được.",
-             _grid("ads-g-dm", [
-                 {"field": "ma", "headerName": "Tên chuẩn (n8n gửi)", "minWidth": 180, "flex": 1.3},
-                 {"field": "ten", "headerName": "Tên hiển thị ✎", "editable": True, "minWidth": 190, "flex": 1.6},
-                 {"field": "link", "headerName": "Link fanpage ✎", "editable": True, "minWidth": 200, "flex": 1.6},
-                 {"field": "loai", "headerName": "Loại ✎", "editable": True, "minWidth": 100,
-                  "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": ["Sale", "Công ty"]}},
-                 {"field": "tinh_trang", "headerName": "Tình trạng ✎", "editable": True, "minWidth": 115,
-                  "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": ads.TINH_TRANG_PAGE}},
-                 {"field": "ghi_chu", "headerName": "Ghi chú ✎", "editable": True, "minWidth": 180, "flex": 1.6},
-             ], cao=380, getRowId="params.data.id"),
-             html.Details([
-                 html.Summary("+ Thêm page mới", className="cg-tieu-de"),
-                 html.Div([
-                     field("Tên chuẩn (n8n / bot gửi)", dcc.Input(id="ads-pm-ma", className="inp",
-                                                                   placeholder="VD: BÌNH PHƯỚC")),
-                     field("Tên hiển thị", dcc.Input(id="ads-pm-ten", className="inp", placeholder="trống = như tên chuẩn")),
-                     field("Loại", dcc.Dropdown(id="ads-pm-loai", value="sale", clearable=False, searchable=False,
-                                                options=[{"label": "Sale", "value": "sale"},
-                                                         {"label": "Công ty (Trung lập)", "value": "cong_ty"}],
-                                                style={"minWidth": "170px"})),
-                     field("Tình trạng", dcc.Dropdown(id="ads-pm-tt", value="Đang chạy", clearable=False,
-                                                      searchable=False, style={"minWidth": "130px"},
-                                                      options=[{"label": x, "value": x} for x in ads.TINH_TRANG_PAGE])),
-                     field("Link fanpage", dcc.Input(id="ads-pm-link", className="inp",
-                                                     placeholder="https://www.facebook.com/…")),
-                     field(" ", html.Button([icon("plus", 14), html.Span("Thêm page")], id="ads-pm-them",
-                                            className="btn primary")),
-                 ], className="toolbar", style={"flexWrap": "wrap", "marginTop": "8px"}),
-                 html.Div("Tên chuẩn phải đúng tên n8n / bot Telegram sẽ gửi (không phân biệt hoa thường, khoảng trắng)"
-                          " để số tự vào đúng page. Thêm xong nhớ khai người chạy page ở mục trên.",
-                          className="ghi-chu-nhan"),
-             ], className="chu-giai", style={"marginTop": "10px"}),
-             html.Div(id="ads-msg-pm"),
-             html.Div(id="ads-trung-ten"),
-             html.Div(id="ads-msg-dm"),
-             nut=html.Button([icon("save", 14), html.Span("Lưu danh mục")], id="ads-dm-luu", className="btn primary")),
-        _the("Sale và acc", "Danh sách sale dùng khi khai người chạy page. Thêm sale mới ở dưới bảng; sửa cột Acc "
-             "(bấm đúp) rồi Lưu.",
-             _grid("ads-g-sale-acc", [
-                 {"field": "ten", "headerName": "Tên gọi", "minWidth": 140, "flex": 1},
-                 {"field": "acc", "headerName": "Acc inside ✎", "editable": True, "minWidth": 180, "flex": 1.4}],
-                 cao=320, getRowId="params.data.ten"),
-             html.Div([
-                 field("Tên gọi sale mới", dcc.Input(id="ads-sm-ten", className="inp", placeholder="VD: C. Lan")),
-                 field("Acc inside", dcc.Input(id="ads-sm-acc", className="inp", placeholder="VD: DNG.LanNT5")),
-                 field(" ", html.Button([icon("plus", 14), html.Span("Thêm sale")], id="ads-sm-them",
-                                        className="btn primary")),
-             ], className="toolbar", style={"flexWrap": "wrap", "marginTop": "10px"}),
-             html.Div(id="ads-msg-acc"),
-             nut=html.Button([icon("save", 14), html.Span("Lưu acc")], id="ads-acc-luu", className="btn primary")),
-        _the("Nhập tay", "Cho page không có số từ n8n (VD chạy tài khoản khác) hoặc bổ sung lead / PTTB khi bot "
-             "Telegram lỗi. Chi tiêu nhập tay cùng page + ngày sẽ ghi đè lần nhập trước.",
-             html.Div([
-                 field("Page", dcc.Dropdown(id="ads-tay-page", style={"minWidth": "220px"})),
-                 field("Ngày", dcc.DatePickerSingle(id="ads-tay-ngay", display_format="DD/MM/YYYY",
-                                                    first_day_of_week=1)),
-                 field("Chi tiêu (USD)", dcc.Input(id="ads-tay-chi", type="number", min=0, step="any",
-                                                   className="inp", style={"width": "110px"})),
-                 field("Số ĐT", dcc.Input(id="ads-tay-lead", type="number", step=1, className="inp",
-                                          style={"width": "80px"})),
-                 field("PTTB", dcc.Input(id="ads-tay-pttb", type="number", step=1, className="inp",
-                                         style={"width": "80px"})),
-                 field(" ", html.Button([icon("plus", 14), html.Span("Ghi")], id="ads-tay-ghi",
-                                        className="btn primary")),
-             ], className="toolbar", style={"flexWrap": "wrap"}),
-             html.Div(id="ads-msg-tay")),
-        _the("Nhật ký lead / PTTB", "Mỗi lần bot Telegram hoặc nhập tay báo có số là một dòng (kèm người nhắn và nội "
-             "dung tin). Nhập nhầm thì tick dòng rồi Xoá.",
-             _grid("ads-g-lead", [
-                 {"field": "ngay", "headerName": "Ngày", "minWidth": 100, "checkboxSelection": True},
-                 {"field": "page", "headerName": "Page", "minWidth": 180, "flex": 1.6},
-                 _so("Số ĐT", "lead", SO, 70), _so("PTTB", "pttb", SO, 70),
-                 {"field": "nguon", "headerName": "Nguồn", "minWidth": 90},
-                 {"field": "nguoi", "headerName": "Người nhập", "minWidth": 120},
-                 {"field": "ghi_chu", "headerName": "Tin nhắn / ghi chú", "minWidth": 180, "flex": 1.6,
-                  "tooltipField": "ghi_chu"},
-                 {"field": "luc", "headerName": "Lúc", "minWidth": 140}], cao=380, getRowId="params.data.id",
-                 opts={"rowSelection": "multiple"}),
-             nut=html.Button([icon("trash", 14), html.Span("Xoá dòng đã chọn")], id="ads-lead-xoa",
-                             className="btn nguy-hiem")),
-    ]
 
 
 def _ky(thang: str) -> tuple[date, date]:
@@ -589,21 +432,6 @@ def _the_nd(ds, toi_da=None):
             for t in ds]
 
 
-def _mau_json(host: str) -> str:
-    return (f"# 1) n8n - chi tiêu hôm qua (node HTTP Request, method POST)\n"
-            f"URL: {host}/api/ads/chi-tieu\nHeader: X-Ads-Token: <mã kết nối>\nBody (JSON):\n"
-            + json.dumps({"page": "KON TUM", "rows": [{"camp": "TCDT_KONTUM_4", "tinh_trang": "HOẠT ĐỘNG",
-                                                        "ngay": "2026-09-18", "chi_tieu": 4.56, "tin_nhan": 3}]},
-                         ensure_ascii=False, indent=2)
-            + f"\n\n# 2) bot Telegram - mỗi lần có số điện thoại / PTTB\nURL: {host}/api/ads/lead\n"
-              "Header: X-Ads-Token: <mã kết nối>\nBody (JSON):\n"
-            + json.dumps({"page": "QUẢNG NGÃI", "lead": 1, "pttb": 1, "ngay": "2026-09-19",
-                          "nguoi": "Kiều", "ghi_chu": ""}, ensure_ascii=False, indent=2)
-            + f"\n\n# 3) bot Telegram - hỏi báo cáo (GET)\nURL: {host}/api/ads/bao-cao?date=19/09/2026 "
-              "(hoặc start_date=..&end_date=..)\nHeader: X-Ads-Token: <mã kết nối>"
-            + "\n\n'page' = tên chuẩn của page (cột Tên chuẩn ở Danh mục page). 'ngay' bỏ trống ở lead = hôm nay.")
-
-
 def _khoang(dau: date, den: date, cuoi: date | None, khoang: str | None):
     """(từ, đến, kỳ so sánh, tên kỳ so sánh). 7 ngày / ngày gần nhất tính lùi từ ngày đã có chi tiêu."""
     if khoang in ("7", "1") and cuoi:
@@ -611,19 +439,6 @@ def _khoang(dau: date, den: date, cuoi: date | None, khoang: str | None):
         a = cuoi - timedelta(days=n - 1)
         return a, cuoi, (a - timedelta(days=n), cuoi - timedelta(days=n)), "7 ngày trước" if n == 7 else "ngày trước"
     return dau, den, (ads.lui_thang(dau), ads.lui_thang(den)), "cùng kỳ"
-
-
-_ND = {}
-
-
-def _nd(tu, den, s):
-    """nhan_dinh dùng cho 2 callback cùng lúc - giữ kết quả 60 giây để không tính 2 lần."""
-    k = (tu, den, s)
-    v = _ND.get(k)
-    if v is None or time.time() - v[0] > 60:
-        _ND.clear() if len(_ND) > 8 else None
-        v = _ND[k] = (time.time(), ads.nhan_dinh(tu, den))
-    return v[1]
 
 
 def _kiem_tra(tu, den):
@@ -855,7 +670,7 @@ def register(app):
             return alert("Nhập tỷ giá là số, VD 26394.", "bad"), no_update
         if rate < 1000:
             return alert("Tỷ giá phải từ 1.000 trở lên.", "bad"), no_update
-        ads.luu_thang(thang, rate, {}, current_user.username)
+        ads.luu_thang(thang, rate, current_user.username)
         return alert(f"Đã lưu tỷ giá tháng {thang[5:]}/{thang[:4]}: {so_vn(rate)}.", "ok"), gio_viet_nam().isoformat()
 
     # ------------------------------------------------ nhận định (tổng quan hiện 4 thẻ đầu)
@@ -868,7 +683,7 @@ def register(app):
         if tab not in ("tong", "nhan_dinh"):
             raise PreventUpdate
         tu, den = _ky(thang)
-        nd = _nd(tu, den, _s)
+        nd = ads.nhan_dinh(tu, den)
         tp = nd["page"]
         mau = {"Hiệu quả cao": "#1E9E5A", "Trung bình": "#E3A008", "Kém": "#D64534", "Chưa đủ dữ liệu": "#B7C2CE"}
         f1, f2 = go.Figure(), go.Figure()
@@ -941,7 +756,7 @@ def register(app):
         if tab != "nhan_dinh":
             raise PreventUpdate
         tu, den = _ky(thang)
-        nd = _nd(tu, den, _s)
+        nd = ads.nhan_dinh(tu, den)
         ph = nd["pheu"]
         opts = [] if ph.empty else [{"label": t, "value": int(i)} for i, t in
                                     zip(ph.sort_values("tin_nhan", ascending=False).page_id,
@@ -1094,154 +909,5 @@ def register(app):
             return alert(str(e), "bad"), "", no_update
         return "", gio_viet_nam().isoformat(), gio_viet_nam().isoformat()
 
-    # ------------------------------------------------ cấu hình
-    @cb(Output("ads-g-pic", "rowData"), Output("ads-g-dm", "rowData"), Output("ads-g-sale-acc", "rowData"),
-        Output("ads-g-lead", "rowData"), Output("ads-pic-page", "options"), Output("ads-pic-sale", "options"),
-        Output("ads-tay-page", "options"), Output("ads-token-tt", "children"), Output("ads-mau-json", "children"),
-        Output("ads-trung-ten", "children"),
-        Input("ads-tab", "value"), Input("ads-sua", "data"), State("ads-thang", "value"))
-    def _nap_cau_hinh(tab, _s, thang):
-        if tab != "cauhinh":
-            return (no_update,) * 10
-        from flask import request
-        pg = ads.ds_page()
-        ten = dict(zip(pg.id, pg.ten))
-        pic = ads.ds_pic()
-        pic["page"] = pic.page_id.map(ten)
-        pic["tu"] = [x.strftime("%d/%m/%Y") if x else "" for x in pic.tu_ngay]
-        pic["den"] = [x.strftime("%d/%m/%Y") if x and x == x else "đến nay" for x in pic.den_ngay]
-        pic = pic.sort_values(["page", "tu_ngay"], ascending=[True, False])
-        dm = pg.assign(loai=pg.loai.map({"cong_ty": "Công ty"}).fillna("Sale"))
-        tu, den = _ky(thang)
-        lg = ads.nhat_ky_lead(tu, den)
-        if len(lg):
-            lg["ngay"] = [str(x)[:10] for x in lg.ngay]
-            lg["luc"] = [str(x)[:16] for x in lg.created_at]
-        opt_pg = [{"label": t, "value": int(i)} for i, t in zip(pg.id, pg.ten)]
-        sale = ads.ds_sale()
-        tt = (html.Span("Đã có mã kết nối. Mã chỉ hiện một lần lúc tạo; mất mã thì tạo mã mới rồi dán lại vào n8n.",
-                        className="badge ok") if ads.co_token() else
-              html.Span("Chưa có mã kết nối - bấm 'Tạo mã kết nối mới'.", className="badge warn"))
-        return (_ban_ghi(pic, ["id", "page", "sale", "tu", "den", "ty_le"]), _ban_ghi(dm),
-                _ban_ghi(sale), _ban_ghi(lg), opt_pg, [{"label": x, "value": x} for x in sale.ten], opt_pg, tt,
-                _mau_json(request.host_url.rstrip("/")),
-                [alert(f"Tên '{t}' đang dùng cho {len(m)} page ({', '.join(m)}) - sửa cho mỗi page một tên riêng.",
-                       "warn") for t, m in ads.trung_ten()])
-
-    @cb(Output("ads-token-tt", "children", allow_duplicate=True), Input("ads-tao-ma", "n_clicks"),
-        prevent_initial_call=True)
-    def _tao_ma(_n):
-        tok = ads.tao_token(current_user.username)
-        return alert([html.B("Mã kết nối mới (chỉ hiện lần này - dán vào header X-Ads-Token của 2 workflow n8n): "),
-                      html.Code(tok, style={"userSelect": "all", "wordBreak": "break-all"})], "ok")
-
-    @cb(Output("ads-msg-file", "children"), Output("ads-sua", "data", allow_duplicate=True),
-        Input("ads-file", "contents"), State("ads-file", "filename"), prevent_initial_call=True)
-    def _nap_file(noi_dung, ten):
-        if not noi_dung:
-            return no_update, no_update
-        try:
-            kq = ads.nap_file_sheet(base64.b64decode(noi_dung.split(",", 1)[1]), current_user.username)
-        except ads.LoiAds as e:
-            return alert(str(e), "bad"), no_update
-        except Exception as e:                                    # file hỏng / không phải xlsx
-            return alert(f"Không đọc được file {ten}: {type(e).__name__}", "bad"), no_update
-        ghi_log("ads_nap_file", f"{ten}")
-        return alert(f"Đã nạp {ten}: {kq['chi_tieu']} dòng chi tiêu ({kq['moi']} mới, {kq['cap_nhat']} cập nhật), "
-                     f"{kq['lead']} ngày có lead / PTTB, {kq['pic']} dòng phân công, {kq['page']} page · tháng "
-                     f"{', '.join(kq['thang'])}.", "ok"), gio_viet_nam().isoformat()
-
-    @cb(Output("ads-msg-pic", "children"), Output("ads-sua", "data", allow_duplicate=True),
-        Input("ads-pic-luu", "n_clicks"), Input("ads-pic-xoa", "n_clicks"),
-        State("ads-pic-page", "value"), State("ads-pic-sale", "value"), State("ads-pic-moi", "value"),
-        State("ads-pic-tl", "value"), State("ads-pic-tu", "date"), State("ads-pic-den", "date"),
-        State("ads-g-pic", "selectedRows"), prevent_initial_call=True)
-    def _pic(_a, _b, page, sales, moi, tl, tu, den, chon):
-        try:
-            if ctx.triggered_id == "ads-pic-xoa":
-                if not chon:
-                    return alert("Chọn dòng cần xoá (ô vuông đầu dòng).", "warn"), no_update
-                n = ads.xoa_pic([r["id"] for r in chon], current_user.username)
-                return alert(f"Đã xoá {n} dòng phân công.", "ok"), gio_viet_nam().isoformat()
-            ds = list(sales or []) + [x.strip() for x in (moi or "").split(",") if x.strip()]
-            if not page or not tu:
-                return alert("Chọn page và ngày bắt đầu.", "warn"), no_update
-            ty_le = [x.strip() for x in (tl or "").replace(";", ",").split(",") if x.strip()]
-            msg = ads.them_pic(int(page), ds, date.fromisoformat(tu[:10]),
-                               date.fromisoformat(den[:10]) if den else None, current_user.username,
-                               [ads.doc_so(x) for x in ty_le] or None)
-        except ads.LoiAds as e:
-            return alert(str(e), "bad"), no_update
-        return alert(msg, "ok"), gio_viet_nam().isoformat()
-
-    @cb(Output("ads-msg-dm", "children"), Output("ads-sua", "data", allow_duplicate=True),
-        Input("ads-dm-luu", "n_clicks"), State("ads-g-dm", "rowData"), prevent_initial_call=True)
-    def _luu_dm(_n, rows):
-        try:
-            n = ads.luu_page([{**r, "loai": "cong_ty" if r.get("loai") == "Công ty" else "sale"}
-                              for r in rows or []], current_user.username)
-        except ads.LoiAds as e:
-            return alert(str(e), "bad"), no_update
-        return alert(f"Đã lưu {n} page thay đổi.", "ok"), gio_viet_nam().isoformat()
-
-    @cb(Output("ads-msg-pm", "children"), Output("ads-sua", "data", allow_duplicate=True),
-        Output("ads-pm-ma", "value"), Output("ads-pm-ten", "value"), Output("ads-pm-link", "value"),
-        Input("ads-pm-them", "n_clicks"), State("ads-pm-ma", "value"), State("ads-pm-ten", "value"),
-        State("ads-pm-loai", "value"), State("ads-pm-tt", "value"), State("ads-pm-link", "value"),
-        prevent_initial_call=True)
-    def _them_page(_n, ma, ten, loai, tt, link):
-        try:
-            msg = ads.them_page(ma, ten, loai, link, tt, current_user.username)
-        except ads.LoiAds as e:
-            return alert(str(e), "bad"), no_update, no_update, no_update, no_update
-        return alert(msg, "ok"), gio_viet_nam().isoformat(), "", "", ""
-
-    @cb(Output("ads-msg-acc", "children", allow_duplicate=True), Output("ads-sua", "data", allow_duplicate=True),
-        Output("ads-sm-ten", "value"), Output("ads-sm-acc", "value"),
-        Input("ads-sm-them", "n_clicks"), State("ads-sm-ten", "value"), State("ads-sm-acc", "value"),
-        prevent_initial_call=True)
-    def _them_sale(_n, ten, acc):
-        try:
-            msg = ads.them_sale(ten, acc, current_user.username)
-        except ads.LoiAds as e:
-            return alert(str(e), "bad"), no_update, no_update, no_update
-        return alert(msg + " Giờ có thể chọn sale này ở Người chạy page.", "ok"), gio_viet_nam().isoformat(), "", ""
-
-    @cb(Output("ads-msg-acc", "children"), Output("ads-sua", "data", allow_duplicate=True),
-        Input("ads-acc-luu", "n_clicks"), State("ads-g-sale-acc", "rowData"), prevent_initial_call=True)
-    def _luu_acc(_n, rows):
-        n = ads.luu_sale(rows or [], current_user.username)
-        return alert(f"Đã lưu {n} acc.", "ok"), gio_viet_nam().isoformat()
-
-    @cb(Output("ads-msg-tay", "children"), Output("ads-sua", "data", allow_duplicate=True),
-        Input("ads-tay-ghi", "n_clicks"), State("ads-tay-page", "value"), State("ads-tay-ngay", "date"),
-        State("ads-tay-chi", "value"), State("ads-tay-lead", "value"), State("ads-tay-pttb", "value"),
-        State("ads-tay-page", "options"), prevent_initial_call=True)
-    def _nhap_tay(_n, page, ngay, chi, lead, pttb, opts):
-        if not page or not ngay:
-            return alert("Chọn page và ngày.", "warn"), no_update
-        ten = next((o["label"] for o in opts or [] if o["value"] == page), None)
-        ma = ads.ds_page().set_index("id").ma.get(page)
-        viec = []
-        if chi not in (None, ""):
-            ads.nhan_chi_tieu({"page": ma, "camp": "Nhập tay", "ngay": ngay[:10], "chi_tieu": chi,
-                               "tinh_trang": "NHẬP TAY"}, nguon="tay", nguoi=current_user.username)
-            viec.append(f"chi tiêu {chi} $")
-        if lead or pttb:
-            kq = ads.nhan_lead({"page": ma, "ngay": ngay[:10], "lead": lead or 0, "pttb": pttb or 0,
-                                "nguoi": current_user.username}, nguon="tay", nguoi=current_user.username)
-            if kq["loi"]:
-                return alert("; ".join(kq["loi"]), "bad"), no_update
-            viec.append(f"{lead or 0} số điện thoại, {pttb or 0} PTTB")
-        if not viec:
-            return alert("Nhập chi tiêu hoặc số điện thoại / PTTB.", "warn"), no_update
-        return alert(f"Đã ghi {ten} ngày {ngay[8:10]}/{ngay[5:7]}: {', '.join(viec)}.", "ok"), \
-            gio_viet_nam().isoformat()
-
-    @cb(Output("ads-sua", "data", allow_duplicate=True), Input("ads-lead-xoa", "n_clicks"),
-        State("ads-g-lead", "selectedRows"), prevent_initial_call=True)
-    def _xoa_lead(_n, chon):
-        if not chon:
-            return no_update
-        ads.xoa_lead([r["id"] for r in chon], current_user.username)
-        return gio_viet_nam().isoformat()
+    from app.ui.pages import ads_cau_hinh
+    ads_cau_hinh.register(app, cb)

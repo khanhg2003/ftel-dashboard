@@ -18,7 +18,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from app.db import engine
-from app.metrics import daily_counts, month_range, ngay_co_du_lieu, prev_month
+from app.metrics import daily_counts, month_range, ngay_co_du_lieu
 from app.org import bay_info, phong_order
 
 CN_NOI_BO = ("DNG_01", "DNG_02", "QNM")

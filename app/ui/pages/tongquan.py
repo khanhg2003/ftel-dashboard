@@ -27,6 +27,7 @@ from app.du_bao import du_bao_thang
 from app.org import loc_chi_nhanh
 from app.overview import TEN_PHAM_VI, bang_tong_quan, lui_mot_thang, trang_thai_ngay
 from app.ui.components import chi_nhanh_control, field, kpi, seg_control
+from app.ui.luoi import PCT, SO
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui import tro_ly as tl
@@ -40,8 +41,6 @@ BE_NGANG_CHUA_BANG = 124       # lề trang + padding thẻ + thanh cuộn, tr�
 MAN_HINH_NHO = 768             # dưới mức này coi là điện thoại
 TY_LE_TOI_THIEU_DT = 0.8       # điện thoại: không thu nhỏ hơn mức này, thừa thì kéo ngang
 
-SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN')"}
-PCT = {"function": "params.value == null ? '' : Math.round(params.value) + '%'"}
 
 
 def _heat(kind: str) -> dict:
