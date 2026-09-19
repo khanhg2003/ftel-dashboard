@@ -296,6 +296,7 @@ def test_ban_theo_tinh_goi_di_sau_va_mot_ngay():
     nv = pt.chi_tiet_nv_tinh(r.acc_key, tu, den)
     assert nv["onl"] == r.tong == nv["tinh"].onl.sum() == nv["xa"].onl.sum()
     assert nv["ban"] == nv["tinh"].ban.sum() >= nv["ban_da_onl"]
+    assert 0 <= nv["onl_ban_truoc"] <= nv["onl"]
     ban, onl = pt.ban_online_ngay(den)
     phong = sorted(set(ban.phong_code) | set(onl.phong_code))
     b = pt.bang_ngay_tinh(ban, onl, phong)

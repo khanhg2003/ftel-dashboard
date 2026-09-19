@@ -450,6 +450,9 @@ def chi_tiet_nv_tinh(acc_key: str, tu: str, den: str, chi_phong: list[str] | Non
         tinh["noi_tinh"] = tinh.ma_tinh.isin(NOI_TINH)
     xa = gop([*k, "xa"]) if len(ban) or len(onl) else pd.DataFrame(columns=[*k, "xa", "ban", "ban_da_onl", "onl"])
     goi = onl.goi_dich_vu.fillna("?").value_counts()
+    ngay_onl = pd.to_datetime(ban.ngay_online)
+    onl_tu_ban = int(((ngay_onl >= pd.Timestamp(tu)) & (ngay_onl <= pd.Timestamp(den))).sum())
     return {"ban": len(ban), "ban_da_onl": int(ban.da_onl.sum()), "onl": len(onl),
+            "onl_ban_truoc": max(len(onl) - onl_tu_ban, 0),
             "ngoai_onl": int((~onl.ma_tinh.isin(NOI_TINH)).sum()), "tinh": tinh, "xa": xa,
             "goi": ", ".join(f"{g} {n}" for g, n in goi.head(4).items())}

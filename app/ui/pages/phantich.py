@@ -976,8 +976,12 @@ def register(app):
             g.columnDefs, g.rowData = cot, (d.to_dict("records") if len(d) else [])
             return g
         pct_ngoai = f"{ct['ngoai_onl'] / ct['onl'] * 100:.0f}%" if ct["onl"] else "–"
-        chips = [html.Span(f"Bán {ct['ban']} (đã online {ct['ban_da_onl']})", className="chip"),
-                 html.Span(f"Online {ct['onl']}", className="chip"),
+        chu_onl = f"Online trong kỳ {ct['onl']}"
+        if ct["onl_ban_truoc"]:
+            chu_onl += f" (có {ct['onl_ban_truoc']} HĐ bán từ trước kỳ)"
+        chips = [html.Span(f"Bán trong kỳ {ct['ban']}: đã online {ct['ban_da_onl']} · chưa online "
+                           f"{ct['ban'] - ct['ban_da_onl']}", className="chip"),
+                 html.Span(chu_onl, className="chip"),
                  html.Span(f"Ngoại tỉnh {ct['ngoai_onl']} ({pct_ngoai})", className="chip"),
                  html.Span(f"{len(ct['tinh'])} tỉnh", className="chip")]
         if ct["goi"]:
