@@ -983,3 +983,11 @@ table.simple tr:last-child td { border-bottom: none; }
 
 .modal-hop.modal-rong { width: min(1240px, calc(100vw - 40px)); }
 #ads-md-ct .modal-nen { cursor: pointer; }
+
+/* bảng có kẻ đường lưới đủ cột + hàng (như Báo cáo Tổng) */
+.ag-theme-ftel.luoi-ke .ag-cell, .ag-theme-ftel.luoi-ke .ag-header-cell,
+.ag-theme-ftel.luoi-ke .ag-header-group-cell { border-right: 1px solid #D9E2EC !important; }
+.ag-theme-ftel.luoi-ke .ag-row { border-bottom: 1px solid #D9E2EC; }
+.ag-theme-ftel.luoi-ke .ag-header { border-bottom: 1px solid #C9D6E3; }
+.ag-theme-ftel.luoi-ke .ag-floating-bottom { border-top: 2px solid #9DB6CE; }
+.ag-theme-ftel.luoi-ke .ag-floating-bottom .ag-cell { font-weight: 700; background: #EEF4FA; }

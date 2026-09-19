@@ -83,7 +83,7 @@ def _grid(gid: str, cao: int | None = None, **kw):
     opts = {"suppressCellFocus": True, "domLayout": "autoHeight" if cao is None else "normal",
             "localeText": LOCALE_VI, "tooltipShowDelay": 300}
     opts.update(kw.pop("dashGridOptions", {}))
-    return dag.AgGrid(id=gid, className="ag-theme-quartz ag-theme-ftel", columnDefs=[],
+    return dag.AgGrid(id=gid, className=kw.pop("className", "ag-theme-quartz ag-theme-ftel"), columnDefs=[],
                       rowData=[], dashGridOptions=opts,
                       defaultColDef={"resizable": True, "sortable": True, "suppressMovable": True,
                                      "wrapHeaderText": True, "autoHeaderHeight": True},
@@ -133,6 +133,24 @@ def layout(ky: dict | None = None):
                 "rowClassRules": {"dong-phu": "params.data.loai_dong == 'data' && "
                                               "!params.data.nhom_kd"}})),
             html.Div(id="pt-chu-giai", className="desc", style={"margin": "10px 0 0"}),
+        ], className="card"),
+
+        html.Div([
+            _dau_the("Bán theo tỉnh", "pt-mo-ta-tinh",
+                     dcc.Dropdown(id="pt-tinh-pv", value="all", clearable=False, style={"width": "240px"},
+                                  options=[{"label": "Toàn bộ phạm vi", "value": "all"}]),
+                     seg_control("pt-tinh-loai", [("tat_ca", "Tất cả tỉnh"), ("ngoai", "Chỉ ngoại tỉnh")], "tat_ca")),
+            html.Div(id="pt-tinh-tom-tat", className="chips", style={"margin": "4px 0 10px"}),
+            html.Div([
+                html.Div(dcc.Loading(_graph("pt-tinh-bd")), className="chart-col"),
+                html.Div(_grid("pt-tinh-bang", cao=420, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
+                         className="chart-col"),
+            ], className="chart-row doi"),
+            html.H3("Mỗi phòng bán ở tỉnh nào", style={"margin": "18px 0 4px", "fontSize": "14px"}),
+            ghi_chu("Mỗi cột là một phòng, mỗi dòng một tỉnh; số là hợp đồng online. Màu theo tỷ trọng trong chính "
+                    "phòng đó: xanh đậm = tỉnh chiếm từ 20% số của phòng, xanh nhạt 5-20%.", nhan="Cách đọc bảng",
+                    style={"margin": "0 0 8px"}),
+            _grid("pt-tinh-ma-tran", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
         ], className="card"),
 
         html.Div([
@@ -595,6 +613,87 @@ def register(app):
 
     tl.gan_nhan_xet(app, "pt", "phan_tich", [("pt-date", "date"), ("pt-cn", "value")], dl.ngu_canh_phan_tich,
                     dl.YEU_CAU_PHAN_TICH)
+
+    @app.callback(Output("pt-tinh-pv", "options"), Output("pt-mo-ta-tinh", "children"),
+                  Output("pt-tinh-tom-tat", "children"), Output("pt-tinh-bd", "figure"),
+                  Output("pt-tinh-bang", "columnDefs"), Output("pt-tinh-bang", "rowData"),
+                  Output("pt-tinh-ma-tran", "columnDefs"), Output("pt-tinh-ma-tran", "rowData"),
+                  Input("pt-date", "date"), Input("pt-cn", "value"), Input("pt-tinh-pv", "value"),
+                  Input("pt-tinh-loai", "value"))
+    def _tinh(ngay_iso, chi_nhanh, pv, loai):
+        ky = _ky(ngay_iso)
+        if ky is None:
+            return [], "", [], _fig(_trong(go.Figure())), [], [], [], []
+        thang, ngay, tu, den = ky
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
+        df = pt.online_theo_tinh(tu, den, scope)
+        tu_t, den_t = pt.cung_ky_thang_truoc(thang, ngay)
+        df_ck = pt.online_theo_tinh(tu_t, den_t, scope)
+        mt, phong = pt.ma_tran_tinh_phong(df, thang)
+        pham_vi = TEN_PHAM_VI.get(chi_nhanh, TEN_PHAM_VI["all"])
+        opts = [{"label": f"Toàn bộ · {pham_vi}", "value": "all"}] + [
+            {"label": p["ten"], "value": p["code"]} for p in phong]
+        if pv not in {o["value"] for o in opts}:
+            pv = "all"
+        ten_pv = pham_vi if pv == "all" else next(p["ten"] for p in phong if p["code"] == pv)
+        d, d_ck = (df, df_ck) if pv == "all" else (df[df.phong_code == pv], df_ck[df_ck.phong_code == pv])
+        bang = pt.bang_tinh(d, d_ck)
+        tong = int(bang.online.sum()) if len(bang) else 0
+        noi = int(bang[bang.noi_tinh].online.sum()) if len(bang) else 0
+        ngoai = bang[~bang.noi_tinh & (bang.online > 0)] if len(bang) else bang
+        chips = []
+        if tong:
+            chips = [html.Span(f"{tong:,} hợp đồng online".replace(",", "."), className="chip"),
+                     html.Span(f"Nội tỉnh (Đà Nẵng + Quảng Nam): {noi / tong * 100:.0f}%", className="chip"),
+                     html.Span(f"Ngoại tỉnh: {(tong - noi) / tong * 100:.0f}% · {len(ngoai)} tỉnh", className="chip")]
+            if len(ngoai):
+                r = ngoai.iloc[0]
+                chips.append(html.Span(f"Ngoại tỉnh nhiều nhất: {r.tinh} ({int(r.online)})", className="chip"))
+        mo_ta = (f"{ten_pv} · online 01-{ngay:02d}/{thang[5:7]}, so cùng kỳ T{int(tu_t[5:7])} · tỉnh theo CN quản lý "
+                 "của hợp đồng (nơi khách ở)")
+        x = bang[~bang.noi_tinh] if loai == "ngoai" and len(bang) else bang
+        x = x[x.online > 0].head(15)
+        fig = go.Figure()
+        if len(x):
+            fig.add_bar(y=x.tinh, x=x.online, orientation="h", name="Kỳ này",
+                        marker_color=["#0072BC" if n else "#37A5E6" for n in x.noi_tinh],
+                        text=[f"{int(o)} · {t:.0f}%" for o, t in zip(x.online, x.ty_trong)], textposition="outside",
+                        cliponaxis=False, hovertemplate="%{y}: %{x} hợp đồng<extra></extra>")
+            fig.add_scatter(y=x.tinh, x=x.ck, mode="markers", name=f"Cùng kỳ T{int(tu_t[5:7])}",
+                            marker={"symbol": "line-ns", "size": 16, "line": {"width": 3, "color": "#F37021"}},
+                            hovertemplate="%{y}: cùng kỳ %{x}<extra></extra>")
+            fig.update_yaxes(autorange="reversed")
+            fig.update_xaxes(range=[0, max(x.online.max(), x.ck.max()) * 1.25])
+        fig = _fig(fig, max(320, 60 + 30 * len(x)))
+        fig.update_layout(legend={"orientation": "h", "y": 1.08}, margin={"l": 110, "r": 30, "t": 30, "b": 20})
+        cot_bang = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130, "flex": 1.3},
+                    {"field": "online", "headerName": "Online", "type": "numericColumn", "minWidth": 75, "flex": 1,
+                     "valueFormatter": SO},
+                    {"field": "ty_trong", "headerName": "Tỷ trọng", "type": "numericColumn", "minWidth": 80, "flex": 1,
+                     "valueFormatter": {"function": "params.value == null ? '' : params.value.toFixed(1) + '%'"}},
+                    {"field": "ck", "headerName": f"Cùng kỳ T{int(tu_t[5:7])}", "type": "numericColumn", "minWidth": 90, "flex": 1,
+                     "valueFormatter": SO},
+                    {"field": "chenh", "headerName": "+/-", "type": "numericColumn", "minWidth": 65, "flex": .8,
+                     "valueFormatter": {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + "
+                                                    "params.value"},
+                     "cellStyle": {"styleConditions": [
+                         {"condition": "params.value > 0", "style": {"color": "#04843F", "fontWeight": "700"}},
+                         {"condition": "params.value < 0", "style": {"color": "#C8372D", "fontWeight": "700"}}]}}]
+        cot_mt = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130},
+                  {"field": "tong", "headerName": "Tổng", "pinned": "left", "width": 85, "type": "numericColumn",
+                   "valueFormatter": SO, "cellStyle": {"fontWeight": "700"}}]
+        for p in phong:
+            t = int(mt[p["code"]].sum()) if len(mt) else 0
+            cot_mt.append({"field": p["code"], "headerName": p["ten"], "width": 92, "type": "numericColumn",
+                           "valueFormatter": {"function": "params.value ? params.value : ''"},
+                           "headerTooltip": f"{p['ten']}: {t} hợp đồng online",
+                           "cellStyle": {"styleConditions": [
+                               {"condition": f"params.value >= {max(t * 0.2, 1)}",
+                                "style": {"backgroundColor": "#BFE6C8", "fontWeight": "700", "color": "#0F3D22"}},
+                               {"condition": f"params.value >= {max(t * 0.05, 1)}",
+                                "style": {"backgroundColor": "#E8F5EC"}}]}})
+        return (opts, mo_ta, chips, fig, cot_bang, bang.to_dict("records") if len(bang) else [], cot_mt,
+                mt.to_dict("records") if len(mt) else [])
 
     @app.callback(Output("pt-du-bao", "children"), Input("pt-date", "date"), Input("pt-cn", "value"))
     def _du_bao(ngay_iso, chi_nhanh):

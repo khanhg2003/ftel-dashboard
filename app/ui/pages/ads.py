@@ -119,7 +119,7 @@ def _grid(id_, cot, cao=440, **kw):
     """Bảng cao cố định, nhiều dòng thì cuộn trong khung (không kéo dài trang)."""
     opts = {"localeText": LOCALE_VI, "suppressCellFocus": False, "enableCellTextSelection": True,
             "ensureDomOrder": True, "tooltipShowDelay": 300, **kw.pop("opts", {})}
-    return dag.AgGrid(id=id_, className="ag-theme-quartz ag-theme-ftel", columnDefs=cot, rowData=[],
+    return dag.AgGrid(id=id_, className="ag-theme-quartz ag-theme-ftel luoi-ke", columnDefs=cot, rowData=[],
                       defaultColDef={"resizable": True, "sortable": True, "filter": True},
                       dashGridOptions=opts, style={"height": f"{cao}px"}, **kw)
 
@@ -288,7 +288,7 @@ def layout(tab: str | None = None):
         html.Div(id="ads-p-ngay", style=AN, children=[
             _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày; màu cho thấy ngày nào nhiều / ít. Tổng VNĐ "
                  "đổi theo tỷ giá tháng (tab Theo sale). Bấm đúp vào một page để xem từng camp từng ngày.",
-                 _grid("ads-g-ngay", [], cao=520, opts=CHON_1_DONG),
+                 _grid("ads-g-ngay", [], cao=400, opts=CHON_1_DONG),
                  html.Div(id="ads-chu-mau"),
                  nut=seg_control("ads-chi-so", [("chi_tieu", "Chi tiêu"), ("tin_nhan", "Tin nhắn"),
                                                 ("lead", "Số ĐT"), ("pttb", "PTTB"), ("cp_pttb", "CP/PTTB")],

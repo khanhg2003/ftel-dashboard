@@ -257,3 +257,44 @@ def muc_chung_kinh_doanh(df: pd.DataFrame, thang: str) -> dict:
     dòng tổng chi nhánh vốn gồm cả phòng Kỹ thuật, CUS, ECOM có đặc thù bán kèm thấp."""
     kd = {p["code"] for p in phong_order(thang) if p.get("loai") in LOAI_KINH_DOANH}
     return chi_so_chung(df[df.phong_code.isin(kd)])
+
+
+# ------------------------------------------------------------------ bán theo tỉnh (CN quản lý của hợp đồng)
+def online_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None) -> pd.DataFrame:
+    """Một dòng = một hợp đồng Internet online trong kỳ: phòng bán + mã / tên tỉnh của khách (theo CN quản lý)."""
+    from app.tinh import ma_tinh, ten_tinh
+    df = pd.read_sql(text("""SELECT phong_code, cn_quan_ly FROM fact_internet
+                             WHERE ngay_online >= :tu AND ngay_online <= :den"""), engine,
+                     params={"tu": tu, "den": den})
+    if chi_phong is not None:
+        df = df[df.phong_code.isin(set(chi_phong))]
+    df = df.copy()
+    df["ma_tinh"] = [ma_tinh(x) for x in df.cn_quan_ly]
+    df["tinh"] = [ten_tinh(m) for m in df.ma_tinh]
+    return df
+
+
+def bang_tinh(df: pd.DataFrame, df_ck: pd.DataFrame) -> pd.DataFrame:
+    """Dòng = tỉnh: online kỳ này, tỷ trọng, cùng kỳ tháng trước, chênh lệch. Xếp nhiều -> ít."""
+    from app.tinh import NOI_TINH
+    if df.empty and df_ck.empty:
+        return pd.DataFrame(columns=["ma_tinh", "tinh", "online", "ty_trong", "ck", "chenh", "noi_tinh"])
+    nay = df.groupby(["ma_tinh", "tinh"]).size().rename("online")
+    ck = df_ck.groupby(["ma_tinh", "tinh"]).size().rename("ck")
+    out = pd.concat([nay, ck], axis=1).fillna(0).astype(int).reset_index()
+    tong = out.online.sum()
+    out["ty_trong"] = (out.online / tong * 100).round(1) if tong else 0.0
+    out["chenh"] = out.online - out.ck
+    out["noi_tinh"] = out.ma_tinh.isin(NOI_TINH)
+    return out[out.online + out.ck > 0].sort_values(["online", "ck"], ascending=False).reset_index(drop=True)
+
+
+def ma_tran_tinh_phong(df: pd.DataFrame, thang: str) -> tuple[pd.DataFrame, list[dict]]:
+    """Tỉnh × phòng: số online mỗi phòng bán ở mỗi tỉnh. Trả (bảng, danh sách phòng theo thứ tự báo cáo)."""
+    if df.empty:
+        return pd.DataFrame(), []
+    thu_tu = [p for p in phong_order(thang) if p["code"] in set(df.phong_code)]
+    pv = df.pivot_table(index=["ma_tinh", "tinh"], columns="phong_code", aggfunc="size", fill_value=0)
+    pv = pv.reindex(columns=[p["code"] for p in thu_tu], fill_value=0)
+    pv["tong"] = pv.sum(axis=1)
+    return pv.sort_values("tong", ascending=False).reset_index(), thu_tu
