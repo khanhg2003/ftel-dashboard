@@ -151,7 +151,7 @@ def layout(ky: dict | None = None):
                     "phòng đó: xanh đậm = tỉnh chiếm từ 20% số của phòng, xanh nhạt 5-20%.", nhan="Cách đọc bảng",
                     style={"margin": "0 0 8px"}),
             _grid("pt-tinh-ma-tran", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
-        ], className="card"),
+        ], className="card", style={} if current_user.role == "admin" else {"display": "none"}),
 
         html.Div([
             _dau_the("Số tồn theo thời gian chờ", "pt-mo-ta-ton",
