@@ -53,10 +53,10 @@ ROW_STYLE = {"styleConditions": [
 ]}
 
 DINH_NGHIA = [
-    ("HĐ kèm V.VIP", "Hợp đồng Internet online trong kỳ có dòng V.VIP trong file Truyền hình (ghép "
+    ("HĐ kèm V.VIP", "Hợp đồng Internet online trong thời gian đang xem có dòng V.VIP trong file Truyền hình (ghép "
                      "theo số hợp đồng), chia tổng online. Khác cột VVIP/PTTB của Báo cáo Tổng - cột "
                      "đó đếm V.VIP theo ngày online của chính V.VIP."),
-    ("HĐ kèm Camera", "Hợp đồng online trong kỳ có trong file Camera, chia tổng online."),
+    ("HĐ kèm Camera", "Hợp đồng online trong thời gian đang xem có trong file Camera, chia tổng online."),
     ("Đủ 3 dịch vụ", "Hợp đồng online có cả V.VIP và Camera."),
     ("Trả trước", "Hợp đồng có trả trước 3, 6 hoặc 12 tháng."),
     ("Online trong 1 ngày", "Online ngay trong ngày tạo hợp đồng hoặc hôm sau (file chỉ có ngày tạo, "
@@ -444,7 +444,7 @@ def _fig(fig: go.Figure, height: int = 330) -> go.Figure:
     return fig
 
 
-def _trong(fig: go.Figure, chu: str = "Chưa có số liệu trong kỳ") -> go.Figure:
+def _trong(fig: go.Figure, chu: str = "Chưa có số liệu trong thời gian đang xem") -> go.Figure:
     fig.add_annotation(text=chu, showarrow=False, x=.5, y=.5, xref="paper", yref="paper",
                        font=dict(color="#94A3B8", size=13))
     fig.update_xaxes(visible=False)
@@ -528,8 +528,8 @@ def _kpis(nay: dict, truoc: dict, ton: pd.DataFrame, ten_truoc: str) -> list:
 
     qua_7 = int((ton.so_ngay_cho >= 7).sum()) if len(ton) else 0
     return [
-        the("HĐ kèm V.VIP", "kem_vvip", "Trên số online trong kỳ"),
-        the("HĐ kèm Camera", "kem_camera", "Trên số online trong kỳ"),
+        the("HĐ kèm V.VIP", "kem_vvip", "Trên số online đang xem"),
+        the("HĐ kèm Camera", "kem_camera", "Trên số online đang xem"),
         the("Đủ 3 dịch vụ", "du_3", "Internet + V.VIP + Camera"),
         the("Online trong 1 ngày", "onl_1_ngay", "Trong ngày tạo hoặc hôm sau"),
         the("Trả trước", "tra_truoc", "Có trả trước 3, 6 hoặc 12 tháng"),
@@ -558,16 +558,19 @@ def _ky(tu_iso: str | None, den_iso: str | None):
         ck = pt.cung_ky_thang_truoc(thang, d.day)
         ten_ck = f"cùng kỳ T{int(ck[0][5:7])}"
         nhan = f"01 - {d:%d/%m/%Y}"
+        ten, truoc = f"tháng {d.month}", "tháng trước"
     else:
         so = (d - d_tu).days + 1
         e = d_tu - timedelta(days=1)
         ck = ((e - timedelta(days=so - 1)).isoformat(), e.isoformat())
-        ten_ck = "kỳ trước"
+        ten_ck = "khoảng trước đó"
         nhan = f"{d:%d/%m/%Y}" if so == 1 else f"{d_tu:%d/%m} - {d:%d/%m/%Y}"
+        ten = f"ngày {d:%d/%m}" if so == 1 else f"{d_tu:%d/%m}-{d:%d/%m}"
+        truoc = f"trước {d_tu:%d/%m}"
     ten_ck_day = (f"{ten_ck} ({date.fromisoformat(ck[0]):%d/%m}" +
                   (f" - {date.fromisoformat(ck[1]):%d/%m})" if ck[0] != ck[1] else ")"))
     return SimpleNamespace(thang=thang, ngay=d.day, tu=tu, den=den, luy_ke=luy_ke, ck=ck, ten_ck=ten_ck,
-                           ten_ck_day=ten_ck_day, nhan=nhan)
+                           ten_ck_day=ten_ck_day, nhan=nhan, ten=ten, truoc=truoc)
 
 
 def _ten_nhan_vien() -> dict:
@@ -962,9 +965,9 @@ def register(app):
                     **kw}
         dam = {"fontWeight": "700"}
         cot_tinh = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130, "flex": 1},
-                    c("ban", "Bán", 70, headerTooltip="Hợp đồng tạo trong kỳ"),
-                    c("ban_da_onl", "Trong đó đã online", 105, headerTooltip="Số hợp đồng bán trong kỳ đã online"),
-                    c("onl", "Online", 78, cellStyle=dam, headerTooltip="Hợp đồng online trong kỳ"),
+                    c("ban", "Bán", 70, headerTooltip=f"Hợp đồng tạo trong {ky.ten}"),
+                    c("ban_da_onl", "Trong đó đã online", 105, headerTooltip=f"Số hợp đồng bán {ky.ten} đã online"),
+                    c("onl", "Online", 78, cellStyle=dam, headerTooltip=f"Hợp đồng online trong {ky.ten}"),
                     {"field": "ty_trong", "headerName": "% online", "type": "numericColumn", "width": 85,
                      "valueFormatter": PCT}]
         cot_xa = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "width": 120},
@@ -976,10 +979,10 @@ def register(app):
             g.columnDefs, g.rowData = cot, (d.to_dict("records") if len(d) else [])
             return g
         pct_ngoai = f"{ct['ngoai_onl'] / ct['onl'] * 100:.0f}%" if ct["onl"] else "–"
-        chu_onl = f"Online trong kỳ {ct['onl']}"
+        chu_onl = f"Online {ky.ten}: {ct['onl']}"
         if ct["onl_ban_truoc"]:
-            chu_onl += f" (có {ct['onl_ban_truoc']} HĐ bán từ trước kỳ)"
-        chips = [html.Span(f"Bán trong kỳ {ct['ban']}: đã online {ct['ban_da_onl']} · chưa online "
+            chu_onl += f" (có {ct['onl_ban_truoc']} HĐ bán từ {ky.truoc})"
+        chips = [html.Span(f"Bán {ky.ten}: {ct['ban']} · đã online {ct['ban_da_onl']} · chưa online "
                            f"{ct['ban'] - ct['ban_da_onl']}", className="chip"),
                  html.Span(chu_onl, className="chip"),
                  html.Span(f"Ngoại tỉnh {ct['ngoai_onl']} ({pct_ngoai})", className="chip"),
@@ -995,8 +998,9 @@ def register(app):
                 html.Div([html.Div("Theo phường / xã", className="ct-tinh-ten"),
                           luoi_("pt-tinh-nv-ct-xa", cot_xa, ct["xa"], 360)]),
             ], className="hai-luoi"),
-            ghi_chu("Bán = hợp đồng tạo trong kỳ (gồm cả hợp đồng chưa online). Online = hợp đồng online trong kỳ "
-                    "(có thể tạo từ kỳ trước) - nên hai số không nhất thiết bằng nhau. Tính mọi hợp đồng của người này "
+            ghi_chu(f"Bán = hợp đồng tạo trong {ky.ten}, gồm cả hợp đồng chưa online. Online = hợp đồng online "
+                    f"trong {ky.ten}, có thể là hợp đồng bán từ {ky.truoc}. Vì vậy hai số không nhất thiết bằng nhau. "
+                    "Tính mọi hợp đồng của người này "
                     "trong phạm vi chi nhánh đang chọn.", style={"margin": "8px 0 0"}),
         ]
 
@@ -1052,7 +1056,7 @@ def register(app):
                       khoi("Gói cước", "pt-tinh-ct-goi", cot_goi, ct["goi"], ["goi", "so", "ty_trong"])],
                      className="ba-cot"),
             ghi_chu("File Inside chỉ có phường / xã (từ 07/2025 không còn cấp quận / huyện), tên không dấu như file "
-                    "gốc. Số là hợp đồng online trong kỳ đang xem, theo phạm vi đang chọn.", style={"margin": "8px 0 0"}),
+                    "gốc. Số là hợp đồng online trong thời gian đang xem, theo phạm vi đang chọn.", style={"margin": "8px 0 0"}),
         ]
 
     @app.callback(Output("pt-tinh-goi-bd", "figure"), Output("pt-tinh-goi", "columnDefs"),

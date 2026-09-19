@@ -314,5 +314,5 @@ def test_ky_khoang_ngay_tu_chon():
     from datetime import date, timedelta
     d = date.fromisoformat(den)
     k = phantich._ky((d - timedelta(days=6)).isoformat(), den)
-    assert not k.luy_ke and k.ten_ck == "kỳ trước"
+    assert not k.luy_ke and k.ten_ck == "khoảng trước đó" and k.truoc.startswith("trước")
     assert k.ck == ((d - timedelta(days=13)).isoformat(), (d - timedelta(days=7)).isoformat())

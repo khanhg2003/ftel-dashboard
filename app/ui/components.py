@@ -1,6 +1,8 @@
 """Các khối giao diện dùng lại nhiều nơi."""
 from __future__ import annotations
 
+import re
+
 from dash import dcc, html
 
 # AG Grid mặc định chặn bôi đen chữ trong ô (dành chuột cho việc chọn dòng) nên không copy được
@@ -61,9 +63,38 @@ def pct_vn(v, dau: bool = False, trong: str = "–") -> str:
     return trong if v is None or v != v else f"{so_vn(v, 0, dau)}%"
 
 
+_CAU = re.compile(r"(?<=[.!?;])\s+(?=[A-ZÀ-ỸĐ0-9\"“'(])")
+
+
+def tach_cau(chu: str) -> list[str]:
+    """Tách đoạn ghi chú thành từng câu (không tách sau chữ viết tắt viết hoa như 'C.' / 'VD.' / 'T8.')."""
+    ra, dem = [], ""
+    for phan in _CAU.split(chu.strip()):
+        dem = f"{dem} {phan}".strip()
+        tu_cuoi = dem.rstrip(".!?;").split(" ")[-1].strip("('\"“")
+        viet_tat = len(tu_cuoi) <= 3 and tu_cuoi[:1].isupper() and tu_cuoi == tu_cuoi.upper()
+        if not viet_tat or dem.endswith(("!", "?")):
+            ra.append(dem)
+            dem = ""
+    if dem:
+        ra.append(dem)
+    return ra
+
+
+def _de_doc(noi_dung):
+    """Đoạn chữ dài -> mỗi câu một dòng có chấm đầu dòng; một câu thì giữ nguyên."""
+    if not isinstance(noi_dung, str):
+        return noi_dung
+    cau = tach_cau(noi_dung)
+    if len(cau) <= 1:
+        return noi_dung
+    return [html.Div(c, className="tip-dong") for c in cau]
+
+
 def tip(noi_dung=None, id: str | None = None, trai: bool = False):
     """Biểu tượng ⓘ: di chuột (hoặc chạm) mới hiện ghi chú - giữ giao diện gọn. `id` gắn vào phần chữ để callback
-    đổi nội dung; nội dung rỗng thì biểu tượng tự ẩn."""
+    đổi nội dung; nội dung rỗng thì biểu tượng tự ẩn. Ghi chú nhiều câu hiện mỗi câu một dòng cho dễ đọc."""
+    noi_dung = _de_doc(noi_dung)
     kw = {"id": id} if id else {}
     return html.Span([html.Span("i", className="tip-i"),
                       html.Span(noi_dung, className="tip-noi" + (" trai" if trai else ""), **kw)],

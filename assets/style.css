@@ -917,8 +917,8 @@ table.simple tr:last-child td { border-bottom: none; }
          font: italic 700 10.5px/13px Georgia, serif; text-align: center; flex: none; transition: all .15s; }
 .tip:hover .tip-i, .tip:focus .tip-i { border-color: var(--fpt-blue); color: #fff; background: var(--fpt-blue); }
 .tip-noi { display: none; position: absolute; top: calc(100% + 8px); left: -10px; z-index: 60;
-           width: max-content; max-width: min(360px, 80vw); padding: 9px 12px; border-radius: 9px;
-           background: #1F2A37; color: #F3F6FA; font: 400 12.5px/1.5 inherit; font-style: normal;
+           width: max-content; max-width: min(420px, 86vw); padding: 12px 15px; border-radius: 10px;
+           background: #1F2A37; color: #F3F6FA; font: 400 13px/1.6 inherit; font-style: normal;
            text-transform: none; letter-spacing: 0; white-space: normal; text-align: left;
            box-shadow: 0 8px 24px rgba(15, 30, 50, .22); }
 .tip-noi.trai { left: auto; right: -10px; }
@@ -1020,3 +1020,10 @@ table.simple tr:last-child td { border-bottom: none; }
 .ag-theme-ftel .ag-row-hover .ag-cell.o-bam .ag-cell-value::after { color: var(--fpt-orange, #F37021); }
 .goi-y-bam { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #0B6BB5;
   background: #EEF5FC; border: 1px dashed #A8CBEE; border-radius: 8px; padding: 4px 10px; }
+
+/* ghi chú nhiều câu: mỗi câu một dòng, có chấm đầu dòng và khoảng cách */
+.tip-dong { position: relative; padding-left: 14px; margin: 0 0 7px; }
+.tip-dong:last-child { margin-bottom: 0; }
+.tip-dong::before { content: ""; position: absolute; left: 2px; top: .62em; width: 5px; height: 5px;
+                    border-radius: 50%; background: #7FB2E5; }
+.tip-noi > div > b:first-child { color: #FFFFFF; }
