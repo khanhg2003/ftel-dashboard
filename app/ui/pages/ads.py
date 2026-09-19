@@ -13,6 +13,7 @@ from datetime import date
 import dash_ag_grid as dag
 import plotly.graph_objects as go
 from dash import Input, Output, State, ctx, dcc, html, no_update
+from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
 from app import ads
@@ -77,7 +78,7 @@ def topbar():
 
 def _the(tieu_de, mo_ta, *con, nut=None):
     return html.Div([html.Div([html.Div([html.H3(tieu_de), html.Div(mo_ta, className="desc")], className="the-ten"),
-                               html.Div(nut, className="the-nut") if nut else None], className="the-dau"),
+                               html.Div(nut, className="the-nut") if nut is not None else None], className="the-dau"),
                      *con], className="card")
 
 
@@ -130,8 +131,19 @@ def layout(tab: str | None = None):
                  ])),
         ]),
         html.Div(id="ads-p-ngay", style=AN, children=[
-            _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày.",
-                 _grid("ads-g-ngay", [], cao=620),
+            _the("Chi tiết một page", "Chọn page (hoặc bấm vào một dòng ở bảng Tracking bên dưới) để xem từng ngày: "
+                 "chạy bao nhiêu tiền, bao nhiêu lead / PTTB, ai chạy, camp nào.",
+                 _grid("ads-g-ct", [
+                     {"field": "ngay", "headerName": "Ngày", "pinned": "left", "width": 80},
+                     _so("Chi tiêu", "chi_tieu", USD, 95), _so("Tin nhắn", "tin_nhan", SO, 90),
+                     _so("Lead", "lead", SO, 70), _so("PTTB", "pttb", SO, 70),
+                     _so("CPL", "cpl", USD, 80), _so("CP/PTTB", "cp_pttb", USD, 90, cellStyle=MAU_CP),
+                     {"field": "sale", "headerName": "Sale chạy", "minWidth": 150, "flex": 1.3},
+                     {"field": "camp", "headerName": "Camp", "minWidth": 220, "flex": 2, "tooltipField": "camp"}],
+                     cao=420, opts={"pinnedBottomRowData": []}),
+                 nut=dcc.Dropdown(id="ads-ct-page", placeholder="Chọn page…", style={"minWidth": "260px"})),
+            _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày. Bấm vào một dòng để xem chi tiết page đó ở trên.",
+                 _grid("ads-g-ngay", [], cao=620, opts={"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableClickSelection": True}}),
                  nut=seg_control("ads-chi-so", [("chi_tieu", "Chi tiêu"), ("tin_nhan", "Tin nhắn"), ("lead", "Lead"),
                                                 ("pttb", "PTTB")], "chi_tieu")),
         ]),
@@ -352,6 +364,38 @@ def register(app):
             return cot, []
         pv.columns = [str(c) for c in pv.columns]
         return cot, _ban_ghi(pv)
+
+    @cb(Output("ads-ct-page", "options"), Input("ads-thang", "value"), Input("ads-sua", "data"))
+    def _ct_opts(thang, _s):
+        tu, den = _ky(thang)
+        tp = ads.theo_page(tu, den)
+        return [{"label": f"{t} ({c:,.2f}$ · {int(p)} PTTB)", "value": int(i)}
+                for i, t, c, p in zip(tp.page_id, tp.ten, tp.chi_tieu, tp.pttb)]
+
+    @cb(Output("ads-ct-page", "value"), Input("ads-g-ngay", "selectedRows"), prevent_initial_call=True)
+    def _ct_bam(rows):
+        if not rows or rows[0].get("page_id") is None:
+            raise PreventUpdate
+        return int(rows[0]["page_id"])
+
+    @cb(Output("ads-g-ct", "rowData"), Output("ads-g-ct", "dashGridOptions"),
+        Input("ads-ct-page", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"),
+        State("ads-g-ct", "dashGridOptions"))
+    def _ct(pid, thang, _s, opts):
+        opts = dict(opts or {})
+        if not pid:
+            opts["pinnedBottomRowData"] = []
+            return [], opts
+        tu, den = _ky(thang)
+        df = ads.chi_tiet_page(int(pid), tu, den)
+        if df.empty:
+            opts["pinnedBottomRowData"] = []
+            return [], opts
+        t = {c: float(df[c].sum()) for c in ("chi_tieu", "tin_nhan", "lead", "pttb")}
+        opts["pinnedBottomRowData"] = [{"ngay": "Tổng", **t,
+                                        "cpl": round(t["chi_tieu"] / t["lead"], 2) if t["lead"] else None,
+                                        "cp_pttb": round(t["chi_tieu"] / t["pttb"], 2) if t["pttb"] else None}]
+        return _ban_ghi(df), opts
 
     @cb(Output("ads-g-hoach", "rowData"), Input("ads-thang", "value"), Input("ads-sua", "data"))
     def _hoach(thang, _s):

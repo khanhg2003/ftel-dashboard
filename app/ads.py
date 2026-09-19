@@ -752,3 +752,28 @@ def bao_cao_bot(tu: date, den: date) -> dict:
             "ineffective_pages": chua,
             "ineffective_pages_text": ("\n\n⚠️ Page chưa hiệu quả: " + ", ".join(chua)) if chua
             else "\n\n✅ Tất cả page đang chạy đều có hiệu quả!"}
+
+
+def chi_tiet_page(page_id: int, tu: date, den: date) -> pd.DataFrame:
+    """Một page theo từng ngày: chi tiêu, tin nhắn, lead, PTTB, CPL, CP/PTTB, sale chạy hôm đó, các camp."""
+    df = theo_ngay(tu, den)
+    df = df[df.page_id == page_id]
+    camp = _q("""SELECT ngay, camp, chi_tieu FROM ads_ngay WHERE page_id = :p AND ngay >= :tu AND ngay <= :den
+                 ORDER BY chi_tieu DESC""", p=int(page_id), tu=tu, den=den)
+    if df.empty:
+        return pd.DataFrame()
+    camp["ngay"] = pd.to_datetime(camp["ngay"]).dt.date
+    ds_camp = camp.groupby("ngay").camp.apply(lambda s: ", ".join(dict.fromkeys(s))) if len(camp) else {}
+    out = _chi_so(df[["ngay", "chi_tieu", "tin_nhan", "lead", "pttb"]].sort_values("ngay", ascending=False))
+    pics = ds_pic()
+    loai = ds_page().set_index("id").loai.get(page_id)
+    def ai_chay(d):
+        pc = phan_chia(pics, page_id, d)
+        if loai == "cong_ty":
+            return "Công ty"
+        deu = len({round(t, 3) for _, t in pc}) <= 1
+        return ", ".join(s_ if deu else f"{s_} {round(t * 100)}%" for s_, t in pc) or CHUA_PHAN_CONG
+    out["sale"] = [ai_chay(d) for d in out.ngay]
+    out["camp"] = [ds_camp.get(d, "") if len(camp) else "" for d in out.ngay]
+    out["ngay"] = [d.strftime("%d/%m") for d in out.ngay]
+    return out.reset_index(drop=True)
