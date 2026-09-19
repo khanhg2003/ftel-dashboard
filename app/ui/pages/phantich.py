@@ -193,12 +193,17 @@ def layout(ky: dict | None = None):
                 ], id="pt-tinh-mt-phong"),
                 html.Div([
                     ghi_chu("Mỗi dòng một nhân viên (xếp theo phòng), mỗi cột một tỉnh - 12 tỉnh nhiều hợp đồng nhất, "
-                            "còn lại gộp vào 'Tỉnh khác'. Chọn phòng ở ô phạm vi phía trên để xem riêng một phòng. Màu "
+                            "còn lại gộp vào 'Tỉnh khác'. Chọn phòng ở ô bên dưới để xem riêng nhân viên một phòng. Màu "
                             "theo tỷ trọng trong số của chính người đó: xanh đậm từ 20%, xanh nhạt 5-20%. Trưởng phòng "
                             "không đưa vào (số của họ vẫn tính cho phòng).", nhan="Cách đọc bảng",
                             style={"margin": "0 0 8px"}),
-                    html.Div(dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
-                                       className="o-tim"), style={"margin": "0 0 8px"}),
+                    html.Div([
+                        dcc.Dropdown(id="pt-tinh-nv-phong", value="all", clearable=False, style={"width": "220px"},
+                                     options=[{"label": "Tất cả phòng", "value": "all"}] + [
+                                         {"label": p["ten"], "value": p["code"]} for p in phong_order()]),
+                        dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
+                                  className="o-tim"),
+                    ], className="the-thanh", style={"margin": "0 0 8px", "gap": "8px"}),
                     _grid("pt-tinh-nv", cao=480, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
                 ], id="pt-tinh-mt-nv", hidden=True),
             ], id="pt-tinh-v-tong"),
@@ -879,8 +884,8 @@ def register(app):
     @app.callback(Output("pt-tinh-nv", "columnDefs"), Output("pt-tinh-nv", "rowData"),
                   Input("pt-tinh-mt-xem", "value"), Input("pt-tinh-xem", "value"),
                   Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
-                  Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"))
-    def _nv_tinh(xem, xem_tinh, tu_iso, den_iso, chi_nhanh, pv, loai):
+                  Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"), Input("pt-tinh-nv-phong", "value"))
+    def _nv_tinh(xem, xem_tinh, tu_iso, den_iso, chi_nhanh, pv, loai, phong_nv):
         if xem != "nv" or xem_tinh not in (None, "tong") or current_user.role != "admin":
             raise PreventUpdate
         ky = _ky(tu_iso, den_iso)
@@ -891,6 +896,8 @@ def register(app):
         df = pt.online_theo_tinh(ky.tu, ky.den, scope)
         if pv and pv != "all":
             df = df[df.phong_code == pv]
+        if phong_nv and phong_nv != "all":
+            df = df[df.phong_code == phong_nv]
         if loai == "ngoai":
             df = df[~df.ma_tinh.isin(NOI_TINH)]
         ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
