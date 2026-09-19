@@ -24,7 +24,7 @@ from app.org import (LOAI_PHONG, bay_info, bay_options, co_cau_rieng, luu_bay, l
                      luu_phong, phong_order, xoa_bay, xoa_cache_org, xoa_co_cau_thang, xoa_phong)
 from app.thoi_gian import chu_gio_vn
 from app.ui.components import (COT_SUA, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card, chon_ky,
-                               dong_can_sua, field, gan_dieu_huong_ky, gan_import, modal, nut_import)
+                               dong_can_sua, field, gan_dieu_huong_ky, gan_import, modal, nut_import, tieu_de, ghi_chu)
 from app.ui.icons import icon
 
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
@@ -72,8 +72,8 @@ def _hop_thoai_bay():
             _o("Trạng thái", dcc.Dropdown(id="st-b-active", clearable=False, searchable=False, value="Có",
                                           options=TRANG_THAI), id_="st-b-active-o", an=True),
         ], className="form-grid"),
-        html.Div("Bầy là nhóm nhiều phòng kinh doanh, có dòng tổng riêng trên Báo cáo Tổng. Tạo xong, "
-                 "chuyển phòng vào bầy ở bảng Phòng.", className="desc", style={"marginTop": "12px"}),
+        ghi_chu("Bầy là nhóm nhiều phòng kinh doanh, có dòng tổng riêng trên Báo cáo Tổng. Tạo xong, "
+                "chuyển phòng vào bầy ở bảng Phòng.", style={"marginTop": "12px"}),
         html.Div(id="st-modal-bay-msg"),
     ], nut_chinh="Tạo bầy")
 
@@ -95,9 +95,8 @@ def _hop_thoai_phong():
             _o("Trạng thái", dcc.Dropdown(id="st-p-active", clearable=False, searchable=False, value="Có",
                                           options=TRANG_THAI), id_="st-p-active-o", an=True),
         ], className="form-grid"),
-        html.Div("IBB / DIABAN là phòng bán hàng trực tiếp. Phòng kỹ thuật, CUS, ECOM thường gộp vào dòng "
-                 "“Khác”. Phòng đã có số liệu thì chuyển Ngừng dùng thay vì xoá.", className="desc",
-                 style={"marginTop": "12px"}),
+        ghi_chu("IBB / DIABAN là phòng bán hàng trực tiếp. Phòng kỹ thuật, CUS, ECOM thường gộp vào dòng "
+                "“Khác”. Phòng đã có số liệu thì chuyển Ngừng dùng thay vì xoá.", style={"marginTop": "12px"}),
         html.Div(id="st-modal-phong-msg"),
     ], nut_chinh="Tạo phòng")
 
@@ -109,8 +108,8 @@ def _hop_thoai_cocau():
             _o("Thuộc bầy *", dcc.Dropdown(id="st-c-bay", clearable=False, options=bay_options())),
             _o("Thứ tự trong bầy", _so_nhap("st-c-thutu", step=1)),
         ], className="form-grid"),
-        html.Div("Chỉ áp dụng cho kỳ đang chọn, không đổi các kỳ trước và bầy mặc định của phòng.",
-                 className="desc", style={"marginTop": "12px"}),
+        ghi_chu("Chỉ áp dụng cho kỳ đang chọn, không đổi các kỳ trước và bầy mặc định của phòng.",
+                style={"marginTop": "12px"}),
         html.Div(id="st-modal-cocau-msg"),
     ], nut_chinh="Lưu thay đổi")
 
@@ -120,8 +119,7 @@ def _hop_thoai_chitieu():
         dcc.Store(id="st-target-dang-sua"),
         html.Div([_o(ten, _so_nhap(f"st-t-{ma}", step="any", placeholder="Chưa có"), id_=f"st-t-{ma}-o",
                      an=ma == "mttn") for ma, ten in CHI_TIEU], className="form-grid"),
-        html.Div("Để trống ô nào là xoá chỉ tiêu đó của phòng trong kỳ này.", className="desc",
-                 style={"marginTop": "12px"}),
+        ghi_chu("Để trống ô nào là xoá chỉ tiêu đó của phòng trong kỳ này.", style={"marginTop": "12px"}),
         html.Div(id="st-modal-target-msg"),
     ], nut_chinh="Lưu chỉ tiêu")
 
@@ -151,10 +149,10 @@ def cac_tab(tab: str) -> list:
         # ------------------------------------------------ tab Cơ cấu tổ chức
         html.Div(id="st-pane-cocau", style={} if tab == "cocau" else AN, children=[
             html.Div([
-                html.Div([html.H3("Nhập nhanh bằng Excel"),
-                          html.Div("Tải file mẫu (điền sẵn bầy, phòng hiện có) → sửa hoặc thêm dòng → "
-                                   "Import Excel. App cho xem trước từng thay đổi rồi mới ghi. Bầy, "
-                                   "phòng không có trong file giữ nguyên.", className="desc")],
+                html.Div([tieu_de("Nhập nhanh bằng Excel",
+                                  "Tải file mẫu (điền sẵn bầy, phòng hiện có) → sửa hoặc thêm dòng → "
+                                  "Import Excel. App cho xem trước từng thay đổi rồi mới ghi. Bầy, "
+                                  "phòng không có trong file giữ nguyên.")],
                          className="the-ten"),
                 html.Div(nut_import("st-cc", "Tải file mẫu"), className="the-nut"),
             ], className="card the-dau"),

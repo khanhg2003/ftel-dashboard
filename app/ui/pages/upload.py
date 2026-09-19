@@ -20,7 +20,7 @@ from app.db import session_scope
 from app.ingest.commit import commit_result, file_hash, thang_nsld_tu_noi_dung, thang_tu_ten_file
 from app.ingest.loader import load_file
 from app.metrics import cac_thang_co_du_lieu
-from app.ui.components import LOCALE_VI, alert, badge, card
+from app.ui.components import LOCALE_VI, alert, badge, card, tieu_de
 from app.ui.icons import icon
 
 MAX_PREVIEW = 20
@@ -96,9 +96,8 @@ def _the_lich_su():
     return html.Div([
         dcc.ConfirmDialog(id="up-ls-xacnhan"),
         html.Div([
-            html.Div([html.H3("Lịch sử nạp"),
-                      html.Div("50 lần nạp gần nhất. Nạp nhầm file: tick dòng đó rồi bấm Gỡ bỏ.",
-                               className="desc")], className="the-ten"),
+            html.Div([tieu_de("Lịch sử nạp", "50 lần nạp gần nhất. Nạp nhầm file: tick dòng đó rồi bấm Gỡ bỏ.")],
+                     className="the-ten"),
             html.Div([html.Button([icon("trash", 14), html.Span("Gỡ bỏ lần nạp")],
                                   id="up-ls-go", className="btn nguy-hiem", disabled=True)],
                      className="the-nut"),

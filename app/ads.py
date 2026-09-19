@@ -43,6 +43,10 @@ def dam_bao_bang() -> None:
     if not _da_tao:
         for b in BANG:
             b.__table__.create(engine, checkfirst=True)
+        from sqlalchemy import inspect
+        if "link" not in {c["name"] for c in inspect(engine).get_columns("ads_page")}:     # cột thêm sau
+            with engine.begin() as c:
+                c.execute(text("ALTER TABLE ads_page ADD COLUMN link VARCHAR(300)"))
         _da_tao = True
 
 
@@ -244,7 +248,7 @@ def _q(sql: str, **p) -> pd.DataFrame:
 
 
 def ds_page() -> pd.DataFrame:
-    return _q("SELECT id, ma, ten, loai, tinh_trang, ghi_chu FROM ads_page ORDER BY ten")
+    return _q("SELECT id, ma, ten, loai, tinh_trang, ghi_chu, link FROM ads_page ORDER BY ten")
 
 
 def ds_pic() -> pd.DataFrame:
@@ -403,6 +407,13 @@ def tracking(thang: str, chi_so: str = "chi_tieu") -> tuple[pd.DataFrame, int]:
     if df.empty:
         return pd.DataFrame(), so_ngay
     df["d"] = [x.day for x in df.ngay]
+    if chi_so == "cp_pttb":                     # chi phí / PTTB từng ngày; ngày chưa có PTTB để trống
+        c = df.pivot_table(index=["page_id", "ten"], columns="d", values="chi_tieu", aggfunc="sum", fill_value=0)
+        p = df.pivot_table(index=["page_id", "ten"], columns="d", values="pttb", aggfunc="sum", fill_value=0)
+        pv = (c / p.where(p > 0)).round(2).reindex(columns=range(1, so_ngay + 1))
+        tc, tp_ = c.sum(axis=1), p.sum(axis=1)
+        pv["tong"] = (tc / tp_.where(tp_ > 0)).round(2)
+        return pv.sort_values("tong").reset_index(), so_ngay
     pv = df.pivot_table(index=["page_id", "ten"], columns="d", values=chi_so, aggfunc="sum", fill_value=0)
     pv = pv.reindex(columns=range(1, so_ngay + 1), fill_value=0)
     pv["tong"] = pv.sum(axis=1)
@@ -475,8 +486,10 @@ def luu_page(rows: list[dict], nguoi: str) -> int:
             ten = str(r.get("ten") or p.ten).strip()
             loai = "cong_ty" if r.get("loai") in ("cong_ty", "Công ty") else "sale"
             tt = r.get("tinh_trang") if r.get("tinh_trang") in TINH_TRANG_PAGE else p.tinh_trang
-            if (p.ten, p.loai, p.tinh_trang, p.ghi_chu) != (ten, loai, tt, r.get("ghi_chu") or None):
-                p.ten, p.loai, p.tinh_trang, p.ghi_chu = ten, loai, tt, (r.get("ghi_chu") or None)
+            link = chuan_link(r["link"]) if "link" in r else p.link
+            moi = (ten, loai, tt, r.get("ghi_chu") or None, link)
+            if (p.ten, p.loai, p.tinh_trang, p.ghi_chu, p.link) != moi:
+                p.ten, p.loai, p.tinh_trang, p.ghi_chu, p.link = moi
                 n += 1
         s.add(AuditLog(username=nguoi, action="ads_sua_page", detail=f"{n} page"))
     return n
@@ -754,26 +767,230 @@ def bao_cao_bot(tu: date, den: date) -> dict:
             else "\n\n✅ Tất cả page đang chạy đều có hiệu quả!"}
 
 
-def chi_tiet_page(page_id: int, tu: date, den: date) -> pd.DataFrame:
-    """Một page theo từng ngày: chi tiêu, tin nhắn, lead, PTTB, CPL, CP/PTTB, sale chạy hôm đó, các camp."""
-    df = theo_ngay(tu, den)
-    df = df[df.page_id == page_id]
-    camp = _q("""SELECT ngay, camp, chi_tieu FROM ads_ngay WHERE page_id = :p AND ngay >= :tu AND ngay <= :den
-                 ORDER BY chi_tieu DESC""", p=int(page_id), tu=tu, den=den)
-    if df.empty:
-        return pd.DataFrame()
-    camp["ngay"] = pd.to_datetime(camp["ngay"]).dt.date
-    ds_camp = camp.groupby("ngay").camp.apply(lambda s: ", ".join(dict.fromkeys(s))) if len(camp) else {}
-    out = _chi_so(df[["ngay", "chi_tieu", "tin_nhan", "lead", "pttb"]].sort_values("ngay", ascending=False))
+# ------------------------------------------------------------------ page: đổi tên, link fanpage
+def chuan_link(v) -> str | None:
+    """Link fanpage: bỏ khoảng trắng, thiếu http thì thêm https://; chỉ nhận link web."""
+    s = str(v or "").strip()
+    if not s:
+        return None
+    if not re.match(r"^https?://", s, re.I):
+        s = "https://" + s.lstrip("/")
+    if " " in s or "." not in s:
+        raise LoiAds("Link fanpage không hợp lệ (VD: https://www.facebook.com/tenpage).")
+    return s[:300]
+
+
+def sua_page(page_id: int, ten: str | None, link: str | None, tinh_trang: str | None, nguoi: str) -> str:
+    """Đổi tên hiển thị / link fanpage / tình trạng của một page (tên chuẩn n8n gửi không đổi)."""
+    dam_bao_bang()
+    ten = re.sub(r"\s+", " ", str(ten or "")).strip()
+    if not ten:
+        raise LoiAds("Tên page không được để trống.")
+    lk = chuan_link(link)
+    with session_scope() as s:
+        p = s.get(AdsPage, int(page_id))
+        if p is None:
+            raise LoiAds("Không tìm thấy page.")
+        cu = p.ten
+        p.ten, p.link = ten[:120], lk
+        if tinh_trang in TINH_TRANG_PAGE:
+            p.tinh_trang = tinh_trang
+        s.add(AuditLog(username=nguoi, action="ads_sua_page", detail=f"{p.ma}: '{cu}' -> '{p.ten}'"))
+    return f"Đã lưu page {ten}."
+
+
+# ------------------------------------------------------------------ chi tiết một page (như trang tính từng page)
+def chi_tiet_page(page_id: int, tu: date, den: date) -> dict:
+    """Từng camp từng ngày, ngày tăng dần như trang tính của sheet: camp, tình trạng, ngày, chi tiêu, tin nhắn,
+    số điện thoại, PTTB (ghi ở dòng đầu của ngày), PIC 1-3, tiền mỗi người. Kèm tổng tiền từng sale của page."""
+    page_id = int(page_id)
+    camp = _q("""SELECT ngay, camp, tinh_trang, chi_tieu, tin_nhan FROM ads_ngay
+                 WHERE page_id = :p AND ngay >= :tu AND ngay <= :den ORDER BY ngay, camp""", p=page_id, tu=tu, den=den)
+    ld = _q("""SELECT ngay, SUM(lead) AS lead, SUM(pttb) AS pttb FROM ads_lead
+               WHERE page_id = :p AND ngay >= :tu AND ngay <= :den GROUP BY ngay""", p=page_id, tu=tu, den=den)
+    for x in (camp, ld):
+        x["ngay"] = pd.to_datetime(x["ngay"]).dt.date
+    pg = ds_page().set_index("id")
+    loai = pg.loai.get(page_id)
     pics = ds_pic()
-    loai = ds_page().set_index("id").loai.get(page_id)
-    def ai_chay(d):
-        pc = phan_chia(pics, page_id, d)
-        if loai == "cong_ty":
-            return "Công ty"
+    lead = {d: (float(a), float(b)) for d, a, b in zip(ld.ngay, ld["lead"], ld.pttb)}
+    rows, so_pic = [], 1 if loai == "cong_ty" else 0
+    for d in sorted(set(camp.ngay) | set(lead)):
+        pc = [] if loai == "cong_ty" else phan_chia(pics, page_id, d)
+        so_pic = max(so_pic, len(pc))
         deu = len({round(t, 3) for _, t in pc}) <= 1
-        return ", ".join(s_ if deu else f"{s_} {round(t * 100)}%" for s_, t in pc) or CHUA_PHAN_CONG
-    out["sale"] = [ai_chay(d) for d in out.ngay]
-    out["camp"] = [ds_camp.get(d, "") if len(camp) else "" for d in out.ngay]
-    out["ngay"] = [d.strftime("%d/%m") for d in out.ngay]
-    return out.reset_index(drop=True)
+        cs = camp[camp.ngay == d]
+        ds_dong = list(cs.itertuples()) or [None]
+        for j, r in enumerate(ds_dong):
+            chi = float(r.chi_tieu) if r is not None else 0.0
+            dong = {"ngay": d.strftime("%d/%m/%Y"), "camp": r.camp if r is not None else "",
+                    "tinh_trang": (r.tinh_trang or "") if r is not None else "",
+                    "chi_tieu": round(chi, 2) if r is not None else None,
+                    "tin_nhan": int(r.tin_nhan or 0) if r is not None else None,
+                    "lead": (lead.get(d, (0, 0))[0] or None) if j == 0 else None,
+                    "pttb": (lead.get(d, (0, 0))[1] or None) if j == 0 else None}
+            for k, (sale, _t) in enumerate(pc[:TOI_DA_PIC], start=1):
+                dong[f"pic{k}"] = sale
+            if loai == "cong_ty":
+                dong["pic1"] = CONG_TY
+            if r is not None and pc:
+                dong["tien_nguoi"] = _tien(chi / len(pc)) if deu else \
+                    " · ".join(f"{s_} {_tien(chi * t)}" for s_, t in pc)
+            rows.append(dong)
+    pb = phan_bo(tu, den)
+    pb = pb[pb.page_id == page_id] if len(pb) else pb
+    tong_sale = [(s_, round(float(v), 2)) for s_, v in
+                 pb.groupby("sale").chi_tieu.sum().sort_values(ascending=False).items()] if len(pb) else []
+    t = {"chi_tieu": float(camp.chi_tieu.sum()), "tin_nhan": float(camp.tin_nhan.sum()),
+         "lead": float(ld["lead"].sum()), "pttb": float(ld.pttb.sum())}
+    info = pg.loc[page_id] if page_id in pg.index else None
+    return {"rows": rows, "so_pic": so_pic, "tong_sale": tong_sale, "tong": t,
+            "ten": info.ten if info is not None else "", "ma": info.ma if info is not None else "",
+            "link": (info.link if isinstance(info.link, str) else None) if info is not None else None,
+            "tinh_trang": info.tinh_trang if info is not None else None}
+
+
+# ------------------------------------------------------------------ nhận định hiệu quả page
+NHOM_HQ = ["Hiệu quả cao", "Trung bình", "Kém", "Chưa đủ dữ liệu"]
+CHI_TOI_THIEU = 10.0          # USD: chi dưới mức này mà chưa ra PTTB thì chưa kết luận
+
+
+def nhom_hieu_qua(chi: float, pttb: float) -> str:
+    if pttb > 0:
+        cp = chi / pttb
+        return NHOM_HQ[0] if cp <= NGUONG_TOT else NHOM_HQ[1] if cp <= NGUONG_BINH_THUONG else NHOM_HQ[2]
+    return NHOM_HQ[2] if chi >= CHI_TOI_THIEU else NHOM_HQ[3]
+
+
+def _tien(v) -> str:
+    return "–" if v is None or pd.isna(v) else f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def ngay_cuoi_chi(tu: date, den: date) -> date | None:
+    r = _q("SELECT MAX(ngay) AS d FROM ads_ngay WHERE ngay >= :tu AND ngay <= :den", tu=tu, den=den)
+    v = r.d.iloc[0] if len(r) else None
+    return pd.to_datetime(v).date() if v is not None and not pd.isna(v) else None
+
+
+def nhan_dinh(tu: date, den: date) -> dict:
+    """Nhận định page cho quản lý: nhóm hiệu quả, xu hướng 7 ngày, điểm nghẽn phễu (tin nhắn → số → PTTB), page chạy
+    nhiều ngày liền chưa ra PTTB, gợi ý dời ngân sách. Chỉ tính tới ngày đã có chi tiêu (chi tiêu về trễ 1 ngày) để
+    tiền và PTTB cùng khoảng."""
+    cuoi = ngay_cuoi_chi(tu, den) or den
+    tp = theo_page(tu, cuoi)
+    tp = tp[(tp.chi_tieu > 0) | (tp.pttb > 0)].copy()
+    rong = {"den": cuoi, "page": pd.DataFrame(), "the": [], "xu_huong": pd.DataFrame(), "pheu": pd.DataFrame(),
+            "chuoi": pd.DataFrame(), "cp_tb": None, "tl_so": None, "tl_chot": None}
+    if tp.empty:
+        return rong
+    tp["nhom"] = [nhom_hieu_qua(c, p) for c, p in zip(tp.chi_tieu, tp.pttb)]
+    tong_chi, tong_pttb = float(tp.chi_tieu.sum()), float(tp.pttb.sum())
+    tp["ty_trong_chi"] = (tp.chi_tieu / tong_chi * 100).round(1) if tong_chi else 0.0
+    tp["ty_trong_pttb"] = (tp.pttb / tong_pttb * 100).round(1) if tong_pttb else 0.0
+    cp_tb = tong_chi / tong_pttb if tong_pttb else None
+
+    # xu hướng: 7 ngày gần nhất so với 7 ngày trước đó
+    a = cuoi - timedelta(days=6)
+    df = theo_ngay(cuoi - timedelta(days=13), cuoi)
+    xu = pd.DataFrame()
+    if len(df):
+        df["ky"] = ["nay" if x >= a else "truoc" for x in df.ngay]
+        g = df.groupby(["page_id", "ky"])[["chi_tieu", "pttb", "lead"]].sum().unstack("ky").fillna(0)
+        g.columns = [f"{c}_{k}" for c, k in g.columns]
+        for c in ("chi_tieu_nay", "chi_tieu_truoc", "pttb_nay", "pttb_truoc", "lead_nay", "lead_truoc"):
+            if c not in g:
+                g[c] = 0.0
+        g["cp_nay"] = (g.chi_tieu_nay / g.pttb_nay.where(g.pttb_nay > 0)).round(2)
+        g["cp_truoc"] = (g.chi_tieu_truoc / g.pttb_truoc.where(g.pttb_truoc > 0)).round(2)
+        g["doi_cp"] = ((g.cp_nay - g.cp_truoc) / g.cp_truoc * 100).round(0)
+        g["ten"] = ds_page().set_index("id").ten.reindex(g.index).values
+        xu = g[(g.chi_tieu_nay >= 5) | (g.chi_tieu_truoc >= 5)].reset_index()
+
+    # phễu: tin nhắn -> số điện thoại -> PTTB
+    ph = tp[["page_id", "ten", "tin_nhan", "lead", "pttb", "chi_tieu"]].copy()
+    ph["tl_so"] = (ph.lead / ph.tin_nhan.where(ph.tin_nhan > 0) * 100).round(0)
+    ph["tl_chot"] = (ph.pttb / ph.lead.where(ph.lead > 0) * 100).round(0)
+    tong_tn, tong_lead = float(ph.tin_nhan.sum()), float(ph.lead.sum())
+    tl_so = tong_lead / tong_tn * 100 if tong_tn else None
+    tl_chot = tong_pttb / tong_lead * 100 if tong_lead else None
+
+    def van_de(r):
+        if tl_so and r.tin_nhan >= 20 and (0 if pd.isna(r.tl_so) else r.tl_so) < tl_so * 0.5:
+            return "Nhiều tin nhắn, ít số điện thoại"
+        if tl_chot and r.lead >= 5 and (0 if pd.isna(r.tl_chot) else r.tl_chot) < tl_chot * 0.5:
+            return "Có số nhưng chốt được ít"
+        return ""
+    ph["van_de"] = [van_de(r) for r in ph.itertuples()]
+
+    # chuỗi ngày liền (tính lùi từ ngày cuối) có chi tiêu mà chưa ra PTTB
+    d30 = theo_ngay(max(tu, cuoi - timedelta(days=30)), cuoi)
+    chuoi = []
+    if len(d30):
+        for pid, g in d30.groupby("page_id"):
+            g = g.groupby("ngay").agg(chi_tieu=("chi_tieu", "sum"), pttb=("pttb", "sum"), ten=("ten", "first"))
+            n, tien, d = 0, 0.0, cuoi
+            while d in g.index and g.loc[d, "chi_tieu"] > 0 and g.loc[d, "pttb"] == 0:
+                n, tien, d = n + 1, tien + float(g.loc[d, "chi_tieu"]), d - timedelta(days=1)
+            if n >= 3:
+                chuoi.append({"page_id": pid, "ten": g.ten.iloc[0], "so_ngay": n, "tien": round(tien, 2)})
+    chuoi = pd.DataFrame(chuoi, columns=["page_id", "ten", "so_ngay", "tien"]).sort_values("tien", ascending=False)
+
+    # thẻ nhận định
+    the = []
+    kem, tot = tp[tp.nhom == "Kém"], tp[tp.nhom == "Hiệu quả cao"]
+    if len(kem):
+        ct = kem.chi_tieu.sum() / tong_chi * 100
+        pt = kem.pttb.sum() / tong_pttb * 100 if tong_pttb else 0
+        the.append({"muc": "bad", "tieu_de": f"{len(kem)} page chi phí/PTTB cao đang dùng {ct:.0f}% ngân sách",
+                    "noi_dung": f"Nhóm này chỉ mang về {pt:.0f}% số PTTB. Nặng nhất: "
+                                + ", ".join(f"{r.ten} ({_tien(r.chi_tieu)}$, "
+                                            + (f"{_tien(r.cp_pttb)}$/PTTB)" if r.pttb else "chưa ra PTTB)")
+                                            for r in kem.nlargest(3, "chi_tieu").itertuples())
+                                + ". Nên xem lại nội dung camp, tệp khách hoặc giảm ngân sách."})
+    if len(chuoi):
+        the.append({"muc": "bad", "tieu_de": f"{len(chuoi)} page chạy liền nhiều ngày chưa ra PTTB",
+                    "noi_dung": ", ".join(f"{r.ten}: {r.so_ngay} ngày, {_tien(r.tien)}$"
+                                          for r in chuoi.head(4).itertuples())
+                                + ". Kiểm tra camp có đúng tệp khách, tin nhắn có được trả lời kịp không."})
+    if len(xu):
+        xau = xu[(xu.doi_cp >= 30) & (xu.pttb_nay > 0) & (xu.pttb_truoc >= 2)].sort_values("doi_cp", ascending=False)
+        tot_len = xu[(xu.doi_cp <= -30) & (xu.pttb_nay >= 2)].sort_values("doi_cp")
+        if len(xau):
+            the.append({"muc": "warn", "tieu_de": "Chi phí/PTTB tăng mạnh trong 7 ngày gần nhất",
+                        "noi_dung": ", ".join(f"{r.ten}: {_tien(r.cp_truoc)} → {_tien(r.cp_nay)}$ (+{r.doi_cp:.0f}%)"
+                                              for r in xau.head(3).itertuples())
+                                    + ". Thường do quảng cáo cũ đã mỏi hoặc tệp khách bão hoà - thử đổi nội dung."})
+        if len(tot_len):
+            the.append({"muc": "ok", "tieu_de": "Đang tốt lên so với 7 ngày trước",
+                        "noi_dung": ", ".join(f"{r.ten}: {_tien(r.cp_truoc)} → {_tien(r.cp_nay)}$ ({r.doi_cp:.0f}%)"
+                                              for r in tot_len.head(3).itertuples())})
+    so = ph[ph.van_de == "Nhiều tin nhắn, ít số điện thoại"]
+    chot = ph[ph.van_de == "Có số nhưng chốt được ít"]
+    if len(so):
+        the.append({"muc": "warn", "tieu_de": "Nhiều tin nhắn nhưng ít xin được số",
+                    "noi_dung": ", ".join(f"{r.ten} ({int(r.tin_nhan)} tin → {int(r.lead)} số)"
+                                          for r in so.head(3).itertuples())
+                                + f". Mức chung {tl_so:.0f}% tin nhắn ra số: xem lại kịch bản trả lời, tốc độ phản hồi."})
+    if len(chot):
+        the.append({"muc": "warn", "tieu_de": "Có số điện thoại nhưng chốt PTTB thấp",
+                    "noi_dung": ", ".join(f"{r.ten} ({int(r.lead)} số → {int(r.pttb)} PTTB)"
+                                          for r in chot.head(3).itertuples())
+                                + f". Mức chung {tl_chot:.0f}%: sale nên gọi lại sớm, bám khách chưa chốt."})
+    if len(tot):
+        the.append({"muc": "ok", "tieu_de": f"{len(tot)} page hiệu quả cao (≤ {NGUONG_TOT:.0f}$/PTTB)",
+                    "noi_dung": "Tốt nhất: " + ", ".join(f"{r.ten} ({_tien(r.cp_pttb)}$/PTTB, {int(r.pttb)} PTTB)"
+                                                        for r in tot.nsmallest(3, "cp_pttb").itertuples())
+                                + ". Có thể tăng ngân sách từ từ (10-20% mỗi lần) và xem chi phí/PTTB có giữ được không."})
+    if len(kem) and len(tot) and tot.pttb.sum():
+        ngay_chay = max((cuoi - tu).days + 1, 1)
+        doi = kem.chi_tieu.sum() / ngay_chay * 0.3
+        cp_tot = tot.chi_tieu.sum() / tot.pttb.sum()
+        cp_kem = kem.chi_tieu.sum() / kem.pttb.sum() if kem.pttb.sum() else None
+        them = doi / cp_tot - (doi / cp_kem if cp_kem else 0)
+        if them > 0:
+            the.append({"muc": "info", "tieu_de": "Gợi ý dời ngân sách",
+                        "noi_dung": f"Dời 30% ngân sách nhóm Kém (khoảng {_tien(doi)}$/ngày) sang nhóm Hiệu quả cao có "
+                                    f"thể thêm khoảng {them * 30:.0f} PTTB/tháng nếu giữ được mức {_tien(cp_tot)}$/PTTB "
+                                    "(ước tính - hiệu quả thường giảm dần khi tăng ngân sách)."})
+    return {**rong, "page": tp, "the": the, "xu_huong": xu, "pheu": ph, "chuoi": chuoi,
+            "cp_tb": cp_tb, "tl_so": tl_so, "tl_chot": tl_chot}

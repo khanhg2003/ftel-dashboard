@@ -14,7 +14,7 @@ from app.admin_service import ROLES, danh_sach_user
 from app.auth import ghi_log
 from app.du_bao import AN_TOAN, RUI_RO, TANG_TOC
 from app.thoi_gian import chu_gio_vn, gio_viet_nam
-from app.ui.components import alert, callback_can_quyen, card, kpi
+from app.ui.components import alert, callback_can_quyen, card, kpi, tip, ghi_chu
 from app.ui.icons import icon
 
 AN = {"display": "none"}
@@ -68,8 +68,8 @@ def the_ai(prefix: str, tieu_de: str, mo_ta: str, truoc=None):
     ch = _cau_hinh_an_toan()
     return html.Div([
         html.Div([
-            html.Div([html.H3([con_cao(), tieu_de]),
-                      html.Div(mo_ta, className="desc")], className="the-ten"),
+            html.Div([html.H3([con_cao(), tieu_de, tip(mo_ta)], className="tieu-de-tip")],
+                     className="the-ten"),
             html.Button([html.Span("✨"), html.Span(f"{ch['ten']} nhận xét", id=f"{prefix}-ai-nhan")],
                         id=f"{prefix}-ai-tao", className="btn primary",
                         style={} if _dung_duoc(ch) else AN,
@@ -276,10 +276,10 @@ def pane_cau_hinh(tab: str):
                 o("Thêm từng tài khoản được dùng", dcc.Dropdown(id="ai-tai-khoan", multi=True,
                                                                 placeholder="Chọn tài khoản (tuỳ chọn)")),
             ], className="form-grid"),
-            html.Div("Quyền dùng AI: tài khoản dùng được khi vai trò của họ được chọn HOẶC tài khoản đó được chọn "
-                     "riêng. VD giai đoạn thử: bỏ trống vai trò, chỉ chọn tài khoản admin → sau mở thêm tài khoản "
-                     "BGĐ → cuối cùng chọn vai trò Trưởng phòng. Người chưa được mở quyền không thấy nút chat, nút "
-                     "nhận xét và nhận xét trên ảnh.", className="desc", style={"marginTop": "8px"}),
+            ghi_chu("Tài khoản dùng được AI khi vai trò của họ được chọn HOẶC tài khoản đó được chọn "
+                    "riêng. VD giai đoạn thử: bỏ trống vai trò, chỉ chọn tài khoản admin → sau mở thêm tài khoản "
+                    "BGĐ → cuối cùng chọn vai trò Trưởng phòng. Người chưa được mở quyền không thấy nút chat, nút "
+                    "nhận xét và nhận xét trên ảnh.", nhan="Cách mở quyền AI", style={"marginTop": "8px"}),
             html.Div(id="ai-quyen-hien", className="desc", style={"marginTop": "4px"}),
             html.Div(id="ai-key-hien", className="desc", style={"marginTop": "10px"}),
             html.Div([
@@ -289,10 +289,10 @@ def pane_cau_hinh(tab: str):
                 html.Button([icon("trash", 14), html.Span("Xoá mã API")], id="ai-xoa-key", className="btn nguy-hiem"),
             ], className="toolbar", style={"marginTop": "14px", "marginBottom": 0}),
             html.Div(id="ai-msg", style={"marginTop": "12px"}),
-            html.Div("Dán mã lấy ở platform.openai.com → API keys rồi bấm Lưu. Mã được mã hoá trước khi lưu, sau đó "
-                     "chỉ hiện 4 ký tự cuối. Quản trị (BGĐ) không giới hạn số câu; hết trần chi phí tháng thì AI tự "
-                     "tạm dừng tới đầu tháng sau (hoặc nâng trần). Chi phí là ước tính theo bảng giá OpenAI, "
-                     "số chính xác xem ở trang Usage của OpenAI.", className="desc", style={"marginTop": "8px"}),
+            ghi_chu("Dán mã lấy ở platform.openai.com → API keys rồi bấm Lưu. Mã được mã hoá trước khi lưu, sau đó "
+                    "chỉ hiện 4 ký tự cuối. Quản trị (BGĐ) không giới hạn số câu; hết trần chi phí tháng thì AI tự "
+                    "tạm dừng tới đầu tháng sau (hoặc nâng trần). Chi phí là ước tính theo bảng giá OpenAI, "
+                    "số chính xác xem ở trang Usage của OpenAI.", nhan="Về mã và chi phí", style={"marginTop": "8px"}),
         ], title="Cấu hình trợ lý AI"),
         card([
             html.Div(id="ai-dung-kpi", className="kpi-row"),

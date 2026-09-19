@@ -61,11 +61,31 @@ def pct_vn(v, dau: bool = False, trong: str = "–") -> str:
     return trong if v is None or v != v else f"{so_vn(v, 0, dau)}%"
 
 
+def tip(noi_dung=None, id: str | None = None, trai: bool = False):
+    """Biểu tượng ⓘ: di chuột (hoặc chạm) mới hiện ghi chú - giữ giao diện gọn. `id` gắn vào phần chữ để callback
+    đổi nội dung; nội dung rỗng thì biểu tượng tự ẩn."""
+    kw = {"id": id} if id else {}
+    return html.Span([html.Span("i", className="tip-i"),
+                      html.Span(noi_dung, className="tip-noi" + (" trai" if trai else ""), **kw)],
+                     className="tip", tabIndex="0")
+
+
+def tieu_de(chu, ghi_chu=None, id_ghi_chu: str | None = None, **kw):
+    """Tiêu đề thẻ + ⓘ ghi chú bên cạnh."""
+    co = ghi_chu is not None or id_ghi_chu
+    return html.H3([chu, tip(ghi_chu, id=id_ghi_chu) if co else None], className="tieu-de-tip", **kw)
+
+
+def ghi_chu(noi_dung, nhan: str = "Lưu ý", id: str | None = None, **kw):
+    """Ghi chú đứng riêng (dưới bảng, trong hộp thoại): chỉ hiện nhãn nhỏ 'ⓘ Lưu ý', di chuột xem nội dung."""
+    return html.Div([tip(noi_dung, id=id), html.Span(nhan, className="ghi-chu-nhan")], className="ghi-chu", **kw)
+
+
 def card(children, title: str | None = None, desc: str | None = None, **kw):
     head = []
     if title:
-        head.append(html.H3(title))
-    if desc:
+        head.append(tieu_de(title, desc) if desc else html.H3(title))
+    elif desc:
         head.append(html.Div(desc, className="desc"))
     return html.Div(head + (children if isinstance(children, list) else [children]),
                     className="card", **kw)

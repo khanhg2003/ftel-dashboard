@@ -33,7 +33,7 @@ from app.org import phong_order
 from app.overview import trang_thai_ngay
 from app.ui.components import (DONG_TONG_NGAY, HEAT_NGAY, LOCALE_VI, LOP_DONG_NGAY, alert, card,
                                chon_ngay, chu_giai, field, gan_chon_ngay, kpi, lop_cot_ngay,
-                               seg_control)
+                               seg_control, ghi_chu)
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui import tro_ly as tl
@@ -146,9 +146,9 @@ def layout(ky: dict | None = None):
                                  "rowStyle": {"cursor": "pointer"}},
                 getRowId="params.data.acc_norm",
                 getRowStyle=ROW_STYLE, style={"width": "100%"})),
-            html.Div("Bấm vào một nhân sự để mở chi tiết. Màu VVIP/PTTB, Camera/PTTB so với mức "
-                     "chung của phòng: xanh cao hơn từ 5 điểm, vàng thấp hơn 5-10 điểm, đỏ thấp hơn "
-                     "từ 10 điểm.", className="desc", style={"margin": "10px 0 4px"}),
+            ghi_chu("Bấm vào một nhân sự để mở chi tiết. Màu VVIP/PTTB, Camera/PTTB so với mức "
+                    "chung của phòng: xanh cao hơn từ 5 điểm, vàng thấp hơn 5-10 điểm, đỏ thấp hơn "
+                    "từ 10 điểm.", nhan="Cách đọc màu", style={"margin": "10px 0 4px"}),
             chu_giai("Cách tính các cột", DINH_NGHIA),
         ], className="card"),
 

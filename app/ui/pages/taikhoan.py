@@ -6,8 +6,7 @@ from flask_login import current_user
 
 from app.auth import ROLE_LABEL, doi_mat_khau
 from app.org import phong_order
-from app.ui.components import alert, card, field
-
+from app.ui.components import alert, card, field, ghi_chu
 MO_TA_QUYEN = {
     "admin": "Toàn quyền: xem số chung và chi tiết nhân sự mọi phòng, nạp dữ liệu, quản trị hệ thống.",
     "operator": "Nạp dữ liệu và xem số chung toàn chi nhánh. Không xem chi tiết từng nhân sự.",
@@ -41,8 +40,8 @@ def layout():
                                                                        current_user.role))]),
                     html.Tr([html.Th("Chi tiết nhân sự"), html.Td(phong)]),
                 ]), className="simple bang-thong-tin"),
-                html.Div(MO_TA_QUYEN.get(current_user.role, ""), className="desc",
-                         style={"marginTop": "10px"}),
+                ghi_chu(MO_TA_QUYEN.get(current_user.role, ""), nhan="Quyền của tài khoản",
+                        style={"marginTop": "10px"}),
             ], title="Thông tin tài khoản"), style={"flex": "1 1 340px"}),
             html.Div(card([
                 html.Div([

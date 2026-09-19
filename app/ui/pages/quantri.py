@@ -19,7 +19,7 @@ from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
 from app.ui.components import (COT_SUA, MA_NV, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card,
-                               dong_can_sua, gan_import, modal, nut_import)
+                               dong_can_sua, gan_import, modal, nut_import, ghi_chu)
 from app.ui.icons import icon
 
 CHON = {"field": "_chon", "headerName": "", "width": 44, "maxWidth": 44, "pinned": "left",
@@ -96,9 +96,9 @@ def _hop_thoai_staff():
         ], className="form-grid"),
         html.Div(_o("Ghi chú", dcc.Input(id="qt-s-ghichu", type="text", className="inp")),
                  style={"marginTop": "14px"}),
-        html.Div("Acc inside quyết định hợp đồng thuộc phòng nào - gõ đúng như trên hệ thống. Ngày hiệu lực "
-                 "chỉ cần khi nhân sự chuyển phòng giữa kỳ (mỗi phòng một dòng). Lưu xong app tự tính lại "
-                 "việc gán phòng cho dữ liệu đã nạp.", className="desc"),
+        ghi_chu("Acc inside quyết định hợp đồng thuộc phòng nào - gõ đúng như trên hệ thống. Ngày hiệu lực "
+                "chỉ cần khi nhân sự chuyển phòng giữa kỳ (mỗi phòng một dòng). Lưu xong app tự tính lại "
+                "việc gán phòng cho dữ liệu đã nạp.", style={"marginTop": "12px"}),
         html.Div(id="qt-modal-staff-msg"),
     ], nut_chinh="Thêm vào danh mục")
 
@@ -140,11 +140,11 @@ def layout(tab: str | None = None):
                            columnDefs=[], rowData=[], getRowId="params.data.username",
                            defaultColDef={"resizable": True, "sortable": True},
                            dashGridOptions=GRID, style={"width": "100%", "height": "340px"}),
-                html.Div("Quản trị (BGĐ): toàn quyền, nạp được cả NSLĐ và danh mục nhân viên, xem "
-                         "chi tiết nhân sự mọi phòng · Nhập liệu: nạp 3 file bán hàng và xem số "
-                         "chung, không xem nhân sự · Trưởng phòng: nạp 3 file bán hàng, xem số chung "
-                         "toàn chi nhánh, chi tiết nhân sự chỉ của phòng phụ trách.",
-                         className="desc", style={"marginTop": "12px"}),
+                ghi_chu("Quản trị (BGĐ): toàn quyền, nạp được cả NSLĐ và danh mục nhân viên, xem "
+                        "chi tiết nhân sự mọi phòng · Nhập liệu: nạp 3 file bán hàng và xem số "
+                        "chung, không xem nhân sự · Trưởng phòng: nạp 3 file bán hàng, xem số chung "
+                        "toàn chi nhánh, chi tiết nhân sự chỉ của phòng phụ trách.", nhan="Quyền của từng vai trò",
+                        style={"marginTop": "12px"}),
             ], title="Tài khoản người dùng"),
         ]),
 
@@ -171,9 +171,9 @@ def layout(tab: str | None = None):
                            dashGridOptions={**GRID, "pagination": True, "paginationPageSize": 20,
                                             "paginationPageSizeSelector": False},
                            style={"width": "100%", "height": "480px"}),
-                html.Div("Thay đổi nhiều: Tải file mẫu (điền sẵn danh mục hiện tại) → sửa → Import Excel. "
-                         "Acc không có trong file sẽ được ghi chú “Nghỉ”.",
-                         className="desc", style={"marginTop": "10px"}),
+                ghi_chu("Thay đổi nhiều: Tải file mẫu (điền sẵn danh mục hiện tại) → sửa → Import Excel. "
+                        "Acc không có trong file sẽ được ghi chú “Nghỉ”.", nhan="Sửa hàng loạt",
+                        style={"marginTop": "10px"}),
             ], title="Danh mục nhân sự theo phòng"),
         ]),
         *st.cac_tab(tab),

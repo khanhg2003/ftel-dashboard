@@ -909,3 +909,58 @@ table.simple tr:last-child td { border-bottom: none; }
 /* Ads IBB7: khối mẫu JSON cho n8n */
 .khoi-ma { background: #0B2E4F; color: #E6F0FA; border-radius: 10px; padding: 14px 16px; font-size: 12.5px;
   line-height: 1.55; overflow-x: auto; white-space: pre; margin: 10px 0 0; }
+
+/* ---------- ⓘ ghi chú: di chuột / chạm mới hiện (giao diện gọn) ---------- */
+.tip { position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 6px;
+       cursor: help; outline: none; }
+.tip-i { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #9AA9BA; color: #7A8A9C;
+         font: italic 700 10.5px/13px Georgia, serif; text-align: center; flex: none; transition: all .15s; }
+.tip:hover .tip-i, .tip:focus .tip-i { border-color: var(--fpt-blue); color: #fff; background: var(--fpt-blue); }
+.tip-noi { display: none; position: absolute; top: calc(100% + 8px); left: -10px; z-index: 60;
+           width: max-content; max-width: min(360px, 80vw); padding: 9px 12px; border-radius: 9px;
+           background: #1F2A37; color: #F3F6FA; font: 400 12.5px/1.5 inherit; font-style: normal;
+           text-transform: none; letter-spacing: 0; white-space: normal; text-align: left;
+           box-shadow: 0 8px 24px rgba(15, 30, 50, .22); }
+.tip-noi.trai { left: auto; right: -10px; }
+.tip-noi::before { content: ""; position: absolute; top: -5px; left: 14px; width: 10px; height: 10px;
+                   background: #1F2A37; transform: rotate(45deg); }
+.tip-noi.trai::before { left: auto; right: 14px; }
+.tip:hover .tip-noi, .tip:focus .tip-noi, .tip:focus-within .tip-noi { display: block; }
+.tip:has(.tip-noi:empty) { display: none; }
+.tieu-de-tip { display: flex; align-items: center; flex-wrap: wrap; gap: 0; }
+.ghi-chu { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: var(--text-muted); }
+.ghi-chu .tip { margin-left: 0; }
+.ghi-chu:has(.tip-noi:empty) { display: none; }
+
+/* ---------- bảng không kéo dài quá màn hình: nhiều dòng thì cuộn trong khung, tiêu đề cột đứng yên ---------- */
+.ag-theme-ftel:has(.ag-layout-auto-height) { max-height: 70vh; overflow: auto; border-radius: 10px; }
+.ag-theme-ftel:has(.ag-layout-auto-height) .ag-root-wrapper,
+.ag-theme-ftel:has(.ag-layout-auto-height) .ag-root { overflow: visible; }
+.ag-theme-ftel:has(.ag-layout-auto-height) .ag-header { position: sticky; top: 0; z-index: 5; }
+.zoom-wrap .ag-theme-ftel, .ag-theme-ftel.khong-gioi-han { max-height: none !important; overflow: visible !important; }
+
+/* ---------- Ads IBB7 ---------- */
+.ads-tab-tip { align-self: flex-end; margin-bottom: 10px; }
+.nd-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.nd-the { border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 10px;
+          padding: 11px 14px; background: #fff; }
+.nd-the b { display: block; font-size: 13.5px; margin-bottom: 4px; }
+.nd-the span { font-size: 12.8px; color: #3B4A5C; line-height: 1.5; }
+.nd-the.bad { border-left-color: var(--bad); background: #FFF8F7; }
+.nd-the.warn { border-left-color: #E3A008; background: #FFFBF0; }
+.nd-the.ok { border-left-color: var(--fpt-green-700); background: #F5FBF7; }
+.nd-the.info { border-left-color: var(--fpt-blue); background: #F4F9FE; }
+.hai-cot { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.hai-cot > .card { margin: 0; min-width: 0; }
+.ct-dau { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 2px 0 10px; }
+.ct-dau .chip { cursor: default; }
+.chu-mau { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 12px;
+           color: var(--text-muted); margin-top: 8px; }
+.chu-mau i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 4px;
+             vertical-align: -1px; }
+.link-page { font-size: 12.5px; color: var(--fpt-blue); text-decoration: none; white-space: nowrap; }
+.link-page:hover { text-decoration: underline; }
+.ag-theme-ftel .ag-cell a { color: var(--fpt-blue-700); text-decoration: none; }
+.ag-theme-ftel .ag-cell a:hover { text-decoration: underline; }
+@media (max-width: 640px) { .hai-cot { grid-template-columns: 1fr; } .nd-luoi { grid-template-columns: 1fr; } }
+.ghi-chu-nhan { font-size: 12px; color: var(--text-muted); }

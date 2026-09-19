@@ -1,8 +1,8 @@
 """Trang Ads IBB7 (chỉ Quản trị): chi tiêu quảng cáo Facebook, lead / PTTB, chia chi phí cho sale.
 
-Năm tab: Tổng quan (theo page như DASHBOARD của sheet) · Theo sale (chi phí được chia + số bán thật trên app) ·
-Tracking ngày · Hoạch định (KPI PTTB từng page) · Cấu hình (kết nối n8n, nạp file sheet cũ, page, phân công,
-tên sale ↔ acc, nhập tay, nhật ký lead). Số liệu và quy tắc ở app/ads.py.
+Sáu tab, đi từ tổng thể tới chi tiết: Tổng quan (số chính + điểm cần chú ý + bảng page) · Nhận định (nhóm hiệu quả,
+xu hướng 7 ngày, phễu tin nhắn → số → PTTB) · Theo sale · Theo ngày (chi tiết một page như trang tính của sheet +
+bảng nhiệt page × ngày) · Kế hoạch (KPI PTTB) · Cấu hình. Số liệu và quy tắc ở app/ads.py.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import json
 from datetime import date
 
 import dash_ag_grid as dag
+import numpy as np
 import plotly.graph_objects as go
 from dash import Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
@@ -21,41 +22,117 @@ from app.auth import ghi_log
 from app.metrics import month_range
 from app.thoi_gian import gio_viet_nam
 from app.ui.components import (LOCALE_VI, alert, callback_can_quyen, chon_ky, field, gan_dieu_huong_ky, kpi,
-                               seg_control, so_vn)
+                               modal, seg_control, so_vn, tieu_de, tip)
 from app.ui.icons import icon
 
 AN = {"display": "none"}
-TAB = [("tong", "Tổng quan"), ("sale", "Theo sale"), ("ngay", "Tracking ngày"), ("hoach", "Hoạch định"),
-       ("cauhinh", "Cấu hình")]
+TAB = [("tong", "Tổng quan"), ("nhan_dinh", "Nhận định"), ("sale", "Theo sale"), ("ngay", "Theo ngày"),
+       ("hoach", "Kế hoạch"), ("cauhinh", "Cấu hình")]
+HUONG_DAN_TAB = [
+    ("Tổng quan", "số chính của tháng, điểm cần chú ý và hiệu quả từng page. Bấm một page để xem chi tiết."),
+    ("Nhận định", "page nào hiệu quả / đốt tiền, đang tốt lên hay xấu đi, kẹt ở khâu nào (tin nhắn → số → PTTB)."),
+    ("Theo sale", "chi phí ads chia cho từng sale, so với số online thật trên app."),
+    ("Theo ngày", "chi tiết một page từng ngày từng camp (như trang tính cũ) và bảng màu page × ngày."),
+    ("Kế hoạch", "nhập KPI PTTB từng page, app dự kiến cả tháng và gợi ý tăng / giữ / tối ưu ngân sách."),
+    ("Cấu hình", "kết nối n8n, người chạy page, tên page, tên sale ↔ acc, nhập tay, nhật ký lead."),
+]
 USD = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
                    "{minimumFractionDigits: 2, maximumFractionDigits: 2})"}
 SO = {"function": "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN', "
                   "{maximumFractionDigits: 1})"}
 VND = {"function": "params.value == null ? '' : Math.round(params.value).toLocaleString('vi-VN')"}
 PCT = {"function": "params.value == null ? '' : Math.round(params.value) + '%'"}
-MAU_DANH_GIA = {"styleConditions": [
-    {"condition": "params.value == 'Tốt'", "style": {"color": "#0A7A3D", "fontWeight": "700"}},
-    {"condition": "params.value == 'Bình thường'", "style": {"color": "#8A5709", "fontWeight": "650"}},
-    {"condition": "params.value == 'Cao'", "style": {"color": "#B42318", "fontWeight": "700"}}]}
+PCT_DAU = {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + Math.round(params.value) + '%'"}
+# 3 màu: xanh tốt · vàng trung bình · đỏ cần xử lý
+XANH, VANG, DO = ("#DDF1E3", "#14532D"), ("#FFF3D1", "#6B5104"), ("#FCE1DD", "#93241C")
+LAM = ("#EAF3FC", "#D0E4F7", "#A8CBEE")          # chi tiêu: nhiều / ít, không tốt không xấu
+
+
+def _o(nen, chu=None, dam=False):
+    s = {"backgroundColor": nen}
+    if chu:
+        s["color"] = chu
+    if dam:
+        s["fontWeight"] = "700"
+    return s
+
+
 MAU_CP = {"styleConditions": [
-    {"condition": f"params.value != null && params.value <= {ads.NGUONG_TOT}", "style": {"color": "#0A7A3D"}},
-    {"condition": f"params.value != null && params.value > {ads.NGUONG_BINH_THUONG}",
-     "style": {"color": "#B42318", "fontWeight": "700"}}]}
+    {"condition": "params.value == null", "style": {}},
+    {"condition": f"params.value <= {ads.NGUONG_TOT}", "style": _o(*XANH)},
+    {"condition": f"params.value <= {ads.NGUONG_BINH_THUONG}", "style": _o(*VANG)},
+    {"condition": "true", "style": _o(*DO, dam=True)}]}
+MAU_DANH_GIA = {"styleConditions": [
+    {"condition": "params.value == 'Tốt'", "style": _o(*XANH, dam=True)},
+    {"condition": "params.value == 'Bình thường'", "style": _o(*VANG)},
+    {"condition": "params.value == 'Cao'", "style": _o(*DO, dam=True)}]}
+MAU_NHOM = {"styleConditions": [
+    {"condition": "params.value == 'Hiệu quả cao'", "style": _o(*XANH, dam=True)},
+    {"condition": "params.value == 'Trung bình'", "style": _o(*VANG)},
+    {"condition": "params.value == 'Kém'", "style": _o(*DO, dam=True)}]}
+MAU_DOI = {"styleConditions": [                       # % đổi chi phí/PTTB: giảm là tốt
+    {"condition": "params.value == null", "style": {}},
+    {"condition": "params.value <= -15", "style": _o(*XANH)},
+    {"condition": "params.value < 15", "style": {}},
+    {"condition": "params.value < 50", "style": _o(*VANG)},
+    {"condition": "true", "style": _o(*DO, dam=True)}]}
+MAU_TT = {"styleConditions": [
+    {"condition": "params.value == 'HOẠT ĐỘNG'", "style": {"color": "#04843F", "fontWeight": "700"}},
+    {"condition": "params.value == 'TẮT'", "style": {"color": "#B42318"}}]}
+MAU_VAN_DE = {"styleConditions": [{"condition": "params.value", "style": _o(*VANG)}]}
+HUONG_CHI_SO = {"chi_tieu": "trung_tinh", "tin_nhan": "cao_tot", "lead": "cao_tot", "pttb": "cao_tot",
+                "cp_pttb": "thap_tot"}
+CHU_MAU = {
+    "cao_tot": [(DO[0], "thấp"), (VANG[0], "trung bình"), (XANH[0], "cao")],
+    "trung_tinh": [(LAM[0], "ít"), (LAM[1], "vừa"), (LAM[2], "nhiều")],
+    "thap_tot": [(XANH[0], f"≤ {ads.NGUONG_TOT:.0f}$ tốt"), (VANG[0], f"≤ {ads.NGUONG_BINH_THUONG:.0f}$"),
+                 (DO[0], f"> {ads.NGUONG_BINH_THUONG:.0f}$ cao")],
+}
 
 
-def _grid(id_, cot, cao=None, **kw):
+def _mau_nhiet(gia_tri, huong: str) -> dict:
+    """Tô 3 mức cho bảng page × ngày. Ngưỡng = 1/3 và 2/3 các ô có số (bỏ ô trống / 0)."""
+    if huong == "thap_tot":
+        return MAU_CP
+    v = np.array([x for x in gia_tri if x is not None and x == x and x > 0], dtype=float)
+    if len(v) < 3:
+        return {}
+    a, b = np.quantile(v, [1 / 3, 2 / 3])
+    if huong == "trung_tinh":
+        m1, m2, m3 = _o(LAM[0]), _o(LAM[1]), _o(LAM[2], "#0C3B66", True)
+    else:
+        m1, m2, m3 = _o(*DO), _o(*VANG), _o(*XANH, dam=True)
+    return {"styleConditions": [
+        {"condition": "!params.value", "style": {}},
+        {"condition": f"params.value <= {a}", "style": m1},
+        {"condition": f"params.value <= {b}", "style": m2},
+        {"condition": "true", "style": m3}]}
+
+
+def _chu_mau(huong: str):
+    return html.Div([html.Span("Màu:")] + [html.Span([html.I(style={"background": m}), t])
+                                           for m, t in CHU_MAU[huong]], className="chu-mau")
+
+
+def _grid(id_, cot, cao=440, **kw):
+    """Bảng cao cố định, nhiều dòng thì cuộn trong khung (không kéo dài trang)."""
     opts = {"localeText": LOCALE_VI, "suppressCellFocus": False, "enableCellTextSelection": True,
-            "ensureDomOrder": True, **kw.pop("opts", {})}
-    if cao is None:
-        opts["domLayout"] = "autoHeight"
+            "ensureDomOrder": True, "tooltipShowDelay": 300, **kw.pop("opts", {})}
     return dag.AgGrid(id=id_, className="ag-theme-quartz ag-theme-ftel", columnDefs=cot, rowData=[],
                       defaultColDef={"resizable": True, "sortable": True, "filter": True},
-                      dashGridOptions=opts, style={"height": f"{cao}px"} if cao else {"height": None}, **kw)
+                      dashGridOptions=opts, style={"height": f"{cao}px"}, **kw)
 
 
 def _so(label, field_, fmt=SO, w=100, **kw):
     return {"field": field_, "headerName": label, "type": "numericColumn", "minWidth": w, "flex": 1,
             "valueFormatter": fmt, **kw}
+
+
+CHON_1_DONG = {"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableClickSelection": True}}
+COT_PAGE = {"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 200, "flex": 2,
+            "tooltipField": "ten"}
+COT_LINK = {"field": "link_md", "headerName": "", "width": 60, "cellRenderer": "markdown", "linkTarget": "_blank",
+            "sortable": False, "filter": False, "headerTooltip": "Mở fanpage (khai link ở Theo ngày → Sửa page)"}
 
 
 def _thang_co() -> list[str]:
@@ -76,10 +153,18 @@ def topbar():
             html.Div(className="spacer"), html.Div(id="ads-badge")]
 
 
-def _the(tieu_de, mo_ta, *con, nut=None):
-    return html.Div([html.Div([html.Div([html.H3(tieu_de), html.Div(mo_ta, className="desc")], className="the-ten"),
+def _the(tieu, mo_ta, *con, nut=None, **kw):
+    return html.Div([html.Div([html.Div([tieu_de(tieu, mo_ta)], className="the-ten"),
                                html.Div(nut, className="the-nut") if nut is not None else None], className="the-dau"),
-                     *con], className="card")
+                     *con], className="card", **kw)
+
+
+def _huong_dan_tab():
+    return tip(html.Div([html.Div([html.B(t + ": "), m]) for t, m in HUONG_DAN_TAB]
+                        + [html.Div(["Đánh giá page theo ", html.B("chi phí / PTTB"), f" (USD): ≤ {ads.NGUONG_TOT:.0f} "
+                                     f"tốt · ≤ {ads.NGUONG_BINH_THUONG:.0f} bình thường · còn lại cao. Chi tiêu về "
+                                     "app lúc 7h sáng hôm sau; lead / PTTB về ngay khi báo qua bot Telegram."],
+                                    style={"marginTop": "6px"})]))
 
 
 def layout(tab: str | None = None):
@@ -92,67 +177,124 @@ def layout(tab: str | None = None):
         html.Div([
             field("Tháng", chon_ky("ads-thang", thangs, thangs[0])),
             field("Xem", seg_control("ads-tab", TAB, tab)),
+            html.Div([_huong_dan_tab(), html.Span("Mỗi mục xem gì?", className="ghi-chu-nhan")],
+                     className="ghi-chu ads-tab-tip"),
         ], className="toolbar loc-trang"),
         dcc.Store(id="ads-sua"),                    # tín hiệu: vừa lưu cấu hình -> nạp lại số
         dcc.Loading(html.Div(id="ads-kpi", className="kpi-row kpi-7"), type="dot"),
+        _modal_page(),
 
+        # ---------------- Tổng quan
         html.Div(id="ads-p-tong", children=[
-            _the("Hiệu quả từng page", "Đánh giá theo chi phí / PTTB: ≤ 6 USD Tốt, ≤ 10 USD Bình thường, còn lại "
-                 "Cao. Cùng kỳ = cùng khoảng ngày tháng trước.",
+            _the("Điểm cần chú ý", "Tự rút ra từ số liệu tháng đang chọn (tính tới ngày đã có chi tiêu). Xem đầy đủ "
+                 "ở tab Nhận định.", html.Div(id="ads-tq-the", className="nd-luoi"),
+                 nut=html.Button("Xem tất cả nhận định →", id="ads-sang-nd", className="btn")),
+            _the("Hiệu quả từng page", f"Bấm vào một page để xem chi tiết từng ngày. Chi phí / PTTB: xanh ≤ "
+                 f"{ads.NGUONG_TOT:.0f}$, vàng ≤ {ads.NGUONG_BINH_THUONG:.0f}$, đỏ cao hơn. Cùng kỳ = cùng khoảng "
+                 "ngày tháng trước.",
                  _grid("ads-g-page", [
-                     {"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 190, "flex": 2},
-                     {"field": "pic", "headerName": "Sale chạy", "minWidth": 150, "flex": 1.4},
-                     _so("Chi tiêu (USD)", "chi_tieu", USD, 110),
-                     _so("Tin nhắn", "tin_nhan", SO, 90), _so("Lead", "lead", SO, 80), _so("PTTB", "pttb", SO, 80),
-                     _so("CPL", "cpl", USD, 80, headerTooltip="Chi tiêu / lead (USD)"),
-                     _so("CP/PTTB", "cp_pttb", USD, 90, headerTooltip="Chi tiêu / PTTB (USD)", cellStyle=MAU_CP),
-                     _so("Tỷ lệ chốt", "ty_le_chot", PCT, 90, headerTooltip="PTTB / lead"),
-                     {"field": "danh_gia", "headerName": "Đánh giá", "minWidth": 120, "cellStyle": MAU_DANH_GIA},
+                     COT_PAGE, COT_LINK,
+                     {"field": "pic", "headerName": "Sale chạy", "minWidth": 150, "flex": 1.4, "tooltipField": "pic"},
+                     _so("Chi tiêu ($)", "chi_tieu", USD, 105), _so("Tin nhắn", "tin_nhan", SO, 85),
+                     _so("Số ĐT", "lead", SO, 75, headerTooltip="Lead = số điện thoại xin được"),
+                     _so("PTTB", "pttb", SO, 70),
+                     _so("CP/số ĐT", "cpl", USD, 90, headerTooltip="Chi tiêu / số điện thoại (USD)"),
+                     _so("CP/PTTB", "cp_pttb", USD, 90, headerTooltip="Chi tiêu / PTTB (USD) - chỉ số chính",
+                         cellStyle=MAU_CP),
+                     _so("Tỷ lệ chốt", "ty_le_chot", PCT, 90, headerTooltip="PTTB / số điện thoại"),
+                     {"field": "danh_gia", "headerName": "Đánh giá", "minWidth": 115, "cellStyle": MAU_DANH_GIA},
                      _so("PTTB cùng kỳ", "ck_pttb", SO, 100),
-                 ])),
-            _the("Chi tiêu từng ngày", "Cột: chi tiêu (USD) · đường: số PTTB", dcc.Graph(id="ads-bieu-do",
-                                                                                     config={"displayModeBar": False})),
+                 ], cao=460, opts=CHON_1_DONG)),
+            _the("Chi tiêu và PTTB từng ngày", "Cột xanh: chi tiêu (USD) · đường cam: số PTTB. Chi tiêu hôm nay về "
+                 "lúc 7h sáng mai nên cột cuối thường trống.",
+                 dcc.Graph(id="ads-bieu-do", config={"displayModeBar": False})),
         ]),
+
+        # ---------------- Nhận định
+        html.Div(id="ads-p-nhan_dinh", style=AN, children=[
+            _the("Nhận định", "Rút ra tự động từ số liệu: đỏ = cần xử lý ngay, vàng = theo dõi, xanh dương = gợi ý, "
+                 "xanh lá = đang tốt. Tính tới ngày đã có chi tiêu để tiền và PTTB cùng khoảng.",
+                 html.Div(id="ads-nd-the", className="nd-luoi"), nut=html.Div(id="ads-nd-den")),
+            html.Div([
+                _the("Ma trận hiệu quả", f"Mỗi chấm là một page: càng sang phải càng tiêu nhiều, càng lên cao chi "
+                     f"phí/PTTB càng đắt; chấm to = nhiều PTTB. Vùng dưới đường {ads.NGUONG_TOT:.0f}$ là hiệu quả. "
+                     "Page phải-trên (tiêu nhiều mà đắt) là chỗ cần xử lý trước.",
+                     dcc.Graph(id="ads-nd-ma-tran", config={"displayModeBar": False})),
+                _the("Ngân sách đi đâu, PTTB đến từ đâu", "So phần trăm ngân sách mỗi nhóm page đang dùng với phần "
+                     "trăm PTTB nhóm đó mang về. Nhóm Kém dùng nhiều tiền hơn phần PTTB là đang lãng phí.",
+                     dcc.Graph(id="ads-nd-nhom", config={"displayModeBar": False})),
+            ], className="hai-cot"),
+            _the("Xu hướng 7 ngày", "Chi phí/PTTB 7 ngày gần nhất so với 7 ngày trước đó. Tăng mạnh thường là quảng "
+                 "cáo đã mỏi (chạy lâu, tệp khách bão hoà) - nên đổi nội dung. Chỉ tính page tiêu từ 5$.",
+                 _grid("ads-nd-xu", [
+                     COT_PAGE,
+                     _so("CP/PTTB 7 ngày trước", "cp_truoc", USD, 120, cellStyle=MAU_CP),
+                     _so("CP/PTTB 7 ngày gần nhất", "cp_nay", USD, 130, cellStyle=MAU_CP),
+                     _so("Thay đổi", "doi_cp", PCT_DAU, 95, cellStyle=MAU_DOI,
+                         headerTooltip="Âm là tốt lên (rẻ hơn)"),
+                     _so("PTTB trước", "pttb_truoc", SO, 90), _so("PTTB gần nhất", "pttb_nay", SO, 100),
+                     _so("Chi 7 ngày gần nhất ($)", "chi_tieu_nay", USD, 130),
+                 ], cao=380)),
+            _the("Phễu: tin nhắn → số điện thoại → PTTB", "Tìm page kẹt ở khâu nào: nhiều tin nhắn mà ít xin được số "
+                 "(xem lại kịch bản chat, tốc độ trả lời) hay có số mà chốt ít (sale gọi lại chậm, tư vấn chưa tới). "
+                 "Đánh dấu khi thấp hơn một nửa mức chung.",
+                 _grid("ads-nd-pheu", [
+                     COT_PAGE, _so("Tin nhắn", "tin_nhan", SO, 85), _so("Số ĐT", "lead", SO, 75),
+                     _so("% ra số", "tl_so", PCT, 85, headerTooltip="Số điện thoại / tin nhắn"),
+                     _so("PTTB", "pttb", SO, 70),
+                     _so("% chốt", "tl_chot", PCT, 85, headerTooltip="PTTB / số điện thoại"),
+                     {"field": "van_de", "headerName": "Điểm nghẽn", "minWidth": 210, "flex": 1.6,
+                      "cellStyle": MAU_VAN_DE},
+                 ], cao=380), nut=html.Div(id="ads-nd-muc-chung", className="ghi-chu-nhan")),
+        ]),
+
+        # ---------------- Theo sale
         html.Div(id="ads-p-sale", style=AN, children=[
-            _the("Chi phí từng sale", "Chi tiêu mỗi page mỗi ngày chia cho sale chạy page ngày đó (đều nhau, hoặc "
-                 "theo tỷ lệ đã khai); lead / PTTB chia cùng cách. Online thật lấy từ số bán trên app theo acc đã khai "
-                 "ở Cấu hình → Tên sale ↔ acc.",
+            _the("Chi phí từng sale", "Chi tiêu mỗi page mỗi ngày chia cho các sale chạy page ngày đó (đều nhau, "
+                 "hoặc theo tỷ lệ đã khai); số điện thoại / PTTB chia cùng cách. Online thật lấy từ số bán trên app "
+                 "theo acc đã khai ở Cấu hình → Tên sale ↔ acc.",
                  _grid("ads-g-sale", [
                      {"field": "sale", "headerName": "Sale", "pinned": "left", "minWidth": 130, "flex": 1.2},
                      {"field": "acc", "headerName": "Acc", "minWidth": 130, "flex": 1.2},
                      _so("Số page", "so_page", SO, 80),
-                     _so("Chi phí (USD)", "chi_tieu", USD, 110), _so("≈ VNĐ", "vnd", VND, 120),
-                     _so("Lead", "lead", SO, 80), _so("PTTB", "pttb", SO, 80),
+                     _so("Chi phí ($)", "chi_tieu", USD, 105), _so("≈ VNĐ", "vnd", VND, 115),
+                     _so("Số ĐT", "lead", SO, 75), _so("PTTB", "pttb", SO, 70),
                      _so("CP/PTTB", "cp_pttb", USD, 90, cellStyle=MAU_CP),
-                     _so("Online thật", "online", SO, 100, headerTooltip="Số online của acc trên app trong kỳ"),
+                     _so("Online thật", "online", SO, 95, headerTooltip="Số online của acc trên app trong kỳ"),
                      _so("Online MTTN", "online_mttn", SO, 100),
-                     _so("CP / online thật", "cp_online", USD, 110,
+                     _so("CP / online thật", "cp_online", USD, 115,
                          headerTooltip="Chi phí ads được chia / số online thật của sale (USD)"),
-                 ])),
+                 ], cao=460)),
         ]),
+
+        # ---------------- Theo ngày
         html.Div(id="ads-p-ngay", style=AN, children=[
-            _the("Chi tiết một page", "Chọn page (hoặc bấm vào một dòng ở bảng Tracking bên dưới) để xem từng ngày: "
-                 "chạy bao nhiêu tiền, bao nhiêu lead / PTTB, ai chạy, camp nào.",
-                 _grid("ads-g-ct", [
-                     {"field": "ngay", "headerName": "Ngày", "pinned": "left", "width": 80},
-                     _so("Chi tiêu", "chi_tieu", USD, 95), _so("Tin nhắn", "tin_nhan", SO, 90),
-                     _so("Lead", "lead", SO, 70), _so("PTTB", "pttb", SO, 70),
-                     _so("CPL", "cpl", USD, 80), _so("CP/PTTB", "cp_pttb", USD, 90, cellStyle=MAU_CP),
-                     {"field": "sale", "headerName": "Sale chạy", "minWidth": 150, "flex": 1.3},
-                     {"field": "camp", "headerName": "Camp", "minWidth": 220, "flex": 2, "tooltipField": "camp"}],
-                     cao=420, opts={"pinnedBottomRowData": []}),
-                 nut=dcc.Dropdown(id="ads-ct-page", placeholder="Chọn page…", style={"minWidth": "260px"})),
-            _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày. Bấm vào một dòng để xem chi tiết page đó ở trên.",
-                 _grid("ads-g-ngay", [], cao=620, opts={"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableClickSelection": True}}),
-                 nut=seg_control("ads-chi-so", [("chi_tieu", "Chi tiêu"), ("tin_nhan", "Tin nhắn"), ("lead", "Lead"),
-                                                ("pttb", "PTTB")], "chi_tieu")),
+            _the("Chi tiết một page", "Như trang tính từng page của sheet cũ: mỗi dòng một camp một ngày, ngày tăng "
+                 "dần. Số điện thoại / PTTB báo qua bot ghi ở dòng đầu của ngày. Tiền/người = chi tiêu chia cho người "
+                 "chạy (theo tỷ lệ nếu có).",
+                 html.Div(id="ads-ct-dau", className="ct-dau"),
+                 _grid("ads-g-ct", [], cao=460, opts={"pinnedBottomRowData": []}),
+                 nut=html.Div([
+                     dcc.Dropdown(id="ads-ct-page", placeholder="Chọn page…", style={"minWidth": "280px"}),
+                     html.Button([icon("settings", 14), html.Span("Sửa tên / link")], id="ads-ct-sua",
+                                 className="btn", disabled=True),
+                 ], style={"display": "flex", "gap": "8px", "alignItems": "center", "flexWrap": "wrap"})),
+            _the("Bảng màu page × ngày", "Mỗi dòng một page, mỗi cột một ngày; màu cho thấy ngày nào nhiều / ít. "
+                 "Bấm vào một dòng để xem chi tiết page đó ở trên.",
+                 _grid("ads-g-ngay", [], cao=400, opts=CHON_1_DONG),
+                 html.Div(id="ads-chu-mau"),
+                 nut=seg_control("ads-chi-so", [("chi_tieu", "Chi tiêu"), ("tin_nhan", "Tin nhắn"),
+                                                ("lead", "Số ĐT"), ("pttb", "PTTB"), ("cp_pttb", "CP/PTTB")],
+                                 "chi_tieu")),
         ]),
+
+        # ---------------- Kế hoạch
         html.Div(id="ads-p-hoach", style=AN, children=[
-            _the("Hoạch định PTTB", "Dự kiến cả tháng theo nhịp hiện tại. Nhập KPI PTTB vào cột KPI (bấm đúp ô) rồi "
-                 "Lưu. Khuyến nghị: CP/PTTB từ 4 USD → tối ưu camp; đạt hoặc dự kiến đạt KPI → giữ vững; còn lại → "
-                 "tăng nhẹ ngân sách.",
+            _the("Kế hoạch PTTB", "Dự kiến cả tháng theo nhịp hiện tại. Nhập KPI PTTB vào cột KPI (bấm đúp ô) rồi "
+                 "Lưu. Khuyến nghị: chi phí/PTTB từ 4$ → tối ưu camp; đạt hoặc dự kiến đạt KPI → giữ vững; còn lại "
+                 "→ tăng nhẹ ngân sách.",
                  _grid("ads-g-hoach", [
-                     {"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 190, "flex": 2},
+                     COT_PAGE,
                      _so("Chi tiêu", "chi_tieu", USD, 95), _so("PTTB", "pttb", SO, 70),
                      _so("CP/PTTB", "cp_pttb", USD, 85, cellStyle=MAU_CP), _so("TB/ngày", "tb_ngay", USD, 85),
                      _so("Dự kiến chi", "du_kien_chi", USD, 100), _so("Dự kiến PTTB", "du_kien_pttb", SO, 100),
@@ -161,9 +303,9 @@ def layout(tab: str | None = None):
                      _so("Ngân sách cần", "ngan_sach_can", USD, 110),
                      _so("Cần thêm/ngày", "can_them_ngay", USD, 110), _so("Tiến độ KPI", "tien_do", PCT, 95),
                      {"field": "khuyen_nghi", "headerName": "Khuyến nghị", "minWidth": 150, "flex": 1.2},
-                 ], getRowId="params.data.page_id"),
+                 ], cao=460, getRowId="params.data.page_id"),
                  nut=html.Div([
-                     html.Span("Tỷ giá USD → VNĐ", className="desc", style={"margin": "0 6px 0 0"}),
+                     html.Span("Tỷ giá USD → VNĐ", className="ghi-chu-nhan", style={"marginRight": "6px"}),
                      dcc.Input(id="ads-ty-gia", type="number", min=1000, step=1, className="inp",
                                style={"width": "110px"}),
                      html.Button([icon("save", 14), html.Span("Lưu KPI & tỷ giá")], id="ads-luu-hoach",
@@ -175,17 +317,33 @@ def layout(tab: str | None = None):
     ])
 
 
+def _modal_page():
+    return modal("ads-md-page", html.Span("Sửa page", id="ads-md-tieu-de"), [
+        dcc.Store(id="ads-md-id"),
+        html.Div([
+            field("Tên hiển thị", dcc.Input(id="ads-md-ten", className="inp", style={"width": "100%"})),
+            field("Link fanpage", dcc.Input(id="ads-md-link", className="inp", style={"width": "100%"},
+                                            placeholder="https://www.facebook.com/…")),
+            field("Tình trạng", dcc.Dropdown(id="ads-md-tt", clearable=False,
+                                             options=[{"label": x, "value": x} for x in ads.TINH_TRANG_PAGE])),
+        ], className="form-grid"),
+        html.Div(id="ads-md-ma", className="ghi-chu-nhan", style={"marginTop": "10px"}),
+        html.Div(id="ads-md-msg"),
+    ], nut_chinh="Lưu")
+
+
 def _cau_hinh():
     return [
         _the("Kết nối n8n và bot Telegram", "n8n gửi thẳng vào app thay cho Google Sheet. Gửi lại cùng page + camp "
              "+ ngày thì ghi đè, không nhân đôi. Page mới tự xuất hiện ở danh mục bên dưới.",
              html.Div(id="ads-token-tt"),
-             html.Pre(id="ads-mau-json", className="khoi-ma"),
+             html.Details([html.Summary("Xem mẫu gửi dữ liệu (cho người cài n8n)", className="cg-tieu-de"),
+                           html.Pre(id="ads-mau-json", className="khoi-ma")], className="chu-giai"),
              nut=html.Button([icon("refresh", 14), html.Span("Tạo mã kết nối mới")], id="ads-tao-ma",
                              className="btn")),
-        _the("Nạp file Google Sheet cũ", "Tải file 'BÁO CÁO CHI TIÊU ADS' (định dạng .xlsx) về rồi thả vào đây để đưa "
-             "số các tháng đã chạy trên sheet lên app: chi tiêu, lead / PTTB, người chạy từng page, tỷ lệ chia riêng. "
-             "Nạp lại không bị nhân đôi.",
+        _the("Nạp file Google Sheet cũ", "Tải file 'BÁO CÁO CHI TIÊU ADS' (File → Download → .xlsx, một file gồm mọi "
+             "tab) rồi thả vào đây: chi tiêu, lead / PTTB, người chạy từng page, tỷ lệ chia riêng. Chỉ dùng cho tháng "
+             "chưa nối n8n - nạp lại tháng đã có bot gửi lead sẽ cộng trùng lead.",
              dcc.Upload(id="ads-file", className="upload-zone", children=html.Div(
                  [icon("upload", 18), html.Span(" Kéo thả hoặc bấm chọn file .xlsx")])),
              dcc.Loading(html.Div(id="ads-msg-file"), type="dot")),
@@ -215,17 +373,18 @@ def _cau_hinh():
                  opts={"rowSelection": "multiple"}),
              nut=html.Button([icon("trash", 14), html.Span("Xoá dòng đã chọn")], id="ads-pic-xoa",
                              className="btn nguy-hiem")),
-        _the("Danh mục page", "Sửa trực tiếp trong ô (bấm đúp) rồi Lưu. Loại 'Công ty' = chạy tài khoản công ty, không "
-             "chia chi phí cho sale.",
+        _the("Danh mục page", "Bấm đúp ô có dấu ✎ để sửa rồi Lưu. Loại 'Công ty' = chạy tài khoản công ty, không chia "
+             "chi phí cho sale. Tên chuẩn là tên n8n / bot gửi lên - không sửa được.",
              _grid("ads-g-dm", [
-                 {"field": "ma", "headerName": "Tên chuẩn (n8n gửi)", "minWidth": 190, "flex": 1.4},
+                 {"field": "ma", "headerName": "Tên chuẩn (n8n gửi)", "minWidth": 180, "flex": 1.3},
                  {"field": "ten", "headerName": "Tên hiển thị ✎", "editable": True, "minWidth": 190, "flex": 1.6},
-                 {"field": "loai", "headerName": "Loại ✎", "editable": True, "minWidth": 110,
+                 {"field": "link", "headerName": "Link fanpage ✎", "editable": True, "minWidth": 200, "flex": 1.6},
+                 {"field": "loai", "headerName": "Loại ✎", "editable": True, "minWidth": 100,
                   "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": ["Sale", "Công ty"]}},
-                 {"field": "tinh_trang", "headerName": "Tình trạng ✎", "editable": True, "minWidth": 120,
+                 {"field": "tinh_trang", "headerName": "Tình trạng ✎", "editable": True, "minWidth": 115,
                   "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": ads.TINH_TRANG_PAGE}},
-                 {"field": "ghi_chu", "headerName": "Ghi chú ✎", "editable": True, "minWidth": 200, "flex": 2},
-             ], cao=360, getRowId="params.data.id"),
+                 {"field": "ghi_chu", "headerName": "Ghi chú ✎", "editable": True, "minWidth": 180, "flex": 1.6},
+             ], cao=380, getRowId="params.data.id"),
              html.Div(id="ads-msg-dm"),
              nut=html.Button([icon("save", 14), html.Span("Lưu danh mục")], id="ads-dm-luu", className="btn primary")),
         _the("Tên sale ↔ acc", "Nối tên gọi trong phân công (VD 'C. Chi') với acc inside để so chi phí ads với số "
@@ -244,24 +403,25 @@ def _cau_hinh():
                                                     first_day_of_week=1)),
                  field("Chi tiêu (USD)", dcc.Input(id="ads-tay-chi", type="number", min=0, step="any",
                                                    className="inp", style={"width": "110px"})),
-                 field("Lead", dcc.Input(id="ads-tay-lead", type="number", step=1, className="inp",
-                                         style={"width": "80px"})),
+                 field("Số ĐT", dcc.Input(id="ads-tay-lead", type="number", step=1, className="inp",
+                                          style={"width": "80px"})),
                  field("PTTB", dcc.Input(id="ads-tay-pttb", type="number", step=1, className="inp",
                                          style={"width": "80px"})),
                  field(" ", html.Button([icon("plus", 14), html.Span("Ghi")], id="ads-tay-ghi",
                                         className="btn primary")),
              ], className="toolbar", style={"flexWrap": "wrap"}),
              html.Div(id="ads-msg-tay")),
-        _the("Nhật ký lead / PTTB", "Mỗi lần bot Telegram hoặc nhập tay báo có số là một dòng. Nhập nhầm thì chọn dòng "
-             "rồi Xoá.",
+        _the("Nhật ký lead / PTTB", "Mỗi lần bot Telegram hoặc nhập tay báo có số là một dòng (kèm người nhắn và nội "
+             "dung tin). Nhập nhầm thì tick dòng rồi Xoá.",
              _grid("ads-g-lead", [
                  {"field": "ngay", "headerName": "Ngày", "minWidth": 100, "checkboxSelection": True},
                  {"field": "page", "headerName": "Page", "minWidth": 180, "flex": 1.6},
-                 _so("Lead", "lead", SO, 70), _so("PTTB", "pttb", SO, 70),
+                 _so("Số ĐT", "lead", SO, 70), _so("PTTB", "pttb", SO, 70),
                  {"field": "nguon", "headerName": "Nguồn", "minWidth": 90},
                  {"field": "nguoi", "headerName": "Người nhập", "minWidth": 120},
-                 {"field": "ghi_chu", "headerName": "Ghi chú", "minWidth": 160, "flex": 1.4},
-                 {"field": "luc", "headerName": "Lúc", "minWidth": 140}], cao=360, getRowId="params.data.id",
+                 {"field": "ghi_chu", "headerName": "Tin nhắn / ghi chú", "minWidth": 180, "flex": 1.6,
+                  "tooltipField": "ghi_chu"},
+                 {"field": "luc", "headerName": "Lúc", "minWidth": 140}], cao=380, getRowId="params.data.id",
                  opts={"rowSelection": "multiple"}),
              nut=html.Button([icon("trash", 14), html.Span("Xoá dòng đã chọn")], id="ads-lead-xoa",
                              className="btn nguy-hiem")),
@@ -285,8 +445,20 @@ def _ban_ghi(df, cot=None):
     return json.loads(d.to_json(orient="records", date_format="iso", force_ascii=False))
 
 
+def _link_md(link) -> str:
+    return f"[↗]({link})" if isinstance(link, str) and link.startswith("http") else ""
+
+
+def _the_nd(ds, toi_da=None):
+    if not ds:
+        return [html.Div("Chưa đủ số liệu để nhận định.", className="ghi-chu-nhan")]
+    thu_tu = {"bad": 0, "warn": 1, "info": 2, "ok": 3}
+    ds = sorted(ds, key=lambda x: thu_tu[x["muc"]])[:toi_da]
+    return [html.Div([html.B(t["tieu_de"]), html.Span(t["noi_dung"])], className=f"nd-the {t['muc']}") for t in ds]
+
+
 def _mau_json(host: str) -> str:
-    return (f"# 1) n8n 7h30 - chi tiêu hôm qua (node HTTP Request, method POST)\n"
+    return (f"# 1) n8n - chi tiêu hôm qua (node HTTP Request, method POST)\n"
             f"URL: {host}/api/ads/chi-tieu\nHeader: X-Ads-Token: <mã kết nối>\nBody (JSON):\n"
             + json.dumps({"page": "KON TUM", "rows": [{"camp": "TCDT_KONTUM_4", "tinh_trang": "HOẠT ĐỘNG",
                                                         "ngay": "2026-09-18", "chi_tieu": 4.56, "tin_nhan": 3}]},
@@ -295,7 +467,16 @@ def _mau_json(host: str) -> str:
               "Header: X-Ads-Token: <mã kết nối>\nBody (JSON):\n"
             + json.dumps({"page": "QUẢNG NGÃI", "lead": 1, "pttb": 1, "ngay": "2026-09-19",
                           "nguoi": "Kiều", "ghi_chu": ""}, ensure_ascii=False, indent=2)
-            + "\n\n'page' = tên trang tính trên sheet cũ (tên chuẩn). 'ngay' bỏ trống ở lead = hôm nay.")
+            + f"\n\n# 3) bot Telegram - hỏi báo cáo (GET)\nURL: {host}/api/ads/bao-cao?date=19/09/2026 "
+              "(hoặc start_date=..&end_date=..)\nHeader: X-Ads-Token: <mã kết nối>"
+            + "\n\n'page' = tên chuẩn của page (cột Tên chuẩn ở Danh mục page). 'ngay' bỏ trống ở lead = hôm nay.")
+
+
+def _bo_cuc(fig, cao=300, **kw):
+    fig.update_layout(height=cao, margin={"l": 44, "r": 20, "t": 10, "b": 36}, plot_bgcolor="white",
+                      paper_bgcolor="white", legend={"orientation": "h", "y": 1.12}, font={"size": 12},
+                      hoverlabel={"bgcolor": "white"}, **kw)
+    return fig
 
 
 def register(app):
@@ -306,6 +487,12 @@ def register(app):
     def _doi_tab(tab):
         return [{} if k == tab else AN for k, _ in TAB]
 
+    @cb(Output("ads-tab", "value", allow_duplicate=True), Input("ads-sang-nd", "n_clicks"),
+        prevent_initial_call=True)
+    def _sang_nd(_n):
+        return "nhan_dinh"
+
+    # ------------------------------------------------ tổng quan + theo sale
     @cb(Output("ads-kpi", "children"), Output("ads-badge", "children"), Output("ads-g-page", "rowData"),
         Output("ads-bieu-do", "figure"), Output("ads-g-sale", "rowData"), Output("ads-ty-gia", "value"),
         Input("ads-thang", "value"), Input("ads-sua", "data"))
@@ -314,23 +501,26 @@ def register(app):
         t = ads.tong_quan(tu, den)
         ck = t["ck"]
 
-        def doi(a, b):
-            return "" if not b else f" · cùng kỳ {so_vn(b)}"
+        def ck_(v):
+            return f"cùng kỳ {so_vn(v)}" if v else None
         the = [
-            kpi("Chi tiêu", f"{_usd(t['chi_tieu'])} $", f"≈ {so_vn(t['vnd'] / 1e6, 1)} triệu đồng" + doi(0, 0)),
-            kpi("Tin nhắn", so_vn(t["tin_nhan"]), doi(0, ck["tin_nhan"]).lstrip(" ·") or None),
-            kpi("Lead (số điện thoại)", so_vn(t["lead"]), f"CPL {_usd(t['cpl'])} $"),
-            kpi("PTTB", so_vn(t["pttb"]), doi(0, ck["pttb"]).lstrip(" ·") or None),
+            kpi("Chi tiêu", f"{_usd(t['chi_tieu'])} $", f"≈ {so_vn(t['vnd'] / 1e6, 1)} triệu đồng"),
+            kpi("Tin nhắn", so_vn(t["tin_nhan"]), ck_(ck["tin_nhan"])),
+            kpi("Số điện thoại", so_vn(t["lead"]), f"{_usd(t['cpl'])} $ mỗi số"),
+            kpi("PTTB", so_vn(t["pttb"]), ck_(ck["pttb"])),
             kpi("Chi phí / PTTB", f"{_usd(t['cp_pttb'])} $",
                 f"cùng kỳ {_usd(t['ck_cp_pttb'])} $" if t["ck_cp_pttb"] else None,
                 "" if t["cp_pttb"] is None else ("ok" if t["cp_pttb"] <= ads.NGUONG_TOT else
                                                   "warn" if t["cp_pttb"] <= ads.NGUONG_BINH_THUONG else "bad")),
-            kpi("Tỷ lệ chốt", "–" if t["ty_le_chot"] is None else f"{t['ty_le_chot']:.0f}%", "PTTB / lead"),
+            kpi("Tỷ lệ chốt", "–" if t["ty_le_chot"] is None else f"{t['ty_le_chot']:.0f}%", "PTTB / số điện thoại"),
             kpi("Page có chi tiêu", so_vn(t["so_page"]), f"tỷ giá {so_vn(t['ty_gia'])}"),
         ]
-        badge = (html.Span(f"Ads đến {t['ngay_moi_nhat']:%d/%m}", className="badge muted")
+        badge = (html.Span(f"Chi tiêu đến {t['ngay_moi_nhat']:%d/%m}", className="badge muted",
+                           title="Chi tiêu từ Facebook về lúc 7h sáng hôm sau")
                  if t["ngay_moi_nhat"] else html.Span("Chưa có số tháng này", className="badge warn"))
         tp = ads.theo_page(tu, den)
+        if len(tp):
+            tp["link_md"] = [_link_md(x) for x in tp.link]
         df = ads.theo_ngay(tu, den)
         fig = go.Figure()
         if len(df):
@@ -340,36 +530,92 @@ def register(app):
             fig.add_scatter(x=g.ngay, y=g.pttb, name="PTTB", yaxis="y2", mode="lines+markers",
                             line={"color": "#F37021", "width": 2},
                             hovertemplate="%{x|%d/%m}: %{y} PTTB<extra></extra>")
-        fig.update_layout(height=300, margin={"l": 40, "r": 40, "t": 10, "b": 30}, plot_bgcolor="white",
-                          legend={"orientation": "h", "y": 1.12}, xaxis={"tickformat": "%d/%m"},
-                          yaxis={"title": None, "gridcolor": "#EEF2F6"},
-                          yaxis2={"overlaying": "y", "side": "right", "showgrid": False})
+        _bo_cuc(fig, 300, xaxis={"tickformat": "%d/%m"}, yaxis={"title": None, "gridcolor": "#EEF2F6"},
+                yaxis2={"overlaying": "y", "side": "right", "showgrid": False})
         ts = ads.theo_sale(tu, den)
         if len(ts):
             ts["vnd"] = ts.chi_tieu * t["ty_gia"]
         return (the, badge, _ban_ghi(tp), fig, _ban_ghi(ts), round(ads.ty_gia(thang)))
 
-    @cb(Output("ads-g-ngay", "columnDefs"), Output("ads-g-ngay", "rowData"),
+    # ------------------------------------------------ nhận định (tổng quan hiện 4 thẻ đầu)
+    @cb(Output("ads-tq-the", "children"), Output("ads-nd-the", "children"), Output("ads-nd-den", "children"),
+        Output("ads-nd-ma-tran", "figure"), Output("ads-nd-nhom", "figure"), Output("ads-nd-xu", "rowData"),
+        Output("ads-nd-pheu", "rowData"), Output("ads-nd-muc-chung", "children"),
+        Input("ads-thang", "value"), Input("ads-sua", "data"))
+    def _nhan_dinh(thang, _s):
+        tu, den = _ky(thang)
+        nd = ads.nhan_dinh(tu, den)
+        tp = nd["page"]
+        mau = {"Hiệu quả cao": "#1E9E5A", "Trung bình": "#E3A008", "Kém": "#D64534", "Chưa đủ dữ liệu": "#9AA9BA"}
+        f1, f2 = go.Figure(), go.Figure()
+        if len(tp):
+            co = tp[tp.pttb > 0]
+            for nhom in ads.NHOM_HQ[:3]:
+                x = co[co.nhom == nhom]
+                if len(x):
+                    f1.add_scatter(x=x.chi_tieu, y=x.cp_pttb, mode="markers+text", name=nhom, text=x.ten,
+                                   textposition="top center", textfont={"size": 10, "color": "#51606F"},
+                                   marker={"size": 9 + np.sqrt(x.pttb) * 3, "color": mau[nhom], "opacity": .8,
+                                           "line": {"color": "white", "width": 1}},
+                                   customdata=np.stack([x.pttb], axis=-1),
+                                   hovertemplate="<b>%{text}</b><br>Chi %{x:,.2f} $ · %{customdata[0]:.0f} PTTB"
+                                                 "<br>%{y:,.2f} $/PTTB<extra></extra>")
+            f1.add_hline(y=ads.NGUONG_TOT, line={"color": "#1E9E5A", "dash": "dot", "width": 1})
+            f1.add_hline(y=ads.NGUONG_BINH_THUONG, line={"color": "#D64534", "dash": "dot", "width": 1})
+            g = tp.groupby("nhom")[["ty_trong_chi", "ty_trong_pttb"]].sum().reindex(ads.NHOM_HQ).dropna(how="all")
+            f2.add_bar(x=g.index, y=g.ty_trong_chi, name="% ngân sách", marker_color="#0072BC",
+                       text=[f"{v:.0f}%" for v in g.ty_trong_chi], textposition="outside",
+                       hovertemplate="%{x}: %{y:.1f}% ngân sách<extra></extra>")
+            f2.add_bar(x=g.index, y=g.ty_trong_pttb, name="% PTTB", marker_color="#F37021",
+                       text=[f"{v:.0f}%" for v in g.ty_trong_pttb], textposition="outside",
+                       hovertemplate="%{x}: %{y:.1f}% PTTB<extra></extra>")
+        _bo_cuc(f1, 380, xaxis={"title": "Chi tiêu tháng ($)", "gridcolor": "#EEF2F6", "rangemode": "tozero"},
+                yaxis={"title": "Chi phí / PTTB ($)", "gridcolor": "#EEF2F6", "rangemode": "tozero"})
+        _bo_cuc(f2, 380, barmode="group", yaxis={"title": None, "ticksuffix": "%", "gridcolor": "#EEF2F6"})
+        den_ = html.Span(f"Tính đến {nd['den']:%d/%m}", className="badge muted") if nd["den"] else None
+        muc = []
+        if nd["tl_so"]:
+            muc.append(f"Mức chung: {nd['tl_so']:.0f}% tin nhắn ra số")
+        if nd["tl_chot"]:
+            muc.append(f"{nd['tl_chot']:.0f}% số ra PTTB")
+        xu = nd["xu_huong"]
+        if len(xu):
+            xu = xu.sort_values("doi_cp", ascending=False, na_position="last")
+        ph = nd["pheu"]
+        if len(ph):
+            ph = ph.assign(_c=ph.van_de.eq("")).sort_values(["_c", "tin_nhan"], ascending=[True, False]) \
+                   .drop(columns="_c")
+        return (_the_nd(nd["the"], 4), _the_nd(nd["the"]), den_, f1, f2, _ban_ghi(xu), _ban_ghi(ph), " · ".join(muc))
+
+    # ------------------------------------------------ bảng màu page × ngày
+    @cb(Output("ads-g-ngay", "columnDefs"), Output("ads-g-ngay", "rowData"), Output("ads-chu-mau", "children"),
         Input("ads-thang", "value"), Input("ads-chi-so", "value"), Input("ads-sua", "data"))
     def _tracking(thang, chi_so, _s):
-        pv, so_ngay = ads.tracking(thang, chi_so or "chi_tieu")
-        fmt = USD if chi_so == "chi_tieu" else SO
-        cot = [{"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 180},
-               {"field": "tong", "headerName": "Tổng", "pinned": "left", "width": 95, "type": "numericColumn",
-                "valueFormatter": fmt, "cellStyle": {"fontWeight": "700"}}]
-        cot += [{"field": str(i), "headerName": str(i), "width": 62, "type": "numericColumn",
-                 "valueFormatter": {"function": "params.value ? " + fmt["function"] + " : ''"}}
-                for i in range(1, so_ngay + 1)]
+        chi_so = chi_so or "chi_tieu"
+        pv, so_ngay = ads.tracking(thang, chi_so)
+        fmt = USD if chi_so in ("chi_tieu", "cp_pttb") else SO
+        huong = HUONG_CHI_SO[chi_so]
+        ngay = [str(i) for i in range(1, so_ngay + 1)]
+        gia_tri = pv[[c for c in pv.columns if str(c).isdigit()]].values.ravel().tolist() if len(pv) else []
+        nhiet = _mau_nhiet(gia_tri, huong)
+        cot = [{"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 190, "tooltipField": "ten"},
+               {"field": "tong", "headerName": "Cả tháng" if chi_so == "cp_pttb" else "Tổng", "pinned": "left",
+                "width": 95, "type": "numericColumn", "valueFormatter": fmt,
+                "cellStyle": MAU_CP if chi_so == "cp_pttb" else {"fontWeight": "700"}}]
+        cot += [{"field": d, "headerName": d, "width": 60 if chi_so in ("chi_tieu", "cp_pttb") else 50,
+                 "type": "numericColumn", "cellStyle": nhiet, "sortable": False, "filter": False,
+                 "valueFormatter": {"function": "params.value ? " + fmt["function"] + " : ''"}} for d in ngay]
         if pv.empty:
-            return cot, []
+            return cot, [], _chu_mau(huong)
         pv.columns = [str(c) for c in pv.columns]
-        return cot, _ban_ghi(pv)
+        return cot, _ban_ghi(pv), _chu_mau(huong)
 
+    # ------------------------------------------------ chi tiết một page
     @cb(Output("ads-ct-page", "options"), Input("ads-thang", "value"), Input("ads-sua", "data"))
     def _ct_opts(thang, _s):
         tu, den = _ky(thang)
         tp = ads.theo_page(tu, den)
-        return [{"label": f"{t} ({c:,.2f}$ · {int(p)} PTTB)", "value": int(i)}
+        return [{"label": f"{t} · {_usd(c)}$ · {int(p)} PTTB", "value": int(i)}
                 for i, t, c, p in zip(tp.page_id, tp.ten, tp.chi_tieu, tp.pttb)]
 
     @cb(Output("ads-ct-page", "value"), Input("ads-g-ngay", "selectedRows"), prevent_initial_call=True)
@@ -378,25 +624,78 @@ def register(app):
             raise PreventUpdate
         return int(rows[0]["page_id"])
 
-    @cb(Output("ads-g-ct", "rowData"), Output("ads-g-ct", "dashGridOptions"),
+    @cb(Output("ads-ct-page", "value", allow_duplicate=True), Output("ads-tab", "value", allow_duplicate=True),
+        Input("ads-g-page", "selectedRows"), prevent_initial_call=True)
+    def _tq_bam(rows):
+        if not rows or rows[0].get("page_id") is None:
+            raise PreventUpdate
+        return int(rows[0]["page_id"]), "ngay"
+
+    @cb(Output("ads-g-ct", "columnDefs"), Output("ads-g-ct", "rowData"), Output("ads-g-ct", "dashGridOptions"),
+        Output("ads-ct-dau", "children"), Output("ads-ct-sua", "disabled"),
         Input("ads-ct-page", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"),
         State("ads-g-ct", "dashGridOptions"))
     def _ct(pid, thang, _s, opts):
         opts = dict(opts or {})
+        opts["pinnedBottomRowData"] = []
         if not pid:
-            opts["pinnedBottomRowData"] = []
-            return [], opts
+            return [], [], opts, html.Span("Chọn một page ở ô bên phải, hoặc bấm vào page ở tab Tổng quan / bảng "
+                                           "màu bên dưới.", className="ghi-chu-nhan"), True
         tu, den = _ky(thang)
-        df = ads.chi_tiet_page(int(pid), tu, den)
-        if df.empty:
-            opts["pinnedBottomRowData"] = []
-            return [], opts
-        t = {c: float(df[c].sum()) for c in ("chi_tieu", "tin_nhan", "lead", "pttb")}
-        opts["pinnedBottomRowData"] = [{"ngay": "Tổng", **t,
-                                        "cpl": round(t["chi_tieu"] / t["lead"], 2) if t["lead"] else None,
-                                        "cp_pttb": round(t["chi_tieu"] / t["pttb"], 2) if t["pttb"] else None}]
-        return _ban_ghi(df), opts
+        ct = ads.chi_tiet_page(int(pid), tu, den)
+        so_pic = max(ct["so_pic"], 1)
+        cot = [{"field": "ngay", "headerName": "Ngày", "pinned": "left", "width": 105},
+               {"field": "camp", "headerName": "Tên camp", "minWidth": 170, "flex": 1.6, "tooltipField": "camp"},
+               {"field": "tinh_trang", "headerName": "Tình trạng", "width": 110, "cellStyle": MAU_TT},
+               _so("Chi tiêu ($)", "chi_tieu", USD, 95), _so("Tin nhắn", "tin_nhan", SO, 85),
+               _so("Số ĐT", "lead", SO, 75), _so("PTTB", "pttb", SO, 70)]
+        cot += [{"field": f"pic{k}", "headerName": f"PIC {k}", "minWidth": 95, "flex": .8}
+                for k in range(1, so_pic + 1)]
+        cot.append({"field": "tien_nguoi", "headerName": "Tiền/người", "minWidth": 110, "flex": 1,
+                    "type": "rightAligned", "headerTooltip": "Chi tiêu chia cho người chạy (USD)"})
+        t = ct["tong"]
+        opts["pinnedBottomRowData"] = [{"ngay": "Tổng", "camp": f"CP/PTTB {_usd(t['chi_tieu'] / t['pttb'])} $"
+                                        if t["pttb"] else "", **t}]
+        dau = []
+        if ct["link"]:
+            dau.append(html.A(["Mở fanpage ↗"], href=ct["link"], target="_blank", className="link-page"))
+        dau += [html.Span(f"{s}: {_usd(v)} $", className="chip") for s, v in ct["tong_sale"]]
+        if ct["tinh_trang"]:
+            dau.append(html.Span(ct["tinh_trang"], className="badge muted"))
+        return cot, ct["rows"], opts, dau, False
 
+    # ------------------------------------------------ sửa page (tên, link, tình trạng)
+    @cb(Output("ads-md-page", "className"), Output("ads-md-id", "data"), Output("ads-md-tieu-de", "children"),
+        Output("ads-md-ten", "value"), Output("ads-md-link", "value"), Output("ads-md-tt", "value"),
+        Output("ads-md-ma", "children"), Output("ads-md-msg", "children"),
+        Input("ads-ct-sua", "n_clicks"), Input("ads-md-page-dong", "n_clicks"), Input("ads-md-page-huy", "n_clicks"),
+        Input("ads-md-msg", "title"), State("ads-ct-page", "value"), prevent_initial_call=True)
+    def _mo_md(_a, _b, _c, xong, pid):
+        if ctx.triggered_id == "ads-ct-sua" and pid:
+            pg = ads.ds_page().set_index("id")
+            if int(pid) not in pg.index:
+                raise PreventUpdate
+            p = pg.loc[int(pid)]
+            return ("modal mo", int(pid), f"Sửa page · {p.ten}", p.ten, p.link if isinstance(p.link, str) else "",
+                    p.tinh_trang, f"Tên chuẩn n8n / bot gửi lên: {p.ma} (không đổi)", "")
+        if ctx.triggered_id == "ads-md-msg" and not xong:
+            raise PreventUpdate
+        return ("modal",) + (no_update,) * 6 + ("",)
+
+    @cb(Output("ads-md-msg", "children", allow_duplicate=True), Output("ads-md-msg", "title"),
+        Output("ads-sua", "data", allow_duplicate=True),
+        Input("ads-md-page-ok", "n_clicks"), State("ads-md-id", "data"), State("ads-md-ten", "value"),
+        State("ads-md-link", "value"), State("ads-md-tt", "value"), prevent_initial_call=True)
+    def _luu_md(_n, pid, ten, link, tt):
+        if not pid:
+            raise PreventUpdate
+        try:
+            ads.sua_page(int(pid), ten, link, tt, current_user.username)
+        except ads.LoiAds as e:
+            return alert(str(e), "bad"), "", no_update
+        return "", gio_viet_nam().isoformat(), gio_viet_nam().isoformat()
+
+    # ------------------------------------------------ kế hoạch
     @cb(Output("ads-g-hoach", "rowData"), Input("ads-thang", "value"), Input("ads-sua", "data"))
     def _hoach(thang, _s):
         tu, den = _ky(thang)
@@ -496,8 +795,11 @@ def register(app):
     @cb(Output("ads-msg-dm", "children"), Output("ads-sua", "data", allow_duplicate=True),
         Input("ads-dm-luu", "n_clicks"), State("ads-g-dm", "rowData"), prevent_initial_call=True)
     def _luu_dm(_n, rows):
-        n = ads.luu_page([{**r, "loai": "cong_ty" if r.get("loai") == "Công ty" else "sale"} for r in rows or []],
-                         current_user.username)
+        try:
+            n = ads.luu_page([{**r, "loai": "cong_ty" if r.get("loai") == "Công ty" else "sale"}
+                              for r in rows or []], current_user.username)
+        except ads.LoiAds as e:
+            return alert(str(e), "bad"), no_update
         return alert(f"Đã lưu {n} page thay đổi.", "ok"), gio_viet_nam().isoformat()
 
     @cb(Output("ads-msg-acc", "children"), Output("ads-sua", "data", allow_duplicate=True),
@@ -525,9 +827,9 @@ def register(app):
                                 "nguoi": current_user.username}, nguon="tay", nguoi=current_user.username)
             if kq["loi"]:
                 return alert("; ".join(kq["loi"]), "bad"), no_update
-            viec.append(f"{lead or 0} lead, {pttb or 0} PTTB")
+            viec.append(f"{lead or 0} số điện thoại, {pttb or 0} PTTB")
         if not viec:
-            return alert("Nhập chi tiêu hoặc lead / PTTB.", "warn"), no_update
+            return alert("Nhập chi tiêu hoặc số điện thoại / PTTB.", "warn"), no_update
         return alert(f"Đã ghi {ten} ngày {ngay[8:10]}/{ngay[5:7]}: {', '.join(viec)}.", "ok"), \
             gio_viet_nam().isoformat()
 

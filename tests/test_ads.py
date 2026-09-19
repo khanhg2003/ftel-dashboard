@@ -117,3 +117,25 @@ def test_bao_cao_bot_telegram():
               headers={"X-Ads-Token": tok}).get_json()
     assert r["ok"] and r["date"] == "01/08/2026 - 31/08/2026" and "ZZ KT MỘT: 2 leads | 1 PTTB" in r["details_text"]
     assert r["total_pttb"] >= 1 and "ineffective_pages_text" in r
+
+
+def test_chi_tiet_page_nhu_trang_tinh_va_sua_page():
+    pid = _pid("ZZ KT HAI")
+    ct = ads.chi_tiet_page(pid, *T)
+    assert [r["ngay"] for r in ct["rows"]] == ["05/08/2026", "15/08/2026", "25/08/2026"]      # ngày tăng dần
+    assert ct["rows"][0]["pic1"] == "ZZ A" and ct["rows"][0]["tien_nguoi"] == "5,00"
+    assert ct["rows"][2]["tien_nguoi"] == "ZZ A 7,00 · ZZ C 3,00" and ct["so_pic"] == 2
+    assert dict(ct["tong_sale"]) == {"ZZ A": 17.0, "ZZ B": 5.0, "ZZ C": 8.0}
+    ads.sua_page(pid, "  ZZ KT Hai  mới ", "facebook.com/zzkt", "Đang nuôi", "kt")
+    p = ads.ds_page().set_index("id").loc[pid]
+    assert (p.ten, p.link, p.tinh_trang) == ("ZZ KT Hai mới", "https://facebook.com/zzkt", "Đang nuôi")
+    with pytest.raises(ads.LoiAds):
+        ads.sua_page(pid, "", None, None, "kt")
+
+
+def test_nhan_dinh_chay_duoc_va_nhom_hieu_qua():
+    assert ads.nhom_hieu_qua(30, 10) == "Hiệu quả cao" and ads.nhom_hieu_qua(80, 10) == "Trung bình"
+    assert ads.nhom_hieu_qua(12, 0) == "Kém" and ads.nhom_hieu_qua(5, 0) == "Chưa đủ dữ liệu"
+    nd = ads.nhan_dinh(*T)
+    assert {"the", "page", "xu_huong", "pheu", "chuoi"} <= set(nd)
+    assert all(t["muc"] in ("bad", "warn", "info", "ok") for t in nd["the"])

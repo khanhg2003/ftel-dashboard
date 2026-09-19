@@ -29,7 +29,7 @@ from app.metrics import cac_ngay_co_du_lieu
 from app.org import loc_chi_nhanh, phong_order
 from app.overview import TEN_DONG_TONG, TEN_PHAM_VI
 from app.ui.components import (LOCALE_VI, alert, card, chi_nhanh_control, chon_ngay, chu_giai, field,
-                               gan_chon_ngay, kpi, seg_control)
+                               gan_chon_ngay, kpi, seg_control, ghi_chu)
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui import tro_ly as tl
@@ -181,9 +181,9 @@ def layout(ky: dict | None = None):
                                   {"label": "Chưa bán kèm V.VIP hoặc Camera", "value": "khong_kem"},
                                   {"label": "Có hợp đồng chờ từ 7 ngày", "value": "ton"}])),
             dcc.Loading(_grid("pt-nv", cao=560)),
-            html.Div("Tỷ lệ tính trên số online của chính nhân viên. Màu so với mức chung các phòng "
-                     "kinh doanh; nhân viên dưới 5 hợp đồng online không tô vì mẫu quá nhỏ.",
-                     className="desc", style={"margin": "10px 0 0"}),
+            ghi_chu("Tỷ lệ tính trên số online của chính nhân viên. Màu so với mức chung các phòng "
+                    "kinh doanh; nhân viên dưới 5 hợp đồng online không tô vì mẫu quá nhỏ.", nhan="Cách đọc màu",
+                    style={"margin": "10px 0 0"}),
         ], className="card", style={} if xem_nv else {"display": "none"}),
     ])
 

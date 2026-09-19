@@ -284,6 +284,7 @@ class AdsPage(Base):
     loai: Mapped[str] = mapped_column(String(10), default="sale")        # sale | cong_ty (không chia cho sale)
     tinh_trang: Mapped[str] = mapped_column(String(20), default="Đang chạy")   # Đang chạy | Đang nuôi | Tắt
     ghi_chu: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    link: Mapped[str | None] = mapped_column(String(300), nullable=True)                # link fanpage
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
