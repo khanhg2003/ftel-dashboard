@@ -191,8 +191,9 @@ def layout(ky: dict | None = None):
                     html.Div([_grid("pt-tinh-bang", cao=420, className="ag-theme-quartz ag-theme-ftel luoi-ke", dashGridOptions={
                                   "rowSelection": {"mode": "singleRow", "checkboxes": False,
                                                    "enableClickSelection": True}}),
-                              html.Div("Bấm một tỉnh trong bảng để xem phường/xã, nhân viên và gói cước của tỉnh "
-                                       "đó.", className="ghi-chu-nhan", style={"marginTop": "6px"})],
+                              html.Div([icon("zoom_in", 14), html.Span("Bấm vào tên tỉnh để xem chi tiết: phường/xã, "
+                                                                      "nhân viên bán, gói cước")],
+                                       className="goi-y-bam", style={"marginTop": "6px"})],
                              className="chart-col"),
                 ], className="chart-row doi"),
                 html.Div([html.H3("Ai bán ở tỉnh nào", style={"margin": 0, "fontSize": "14px"}),
@@ -218,7 +219,9 @@ def layout(ky: dict | None = None):
                                          {"label": p["ten"], "value": p["code"]} for p in phong_order()]),
                         dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
                                   className="o-tim"),
-                    ], className="the-thanh", style={"margin": "0 0 8px", "gap": "8px"}),
+                        html.Div([icon("zoom_in", 14), html.Span("Bấm vào tên nhân viên để xem chi tiết bán + online "
+                                                                "từng tỉnh, từng phường/xã")], className="goi-y-bam"),
+                    ], className="the-thanh", style={"margin": "0 0 8px", "gap": "8px", "flexWrap": "wrap"}),
                     _grid("pt-tinh-nv", cao=480, className="ag-theme-quartz ag-theme-ftel luoi-ke",
                           dashGridOptions={"rowSelection": {"mode": "singleRow", "checkboxes": False,
                                                             "enableClickSelection": True}}),
@@ -794,7 +797,8 @@ def register(app):
             fig.update_xaxes(range=[0, max(x.online.max(), x.ck.max()) * 1.25])
         fig = _fig(fig, max(320, 60 + 30 * len(x)))
         fig.update_layout(legend={"orientation": "h", "y": 1.08}, margin={"l": 110, "r": 30, "t": 30, "b": 20})
-        cot_bang = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130, "flex": 1.3},
+        cot_bang = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130, "flex": 1.3,
+                     "cellClass": "o-bam", "headerTooltip": "Bấm vào tên tỉnh để xem chi tiết"},
                     {"field": "online", "headerName": "Online", "type": "numericColumn", "minWidth": 75, "flex": 1,
                      "valueFormatter": SO},
                     {"field": "ty_trong", "headerName": "Tỷ trọng", "type": "numericColumn", "minWidth": 80, "flex": 1,
@@ -926,8 +930,8 @@ def register(app):
             {"condition": "params.value && params.value >= params.data.tong * 0.05",
              "style": {"backgroundColor": "#E8F5EC"}}]}
         so0 = {"function": "params.value ? params.value : ''"}
-        cot = [{"field": "ho_ten", "headerName": "Nhân viên", "pinned": "left", "minWidth": 160,
-                "tooltipField": "acc"},
+        cot = [{"field": "ho_ten", "headerName": "Nhân viên", "pinned": "left", "minWidth": 170,
+                "cellClass": "o-bam", "headerTooltip": "Bấm vào tên để xem chi tiết"},
                {"field": "phong", "headerName": "Phòng", "pinned": "left", "width": 95},
                {"field": "tong", "headerName": "Tổng", "pinned": "left", "width": 72, "type": "numericColumn",
                 "valueFormatter": SO, "cellStyle": {"fontWeight": "700"}},
