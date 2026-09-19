@@ -223,8 +223,11 @@ def layout(tab: str | None = None):
                      "bên phải là số tiền page đã tiêu trong tháng.",
                      dcc.Graph(id="ads-nd-ma-tran", config={"displayModeBar": False})),
                 html.Div([
-                    _the("Ngân sách đi đâu, PTTB đến từ đâu", "So phần trăm ngân sách mỗi nhóm page đang dùng với "
-                         "phần trăm PTTB nhóm đó mang về. Nhóm Kém dùng nhiều tiền hơn phần PTTB là đang lãng phí.",
+                    _the("Tiền bỏ ra và PTTB thu về", "Chia các page thành 4 nhóm theo chi phí/PTTB (xanh ≤ 6$, "
+                         "vàng 6-10$, đỏ > 10$ hoặc tiêu từ 10$ mà chưa có PTTB, xám = mới chạy, chưa đủ số). Thanh "
+                         "trên: mỗi nhóm tiêu bao nhiêu % tổng tiền. Thanh dưới: mỗi nhóm mang về bao nhiêu % tổng "
+                         "PTTB. Nhóm đỏ chiếm phần tiền lớn hơn phần PTTB là đang tốn tiền kém hiệu quả.",
+                         html.Div(id="ads-nd-nhom-chu", className="nd-viec"),
                          dcc.Graph(id="ads-nd-nhom", config={"displayModeBar": False})),
                     _the("Phễu tin nhắn → số điện thoại → PTTB", "Bao nhiêu tin nhắn thành số điện thoại, bao nhiêu "
                          "số thành PTTB. Chọn page để so với mức chung.",
@@ -391,6 +394,7 @@ def _cau_hinh():
                   "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": ads.TINH_TRANG_PAGE}},
                  {"field": "ghi_chu", "headerName": "Ghi chú ✎", "editable": True, "minWidth": 180, "flex": 1.6},
              ], cao=380, getRowId="params.data.id"),
+             html.Div(id="ads-trung-ten"),
              html.Div(id="ads-msg-dm"),
              nut=html.Button([icon("save", 14), html.Span("Lưu danh mục")], id="ads-dm-luu", className="btn primary")),
         _the("Tên sale ↔ acc", "Nối tên gọi trong phân công (VD 'C. Chi') với acc inside để so chi phí ads với số "
@@ -592,6 +596,7 @@ def register(app):
     @cb(Output("ads-tq-the", "children"), Output("ads-nd-the", "children"), Output("ads-nd-den", "children"),
         Output("ads-nd-ma-tran", "figure"), Output("ads-nd-nhom", "figure"), Output("ads-nd-xu", "rowData"),
         Output("ads-nd-pheu", "rowData"), Output("ads-nd-muc-chung", "children"),
+        Output("ads-nd-nhom-chu", "children"),
         Input("ads-thang", "value"), Input("ads-sua", "data"))
     def _nhan_dinh(thang, _s):
         tu, den = _ky(thang)
@@ -599,12 +604,14 @@ def register(app):
         tp = nd["page"]
         mau = {"Hiệu quả cao": "#1E9E5A", "Trung bình": "#E3A008", "Kém": "#D64534", "Chưa đủ dữ liệu": "#B7C2CE"}
         f1, f2 = go.Figure(), go.Figure()
-        cao1 = 380
+        cao1, chu_nhom = 380, ""
         if len(tp):
             x = tp.assign(_v=tp.cp_pttb.where(tp.pttb > 0)).copy()
             x["_ve"] = x._v.fillna(x.chi_tieu.clip(upper=ads.NGUONG_BINH_THUONG * 1.6))
             x = x.sort_values(["_v"], ascending=False, na_position="first")
             x["_n"] = ads.ten_gon_ds(x.ten)
+            trung = x._n.duplicated(keep=False)
+            x.loc[trung, "_n"] = [f"{n} ({m.title()})" for n, m in zip(x._n[trung], x.ma[trung])]
             f1.add_bar(y=x._n, x=x._ve, orientation="h", marker_color=[mau[n] for n in x.nhom],
                        text=[(f"{ads._tien(v)}$/PTTB" if v == v else "chưa có PTTB") for v in x._v],
                        textposition="inside", insidetextanchor="end", textfont={"size": 10, "color": "white"},
@@ -618,17 +625,31 @@ def register(app):
             f1.add_vline(x=ads.NGUONG_BINH_THUONG, line={"color": "#D64534", "dash": "dot", "width": 1})
             cao1 = 60 + 22 * len(x)
             f1.update_xaxes(range=[0, max(x._ve) * 1.22])
-            g = tp.groupby("nhom")[["ty_trong_chi", "ty_trong_pttb"]].sum().reindex(ads.NHOM_HQ).dropna(how="all")
-            f2.add_bar(x=g.index, y=g.ty_trong_chi, name="% ngân sách", marker_color="#0072BC",
-                       text=[f"{v:.0f}%" for v in g.ty_trong_chi], textposition="outside",
-                       hovertemplate="%{x}: %{y:.1f}% ngân sách<extra></extra>")
-            f2.add_bar(x=g.index, y=g.ty_trong_pttb, name="% PTTB", marker_color="#F37021",
-                       text=[f"{v:.0f}%" for v in g.ty_trong_pttb], textposition="outside",
-                       hovertemplate="%{x}: %{y:.1f}% PTTB<extra></extra>")
+            g = tp.groupby("nhom")[["ty_trong_chi", "ty_trong_pttb"]].sum().reindex(ads.NHOM_HQ).fillna(0)
+            so_page = tp.groupby("nhom").size().reindex(ads.NHOM_HQ).fillna(0).astype(int)
+            ten_nhom = {"Hiệu quả cao": "Tốt", "Trung bình": "Trung bình", "Kém": "Kém", "Chưa đủ dữ liệu": "Mới"}
+            for nhom in ads.NHOM_HQ:
+                if not so_page[nhom]:
+                    continue
+                v = [g.ty_trong_chi[nhom], g.ty_trong_pttb[nhom]]
+                f2.add_bar(y=["Tiền bỏ ra", "PTTB thu về"], x=v, orientation="h", name=f"{ten_nhom[nhom]} "
+                           f"({so_page[nhom]} page)", marker_color=mau[nhom],
+                           text=[f"{x:.0f}%" if x >= 4 else "" for x in v], textposition="inside",
+                           insidetextanchor="middle", textfont={"color": "white", "size": 13},
+                           hovertemplate=f"{ten_nhom[nhom]}: " + "%{x:.1f}%<extra></extra>")
+            k = g.loc["Kém"] if "Kém" in g.index else None
+            if k is not None and k.ty_trong_chi > 0:
+                chu_nhom = (f"Nhóm Kém ({so_page['Kém']} page) tiêu {k.ty_trong_chi:.0f}% tổng tiền nhưng chỉ mang về "
+                            f"{k.ty_trong_pttb:.0f}% PTTB. Nhóm Tốt ({so_page['Hiệu quả cao']} page) tiêu "
+                            f"{g.ty_trong_chi['Hiệu quả cao']:.0f}% tiền, mang về {g.ty_trong_pttb['Hiệu quả cao']:.0f}% PTTB.")
+            else:
+                chu_nhom = "Không có page nào ở nhóm Kém."
         _bo_cuc(f1, cao1, showlegend=False, bargap=.25,
                 xaxis={"title": "Chi phí / PTTB ($)", "gridcolor": "#EEF2F6", "side": "top"},
                 yaxis={"autorange": "reversed", "tickfont": {"size": 11}}, margin={"l": 10, "r": 10, "t": 40, "b": 10})
-        _bo_cuc(f2, 300, barmode="group", yaxis={"title": None, "ticksuffix": "%", "gridcolor": "#EEF2F6"})
+        _bo_cuc(f2, 200, barmode="stack", bargap=.35, legend={"orientation": "h", "y": -0.25},
+                xaxis={"visible": False, "range": [0, 100]}, yaxis={"autorange": "reversed", "tickfont": {"size": 12}},
+                margin={"l": 90, "r": 10, "t": 6, "b": 10})
         den_ = html.Span(f"Tính đến {nd['den']:%d/%m}", className="badge muted") if nd["den"] else None
         muc = []
         if nd["tl_so"]:
@@ -642,7 +663,8 @@ def register(app):
         if len(ph):
             ph = ph.assign(_c=ph.van_de.eq("")).sort_values(["_c", "tin_nhan"], ascending=[True, False]) \
                    .drop(columns="_c")
-        return (_the_nd(nd["the"], 4), _the_nd(nd["the"]), den_, f1, f2, _ban_ghi(xu), _ban_ghi(ph), " · ".join(muc))
+        return (_the_nd(nd["the"], 4), _the_nd(nd["the"]), den_, f1, f2, _ban_ghi(xu), _ban_ghi(ph), " · ".join(muc),
+                chu_nhom)
 
     @cb(Output("ads-pheu-page", "options"), Output("ads-nd-pheu-bd", "figure"),
         Input("ads-pheu-page", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"))
@@ -808,10 +830,11 @@ def register(app):
     @cb(Output("ads-g-pic", "rowData"), Output("ads-g-dm", "rowData"), Output("ads-g-sale-acc", "rowData"),
         Output("ads-g-lead", "rowData"), Output("ads-pic-page", "options"), Output("ads-pic-sale", "options"),
         Output("ads-tay-page", "options"), Output("ads-token-tt", "children"), Output("ads-mau-json", "children"),
+        Output("ads-trung-ten", "children"),
         Input("ads-tab", "value"), Input("ads-sua", "data"), State("ads-thang", "value"))
     def _nap_cau_hinh(tab, _s, thang):
         if tab != "cauhinh":
-            return (no_update,) * 9
+            return (no_update,) * 10
         from flask import request
         pg = ads.ds_page()
         ten = dict(zip(pg.id, pg.ten))
@@ -833,7 +856,9 @@ def register(app):
               html.Span("Chưa có mã kết nối - bấm 'Tạo mã kết nối mới'.", className="badge warn"))
         return (_ban_ghi(pic, ["id", "page", "sale", "tu", "den", "ty_le"]), _ban_ghi(dm),
                 _ban_ghi(sale), _ban_ghi(lg), opt_pg, [{"label": x, "value": x} for x in sale.ten], opt_pg, tt,
-                _mau_json(request.host_url.rstrip("/")))
+                _mau_json(request.host_url.rstrip("/")),
+                [alert(f"Tên '{t}' đang dùng cho {len(m)} page ({', '.join(m)}) - sửa cho mỗi page một tên riêng.",
+                       "warn") for t, m in ads.trung_ten()])
 
     @cb(Output("ads-token-tt", "children", allow_duplicate=True), Input("ads-tao-ma", "n_clicks"),
         prevent_initial_call=True)

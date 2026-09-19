@@ -462,10 +462,38 @@ def nhat_ky_lead(tu: date, den: date) -> pd.DataFrame:
 
 
 # ------------------------------------------------------------------ cấu hình
+def _khoa_ten(ten) -> str:
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", str(ten or ""))).strip().lower()
+
+
+def _kiem_trung_ten(s, doi: dict[int, str]) -> None:
+    """Không cho hai page trùng tên hiển thị (biểu đồ / bảng sẽ không phân biệt được). `doi` = {page_id: tên mới}."""
+    ten = {p.id: p.ten for p in s.execute(select(AdsPage)).scalars()}
+    ten.update(doi)
+    gap = {}
+    for pid, t in ten.items():
+        gap.setdefault(_khoa_ten(t), []).append(pid)
+    for pid, t in doi.items():
+        khac = [i for i in gap[_khoa_ten(t)] if i != pid]
+        if khac:
+            ma = s.get(AdsPage, khac[0]).ma
+            raise LoiAds(f"Tên '{t}' đang dùng cho page {ma} - mỗi page cần một tên riêng để không lẫn trên báo cáo.")
+
+
+def trung_ten() -> list[tuple[str, list[str]]]:
+    """Các tên hiển thị đang bị nhiều page dùng chung: [(tên, [tên chuẩn...])]."""
+    pg = ds_page()
+    pg["k"] = [_khoa_ten(t) for t in pg.ten]
+    return [(g.ten.iloc[0], list(g.ma)) for _, g in pg.groupby("k") if len(g) > 1]
+
+
 def luu_page(rows: list[dict], nguoi: str) -> int:
     dam_bao_bang()
     n = 0
     with session_scope() as s:
+        _kiem_trung_ten(s, {int(r["id"]): str(r.get("ten") or "").strip() for r in rows
+                            if str(r.get("ten") or "").strip()
+                            and _khoa_ten(r.get("ten")) != _khoa_ten(s.get(AdsPage, int(r["id"])).ten)})
         for r in rows:
             p = s.get(AdsPage, int(r["id"]))
             if p is None:
@@ -779,6 +807,8 @@ def sua_page(page_id: int, ten: str | None, link: str | None, tinh_trang: str | 
         if p is None:
             raise LoiAds("Không tìm thấy page.")
         cu = p.ten
+        if _khoa_ten(ten) != _khoa_ten(cu):
+            _kiem_trung_ten(s, {p.id: ten})
         p.ten, p.link = ten[:120], lk
         if tinh_trang in TINH_TRANG_PAGE:
             p.tinh_trang = tinh_trang

@@ -139,3 +139,10 @@ def test_nhan_dinh_chay_duoc_va_nhom_hieu_qua():
     nd = ads.nhan_dinh(*T)
     assert {"the", "page", "xu_huong", "pheu", "chuoi"} <= set(nd)
     assert all(t["muc"] in ("bad", "warn", "info", "ok") for t in nd["the"])
+
+
+def test_khong_cho_hai_page_trung_ten():
+    with pytest.raises(ads.LoiAds, match="đang dùng cho page"):
+        ads.sua_page(_pid("ZZ KT MỘT"), "zz kt  hai mới", None, None, "kt")        # trùng tên (khác hoa thường)
+    with pytest.raises(ads.LoiAds):
+        ads.luu_page([{"id": _pid("ZZ KT BA"), "ten": "ZZ KT Hai mới"}], "kt")
