@@ -1,0 +1,134 @@
+# AGENTS.md: quy tắc khi sửa hoặc thêm chức năng
+
+Người (hoặc AI) sửa code app này phải đọc file này trước. Mục tiêu:
+
+- con số luôn đúng;
+- code không phình, không lặp;
+- trang vẫn nhanh;
+- quyền xem luôn được giữ.
+
+Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với người không rành kỹ thuật.
+
+---
+
+## 1. App là gì, nằm ở đâu
+
+- **Việc app làm:** Dash 4 + dash-ag-grid + Plotly + pandas + SQLAlchemy + Flask-Login. App thay các Google Sheet báo cáo bán hàng và nhân sự của chi nhánh Đà Nẵng + Quảng Nam.
+- **Chạy thật:** Vercel (`api/index.py`, vùng Tokyo) + Supabase Postgres (Tokyo).
+- **Trên máy:** SQLite `data/ftel.db`. Test dùng `data/kiemthu.db`, dựng từ dữ liệu gốc kỳ 01-11/09/2026.
+- **Quy tắc nghiệp vụ** (công thức Tracking, gán phòng, MTTN, số tồn, camera...) nằm ở `config/rules.yml`, `config/org.yml` và docstring từng module. **Không đoán quy tắc.** Không rõ thì hỏi chủ app rồi ghi lại.
+
+### Bản đồ code: đặt đúng chỗ, không tạo file trùng việc
+
+| Việc | File |
+|---|---|
+| Đọc / ghi số liệu, công thức (không có giao diện) | `app/*.py`: `metrics.py`, `overview.py`, `phan_tich.py`, `hr_metrics.py`, `ads.py`, `ads_phan_tich.py`... |
+| Nạp file Excel / CSV | `app/ingest/` (`loader.py` đọc, `commit.py` ghi) |
+| Cơ cấu bầy / phòng, gán phòng | `app/org.py` (có bộ nhớ tạm riêng + `xoa_cache_org()`) |
+| Quyền, người dùng, ghi nhật ký | `app/auth.py` (`ghi_log`, `loc_nhan_su`, `phong_duoc_xem`, `phong_nhan_su`) |
+| Nhớ tạm kết quả đọc database | `app/bo_nho.py` (`@nho`, `@ghi`, `xoa`) |
+| Thành phần giao diện dùng chung | `app/ui/components.py` (`tip`, `tieu_de`, `ghi_chu`, `card`, `kpi`, `field`, `seg_control`, `modal`, `cua_so`, `alert`, `callback_can_quyen`...) |
+| Bảng + định dạng số | `app/ui/luoi.py` (`bang`, `SO`, `SO_1`, `PCT`, `PCT_GACH`, `PCT_DAU`, `CHENH`, `CHENH_PCT`, `USD`, `USD_D`, `VND`) |
+| Kỳ báo cáo dùng chung giữa các trang | `app/ui/ky_chung.py` |
+| Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
+| CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
+
+---
+
+## 2. Chống phình code (bắt buộc)
+
+1. **Tìm trước khi viết.** Trước khi thêm hàm, định dạng, bảng, cửa sổ, thẻ: grep xem đã có chưa (`app/ui/components.py`, `app/ui/luoi.py`, module số liệu tương ứng). Có rồi thì dùng lại; thiếu một chút thì **mở rộng hàm chung**, không chép ra bản mới.
+2. **Không định nghĩa lại** `SO = {"function": ...}`, `PCT`, `_grid` trong trang. Import từ `app/ui/luoi.py`. Bảng mới dùng `bang(...)`, hoặc hàm `_grid` mỏng của trang đó (chỉ để đặt mặc định riêng).
+3. **Cửa sổ nổi:**
+   - xem chi tiết → `cua_so(id, ...)`;
+   - có nút Lưu / Huỷ → `modal(...)`.
+   Không tự dựng `modal-nen` / `modal-hop` bằng tay.
+4. **Ghi chú / giải thích:**
+   - dùng `tip()` (ⓘ rê chuột), `tieu_de(chu, ghi_chu)`, `card(desc=...)`, `ghi_chu(...)`;
+   - viết thành các câu ngắn, có dấu chấm: app tự tách mỗi câu một dòng;
+   - không để đoạn chữ dài nằm ngoài giao diện.
+5. **Giới hạn kích thước:** một file không quá **~900 dòng**, một hàm không quá **~80 dòng**. Vượt thì tách theo tab / khối. Mẫu có sẵn:
+   - `ads.py` → `ads_phan_tich.py`;
+   - `pages/ads.py` → `ads_cau_hinh.py`;
+   - `pages/phantich.py` → `phantich_tinh.py`.
+   Module con import helper từ module mẹ. Module mẹ import module con **trong hàm** (`layout()`, `register()`) để tránh vòng lặp import. Nếu nơi khác đang gọi `module_me.ham`, thì nạp lại tên đó ở cuối module mẹ.
+6. **Xoá thẳng code chết**: hàm không còn gọi, tab đã bỏ, file trùng. Không comment-out, không để "phòng khi cần" (git đã giữ lịch sử). **Không xoá dữ liệu / bảng trong database** khi chưa được chủ app đồng ý.
+7. **Đặt tên** theo cách đang dùng: tiếng Việt không dấu, chữ thường, gạch dưới (`theo_ngay`, `chi_tiet_tinh`, `ban_online_ngay`). Id Dash có tiền tố trang: `ads-`, `pt-`, `tq-`, `hr-`, `st-`...
+8. **Docstring ngắn**, nói *vì sao / quy tắc nghiệp vụ*, không kể lại code làm gì. Ít chú thích trong thân hàm, chỉ ghi chỗ không hiển nhiên.
+9. Không thêm thư viện mới vào `requirements.txt` nếu làm được bằng thư viện đang có.
+10. Sửa xong chạy `ruff check app --select F,E9`: **không được có cảnh báo** (import / biến không dùng, tên chưa định nghĩa).
+
+---
+
+## 3. Tốc độ
+
+1. **Hàm đọc database mà nhiều callback cùng gọi thì gắn `@nho("<nhóm>")`** (`app/bo_nho.py`). Nhóm hiện có:
+   - `so_lieu`: bảng fact, danh sách ngày;
+   - `ads`: dữ liệu Ads IBB7.
+   Tham số phải hashable (list tự đổi sang tuple). Kết quả trả ra là bản sao, **không sửa tại chỗ** DataFrame con nằm trong dict trả về.
+2. **Hàm ghi dữ liệu gắn `@ghi("<nhóm>")`** hoặc gọi `xoa("<nhóm>")`, để số mới hiện ngay. Thêm bảng hoặc đường ghi mới thì phải nghĩ: đọc của nhóm nào sẽ bị cũ?
+3. **Mỗi lượt callback đọc một lần rồi dùng chung.** Truyền DataFrame đã đọc vào hàm con (như `theo_page(tu, den, ck, df)`), không gọi lại `theo_ngay(...)` nhiều lần.
+4. **Tab / khối đang ẩn không tính.** Callback của tab phải có `Input("<trang>-tab", "value")` và `raise PreventUpdate` (hoặc trả `no_update`) khi tab đó không mở. Nội dung cửa sổ chi tiết dựng khi mở, không dựng sẵn.
+5. **Không hỏi database trong vòng lặp** (mỗi phòng / mỗi ngày một câu). Đọc một lần theo khoảng rồi `groupby` bằng pandas, hoặc để SQL tự cộng.
+6. **`layout()` phải nhẹ.** Chỉ đọc danh sách ngày / tháng / phòng (đã nhớ tạm). Số liệu nặng để callback nạp.
+
+---
+
+## 4. Số liệu đúng
+
+1. **Đổi công thức hay cách đếm nào thì phải đối chiếu số thật** (sheet, hoặc số cũ đã khớp) trước và sau khi sửa. Báo cáo Tổng đã đối chiếu khớp với sheet: đừng làm lệch.
+2. **Quy tắc đã chốt** (xem thêm docstring và `config/rules.yml`):
+   - *Kỳ:* luỹ kế so cùng kỳ tháng trước; khoảng tự chọn so khoảng liền trước cùng số ngày. Cùng kỳ tính tới ngày có số cuối cùng.
+   - *Trưởng phòng:* **không** vào chỉ số cá nhân (xếp hạng, bảng nhân viên, cảnh báo...); số bán vẫn cộng cho phòng (`acc_truong_phong()`).
+   - *Tên gọi trong giao diện:* dùng "online" / "chưa online", **không bao giờ viết "đấu nối"** (có test kiểm tra). Tránh chữ "kỳ" trơn: ghi "tháng 9", "tháng trước", "khoảng trước đó", "cùng kỳ T8".
+   - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`). Tiền nhập tay tổng tháng không vẽ theo ngày. Page Trung lập = tài khoản công ty, không chia cho sale.
+3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
+4. Định dạng kiểu Việt Nam: `1.234`, `5,40 $`, `45%`. Khi tự `.replace(",", ".")` thì **chỉ áp lên con số**, không áp lên cả câu.
+
+---
+
+## 5. Quyền và dữ liệu nhạy cảm
+
+1. **Ẩn trên giao diện là chưa đủ.** Callback trả dữ liệu hạn chế phải kiểm quyền ở máy chủ: dùng `callback_can_quyen(app, "duoc_cau_hinh")`, hoặc kiểm `current_user` đầu callback rồi `raise PreventUpdate`.
+2. **Hai lớp dữ liệu:**
+   - *Số chung* (`phong_duoc_xem()`): theo phòng / bầy / chi nhánh.
+   - *Chi tiết nhân sự* (`phong_nhan_su()`, `loc_nhan_su()`): tên, acc, số từng người.
+   Dữ liệu từng người luôn đi qua lớp thứ hai.
+3. **Chỉ Quản trị:** Ads IBB7, Bán theo tỉnh, Cấu hình, file NSLĐ / danh mục nhân viên.
+4. **Ghi nhật ký** (`ghi_log` / `AuditLog`): xuất Excel / file, nạp / gỡ file, sửa cấu hình, xoá, gọi AI.
+5. **Không gửi lên AI** tên khách hàng hay dữ liệu vượt quyền của người hỏi.
+6. **Không in ra** chuỗi kết nối database, mật khẩu, token, API key: kể cả trong log, thông báo lỗi hay câu trả lời. Khoá OpenAI chỉ nằm ở máy chủ.
+
+---
+
+## 6. Giao diện
+
+- **Bảng dài** thì đặt `cao` cố định để cuộn trong khung. Bảng Ads / tỉnh dùng lớp `luoi-ke` (kẻ ô).
+- **Ô bấm được để mở chi tiết:** `cellClass: "o-bam"` + dòng gợi ý `goi-y-bam`.
+- **Màu đánh giá** tối đa 3 mức: xanh tốt · vàng trung bình · đỏ cần xử lý. Chi tiêu (không tốt không xấu) dùng thang xanh dương.
+- **dash-ag-grid:**
+  - chuỗi `valueFormatter` / `styleConditions` **không dùng** `typeof`, `===`, `isNaN`;
+  - `getRowId` hay ra "undefined": chọn dòng bằng `rowSelection` + `selectedRows`;
+  - `cellDoubleClicked` không có dữ liệu dòng: ghép với `selectedRows`.
+- **Component Dash** là falsy (có `__len__`): kiểm bằng `is not None`, không dùng `if comp`.
+- **Mọi trang phải dùng được ở màn laptop hẹp** (khoảng 800 px): lưới 2-3 cột phải tự xuống 1 cột.
+
+---
+
+## 7. Quy trình mỗi lần sửa
+
+1. Đọc code liên quan và quy tắc nghiệp vụ. Không chắc về số / quy tắc → hỏi chủ app **trước** khi viết.
+2. Sửa ít nhất có thể, đúng chỗ theo bản đồ ở mục 1.
+3. **Thêm / sửa test** cho công thức hoặc hàm dữ liệu mới (`tests/`).
+4. Chạy:
+   - `ruff check app --select F,E9`: không có lỗi;
+   - `python -m pytest -q`: toàn bộ pass. Hiện có 3 lỗi cũ ở `tests/test_he_thong_hoa.py`, không liên quan; không được có lỗi mới.
+5. **Nhìn thật trên giao diện** (bản xem thử `xem-thu`, cổng 8051, tự đăng nhập admin): trang mở được, bảng / biểu đồ ra số, không có lỗi console hay server. Sửa code Python thì phải khởi động lại bản xem thử.
+6. **Dữ liệu thật (Supabase):** chỉ đọc để đối chiếu. Mọi thao tác ghi / xoá phải được chủ app đồng ý rõ ràng, và phải sao lưu các dòng sẽ xoá trước.
+7. **Commit:**
+   - `git add` **từng file cụ thể**, không bao giờ `git add -A` / `git add .`;
+   - không đưa lên `data/`, `*.csv`, `*.xlsx`, `*.db`, `.env`, file bí mật;
+   - tác giả `git -c user.name=khanhg2003 commit`;
+   - lời commit nói rõ *đổi gì, vì sao*;
+   - cuối lời commit có dòng: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+8. **Báo lại cho chủ app** bằng tiếng Việt ngắn gọn: đã đổi gì, kiểm tra thế nào, còn gì chưa làm hoặc cần họ quyết.
