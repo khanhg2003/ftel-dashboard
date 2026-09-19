@@ -316,7 +316,7 @@ def register(app):
             kpi("Tỷ lệ chốt", "–" if t["ty_le_chot"] is None else f"{t['ty_le_chot']:.0f}%", "PTTB / lead"),
             kpi("Page có chi tiêu", so_vn(t["so_page"]), f"tỷ giá {so_vn(t['ty_gia'])}"),
         ]
-        badge = (html.Span(f"Số đến {t['ngay_moi_nhat']:%d/%m}", className="badge muted")
+        badge = (html.Span(f"Ads đến {t['ngay_moi_nhat']:%d/%m}", className="badge muted")
                  if t["ngay_moi_nhat"] else html.Span("Chưa có số tháng này", className="badge warn"))
         tp = ads.theo_page(tu, den)
         df = ads.theo_ngay(tu, den)
