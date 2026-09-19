@@ -168,3 +168,22 @@ def test_khong_cho_hai_page_trung_ten():
         ads.sua_page(_pid("ZZ KT MỘT"), "zz kt  hai mới", None, None, "kt")        # trùng tên (khác hoa thường)
     with pytest.raises(ads.LoiAds):
         ads.luu_page([{"id": _pid("ZZ KT BA"), "ten": "ZZ KT Hai mới"}], "kt")
+
+
+def test_them_page_va_sale():
+    msg = ads.them_page("zz kt  năm", "ZZ KT Năm hiển thị", "sale", "facebook.com/zz5", None, "kt")
+    assert "ZZ KT NĂM" in msg
+    p = ads.ds_page().set_index("ma").loc["ZZ KT NĂM"]
+    assert (p.ten, p.loai, p.tinh_trang, p.link) == ("ZZ KT Năm hiển thị", "sale", "Đang chạy", "https://facebook.com/zz5")
+    with pytest.raises(ads.LoiAds, match="Đã có page"):
+        ads.them_page("ZZ KT NĂM", None, "sale", None, None, "kt")
+    with pytest.raises(ads.LoiAds, match="đang dùng cho page"):
+        ads.them_page("ZZ KT SÁU", "zz kt năm hiển thị", "sale", None, None, "kt")          # trùng tên hiển thị
+    assert ads.ds_page().ma.eq("ZZ KT SÁU").sum() == 0                                     # không tạo dở
+    ads.them_page("ZZ KT TRUNG LẬP 9", None, "sale", None, None, "kt")
+    pg = ads.ds_page()
+    assert pg[pg.ma == ads.chuan_ma("ZZ KT TRUNG LẬP 9")].loai.tolist() == ["cong_ty"]
+    ads.them_sale("ZZ Lan", "DNG.ZzLan", "kt")
+    assert ads.ds_sale().set_index("ten").acc["ZZ Lan"] == "DNG.ZzLan"
+    with pytest.raises(ads.LoiAds, match="Đã có sale"):
+        ads.them_sale("zz  lan", None, "kt")

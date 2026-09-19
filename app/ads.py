@@ -532,6 +532,43 @@ def luu_page(rows: list[dict], nguoi: str) -> int:
     return n
 
 
+def them_page(ma, ten: str | None, loai: str, link: str | None, tinh_trang: str | None, nguoi: str) -> str:
+    """Tạo page trước khi có số (VD page chạy tài khoản ngoài n8n để nhập tay). `ma` = tên chuẩn n8n / bot sẽ gửi."""
+    dam_bao_bang()
+    ma_c = chuan_ma(ma)
+    if not ma_c:
+        raise LoiAds("Nhập tên chuẩn của page (tên n8n / bot Telegram gửi lên).")
+    ten = re.sub(r"\s+", " ", str(ten or "")).strip() or str(ma).strip()
+    lk = chuan_link(link)
+    with session_scope() as s:
+        if s.execute(select(AdsPage).where(AdsPage.ma == ma_c)).scalars().first():
+            raise LoiAds(f"Đã có page tên chuẩn '{ma_c}'.")
+        s.add(p := AdsPage(ma=ma_c, ten=ten[:120], link=lk,
+                           loai="cong_ty" if loai in ("cong_ty", "Công ty") or "TRUNG LẬP" in ma_c else "sale",
+                           tinh_trang=tinh_trang if tinh_trang in TINH_TRANG_PAGE else "Đang chạy"))
+        s.flush()
+        _kiem_trung_ten(s, {p.id: p.ten})
+        s.add(AuditLog(username=nguoi, action="ads_them_page", detail=f"{ma_c} ({p.ten})"))
+    return f"Đã thêm page {ten} (tên chuẩn {ma_c})."
+
+
+def them_sale(ten: str, acc: str | None, nguoi: str) -> str:
+    """Thêm tên gọi sale (dùng trong phân công page) và acc inside."""
+    dam_bao_bang()
+    ten = re.sub(r"\s+", " ", str(ten or "")).strip()
+    if not ten:
+        raise LoiAds("Nhập tên gọi của sale (VD: C. Lan).")
+    if len(ten) > 60:
+        raise LoiAds("Tên gọi tối đa 60 ký tự.")
+    with session_scope() as s:
+        trung = [x.ten for x in s.execute(select(AdsSale)).scalars() if khoa_sale(x.ten) == khoa_sale(ten)]
+        if trung:
+            raise LoiAds(f"Đã có sale '{trung[0]}'.")
+        s.add(AdsSale(ten=ten, acc=str(acc or "").strip() or None))
+        s.add(AuditLog(username=nguoi, action="ads_them_sale", detail=ten))
+    return f"Đã thêm sale {ten}."
+
+
 def them_pic(page_id: int, sales: list[str], tu: date, den: date | None, nguoi: str,
              ty_le: list[float | None] | None = None) -> str:
     """Khai sale chạy page từ ngày `tu` (đến `den`, trống = đến nay). Các khai báo cũ còn mở của page được đóng lại

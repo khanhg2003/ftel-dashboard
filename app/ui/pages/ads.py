@@ -442,15 +442,44 @@ def _cau_hinh():
                   "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": ads.TINH_TRANG_PAGE}},
                  {"field": "ghi_chu", "headerName": "Ghi chú ✎", "editable": True, "minWidth": 180, "flex": 1.6},
              ], cao=380, getRowId="params.data.id"),
+             html.Details([
+                 html.Summary("+ Thêm page mới", className="cg-tieu-de"),
+                 html.Div([
+                     field("Tên chuẩn (n8n / bot gửi)", dcc.Input(id="ads-pm-ma", className="inp",
+                                                                   placeholder="VD: BÌNH PHƯỚC")),
+                     field("Tên hiển thị", dcc.Input(id="ads-pm-ten", className="inp", placeholder="trống = như tên chuẩn")),
+                     field("Loại", dcc.Dropdown(id="ads-pm-loai", value="sale", clearable=False, searchable=False,
+                                                options=[{"label": "Sale", "value": "sale"},
+                                                         {"label": "Công ty (Trung lập)", "value": "cong_ty"}],
+                                                style={"minWidth": "170px"})),
+                     field("Tình trạng", dcc.Dropdown(id="ads-pm-tt", value="Đang chạy", clearable=False,
+                                                      searchable=False, style={"minWidth": "130px"},
+                                                      options=[{"label": x, "value": x} for x in ads.TINH_TRANG_PAGE])),
+                     field("Link fanpage", dcc.Input(id="ads-pm-link", className="inp",
+                                                     placeholder="https://www.facebook.com/…")),
+                     field(" ", html.Button([icon("plus", 14), html.Span("Thêm page")], id="ads-pm-them",
+                                            className="btn primary")),
+                 ], className="toolbar", style={"flexWrap": "wrap", "marginTop": "8px"}),
+                 html.Div("Tên chuẩn phải đúng tên n8n / bot Telegram sẽ gửi (không phân biệt hoa thường, khoảng trắng)"
+                          " để số tự vào đúng page. Thêm xong nhớ khai người chạy page ở mục trên.",
+                          className="ghi-chu-nhan"),
+             ], className="chu-giai", style={"marginTop": "10px"}),
+             html.Div(id="ads-msg-pm"),
              html.Div(id="ads-trung-ten"),
              html.Div(id="ads-msg-dm"),
              nut=html.Button([icon("save", 14), html.Span("Lưu danh mục")], id="ads-dm-luu", className="btn primary")),
-        _the("Tên sale ↔ acc", "Nối tên gọi trong phân công (VD 'C. Chi') với acc inside để so chi phí ads với số "
-             "online thật của sale. Sửa cột Acc (bấm đúp) rồi Lưu.",
+        _the("Sale và acc", "Danh sách sale dùng khi khai người chạy page. Thêm sale mới ở dưới bảng; sửa cột Acc "
+             "(bấm đúp) rồi Lưu.",
              _grid("ads-g-sale-acc", [
                  {"field": "ten", "headerName": "Tên gọi", "minWidth": 140, "flex": 1},
                  {"field": "acc", "headerName": "Acc inside ✎", "editable": True, "minWidth": 180, "flex": 1.4}],
                  cao=320, getRowId="params.data.ten"),
+             html.Div([
+                 field("Tên gọi sale mới", dcc.Input(id="ads-sm-ten", className="inp", placeholder="VD: C. Lan")),
+                 field("Acc inside", dcc.Input(id="ads-sm-acc", className="inp", placeholder="VD: DNG.LanNT5")),
+                 field(" ", html.Button([icon("plus", 14), html.Span("Thêm sale")], id="ads-sm-them",
+                                        className="btn primary")),
+             ], className="toolbar", style={"flexWrap": "wrap", "marginTop": "10px"}),
              html.Div(id="ads-msg-acc"),
              nut=html.Button([icon("save", 14), html.Span("Lưu acc")], id="ads-acc-luu", className="btn primary")),
         _the("Nhập tay", "Cho page không có số từ n8n (VD chạy tài khoản khác) hoặc bổ sung lead / PTTB khi bot "
@@ -1136,6 +1165,29 @@ def register(app):
         except ads.LoiAds as e:
             return alert(str(e), "bad"), no_update
         return alert(f"Đã lưu {n} page thay đổi.", "ok"), gio_viet_nam().isoformat()
+
+    @cb(Output("ads-msg-pm", "children"), Output("ads-sua", "data", allow_duplicate=True),
+        Output("ads-pm-ma", "value"), Output("ads-pm-ten", "value"), Output("ads-pm-link", "value"),
+        Input("ads-pm-them", "n_clicks"), State("ads-pm-ma", "value"), State("ads-pm-ten", "value"),
+        State("ads-pm-loai", "value"), State("ads-pm-tt", "value"), State("ads-pm-link", "value"),
+        prevent_initial_call=True)
+    def _them_page(_n, ma, ten, loai, tt, link):
+        try:
+            msg = ads.them_page(ma, ten, loai, link, tt, current_user.username)
+        except ads.LoiAds as e:
+            return alert(str(e), "bad"), no_update, no_update, no_update, no_update
+        return alert(msg, "ok"), gio_viet_nam().isoformat(), "", "", ""
+
+    @cb(Output("ads-msg-acc", "children", allow_duplicate=True), Output("ads-sua", "data", allow_duplicate=True),
+        Output("ads-sm-ten", "value"), Output("ads-sm-acc", "value"),
+        Input("ads-sm-them", "n_clicks"), State("ads-sm-ten", "value"), State("ads-sm-acc", "value"),
+        prevent_initial_call=True)
+    def _them_sale(_n, ten, acc):
+        try:
+            msg = ads.them_sale(ten, acc, current_user.username)
+        except ads.LoiAds as e:
+            return alert(str(e), "bad"), no_update, no_update, no_update
+        return alert(msg + " Giờ có thể chọn sale này ở Người chạy page.", "ok"), gio_viet_nam().isoformat(), "", ""
 
     @cb(Output("ads-msg-acc", "children"), Output("ads-sua", "data", allow_duplicate=True),
         Input("ads-acc-luu", "n_clicks"), State("ads-g-sale-acc", "rowData"), prevent_initial_call=True)
