@@ -88,10 +88,17 @@ def healthz():
         return {"status": "loi", "chi_tiet": type(e).__name__}, 503
 
 
+from app.api_ads import bp as _api_ads  # noqa: E402
+
+server.register_blueprint(_api_ads)
+
+
 @server.before_request
 def _bat_buoc_dang_nhap():
     path = request.path
     if path.startswith("/assets/") or path in ("/login", "/logout", "/favicon.ico", "/healthz"):
+        return None
+    if path.startswith("/api/ads/"):          # n8n / bot Telegram: xác thực bằng mã kết nối (app/api_ads.py)
         return None
     if not current_user.is_authenticated:
         if path.startswith("/_dash"):
@@ -120,6 +127,7 @@ NAV = [
     ]),
     ("Phân tích", [
         ("/phantich", "Phân tích bán hàng", "pie", None),
+        ("/ads", "Ads IBB7", "trend", "settings"),
     ]),
     ("Dữ liệu", [
         ("/upload", "Nạp dữ liệu", "upload", "upload"),
@@ -351,6 +359,11 @@ def _router(path, search=None, store=None):
         return dienbien.layout(tab, ky), dienbien.topbar(tab)
     if path == "/chatluong":
         return chatluong.layout(ky), chatluong.topbar()
+    if path == "/ads":
+        from app.ui.pages import ads as ads_page
+        if not current_user.duoc_cau_hinh:
+            return html.Div("Chỉ tài khoản Quản trị được xem mục Ads IBB7."), _topbar_simple("Ads IBB7")
+        return ads_page.layout(tab), ads_page.topbar()
     if path in ("/quantri", "/settings"):
         if not current_user.duoc_cau_hinh:
             return html.Div("Bạn không có quyền vào mục Quản trị."), _topbar_simple("Quản trị")
@@ -390,8 +403,9 @@ def _register_pages():
 
     from app.ui import tro_ly
 
+    from app.ui.pages import ads as ads_page
     for mod in (tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
-                settings_page, huongdan, taikhoan, tro_ly):
+                settings_page, huongdan, taikhoan, tro_ly, ads_page):
         mod.register(app)
 
 

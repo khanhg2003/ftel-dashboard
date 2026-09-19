@@ -69,6 +69,10 @@ def layout():
                     "Tỷ lệ bán kèm V.VIP / Camera, trả trước, online trong 1 ngày theo từng phòng và "
                     "nhân viên - màu so với mức chung chi nhánh. Mục ", html.B("Số tồn theo thời "
                     "gian chờ"), " có danh sách hợp đồng chờ từ 7 ngày để đôn đốc."]),
+                _muc("Ads IBB7 (chỉ Quản trị)", "Chi tiêu quảng cáo Facebook và chi phí từng sale", [
+                    "n8n gửi chi tiêu hôm qua lúc 7h30, bot Telegram gửi lead / PTTB thẳng vào app (Cấu hình → Kết "
+                    "nối n8n). Người chạy page khai theo khoảng ngày, chi phí mỗi ngày chia đều hoặc theo tỷ lệ "
+                    "đã khai. Page mới tự xuất hiện; không phải đổi file mỗi tháng."]),
                 _muc("Tracking ngày & So sánh", "Số đi thế nào theo thời gian", [
                     html.B("Tab 1 Tracking ngày"), ": mỗi cột là một ngày, màu ô so với mức trung bình "
                     "của chính phòng đó (xanh ngày tốt, đỏ ngày hụt). ", html.B("Tab 2 So sánh"),

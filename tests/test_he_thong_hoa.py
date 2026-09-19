@@ -205,7 +205,7 @@ def _cac_id(node, out=None):
 def test_menu_con_8_muc_theo_nhom():
     from app.ui.app import NAV
     muc = [href for _, ds in NAV for href, *_ in ds]
-    assert len(muc) == 8 and len(set(muc)) == 8
+    assert len(muc) == 9 and len(set(muc)) == 9
     assert "/settings" not in muc and "/sosanh" not in muc
     assert [n for n, _ in NAV] == ["Hằng ngày", "Phòng & nhân sự", "Phân tích", "Dữ liệu", "Hệ thống"]
 

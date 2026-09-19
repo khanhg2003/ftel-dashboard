@@ -272,3 +272,80 @@ class AiNhanXet(Base):
     noi_dung: Mapped[str] = mapped_column(Text)
     username: Mapped[str | None] = mapped_column(String(60), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+# ---------------------------------------------------------------- quảng cáo Facebook IBB7
+class AdsPage(Base):
+    """Fanpage chạy quảng cáo. `ma` = tên chuẩn n8n / bot Telegram gửi lên (VD 'KON TUM')."""
+    __tablename__ = "ads_page"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ma: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    ten: Mapped[str] = mapped_column(String(120))
+    loai: Mapped[str] = mapped_column(String(10), default="sale")        # sale | cong_ty (không chia cho sale)
+    tinh_trang: Mapped[str] = mapped_column(String(20), default="Đang chạy")   # Đang chạy | Đang nuôi | Tắt
+    ghi_chu: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AdsSale(Base):
+    """Tên gọi của sale trong phân công page (VD 'C. Chi') -> acc inside để nối số bán thật."""
+    __tablename__ = "ads_sale"
+    ten: Mapped[str] = mapped_column(String(60), primary_key=True)
+    acc: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+class AdsPic(Base):
+    """Sale chạy page trong một khoảng ngày; chi tiêu mỗi ngày chia đều cho các sale đang chạy ngày đó."""
+    __tablename__ = "ads_pic"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("ads_page.id"), index=True)
+    sale: Mapped[str] = mapped_column(String(60))
+    tu_ngay: Mapped[date] = mapped_column(Date)
+    den_ngay: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ty_le: Mapped[float | None] = mapped_column(Float, nullable=True)   # % chia riêng (VD 70 / 30); trống = chia đều
+
+
+class AdsNgay(Base):
+    """Chi tiêu một camp trong một ngày (n8n gửi lên, gửi lại thì ghi đè - không nhân đôi)."""
+    __tablename__ = "ads_ngay"
+    __table_args__ = (UniqueConstraint("page_id", "camp", "ngay", name="uq_ads_ngay"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("ads_page.id"), index=True)
+    camp: Mapped[str] = mapped_column(String(160))
+    ngay: Mapped[date] = mapped_column(Date, index=True)
+    tinh_trang: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    chi_tieu: Mapped[float] = mapped_column(Float, default=0)          # USD
+    tin_nhan: Mapped[int] = mapped_column(Integer, default=0)
+    nguon: Mapped[str] = mapped_column(String(20), default="n8n")      # n8n | import | tay
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AdsLead(Base):
+    """Mỗi lần bot Telegram (hoặc nhập tay) báo có số điện thoại / PTTB của page - một dòng, sửa/xoá được."""
+    __tablename__ = "ads_lead"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("ads_page.id"), index=True)
+    ngay: Mapped[date] = mapped_column(Date, index=True)
+    lead: Mapped[int] = mapped_column(Integer, default=0)
+    pttb: Mapped[int] = mapped_column(Integer, default=0)
+    nguon: Mapped[str] = mapped_column(String(20), default="telegram")  # telegram | import | tay
+    nguoi: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    ghi_chu: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AdsThang(Base):
+    """Cấu hình theo tháng: tỷ giá USD -> VNĐ."""
+    __tablename__ = "ads_thang"
+    thang: Mapped[str] = mapped_column(String(7), primary_key=True)
+    ty_gia: Mapped[float] = mapped_column(Float)
+
+
+class AdsKpi(Base):
+    """KPI PTTB tháng của từng page (trang Hoạch định)."""
+    __tablename__ = "ads_kpi"
+    __table_args__ = (UniqueConstraint("thang", "page_id", name="uq_ads_kpi"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    thang: Mapped[str] = mapped_column(String(7), index=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("ads_page.id"))
+    kpi_pttb: Mapped[int] = mapped_column(Integer)
