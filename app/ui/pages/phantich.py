@@ -181,11 +181,26 @@ def layout(ky: dict | None = None):
                              className="chart-col"),
                 ], className="chart-row doi"),
                 html.Div(id="pt-tinh-ct", className="ct-tinh", hidden=True),     # dựng khi bấm một tỉnh
-                html.H3("Mỗi phòng bán ở tỉnh nào", style={"margin": "18px 0 4px", "fontSize": "14px"}),
-                ghi_chu("Mỗi cột là một phòng, mỗi dòng một tỉnh; số là hợp đồng online. Màu theo tỷ trọng trong chính "
-                        "phòng đó: xanh đậm = tỉnh chiếm từ 20% số của phòng, xanh nhạt 5-20%.", nhan="Cách đọc bảng",
-                        style={"margin": "0 0 8px"}),
-                _grid("pt-tinh-ma-tran", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
+                html.Div([html.H3("Ai bán ở tỉnh nào", style={"margin": 0, "fontSize": "14px"}),
+                          html.Div(className="grow"),
+                          seg_control("pt-tinh-mt-xem", [("phong", "Theo phòng"), ("nv", "Theo nhân viên")], "phong")],
+                         className="the-thanh", style={"margin": "18px 0 6px"}),
+                html.Div([
+                    ghi_chu("Mỗi cột là một phòng, mỗi dòng một tỉnh; số là hợp đồng online. Màu theo tỷ trọng trong "
+                            "chính phòng đó: xanh đậm = tỉnh chiếm từ 20% số của phòng, xanh nhạt 5-20%.",
+                            nhan="Cách đọc bảng", style={"margin": "0 0 8px"}),
+                    _grid("pt-tinh-ma-tran", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
+                ], id="pt-tinh-mt-phong"),
+                html.Div([
+                    ghi_chu("Mỗi dòng một nhân viên (xếp theo phòng), mỗi cột một tỉnh - 12 tỉnh nhiều hợp đồng nhất, "
+                            "còn lại gộp vào 'Tỉnh khác'. Chọn phòng ở ô phạm vi phía trên để xem riêng một phòng. Màu "
+                            "theo tỷ trọng trong số của chính người đó: xanh đậm từ 20%, xanh nhạt 5-20%. Trưởng phòng "
+                            "không đưa vào (số của họ vẫn tính cho phòng).", nhan="Cách đọc bảng",
+                            style={"margin": "0 0 8px"}),
+                    html.Div(dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
+                                       className="o-tim"), style={"margin": "0 0 8px"}),
+                    _grid("pt-tinh-nv", cao=480, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
+                ], id="pt-tinh-mt-nv", hidden=True),
             ], id="pt-tinh-v-tong"),
             html.Div([
                 html.Div(id="pt-tinh-goi-mo-ta", className="desc", style={"margin": "0 0 8px"}),
@@ -849,6 +864,55 @@ def register(app):
                   Output("pt-tinh-v-ngay", "hidden"), Input("pt-tinh-xem", "value"))
     def _doi_xem_tinh(xem):
         return xem not in (None, "tong"), xem != "goi", xem != "ngay"
+
+    @app.callback(Output("pt-tinh-mt-phong", "hidden"), Output("pt-tinh-mt-nv", "hidden"),
+                  Input("pt-tinh-mt-xem", "value"))
+    def _doi_mt(xem):
+        return xem == "nv", xem != "nv"
+
+    @app.callback(Output("pt-tinh-nv", "dashGridOptions"), Input("pt-tinh-nv-tim", "value"), prevent_initial_call=True)
+    def _tim_nv_tinh(chu):
+        p = Patch()
+        p["quickFilterText"] = chu or ""
+        return p
+
+    @app.callback(Output("pt-tinh-nv", "columnDefs"), Output("pt-tinh-nv", "rowData"),
+                  Input("pt-tinh-mt-xem", "value"), Input("pt-tinh-xem", "value"),
+                  Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
+                  Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"))
+    def _nv_tinh(xem, xem_tinh, tu_iso, den_iso, chi_nhanh, pv, loai):
+        if xem != "nv" or xem_tinh not in (None, "tong") or current_user.role != "admin":
+            raise PreventUpdate
+        ky = _ky(tu_iso, den_iso)
+        if ky is None:
+            return [], []
+        from app.tinh import NOI_TINH
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
+        df = pt.online_theo_tinh(ky.tu, ky.den, scope)
+        if pv and pv != "all":
+            df = df[df.phong_code == pv]
+        if loai == "ngoai":
+            df = df[~df.ma_tinh.isin(NOI_TINH)]
+        ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
+        mt, tinh = pt.ma_tran_nv_tinh(df, _ten_nhan_vien(), ten_phong)
+        nhiet = {"styleConditions": [
+            {"condition": "params.value && params.value >= params.data.tong * 0.2",
+             "style": {"backgroundColor": "#BFE6C8", "fontWeight": "700", "color": "#0F3D22"}},
+            {"condition": "params.value && params.value >= params.data.tong * 0.05",
+             "style": {"backgroundColor": "#E8F5EC"}}]}
+        so0 = {"function": "params.value ? params.value : ''"}
+        cot = [{"field": "ho_ten", "headerName": "Nhân viên", "pinned": "left", "minWidth": 160,
+                "tooltipField": "acc"},
+               {"field": "phong", "headerName": "Phòng", "pinned": "left", "width": 95},
+               {"field": "tong", "headerName": "Tổng", "pinned": "left", "width": 72, "type": "numericColumn",
+                "valueFormatter": SO, "cellStyle": {"fontWeight": "700"}},
+               {"field": "ngoai_pct", "headerName": "% ngoại tỉnh", "width": 92, "type": "numericColumn",
+                "valueFormatter": PCT, "headerTooltip": "Tỷ lệ hợp đồng khách ngoài Đà Nẵng + Quảng Nam"}]
+        cot += [{"field": ma, "headerName": ten, "width": 90, "type": "numericColumn", "valueFormatter": so0,
+                 "cellStyle": nhiet} for ma, ten in tinh]
+        cot.append({"field": "khac", "headerName": "Tỉnh khác", "width": 85, "type": "numericColumn",
+                    "valueFormatter": so0, "cellStyle": nhiet})
+        return cot, mt.to_dict("records") if len(mt) else []
 
     @app.callback(Output("pt-tinh-ngay", "date"), Input("pt-khoang", "end_date"), prevent_initial_call=True)
     def _ngay_theo_ky(den):

@@ -310,7 +310,8 @@ def co_cau_goi_tinh(df: pd.DataFrame, toi_da: int = 15) -> pd.DataFrame:
 
 
 def chi_tiet_tinh(df: pd.DataFrame, ma: str, ten_nv: dict | None = None, ten_phong: dict | None = None) -> dict:
-    """Đi sâu một tỉnh: phường/xã, nhân viên, gói cước, phòng bán (số hợp đồng, tỷ trọng trong tỉnh)."""
+    """Đi sâu một tỉnh: phường/xã, nhân viên (trừ trưởng phòng), gói cước, phòng bán (số hợp đồng, tỷ trọng trong
+    tỉnh)."""
     x = df[df.ma_tinh == ma]
     tong = len(x)
 
@@ -323,6 +324,9 @@ def chi_tiet_tinh(df: pd.DataFrame, ma: str, ten_nv: dict | None = None, ten_pho
 
     nv = x.assign(_a=x.acc_norm.fillna(x.acc_nhan_vien)).groupby(["_a", "phong_code"]).agg(
         so=("_a", "size"), acc=("acc_nhan_vien", "first")).reset_index() if tong else pd.DataFrame()
+    if len(nv):
+        from app.canh_bao import acc_truong_phong
+        nv = nv[~nv._a.isin(acc_truong_phong(set(nv._a.dropna())))].copy()   # trưởng phòng không xếp hạng cá nhân
     if len(nv):
         nv["ho_ten"] = [(ten_nv or {}).get(a) or c for a, c in zip(nv._a, nv.acc)]
         nv["phong"] = [(ten_phong or {}).get(c, "Chưa gán phòng") for c in nv.phong_code]
@@ -383,3 +387,38 @@ def ma_tran_tinh_phong(df: pd.DataFrame, thang: str) -> tuple[pd.DataFrame, list
     pv = pv.reindex(columns=[p["code"] for p in thu_tu], fill_value=0)
     pv["tong"] = pv.sum(axis=1)
     return pv.sort_values("tong", ascending=False).reset_index(), thu_tu
+
+
+def ma_tran_nv_tinh(df: pd.DataFrame, ten_nv: dict, ten_phong: dict, toi_da: int = 12) \
+        -> tuple[pd.DataFrame, list[tuple[str, str]]]:
+    """Nhân viên × tỉnh: số online mỗi người bán ở mỗi tỉnh. Cột = `toi_da` tỉnh nhiều nhất + 'Tỉnh khác'.
+    Trưởng phòng không đưa vào (không tính chỉ số cá nhân - số của họ vẫn ở bảng theo phòng)."""
+    from app.canh_bao import acc_truong_phong
+    from app.tinh import NOI_TINH
+    if df.empty:
+        return pd.DataFrame(), []
+    x = df.assign(acc=df.acc_norm.fillna(df.acc_nhan_vien.str.lower()))
+    x = x[x.acc.notna() & ~x.acc.isin(acc_truong_phong(set(x.acc)))]
+    if x.empty:
+        return pd.DataFrame(), []
+    top = x.groupby(["ma_tinh", "tinh"]).size().sort_values(ascending=False).head(toi_da)
+    cot = [ma for ma, _ in top.index]
+    pv = x.pivot_table(index="acc", columns="ma_tinh", aggfunc="size", fill_value=0)
+    out = pd.DataFrame(index=pv.index)
+    out["tong"] = pv.sum(axis=1)
+    ngoai = [c for c in pv.columns if c not in NOI_TINH]
+    out["ngoai"] = pv[ngoai].sum(axis=1) if ngoai else 0
+    out["ngoai_pct"] = (out.ngoai / out.tong * 100).round(0)
+    for c in cot:
+        out[c] = pv[c] if c in pv else 0
+    khac = [c for c in pv.columns if c not in cot]
+    out["khac"] = pv[khac].sum(axis=1) if khac else 0
+    phong = x.groupby("acc").phong_code.agg(lambda v: v.value_counts().index[0])
+    acc_goc = x.groupby("acc").acc_nhan_vien.first()
+    out["phong"] = [ten_phong.get(phong[a], "Chưa gán phòng") for a in out.index]
+    out["ho_ten"] = [ten_nv.get(a) or acc_goc.get(a) or a for a in out.index]
+    out["acc"] = [acc_goc.get(a) or a for a in out.index]
+    thu_tu = {v: i for i, v in enumerate(ten_phong.values())}
+    out["_o"] = [thu_tu.get(p_, 999) for p_ in out.phong]
+    out = out.sort_values(["_o", "tong"], ascending=[True, False]).drop(columns="_o")
+    return out.reset_index(drop=True), list(top.index)
