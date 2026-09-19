@@ -728,3 +728,27 @@ GOI_Y_ACC = {khoa_sale(k): v for k, v in {
     "K. Chi": "DNG.ChiLTK15", "Linh": "DNG.LinhPNA", "C. Hoàng": "DNG.HoangDTM3", "Sơn": "DNG.SonLQT",
     "C.Hồng": "DNG.HongDTA3", "Đ.Anh": "DNG.AnhTD63", "A.Thắng": "DNG.ThangBNA", "Kiều": "DNG.KieuMTT",
     "Khái": "DNG.KhaiPN10", "Toàn": "DNG.ToanHT11", "C. My": "DNG.Myltm", "A. Phúc": "DNG.Phucvhd"}.items()}
+
+
+def bao_cao_bot(tu: date, den: date) -> dict:
+    """Báo cáo gửi về Telegram (thay Apps Script đọc sheet): lead / PTTB / chi tiêu từng page, page đang chạy chưa có số."""
+    tp = theo_page(tu, den)
+    co_so = tp[(tp.lead > 0) | (tp.pttb > 0)].sort_values(["pttb", "lead"], ascending=False)
+
+    def so(x):
+        return f"{x:,.2f}".rstrip("0").rstrip(".")
+
+    dong = []
+    for r in co_so.itertuples():
+        t = f"📌 {r.ten}: {int(r.lead)} leads | {int(r.pttb)} PTTB"
+        if r.chi_tieu > 0:
+            t += f" | {so(r.chi_tieu)}$" + (f" ({so(r.cp_pttb)}$/PTTB)" if r.pttb else "")
+        dong.append(t)
+    chua = tp[(tp.lead == 0) & (tp.pttb == 0) & (tp.tinh_trang == "Đang chạy")].ten.tolist()
+    ngay = tu.strftime("%d/%m/%Y") if tu == den else f"{tu:%d/%m/%Y} - {den:%d/%m/%Y}"
+    chi = float(tp.chi_tieu.sum())
+    return {"date": ngay, "details_text": "\n".join(dong) or "Chưa có lead / PTTB nào.",
+            "total_leads": int(tp.lead.sum()), "total_pttb": int(tp.pttb.sum()), "total_spend": round(chi, 2),
+            "ineffective_pages": chua,
+            "ineffective_pages_text": ("\n\n⚠️ Page chưa hiệu quả: " + ", ".join(chua)) if chua
+            else "\n\n✅ Tất cả page đang chạy đều có hiệu quả!"}

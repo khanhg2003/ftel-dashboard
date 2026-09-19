@@ -4,6 +4,8 @@
   "tinh_trang": "HOẠT ĐỘNG", "ngay": "2026-09-18", "chi_tieu": 4.56, "tin_nhan": 3}]} (hoặc danh sách dòng có "page").
 - POST /api/ads/lead     : bot Telegram báo có số / PTTB. JSON: {"page": "QUẢNG NGÃI", "lead": 1, "pttb": 1,
   "ngay": "2026-09-19" (bỏ trống = hôm nay), "nguoi": "tên người nhập", "ghi_chu": "..."}.
+- GET  /api/ads/bao-cao   : bot Telegram hỏi báo cáo. ?type=day&date=19/09/2026 hoặc ?start_date=..&end_date=..
+  (bỏ trống = hôm nay). Trả {date, details_text, total_leads, total_pttb, ineffective_pages_text}.
 Mã kết nối gửi ở header `X-Ads-Token` (hoặc tham số ?token=). Gửi lại cùng page + camp + ngày thì ghi đè.
 """
 from __future__ import annotations
@@ -37,3 +39,18 @@ def chi_tieu():
 @bp.post("/api/ads/lead")
 def lead():
     return _xu_ly(lambda d: ads.nhan_lead(d, nguon="telegram", nguoi=None))
+
+
+@bp.get("/api/ads/bao-cao")
+def bao_cao():
+    tok = request.headers.get("X-Ads-Token") or request.args.get("token")
+    if not ads.kiem_token(tok):
+        return jsonify({"ok": False, "loi": "Sai hoặc thiếu mã kết nối (X-Ads-Token)."}), 401
+    from app.thoi_gian import gio_viet_nam
+    a = request.args
+    hom_nay = gio_viet_nam().date()
+    tu = ads.doc_ngay(a.get("start_date")) or ads.doc_ngay(a.get("date")) or hom_nay
+    den = ads.doc_ngay(a.get("end_date")) or ads.doc_ngay(a.get("date")) or tu
+    if den < tu:
+        tu, den = den, tu
+    return jsonify({"ok": True, **ads.bao_cao_bot(tu, den)}), 200

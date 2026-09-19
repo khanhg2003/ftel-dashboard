@@ -106,3 +106,14 @@ def test_api_can_ma_ket_noi_va_trang_can_dang_nhap():
     r = c.post("/api/ads/lead", headers={"X-Ads-Token": tok}, json={"page": "ZZ KT BA", "lead": 1})
     assert r.status_code == 200 and r.get_json()["ghi"] == 1
     assert c.post("/api/ads/lead", headers={"X-Ads-Token": "ads_sai"}, json={"page": "ZZ KT BA"}).status_code == 401
+
+
+def test_bao_cao_bot_telegram():
+    from app.ui.app import server
+    c = server.test_client()
+    assert c.get("/api/ads/bao-cao?date=01/08/2026").status_code == 401
+    tok = ads.tao_token("kt")
+    r = c.get("/api/ads/bao-cao?type=month&start_date=01/08/2026&end_date=31/08/2026",
+              headers={"X-Ads-Token": tok}).get_json()
+    assert r["ok"] and r["date"] == "01/08/2026 - 31/08/2026" and "ZZ KT MỘT: 2 leads | 1 PTTB" in r["details_text"]
+    assert r["total_pttb"] >= 1 and "ineffective_pages_text" in r
