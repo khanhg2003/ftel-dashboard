@@ -192,8 +192,9 @@ def layout(ky: dict | None = None):
                     _grid("pt-tinh-ma-tran", cao=440, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
                 ], id="pt-tinh-mt-phong"),
                 html.Div([
-                    ghi_chu("Mỗi dòng một nhân viên (xếp theo phòng), mỗi cột một tỉnh - 12 tỉnh nhiều hợp đồng nhất, "
-                            "còn lại gộp vào 'Tỉnh khác'. Chọn phòng ở ô bên dưới để xem riêng nhân viên một phòng. Màu "
+                    ghi_chu("Mỗi dòng một nhân viên (xếp theo phòng), mỗi cột một tỉnh có số (nhiều trước, kéo ngang "
+                            "để xem hết). Bấm một nhân viên để xem số bán + số online từng tỉnh, từng phường / xã. Chọn "
+                            "phòng ở ô bên dưới để xem riêng nhân viên một phòng. Màu "
                             "theo tỷ trọng trong số của chính người đó: xanh đậm từ 20%, xanh nhạt 5-20%. Trưởng phòng "
                             "không đưa vào (số của họ vẫn tính cho phòng).", nhan="Cách đọc bảng",
                             style={"margin": "0 0 8px"}),
@@ -204,7 +205,10 @@ def layout(ky: dict | None = None):
                         dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
                                   className="o-tim"),
                     ], className="the-thanh", style={"margin": "0 0 8px", "gap": "8px"}),
-                    _grid("pt-tinh-nv", cao=480, className="ag-theme-quartz ag-theme-ftel luoi-ke"),
+                    _grid("pt-tinh-nv", cao=480, className="ag-theme-quartz ag-theme-ftel luoi-ke",
+                          dashGridOptions={"rowSelection": {"mode": "singleRow", "checkboxes": False,
+                                                            "enableClickSelection": True}}),
+                    html.Div(id="pt-tinh-nv-ct", className="ct-tinh", hidden=True),       # dựng khi bấm một người
                 ], id="pt-tinh-mt-nv", hidden=True),
             ], id="pt-tinh-v-tong"),
             html.Div([
@@ -902,6 +906,7 @@ def register(app):
             df = df[~df.ma_tinh.isin(NOI_TINH)]
         ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
         mt, tinh = pt.ma_tran_nv_tinh(df, _ten_nhan_vien(), ten_phong)
+        mt = mt.drop(columns=["khac"], errors="ignore")
         nhiet = {"styleConditions": [
             {"condition": "params.value && params.value >= params.data.tong * 0.2",
              "style": {"backgroundColor": "#BFE6C8", "fontWeight": "700", "color": "#0F3D22"}},
@@ -917,9 +922,63 @@ def register(app):
                 "valueFormatter": PCT, "headerTooltip": "Tỷ lệ hợp đồng khách ngoài Đà Nẵng + Quảng Nam"}]
         cot += [{"field": ma, "headerName": ten, "width": 90, "type": "numericColumn", "valueFormatter": so0,
                  "cellStyle": nhiet} for ma, ten in tinh]
-        cot.append({"field": "khac", "headerName": "Tỉnh khác", "width": 85, "type": "numericColumn",
-                    "valueFormatter": so0, "cellStyle": nhiet})
         return cot, mt.to_dict("records") if len(mt) else []
+
+    @app.callback(Output("pt-tinh-nv-ct", "hidden"), Output("pt-tinh-nv-ct", "children"),
+                  Input("pt-tinh-nv", "selectedRows"), Input("pt-khoang", "start_date"),
+                  Input("pt-khoang", "end_date"), Input("pt-cn", "value"))
+    def _ct_nv_tinh(chon, tu_iso, den_iso, chi_nhanh):
+        if current_user.role != "admin":
+            raise PreventUpdate
+        r = (chon or [None])[0]
+        ky = _ky(tu_iso, den_iso)
+        if not r or not r.get("acc_key") or ky is None:
+            return True, []
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
+        ct = pt.chi_tiet_nv_tinh(r["acc_key"], ky.tu, ky.den, scope)
+        luoi = "ag-theme-quartz ag-theme-ftel luoi-ke"
+        so0 = {"function": "params.value ? params.value : ''"}
+
+        def c(field_, ten, w=80, **kw):
+            return {"field": field_, "headerName": ten, "type": "numericColumn", "width": w, "valueFormatter": so0,
+                    **kw}
+        dam = {"fontWeight": "700"}
+        cot_tinh = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130, "flex": 1},
+                    c("ban", "Bán", 70, headerTooltip="Hợp đồng tạo trong kỳ"),
+                    c("ban_da_onl", "Trong đó đã online", 105, headerTooltip="Số hợp đồng bán trong kỳ đã online"),
+                    c("onl", "Online", 78, cellStyle=dam, headerTooltip="Hợp đồng online trong kỳ"),
+                    {"field": "ty_trong", "headerName": "% online", "type": "numericColumn", "width": 85,
+                     "valueFormatter": PCT}]
+        cot_xa = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "width": 120},
+                  {"field": "xa", "headerName": "Phường / xã", "minWidth": 150, "flex": 1, "tooltipField": "xa"},
+                  c("ban", "Bán", 66), c("onl", "Online", 74, cellStyle=dam)]
+
+        def luoi_(gid, cot, d, cao):
+            g = _grid(gid, cao=cao, className=luoi)
+            g.columnDefs, g.rowData = cot, (d.to_dict("records") if len(d) else [])
+            return g
+        pct_ngoai = f"{ct['ngoai_onl'] / ct['onl'] * 100:.0f}%" if ct["onl"] else "–"
+        chips = [html.Span(f"Bán {ct['ban']} (đã online {ct['ban_da_onl']})", className="chip"),
+                 html.Span(f"Online {ct['onl']}", className="chip"),
+                 html.Span(f"Ngoại tỉnh {ct['ngoai_onl']} ({pct_ngoai})", className="chip"),
+                 html.Span(f"{len(ct['tinh'])} tỉnh", className="chip")]
+        if ct["goi"]:
+            chips.append(html.Span(f"Gói: {ct['goi']}", className="chip"))
+        cao = min(max(160, 44 + 34 * len(ct["tinh"])), 360)
+        return False, [
+            html.Div([html.H3(f"{r.get('ho_ten')} · {r.get('phong')} · {ky.nhan}",
+                              style={"margin": 0, "fontSize": "15px"}),
+                      html.Div(chips, className="chips")], className="ct-tinh-dau"),
+            html.Div([
+                html.Div([html.Div("Theo tỉnh", className="ct-tinh-ten"), luoi_("pt-tinh-nv-ct-tinh", cot_tinh,
+                                                                               ct["tinh"], cao)]),
+                html.Div([html.Div("Theo phường / xã", className="ct-tinh-ten"),
+                          luoi_("pt-tinh-nv-ct-xa", cot_xa, ct["xa"], 360)]),
+            ], className="hai-luoi"),
+            ghi_chu("Bán = hợp đồng tạo trong kỳ (gồm cả hợp đồng chưa online). Online = hợp đồng online trong kỳ "
+                    "(có thể tạo từ kỳ trước) - nên hai số không nhất thiết bằng nhau. Tính mọi hợp đồng của người này "
+                    "trong phạm vi chi nhánh đang chọn.", style={"margin": "8px 0 0"}),
+        ]
 
     @app.callback(Output("pt-tinh-ngay", "date"), Input("pt-khoang", "end_date"), prevent_initial_call=True)
     def _ngay_theo_ky(den):

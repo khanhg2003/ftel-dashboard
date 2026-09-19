@@ -266,7 +266,7 @@ def hd_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None, theo: st
     chưa online)."""
     from app.tinh import ma_tinh, ten_tinh
     cot = "ngay_tao_hd" if theo == "ban" else "ngay_online"
-    df = pd.read_sql(text(f"""SELECT phong_code, cn_quan_ly, goi_dich_vu, quan_huyen, acc_norm, acc_nhan_vien
+    df = pd.read_sql(text(f"""SELECT phong_code, cn_quan_ly, goi_dich_vu, quan_huyen, acc_norm, acc_nhan_vien, ngay_online
                               FROM fact_internet WHERE {cot} >= :tu AND {cot} <= :den"""), engine,
                      params={"tu": tu, "den": den})
     if chi_phong is not None:
@@ -389,9 +389,10 @@ def ma_tran_tinh_phong(df: pd.DataFrame, thang: str) -> tuple[pd.DataFrame, list
     return pv.sort_values("tong", ascending=False).reset_index(), thu_tu
 
 
-def ma_tran_nv_tinh(df: pd.DataFrame, ten_nv: dict, ten_phong: dict, toi_da: int = 12) \
+def ma_tran_nv_tinh(df: pd.DataFrame, ten_nv: dict, ten_phong: dict, toi_da: int | None = None) \
         -> tuple[pd.DataFrame, list[tuple[str, str]]]:
-    """Nhân viên × tỉnh: số online mỗi người bán ở mỗi tỉnh. Cột = `toi_da` tỉnh nhiều nhất + 'Tỉnh khác'.
+    """Nhân viên × tỉnh: số online mỗi người bán ở mỗi tỉnh. Cột = mọi tỉnh có số (nhiều trước), hoặc `toi_da` tỉnh
+    nhiều nhất + 'Tỉnh khác'.
     Trưởng phòng không đưa vào (không tính chỉ số cá nhân - số của họ vẫn ở bảng theo phòng)."""
     from app.canh_bao import acc_truong_phong
     from app.tinh import NOI_TINH
@@ -401,7 +402,9 @@ def ma_tran_nv_tinh(df: pd.DataFrame, ten_nv: dict, ten_phong: dict, toi_da: int
     x = x[x.acc.notna() & ~x.acc.isin(acc_truong_phong(set(x.acc)))]
     if x.empty:
         return pd.DataFrame(), []
-    top = x.groupby(["ma_tinh", "tinh"]).size().sort_values(ascending=False).head(toi_da)
+    top = x.groupby(["ma_tinh", "tinh"]).size().sort_values(ascending=False)
+    if toi_da:
+        top = top.head(toi_da)
     cot = [ma for ma, _ in top.index]
     pv = x.pivot_table(index="acc", columns="ma_tinh", aggfunc="size", fill_value=0)
     out = pd.DataFrame(index=pv.index)
@@ -418,7 +421,35 @@ def ma_tran_nv_tinh(df: pd.DataFrame, ten_nv: dict, ten_phong: dict, toi_da: int
     out["phong"] = [ten_phong.get(phong[a], "Chưa gán phòng") for a in out.index]
     out["ho_ten"] = [ten_nv.get(a) or acc_goc.get(a) or a for a in out.index]
     out["acc"] = [acc_goc.get(a) or a for a in out.index]
+    out["acc_key"] = list(out.index)
     thu_tu = {v: i for i, v in enumerate(ten_phong.values())}
     out["_o"] = [thu_tu.get(p_, 999) for p_ in out.phong]
     out = out.sort_values(["_o", "tong"], ascending=[True, False]).drop(columns="_o")
     return out.reset_index(drop=True), list(top.index)
+
+
+def chi_tiet_nv_tinh(acc_key: str, tu: str, den: str, chi_phong: list[str] | None = None) -> dict:
+    """Một nhân viên trong kỳ: số bán (hợp đồng tạo trong kỳ, trong đó đã online bao nhiêu) và số online (online trong
+    kỳ) theo từng tỉnh và từng phường / xã."""
+    from app.tinh import NOI_TINH
+
+    def cua(d):
+        return d[d.acc_norm.fillna(d.acc_nhan_vien.str.lower()) == acc_key]
+    ban, onl = cua(hd_theo_tinh(tu, den, chi_phong, "ban")), cua(hd_theo_tinh(tu, den, chi_phong, "online"))
+    ban = ban.assign(da_onl=ban.ngay_online.notna().astype(int))
+    k = ["ma_tinh", "tinh"]
+
+    def gop(keys):
+        a = ban.groupby(keys).agg(ban=("da_onl", "size"), ban_da_onl=("da_onl", "sum"))
+        b = onl.groupby(keys).size().rename("onl")
+        g = pd.concat([a, b], axis=1).fillna(0).astype(int).reset_index()
+        return g.sort_values(["onl", "ban"], ascending=False).reset_index(drop=True)
+    tinh = gop(k) if len(ban) or len(onl) else pd.DataFrame(columns=[*k, "ban", "ban_da_onl", "onl"])
+    if len(tinh):
+        tinh["ty_trong"] = (tinh.onl / max(int(tinh.onl.sum()), 1) * 100).round(1)
+        tinh["noi_tinh"] = tinh.ma_tinh.isin(NOI_TINH)
+    xa = gop([*k, "xa"]) if len(ban) or len(onl) else pd.DataFrame(columns=[*k, "xa", "ban", "ban_da_onl", "onl"])
+    goi = onl.goi_dich_vu.fillna("?").value_counts()
+    return {"ban": len(ban), "ban_da_onl": int(ban.da_onl.sum()), "onl": len(onl),
+            "ngoai_onl": int((~onl.ma_tinh.isin(NOI_TINH)).sum()), "tinh": tinh, "xa": xa,
+            "goi": ", ".join(f"{g} {n}" for g, n in goi.head(4).items())}

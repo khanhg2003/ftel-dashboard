@@ -287,9 +287,15 @@ def test_ban_theo_tinh_goi_di_sau_va_mot_ngay():
     ma = goi.ma_tinh.iloc[0]
     ct = pt.chi_tiet_tinh(df, ma)
     assert ct["tong"] == goi.so_hd.iloc[0] == ct["xa"].so.sum() == ct["goi"].so.sum() >= ct["nv"].so.sum()
-    mt, tinh = pt.ma_tran_nv_tinh(df, {}, {})
+    mt, tinh = pt.ma_tran_nv_tinh(df, {}, {}, 12)
     assert len(tinh) <= 12 and (mt[[m for m, _ in tinh]].sum(axis=1) + mt.khac == mt.tong).all()
+    mt, tinh = pt.ma_tran_nv_tinh(df, {}, {})                            # mặc định: đủ mọi tỉnh
+    assert (mt.khac == 0).all() and (mt[[m for m, _ in tinh]].sum(axis=1) == mt.tong).all()
     assert mt.tong.sum() <= len(df)
+    r = mt.sort_values("tong").iloc[-1]
+    nv = pt.chi_tiet_nv_tinh(r.acc_key, tu, den)
+    assert nv["onl"] == r.tong == nv["tinh"].onl.sum() == nv["xa"].onl.sum()
+    assert nv["ban"] == nv["tinh"].ban.sum() >= nv["ban_da_onl"]
     ban, onl = pt.ban_online_ngay(den)
     phong = sorted(set(ban.phong_code) | set(onl.phong_code))
     b = pt.bang_ngay_tinh(ban, onl, phong)

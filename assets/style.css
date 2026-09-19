@@ -1010,3 +1010,5 @@ table.simple tr:last-child td { border-bottom: none; }
 .ct-tinh-ten { font-weight: 700; font-size: 13px; color: #0C3B66; margin: 0 0 6px; }
 .ba-cot { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 1100px) { .ba-cot { grid-template-columns: minmax(0, 1fr); } }
+.hai-luoi { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
+@media (max-width: 1100px) { .hai-luoi { grid-template-columns: minmax(0, 1fr); } }
