@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
+from app.bo_nho import nho
 from sqlalchemy import text
 
 from app.db import engine
@@ -47,6 +49,7 @@ def nhom_goi(goi) -> str:
 
 
 # ------------------------------------------------------------------ dữ liệu gốc
+@nho("so_lieu")
 def hop_dong_online(tu: str, den: str, chi_phong: list[str] | None = None) -> pd.DataFrame:
     """Một dòng = một hợp đồng Internet online trong [tu, den], kèm các cờ phân tích."""
     df = pd.read_sql(text("""
@@ -81,6 +84,7 @@ def ngay_du_lieu_moi_nhat() -> pd.Timestamp | None:
     return pd.Timestamp(str(v)[:10]) if v else None
 
 
+@nho("so_lieu")
 def hop_dong_ton(chi_phong: list[str] | None = None) -> pd.DataFrame:
     """Hợp đồng đã ký, chưa online, còn trong file mới nhất - kèm số ngày đã chờ."""
     dk, p = dieu_kien_ton("f.")
@@ -260,6 +264,7 @@ def muc_chung_kinh_doanh(df: pd.DataFrame, thang: str) -> dict:
 
 
 # ------------------------------------------------------------------ bán theo tỉnh (CN quản lý của hợp đồng)
+@nho("so_lieu")
 def hd_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None, theo: str = "online") -> pd.DataFrame:
     """Một dòng = một hợp đồng Internet: phòng bán, tỉnh của khách (CN quản lý), gói, phường/xã, nhân viên.
     theo = 'online' (ngày online trong kỳ) hoặc 'ban' (ngày tạo hợp đồng trong kỳ - số bán mới, gồm cả hợp đồng

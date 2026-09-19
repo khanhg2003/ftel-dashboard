@@ -12,6 +12,8 @@ from datetime import date
 
 import numpy as np
 import pandas as pd
+
+from app.bo_nho import nho
 from sqlalchemy import text
 
 from app.db import engine
@@ -259,6 +261,7 @@ def ngay_co_du_lieu(thang: str) -> int:
     return max(nz) if nz else 0
 
 
+@nho("so_lieu", 30)
 def cac_ngay_co_du_lieu() -> list[str]:
     """Danh sách ngày (YYYY-MM-DD) đã có số Online - dùng cho bộ chọn ngày."""
     df = pd.read_sql(text("""SELECT DISTINCT ngay_online AS d FROM fact_internet
@@ -271,6 +274,7 @@ def ngay_moi_nhat() -> str | None:
     return ds[-1] if ds else None
 
 
+@nho("so_lieu", 30)
 def cac_thang_co_du_lieu() -> list[str]:
     from app.sql_dialect import thang_cua
     df = pd.read_sql(text(f"""SELECT DISTINCT {thang_cua('ngay_online')} AS thang

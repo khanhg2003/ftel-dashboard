@@ -696,8 +696,9 @@ def register(app):
         tong_ton = ton_phong[ton_phong.loai_dong == "total"].to_dict("records") if len(ton_phong) else []
         ton_data = ton_phong[ton_phong.loai_dong == "data"] if len(ton_phong) else ton_phong
         lau = int((ton.so_ngay_cho > 30).sum()) if len(ton) else 0
-        mo_ta_ton = (f"{len(ton):,} hợp đồng chưa online, còn trong file mới nhất · {lau:,} hợp đồng "
-                     "chờ trên 30 ngày (thường là khách đã bỏ, cần rà soát)").replace(",", ".")
+        so = lambda n: f"{n:,}".replace(",", ".")                                   # noqa: E731
+        mo_ta_ton = (f"{so(len(ton))} hợp đồng chưa online, còn trong file mới nhất · {so(lau)} hợp đồng "
+                     "chờ trên 30 ngày (thường là khách đã bỏ, cần rà soát)")
 
         tu_4t = (pd.Timestamp(den) - pd.Timedelta(days=27)).date().isoformat()
         nhip = pt.nhip_theo_thu(pt.hop_dong_online(tu_4t, den, scope), tu_4t, den)

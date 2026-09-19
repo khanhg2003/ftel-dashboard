@@ -5,6 +5,8 @@ import json
 from datetime import date, datetime, timedelta
 
 import pandas as pd
+
+from app.bo_nho import ghi
 from argon2 import PasswordHasher
 from sqlalchemy import delete, select, text
 
@@ -413,6 +415,7 @@ def _dem_dong_batch(batch_id: int, dataset: str) -> int:
     return int(df.iloc[0, 0])
 
 
+@ghi("so_lieu")
 def go_bo_lan_nap(batch_id: int, nguoi_thuc_hien: str, loai_cho_phep: set[str] | None = None,
                   chi_cua_minh: bool = False) -> dict:
     """Xoá các dòng dữ liệu mà lần nạp này ghi vào (và chưa bị lần nạp sau ghi đè).

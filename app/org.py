@@ -36,6 +36,8 @@ HAN_CACHE_GIAY = 30 if LA_SERVERLESS else 600
 
 # --------------------------------------------------------------------- cache
 def xoa_cache_org(thang: str | None = None) -> None:
+    from app.bo_nho import xoa
+    xoa("so_lieu")                        # phòng của hợp đồng có thể đổi theo cơ cấu mới
     _cache["bay"] = _cache["phong"] = _cache["ten"] = None
     if thang:
         _cache["bay_thang"].pop(thang, None)

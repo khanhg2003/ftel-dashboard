@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+
+from app.bo_nho import ghi
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -168,6 +170,7 @@ def _bo_dong_camera_cu(session, rows: list[dict]) -> int:
     return bo
 
 
+@ghi("so_lieu")
 def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
                   user: str = "system", thang: str | None = None) -> dict:
     """Ghi 1 khối dữ liệu vào DB, trả về thống kê để hiển thị cho người dùng."""
@@ -305,6 +308,7 @@ def _nhom_tham_nien(thang: int | None) -> str | None:
     return None
 
 
+@ghi("so_lieu")
 def recompute_phong(session) -> int:
     """Chạy lại việc gán phòng cho toàn bộ dữ liệu (dùng sau khi sửa danh mục NV)."""
     staff_map = load_staff_map(session)

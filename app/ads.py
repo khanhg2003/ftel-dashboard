@@ -25,6 +25,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 from sqlalchemy import select, text
 
+from app.bo_nho import ghi, nho
 from app.db import engine, session_scope
 from app.models import AdsKpi, AdsLead, AdsNgay, AdsPage, AdsPic, AdsSale, AdsThang, AuditLog, CaiDat
 
@@ -119,6 +120,7 @@ def co_token() -> bool:
         return s.get(CaiDat, KHOA_TOKEN) is not None
 
 
+@ghi("ads")
 def tao_token(nguoi: str) -> str:
     """Tạo mã mới (mã cũ hết hiệu lực). Chỉ lưu dạng băm - mã gốc hiện đúng một lần."""
     dam_bao_bang()
@@ -166,6 +168,7 @@ def _lay(r: dict, *ten):
     return None
 
 
+@ghi("ads")
 def nhan_chi_tieu(du_lieu, nguon: str = "n8n", nguoi: str = "n8n") -> dict:
     """Ghi chi tiêu từng camp từng ngày. Cùng page + camp + ngày gửi lại thì ghi đè (n8n chạy lại không bị nhân đôi).
     Đọc sẵn một lần các dòng đã có của những page / ngày liên quan - không tra database từng dòng."""
@@ -217,6 +220,7 @@ def nhan_chi_tieu(du_lieu, nguon: str = "n8n", nguoi: str = "n8n") -> dict:
     return kq
 
 
+@ghi("ads")
 def nhan_lead(du_lieu, nguon: str = "telegram", nguoi: str | None = None) -> dict:
     """Mỗi lần báo có số điện thoại / PTTB: +lead, +pttb cho page trong ngày (mặc định hôm nay theo giờ VN)."""
     dam_bao_bang()
@@ -252,10 +256,12 @@ def _q(sql: str, **p) -> pd.DataFrame:
     return pd.read_sql(text(sql), engine, params=p)
 
 
+@nho("ads")
 def ds_page() -> pd.DataFrame:
     return _q("SELECT id, ma, ten, loai, tinh_trang, ghi_chu, link FROM ads_page ORDER BY ten")
 
 
+@nho("ads")
 def ds_pic() -> pd.DataFrame:
     df = _q("SELECT id, page_id, sale, tu_ngay, den_ngay, ty_le FROM ads_pic")
     for c in ("tu_ngay", "den_ngay"):
@@ -263,16 +269,19 @@ def ds_pic() -> pd.DataFrame:
     return df
 
 
+@nho("ads")
 def ds_sale() -> pd.DataFrame:
     return _q("SELECT ten, acc FROM ads_sale ORDER BY ten")
 
 
+@nho("ads")
 def ty_gia(thang: str) -> float:
     """Tỷ giá tháng; chưa nhập thì lấy tháng gần nhất trước đó, không có nữa thì mặc định."""
     df = _q("SELECT ty_gia FROM ads_thang WHERE thang <= :t ORDER BY thang DESC LIMIT 1", t=thang)
     return float(df.ty_gia.iloc[0]) if len(df) else TY_GIA_MAC_DINH
 
 
+@nho("ads")
 def theo_ngay(tu: date, den: date) -> pd.DataFrame:
     """Dòng = page × ngày: chi tiêu, tin nhắn, lead, PTTB (kèm thông tin page)."""
     a = _q("""SELECT page_id, ngay, SUM(chi_tieu) AS chi_tieu, SUM(tin_nhan) AS tin_nhan FROM ads_ngay
@@ -371,6 +380,7 @@ def phan_chia(pics: pd.DataFrame, page_id: int, d: date) -> list[tuple[str, floa
     return [(s_, 1 / len(x)) for s_ in x.sale]
 
 
+@nho("ads")
 def phan_bo(tu: date, den: date) -> pd.DataFrame:
     """Chia từng page × ngày cho các sale chạy page ngày đó: chi tiêu chia đều; lead / PTTB cũng chia đều để so
     hiệu quả theo sale. Page công ty -> 'Công ty'; page chưa khai PIC -> 'Chưa phân công'."""
@@ -509,6 +519,7 @@ def trung_ten() -> list[tuple[str, list[str]]]:
     return [(g.ten.iloc[0], list(g.ma)) for _, g in pg.groupby("k") if len(g) > 1]
 
 
+@ghi("ads")
 def luu_page(rows: list[dict], nguoi: str) -> int:
     dam_bao_bang()
     n = 0
@@ -532,6 +543,7 @@ def luu_page(rows: list[dict], nguoi: str) -> int:
     return n
 
 
+@ghi("ads")
 def them_page(ma, ten: str | None, loai: str, link: str | None, tinh_trang: str | None, nguoi: str) -> str:
     """Tạo page trước khi có số (VD page chạy tài khoản ngoài n8n để nhập tay). `ma` = tên chuẩn n8n / bot sẽ gửi."""
     dam_bao_bang()
@@ -552,6 +564,7 @@ def them_page(ma, ten: str | None, loai: str, link: str | None, tinh_trang: str 
     return f"Đã thêm page {ten} (tên chuẩn {ma_c})."
 
 
+@ghi("ads")
 def them_sale(ten: str, acc: str | None, nguoi: str) -> str:
     """Thêm tên gọi sale (dùng trong phân công page) và acc inside."""
     dam_bao_bang()
@@ -569,6 +582,7 @@ def them_sale(ten: str, acc: str | None, nguoi: str) -> str:
     return f"Đã thêm sale {ten}."
 
 
+@ghi("ads")
 def them_pic(page_id: int, sales: list[str], tu: date, den: date | None, nguoi: str,
              ty_le: list[float | None] | None = None) -> str:
     """Khai sale chạy page từ ngày `tu` (đến `den`, trống = đến nay). Các khai báo cũ còn mở của page được đóng lại
@@ -608,6 +622,7 @@ def them_pic(page_id: int, sales: list[str], tu: date, den: date | None, nguoi: 
             + ".")
 
 
+@ghi("ads")
 def xoa_pic(ids: list[int], nguoi: str) -> int:
     dam_bao_bang()
     with session_scope() as s:
@@ -621,6 +636,7 @@ def xoa_pic(ids: list[int], nguoi: str) -> int:
     return n
 
 
+@ghi("ads")
 def luu_sale(rows: list[dict], nguoi: str) -> int:
     dam_bao_bang()
     n = 0
@@ -639,6 +655,7 @@ def luu_sale(rows: list[dict], nguoi: str) -> int:
     return n
 
 
+@ghi("ads")
 def luu_thang(thang: str, rate: float | None, kpi: dict[int, int | None], nguoi: str) -> None:
     dam_bao_bang()
     with session_scope() as s:
@@ -659,6 +676,7 @@ def luu_thang(thang: str, rate: float | None, kpi: dict[int, int | None], nguoi:
         s.add(AuditLog(username=nguoi, action="ads_cau_hinh_thang", detail=f"{thang}: tỷ giá {rate}, {len(kpi)} KPI"))
 
 
+@ghi("ads")
 def xoa_lead(ids: list[int], nguoi: str) -> int:
     dam_bao_bang()
     with session_scope() as s:
@@ -673,6 +691,7 @@ def xoa_lead(ids: list[int], nguoi: str) -> int:
 
 
 # ------------------------------------------------------------------ nạp file Google Sheet cũ
+@ghi("ads")
 def nap_file_sheet(noi_dung: bytes, nguoi: str) -> dict:
     """Nạp file 'BÁO CÁO CHI TIÊU ADS' (tải về từ Google Sheet) để có dữ liệu các tháng đã chạy trên sheet:
     - BẢNG TỔNG: danh mục page (tên, tên chuẩn, tình trạng); page tên có 'TRUNG LẬP' = tài khoản công ty;
@@ -854,6 +873,7 @@ def chuan_link(v) -> str | None:
     return s[:300]
 
 
+@ghi("ads")
 def sua_page(page_id: int, ten: str | None, link: str | None, tinh_trang: str | None, nguoi: str) -> str:
     """Đổi tên hiển thị / link fanpage / tình trạng của một page (tên chuẩn n8n gửi không đổi)."""
     dam_bao_bang()
@@ -959,6 +979,7 @@ def cuoi_tu_bang(df: pd.DataFrame) -> date | None:
     return _ngay_du(df[df.chi_tieu > 0].groupby("ngay").page_id.nunique())
 
 
+@nho("ads")
 def ngay_cuoi_chi(tu: date, den: date) -> date | None:
     r = _q("""SELECT ngay, COUNT(DISTINCT page_id) AS n FROM ads_ngay WHERE ngay >= :tu AND ngay <= :den
               AND chi_tieu > 0 GROUP BY ngay""", tu=tu, den=den)
@@ -1150,6 +1171,7 @@ def ten_gon_ds(ds) -> list[str]:
 
 
 # ------------------------------------------------------------------ tiền nhập tay tổng tháng, kiểm tra dữ liệu
+@nho("ads")
 def tien_tong_thang(tu: date, den: date) -> pd.DataFrame:
     """Chi tiêu cả tháng nạp từ BẢNG TỔNG của sheet (page không có số từng ngày) - ghi ở ngày 01 nên làm cột ngày 01 cao
     bất thường; biểu đồ theo ngày và dự kiến tách phần này ra."""

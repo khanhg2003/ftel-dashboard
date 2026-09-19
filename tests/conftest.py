@@ -49,3 +49,11 @@ def database_kiem_thu():
     if not SAN_SANG:
         pytest.skip("Thiếu file dữ liệu gốc để dựng database kiểm thử", allow_module_level=True)
     yield
+
+
+@pytest.fixture(autouse=True)
+def _xoa_bo_nho():
+    """Mỗi phép kiểm bắt đầu với bộ nhớ tạm trống (nhiều phép ghi thẳng vào database bằng SQL)."""
+    from app.bo_nho import xoa
+    xoa()
+    yield
