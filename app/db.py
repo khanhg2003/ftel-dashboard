@@ -14,6 +14,15 @@ class Base(DeclarativeBase):
     pass
 
 
+def cong_giao_dich(url: str) -> bool:
+    """Chuỗi kết nối đi qua Transaction pooler của Supabase (cổng 6543)."""
+    from sqlalchemy.engine import make_url
+    try:
+        return make_url(url).port == 6543
+    except Exception:
+        return False
+
+
 def _tao_engine():
     if DATABASE_URL.startswith("sqlite"):
         return create_engine(DATABASE_URL, future=True)
@@ -23,9 +32,13 @@ def _tao_engine():
         # Cổng "Transaction pooler" của Supabase (6543) không hỗ trợ prepared statement
         "connect_args": {"prepare_threshold": None, "connect_timeout": 10},
     }
-    if LA_SERVERLESS:
-        # mỗi lần gọi hàm là một tiến trình ngắn - để pooler của Supabase giữ kết nối,
-        # app không tự giữ pool (tránh cạn kết nối khi nhiều máy chạy song song)
+    if LA_SERVERLESS and cong_giao_dich(DATABASE_URL):
+        # Transaction pooler (cổng 6543): Supabase ghép nhiều kết nối của app vào ít kết nối thật, nên mỗi máy
+        # Vercel giữ sẵn 1-3 kết nối được - không phải bắt tay (TLS + đăng nhập) lại cho từng câu hỏi.
+        kw.update(pool_size=1, max_overflow=2, pool_recycle=120, pool_timeout=10)
+    elif LA_SERVERLESS:
+        # Session pooler (cổng 5432): mỗi kết nối giữ một chỗ thật trong pool có hạn của Supabase -> không giữ
+        # lại (tránh cạn kết nối khi nhiều máy chạy song song), mở mới cho mỗi lần dùng.
         kw["poolclass"] = NullPool
     else:
         kw.update(pool_size=5, max_overflow=5, pool_recycle=1800)

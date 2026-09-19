@@ -48,3 +48,10 @@ def test_het_han_thi_doc_lai(monkeypatch):
     doc()
     gio["t"] += 2
     assert doc() == [2] and dem["n"] == 2
+
+
+def test_nhan_biet_cong_transaction_pooler():
+    from app.db import cong_giao_dich
+    assert cong_giao_dich("postgresql+psycopg://u:p@aws-0-x.pooler.supabase.com:6543/postgres")
+    assert not cong_giao_dich("postgresql+psycopg://u:p@aws-0-x.pooler.supabase.com:5432/postgres")
+    assert not cong_giao_dich("sqlite:///x.db")

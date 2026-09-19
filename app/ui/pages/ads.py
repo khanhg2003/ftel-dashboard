@@ -712,13 +712,24 @@ def register(app):
         return "nhan_dinh"
 
     # ------------------------------------------------ tổng quan + theo sale
-    @cb(Output("ads-kpi", "children"), Output("ads-badge", "children"), Output("ads-g-page", "rowData"),
+    @cb(Output("ads-badge", "children"), Input("ads-thang", "value"), Input("ads-sua", "data"))
+    def _nhan_ngay(thang, _s):
+        dau, den_t = _ky(thang)
+        cuoi_t = ads.ngay_cuoi_chi(dau, den_t)
+        return (html.Span(f"Chi tiêu đến {cuoi_t:%d/%m}", className="badge muted",
+                          title="Chi tiêu từ Facebook về lúc 7h sáng hôm sau")
+                if cuoi_t else html.Span("Chưa có số tháng này", className="badge warn"))
+
+    # mỗi tab chỉ tính khi người xem mở tab đó (mở lại tab thì lấy số đã nhớ tạm, xem app/bo_nho.py)
+    @cb(Output("ads-kpi", "children"), Output("ads-g-page", "rowData"),
         Output("ads-bieu-do", "figure"), Output("ads-bd-chu", "children"), Output("ads-loc-sale", "options"),
         Output("ads-ky-chu", "children"), Output("ads-kiem-tra", "children"),
-        Input("ads-thang", "value"), Input("ads-khoang", "value"), Input("ads-loc-sale", "value"),
-        Input("ads-loc-dg", "value"), Input("ads-bd-kieu", "value"), Input("ads-loc-loai", "value"),
-        Input("ads-sua", "data"))
-    def _nap(thang, khoang, loc_sale, loc_dg, kieu, loai, _s):
+        Input("ads-tab", "value"), Input("ads-thang", "value"), Input("ads-khoang", "value"),
+        Input("ads-loc-sale", "value"), Input("ads-loc-dg", "value"), Input("ads-bd-kieu", "value"),
+        Input("ads-loc-loai", "value"), Input("ads-sua", "data"))
+    def _nap(tab, thang, khoang, loc_sale, loc_dg, kieu, loai, _s):
+        if tab != "tong":
+            raise PreventUpdate
         dau, den_t = _ky(thang)
         cuoi_t = ads.ngay_cuoi_chi(dau, den_t)
         tu, den, ck, ten_ck = _khoang(dau, den_t, cuoi_t, khoang)
@@ -763,9 +774,6 @@ def register(app):
             kpi("Tỷ lệ chốt", "–" if t["ty_le_chot"] is None else f"{t['ty_le_chot']:.0f}%", "PTTB / số điện thoại"),
             kpi("Page có chi tiêu", so_vn(t["so_page"]), f"tỷ giá {so_vn(t['ty_gia'])}"),
         ]
-        badge = (html.Span(f"Chi tiêu đến {cuoi_t:%d/%m}", className="badge muted",
-                           title="Chi tiêu từ Facebook về lúc 7h sáng hôm sau")
-                 if cuoi_t else html.Span("Chưa có số tháng này", className="badge warn"))
         if len(tp):
             tp = tp.copy()
             nd = df[df.chi_tieu > 0].groupby("page_id").ngay.nunique() if len(df) else {}
@@ -779,13 +787,16 @@ def register(app):
         if t["pttb_chua_khop"]:
             ky_chu += (f" · {int(t['pttb_chua_khop'])} PTTB báo sau {t['den_cp']:%d/%m} chưa có chi tiêu nên chưa tính "
                        "vào chi phí / PTTB")
-        return (the, badge, _ban_ghi(tp), fig, chu, [{"label": x, "value": x} for x in sales], ky_chu,
+        return (the, _ban_ghi(tp), fig, chu, [{"label": x, "value": x} for x in sales], ky_chu,
                 _kiem_tra(dau, den_t))
 
     @cb(Output("ads-g-sale", "rowData"), Output("ads-g-sale", "dashGridOptions"), Output("ads-sale-mo-ta", "children"),
         Output("ads-ty-gia", "value"),
-        Input("ads-thang", "value"), Input("ads-sua", "data"), State("ads-g-sale", "dashGridOptions"))
-    def _theo_sale(thang, _s, opts):
+        Input("ads-tab", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"),
+        State("ads-g-sale", "dashGridOptions"))
+    def _theo_sale(tab, thang, _s, opts):
+        if tab != "sale":
+            raise PreventUpdate
         tu, den = _ky(thang)
         opts = dict(opts or {})
         ts = ads.theo_sale(tu, den)
@@ -852,8 +863,10 @@ def register(app):
         Output("ads-nd-ma-tran", "figure"), Output("ads-nd-nhom", "figure"), Output("ads-nd-xu", "rowData"),
         Output("ads-nd-pheu", "rowData"), Output("ads-nd-muc-chung", "children"),
         Output("ads-nd-nhom-chu", "children"),
-        Input("ads-thang", "value"), Input("ads-sua", "data"))
-    def _nhan_dinh(thang, _s):
+        Input("ads-tab", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"))
+    def _nhan_dinh(tab, thang, _s):
+        if tab not in ("tong", "nhan_dinh"):
+            raise PreventUpdate
         tu, den = _ky(thang)
         nd = _nd(tu, den, _s)
         tp = nd["page"]
@@ -922,8 +935,11 @@ def register(app):
                 chu_nhom)
 
     @cb(Output("ads-pheu-page", "options"), Output("ads-nd-pheu-bd", "figure"),
-        Input("ads-pheu-page", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"))
-    def _pheu(pid, thang, _s):
+        Input("ads-pheu-page", "value"), Input("ads-tab", "value"), Input("ads-thang", "value"),
+        Input("ads-sua", "data"))
+    def _pheu(pid, tab, thang, _s):
+        if tab != "nhan_dinh":
+            raise PreventUpdate
         tu, den = _ky(thang)
         nd = _nd(tu, den, _s)
         ph = nd["pheu"]
@@ -947,9 +963,11 @@ def register(app):
     # ------------------------------------------------ tracking ngày (page × ngày)
     @cb(Output("ads-g-ngay", "columnDefs"), Output("ads-g-ngay", "rowData"), Output("ads-chu-mau", "children"),
         Output("ads-g-ngay", "dashGridOptions"),
-        Input("ads-thang", "value"), Input("ads-chi-so", "value"), Input("ads-sua", "data"),
-        State("ads-g-ngay", "dashGridOptions"))
-    def _tracking(thang, chi_so, _s, opts):
+        Input("ads-tab", "value"), Input("ads-thang", "value"), Input("ads-chi-so", "value"),
+        Input("ads-sua", "data"), State("ads-g-ngay", "dashGridOptions"))
+    def _tracking(tab, thang, chi_so, _s, opts):
+        if tab != "ngay":
+            raise PreventUpdate
         opts = dict(opts or {})
         chi_so = chi_so or "chi_tieu"
         pv, so_ngay = ads.tracking(thang, chi_so)

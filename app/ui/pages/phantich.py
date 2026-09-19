@@ -754,9 +754,9 @@ def register(app):
                   Output("pt-tinh-bang", "columnDefs"), Output("pt-tinh-bang", "rowData"),
                   Output("pt-tinh-ma-tran", "columnDefs"), Output("pt-tinh-ma-tran", "rowData"),
                   Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
-                  Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"))
-    def _tinh(tu_iso, den_iso, chi_nhanh, pv, loai):
-        if current_user.role != "admin":
+                  Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"), Input("pt-tinh-xem", "value"))
+    def _tinh(tu_iso, den_iso, chi_nhanh, pv, loai, xem):
+        if current_user.role != "admin" or xem not in (None, "tong"):
             raise PreventUpdate
         ky = _ky(tu_iso, den_iso)
         if ky is None:
