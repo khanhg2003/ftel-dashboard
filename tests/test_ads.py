@@ -187,3 +187,13 @@ def test_them_page_va_sale():
     assert ads.ds_sale().set_index("ten").acc["ZZ Lan"] == "DNG.ZzLan"
     with pytest.raises(ads.LoiAds, match="Đã có sale"):
         ads.them_sale("zz  lan", None, "kt")
+
+
+def test_tracking_tach_nhom_page_sale_va_cong_ty():
+    pv, _ = ads.tracking("2026-08", "chi_tieu")
+    sale, ct = (ads.tracking("2026-08", "chi_tieu", l)[0] for l in ("sale", "cong_ty"))
+    assert len(sale) + len(ct) == len(pv)
+    assert round(sale.tong.sum() + ct.tong.sum(), 2) == round(pv.tong.sum(), 2)
+    assert pv.attrs["tong"]["tong"] == round(sale.attrs["tong"]["tong"] + ct.attrs["tong"]["tong"], 2)
+    pg = ads.ds_page().set_index("id")
+    assert set(ct.page_id.map(pg.loai)) <= {"cong_ty"} and "cong_ty" not in set(sale.page_id.map(pg.loai))

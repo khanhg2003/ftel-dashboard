@@ -435,11 +435,13 @@ def theo_sale(tu: date, den: date) -> pd.DataFrame:
             .drop(columns="_o").reset_index(drop=True)
 
 
-def tracking(thang: str, chi_so: str = "chi_tieu") -> tuple[pd.DataFrame, int]:
-    """Bảng page × ngày trong tháng (như TRACKING NGÀY)."""
+def tracking(thang: str, chi_so: str = "chi_tieu", loai: str = "all") -> tuple[pd.DataFrame, int]:
+    """Bảng page × ngày trong tháng (như TRACKING NGÀY). `loai`: all | sale | cong_ty (page tài khoản công ty)."""
     from app.metrics import month_range
     dau, cuoi, so_ngay = month_range(thang)
     df = theo_ngay(dau, cuoi)
+    if loai in ("sale", "cong_ty") and len(df):
+        df = df[df.loai == loai]
     if df.empty:
         return pd.DataFrame(), so_ngay
     df["d"] = [x.day for x in df.ngay]
