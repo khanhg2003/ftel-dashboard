@@ -81,6 +81,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - *Kỳ:* luỹ kế so cùng kỳ tháng trước; khoảng tự chọn so khoảng liền trước cùng số ngày. Cùng kỳ tính tới ngày có số cuối cùng.
    - *Trưởng phòng:* **không** vào chỉ số cá nhân (xếp hạng, bảng nhân viên, cảnh báo...); số bán vẫn cộng cho phòng (`acc_truong_phong()`).
    - *Tên gọi trong giao diện:* dùng "online" / "chưa online", **không bao giờ viết "đấu nối"** (có test kiểm tra). Tránh chữ "kỳ" trơn: ghi "tháng 9", "tháng trước", "khoảng trước đó", "cùng kỳ T8".
+   - *Trợ lý AI (Fox):* nhân vật ở `tro_ly.giong_van()` - cố vấn điềm đạm, xưng tên trợ lý, gọi "anh/chị", mỗi số kèm một câu nói rõ ý nghĩa. "Đóng góp" chỉ dùng cho phần tăng; phần thiếu nói "hụt" / "chiếm". Sửa lời dặn hoặc `lam_sach` thì phải tăng `PHIEN_LOI_DAN` để nhận xét cũ hết hiệu lực. Hỏi về một người cụ thể thì dùng công cụ `nhan_su_ca_nhan`.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`). Tiền nhập tay tổng tháng không vẽ theo ngày. Page Trung lập = tài khoản công ty, không chia cho sale.
 3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
 4. Định dạng kiểu Việt Nam: `1.234`, `5,40 $`, `45%`. Khi tự `.replace(",", ".")` thì **chỉ áp lên con số**, không áp lên cả câu.
