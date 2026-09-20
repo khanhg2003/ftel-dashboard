@@ -14,7 +14,7 @@ from app.admin_service import ROLES, danh_sach_user
 from app.auth import ghi_log
 from app.du_bao import AN_TOAN, RUI_RO, TANG_TOC
 from app.thoi_gian import chu_gio_vn, gio_viet_nam
-from app.ui.components import alert, callback_can_quyen, card, kpi, tip, ghi_chu
+from app.ui.components import alert, callback_can_quyen, card, gap, kpi, tip, ghi_chu
 from app.ui.icons import icon
 
 AN = {"display": "none"}
@@ -201,7 +201,7 @@ def phep_tinh_du_bao(r: dict, dau_dong: str = "") -> str:
             f"{str(r['nhip']).replace('.', ',')} = {so(r['du_bao'])}")
 
 
-def giai_thich_du_bao(r: dict, nhip: dict | None, tuan: dict | None) -> list:
+def cau_du_bao(r: dict, nhip: dict | None, tuan: dict | None) -> list[str]:
     """Hai dòng nhỏ dưới ô số: số chính dựa vào nhịp tháng trước, và kịch bản không bứt tốc.
 
     Nói bằng chính số của tháng trước và của tuần vừa rồi, không dùng chữ "hệ số".
@@ -223,7 +223,15 @@ def giai_thich_du_bao(r: dict, nhip: dict | None, tuan: dict | None) -> list:
                     f"nhất ({tuan['tu']:02d}-{tuan['den']:02d}/{th}, {_so1(tuan['tb'])} online mỗi ngày) thì cuối "
                     f"tháng khoảng {so}"
                     + (f" = {round(r['pct_tuan'])}% mục tiêu." if r.get("pct_tuan") else " online."))
-    return [html.Div(c, className="desc") for c in dong]
+    return dong
+
+
+def giai_thich_du_bao(r: dict, nhip: dict | None, tuan: dict | None):
+    """Khối "Cách tính dự báo", mặc định đóng - trên màn hình chỉ còn con số."""
+    cau = cau_du_bao(r, nhip, tuan)
+    if not cau:
+        return html.Div()
+    return gap("Cách tính dự báo", [html.Div(c, className="desc") for c in cau])
 
 
 def dong_du_bao(r: dict | None, ten: str = "Phòng", nhip: dict | None = None, tuan: dict | None = None):
@@ -239,8 +247,7 @@ def dong_du_bao(r: dict | None, ten: str = "Phòng", nhip: dict | None = None, t
         kpi("Bình quân mỗi ngày", str(r["tb_ngay"]).replace(".", ","), f"luỹ kế {r['luy_ke']:,}".replace(",", ".")),
         kpi("Cần mỗi ngày còn lại", f"{r['can_moi_ngay'] or 0:,}".replace(",", "."), "để đủ mục tiêu tháng"),
     ], className="kpi-row", style={"marginBottom": "6px"})
-    loi = giai_thich_du_bao(r, nhip, tuan)
-    return html.Div([hang, *loi]) if loi else hang
+    return html.Div([hang, giai_thich_du_bao(r, nhip, tuan)])
 
 
 MO_TA_DU_BAO = ("Dự báo tính trên SỐ ONLINE (không phải số bán): lấy luỹ kế online hiện tại rồi cộng phần "

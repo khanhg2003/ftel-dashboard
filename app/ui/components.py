@@ -278,13 +278,18 @@ def gan_chon_ngay(app, prefix: str):
         return ngays[-1]
 
 
+def gap(tieu_de: str, noi_dung, lop: str = "chu-giai"):
+    """Khối gập được, mặc định ĐÓNG: chỉ hiện một dòng tiêu đề, bấm mới mở.
+
+    Dùng cho phần giải thích cách tính / cách đọc - để trên màn hình chỉ còn số, ai cần mới mở.
+    """
+    return html.Details([html.Summary(tieu_de, className="cg-tieu-de"), html.Div(noi_dung)], className=lop)
+
+
 def chu_giai(tieu_de: str, muc: list[tuple[str, str]]):
     """Khối "Cách tính" gập được: (tên chỉ số, định nghĩa)."""
-    return html.Details([
-        html.Summary(tieu_de, className="cg-tieu-de"),
-        html.Div([html.Div([html.B(ten), html.Span(dn)], className="dn-dong") for ten, dn in muc],
-                 className="dn-luoi"),
-    ], className="chu-giai dinh-nghia")
+    return gap(tieu_de, html.Div([html.Div([html.B(ten), html.Span(dn)], className="dn-dong")
+                                  for ten, dn in muc], className="dn-luoi"), "chu-giai dinh-nghia")
 
 
 # Chữ tiếng Việt cho bảng (phân trang, không có dữ liệu, bộ lọc)

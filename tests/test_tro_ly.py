@@ -452,12 +452,16 @@ def test_giai_thich_du_bao_noi_bang_loi_thuong():
     import re
 
     from app.du_bao import du_bao_thang
-    from app.ui.tro_ly import giai_thich_du_bao
+    from app.ui.tro_ly import cau_du_bao, giai_thich_du_bao
     db = du_bao_thang("2026-09", 11)
-    chu = " ".join(d.children for d in giai_thich_du_bao(
+    chu = " ".join(cau_du_bao(
         db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("nhip"), db.attrs.get("tuan")))
     assert "nhịp tháng trước" in chu and "7 ngày gần nhất" in chu
     assert "hệ số" not in chu.lower()                 # chủ app không hiểu chữ này
     assert "bán" not in chu.lower()                  # dự báo tính trên số ONLINE, không phải số bán
     assert not re.search(r"\d\.\d", chu)          # số thập phân kiểu Việt Nam: 135,7
+    # phần giải thích phải nằm trong khối gập, mặc định đóng (không có thuộc tính "open")
+    kh = giai_thich_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(),
+                           db.attrs.get("nhip"), db.attrs.get("tuan"))
+    assert kh.children[0].children == "Cách tính dự báo" and not getattr(kh, "open", False)
 
