@@ -168,23 +168,39 @@ def bang_du_bao(gid: str):
         style={"width": "100%", "height": "380px"})
 
 
-def dong_du_bao(r: dict | None, ten: str = "Phòng"):
+def loi_he_so(nhip: dict | None) -> str:
+    """Giải thích hệ số cuối tháng bằng chính số của tháng trước (thay vì nói 'nhịp phần cuối tháng')."""
+    if not nhip or not nhip.get("dau") or not nhip.get("cuoi"):
+        return ""
+    so = lambda v: f"{v:,.1f}".replace(",", "@").replace(".", ",").replace("@", ".")   # noqa: E731
+    t, k, n = nhip["thang_truoc"][5:7], nhip["cat"], nhip["so_ngay"]
+    huong = "nhanh hơn" if nhip["he_so"] >= 1 else "chậm hơn"
+    return (f"Hệ số cuối tháng đang dùng {str(nhip['he_so']).replace('.', ',')}: tháng {t}, các ngày "
+            f"{k + 1:02d}-{n}/{t} bán {so(nhip['cuoi'])} online mỗi ngày, {huong} mức {so(nhip['dau'])} của "
+            f"các ngày 01-{k:02d}/{t}.")
+
+
+def dong_du_bao(r: dict | None, ten: str = "Phòng", nhip: dict | None = None):
     """Một dòng tóm tắt dự báo (Báo cáo phòng, Phân tích)."""
     if not r:
         return html.Div()
     if not r.get("mt"):
         return html.Div(f"{ten} chưa có mục tiêu tháng nên chưa dự báo được % hoàn thành.", className="desc")
-    return html.Div([
+    hang = html.Div([
         kpi("Dự báo cuối tháng", f"{r['du_bao']:,}".replace(",", "."), f"mục tiêu {r['mt']:,}".replace(",", "."),
             MAU_DANH_GIA.get(r["danh_gia"], "")),
         kpi("% mục tiêu dự báo", f"{r['pct_mt']}%", r["danh_gia"], MAU_DANH_GIA.get(r["danh_gia"], "")),
         kpi("Bình quân mỗi ngày", str(r["tb_ngay"]).replace(".", ","), f"luỹ kế {r['luy_ke']:,}".replace(",", ".")),
         kpi("Cần mỗi ngày còn lại", f"{r['can_moi_ngay'] or 0:,}".replace(",", "."), "để đủ mục tiêu tháng"),
     ], className="kpi-row", style={"marginBottom": "6px"})
+    loi = loi_he_so(nhip)
+    return html.Div([hang, html.Div(loi, className="desc")]) if loi else hang
 
 
-MO_TA_DU_BAO = ("Dự báo = luỹ kế + bình quân mỗi ngày × số ngày còn lại × hệ số cuối tháng (nhịp phần cuối "
-                "tháng trước so với đầu tháng). An toàn ≥ 100% mục tiêu · Cần tăng tốc 90-99% · Rủi ro dưới 90%.")
+MO_TA_DU_BAO = ("Dự báo = luỹ kế + bình quân mỗi ngày × số ngày còn lại × hệ số cuối tháng. "
+                "Hệ số cuối tháng cho biết tháng trước những ngày cuối tháng bán nhanh hơn những ngày đầu tháng "
+                "bao nhiêu lần, vì cuối tháng thường bứt tốc. "
+                "Đánh giá: An toàn từ 100% mục tiêu trở lên · Cần tăng tốc 90-99% · Rủi ro dưới 90%.")
 
 
 # ------------------------------------------------------------------ khung chat nổi

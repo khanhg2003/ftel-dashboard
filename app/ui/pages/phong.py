@@ -505,7 +505,7 @@ def register(app):
             return ""
         d = date.fromisoformat(ngay_iso[:10])
         db = du_bao_thang(f"{d.year}-{d.month:02d}", d.day, [code])
-        return tl.dong_du_bao(db[db.phong_code == code].iloc[0].to_dict(), "Phòng")
+        return tl.dong_du_bao(db[db.phong_code == code].iloc[0].to_dict(), "Phòng", db.attrs.get("nhip"))
 
     @app.callback(
         Output("bp-kpi", "children"), Output("bp-kpi", "className"), Output("bp-badge", "children"),

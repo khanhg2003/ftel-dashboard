@@ -72,7 +72,8 @@ def _ma_phong(phong: str | None) -> str | None:
     for x in phong_order():
         if p in (x["code"].lower(), x["ten"].lower()):
             return x["code"]
-    raise LoiAI(f"Không có phòng '{phong}'. Dùng mã phòng trong danh sách ngữ cảnh.")
+    raise LoiAI(f"'{phong}' không phải mã phòng. Nếu đây là một nhân sự thì gọi công cụ nhan_su_ca_nhan; "
+                "nếu là phòng thì lấy đúng mã trong danh sách phòng ở ngữ cảnh.")
 
 
 def _chan_nhan_su(user, code: str | None = None) -> None:
@@ -190,16 +191,18 @@ def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
     if tong.mt:
         thieu = max(int(tong.mt) - int(tong.du_bao), 0)
         dong.append(f"- Dự báo toàn phạm vi {_so(tong.du_bao)}/{_so(tong.mt)} = {int(tong.pct_mt)}% mục tiêu, THIẾU "
-                    f"{_so(thieu)} online. Cần {_so(tong.can_moi_ngay or 0)}/ngày trong khi đang {tong.tb_ngay}/ngày "
+                    f"{_so(thieu)} online. Cần {_so(tong.can_moi_ngay or 0)}/ngày trong khi đang "
+                    f"{str(tong.tb_ngay).replace('.', ',')}/ngày "
                     + (f"(phải nhanh hơn {round((tong.can_moi_ngay / tong.tb_ngay - 1) * 100)}%)."
                        if tong.can_moi_ngay and tong.tb_ngay else "."))
         gap = pd.Series({c: max(int(db.at[c, "mt"] or 0) - int(db.at[c, "du_bao"] or 0), 0) for c in ph.index})
         gap = gap[gap > 0].sort_values(ascending=False)
         if thieu and len(gap):
             top = gap.head(3)
-            dong.append("- Phần thiếu tập trung ở: " + ", ".join(
-                f"{meta[c]['ten']} thiếu {_so(v)} ({round(v / gap.sum() * 100)}% tổng phần thiếu các phòng)"
-                for c, v in top.items()) + f"; {len(gap)} phòng dự báo không đạt.")
+            dong.append("- Hụt nhiều nhất so với mục tiêu tháng (trong ngoặc là phần chiếm trong tổng phần "
+                        "còn thiếu của các phòng): " + ", ".join(
+                            f"{meta[c]['ten']} hụt {_so(v)} online ({round(v / gap.sum() * 100)}%)"
+                            for c, v in top.items()) + f"; {len(gap)} phòng dự báo không đạt.")
         ton7 = int(ph.ton_qua_7.sum())
         if ton7:
             dong.append(f"- Hợp đồng chờ lâu: {_so(ton7)} hợp đồng đã chờ quá 7 ngày. Nếu chuyển được một nửa thành online thì "
@@ -276,7 +279,8 @@ def tin_hieu_phong(d: date, code: str) -> str:
     if db.mt:
         thieu = max(int(db.mt) - int(db.du_bao), 0)
         dong.append(f"- {ten}: dự báo {_so(db.du_bao)}/{_so(db.mt)} = {int(db.pct_mt)}% mục tiêu"
-                    + (f", THIẾU {_so(thieu)} online. Cần {_so(db.can_moi_ngay or 0)}/ngày, đang {db.tb_ngay}/ngày."
+                    + (f", THIẾU {_so(thieu)} online. Cần {_so(db.can_moi_ngay or 0)}/ngày, đang "
+                       f"{str(db.tb_ngay).replace('.', ',')}/ngày."
                        if thieu else ", dự báo đạt."))
     ss = so_voi_thang_truoc(thang, d.day, [code])
     if ss:
@@ -465,6 +469,12 @@ def cong_cu(user) -> list[dict]:
             _cong_cu("nhan_su_phong", "Từng nhân sự của một phòng, luỹ kế từ 01 đến ngày: online, cùng kỳ, "
                      "V.VIP, Camera, tồn, số ngày liền chưa có số, NSLĐ, cần chú ý.",
                      phong={"type": "string", "description": "Mã phòng"}, den=_ngay("Ngày luỹ kế đến")),
+            _cong_cu("nhan_su_ca_nhan", "Toàn bộ số của MỘT nhân sự (theo acc hoặc họ tên) luỹ kế từ 01 đến "
+                     "ngày: online, cùng kỳ, V.VIP, Camera, tồn, số ngày liền chưa có số, NSLĐ, và vị trí của "
+                     "người đó trong phòng. Dùng khi câu hỏi nhắc tới một người cụ thể - KHÔNG truyền acc nhân "
+                     "sự vào tham số 'phong' của công cụ khác.",
+                     nguoi={"type": "string", "description": "Acc (VD DNG.Huyta5) hoặc họ tên nhân sự"},
+                     den=_ngay("Ngày luỹ kế đến")),
             _cong_cu("nsld", "NSLĐ (điểm ITN bình quân) theo phòng từng tháng và tân binh (tỷ lệ nghỉ, ITN "
                      "theo tháng làm việc). Có mã phòng thì kèm từng nhân sự của phòng đó.",
                      nam={"type": "integer"}, den_thang={"type": "integer", "description": "1-12"},
@@ -509,6 +519,56 @@ def chan_doan(user, den: str | None, code: str | None) -> str:
     return "\n\n".join(kq)
 
 
+def tim_nhan_su(user, nguoi: str, d: date) -> str:
+    """acc_norm của nhân sự khớp acc hoặc họ tên, trong phạm vi người hỏi được xem nhân sự.
+    Khớp nhiều người thì liệt kê để AI hỏi lại, không tự chọn bừa."""
+    from app.ingest.commit import _bo_dau
+    _chan_nhan_su(user)
+    gon = _bo_dau(str(nguoi or "").strip()).lower()
+    if not gon:
+        raise LoiAI("Chưa nói rõ tên hoặc acc của nhân sự cần xem.")
+    df = fi._hieu_suat(f"{d.year}-{d.month:02d}", user.phong_nhan_su(), d.day)
+    if df.empty:
+        raise LoiAI("Chưa có dữ liệu nhân sự của tháng này.")
+    acc = df.acc.fillna("").map(lambda x: _bo_dau(str(x)).lower())
+    ho_ten = df.ho_ten.fillna("").map(lambda x: _bo_dau(str(x)).lower())
+    hop = df[(acc == gon) | (ho_ten == gon)]
+    if hop.empty:
+        hop = df[acc.str.contains(gon, regex=False) | ho_ten.str.contains(gon, regex=False)]
+    if hop.empty:
+        raise LoiAI(f"Không có nhân sự nào tên hoặc acc giống '{nguoi}' trong phạm vi được xem.")
+    if len(hop) > 1:
+        raise LoiAI(f"Có {len(hop)} người khớp '{nguoi}': "
+                    + ", ".join(f"{r.ho_ten} ({r.acc}, {r.phong})" for r in hop.head(6).itertuples())
+                    + ". Gọi lại với acc chính xác.")
+    return str(hop.iloc[0].acc_norm)
+
+
+def nhan_su_ca_nhan(user, nguoi: str, den: str | None) -> str:
+    """Toàn bộ số của một nhân sự + vị trí của họ trong phòng (để nói được 'cao hay thấp so với ai')."""
+    d = _ngay_hop_le(den)
+    thang = f"{d.year}-{d.month:02d}"
+    acc_norm = tim_nhan_su(user, nguoi, d)
+    code = str(fi._hieu_suat(thang, user.phong_nhan_su(), d.day).set_index("acc_norm").at[acc_norm, "phong_code"])
+    _chan_nhan_su(user, code)
+    nv = _nhan_su_phong(thang, d.day, code)
+    dong = nv[nv.acc_norm == acc_norm]
+    if dong.empty:
+        raise LoiAI("Nhân sự này chưa có dòng số liệu trong tháng đang xem.")
+    r = dong.iloc[0]
+    ds = nv[nv.loai_dong == "data"].copy()
+    ds["online"] = pd.to_numeric(ds.online, errors="coerce").fillna(0)
+    so = float(pd.to_numeric(r.online, errors="coerce") or 0)
+    kq = [f"NHÂN SỰ {r.ho_ten} ({r.acc}) · phòng {bp.ten_phong(code)} · luỹ kế 01-{d:%d/%m/%Y}. "
+          f"{dong_thoi_gian(d)}", csv(dong, COT_NV),
+          f"Vị trí trong phòng: đứng thứ {int((ds.online > so).sum()) + 1}/{len(ds)} về online; trung vị phòng "
+          f"{int(ds.online.median())}, bình quân {str(round(float(ds.online.mean()), 1)).replace('.', ',')} online/người.",
+          f"TỔNG PHÒNG để so sánh:\n{csv(nv[nv.loai_dong == 'total'], COT_NV)}"]
+    if str(r.khong_xet or ""):
+        kq.append(f"Lưu ý: người này là {r.khong_xet} nên không vào xếp hạng cá nhân.")
+    return "\n".join(kq)
+
+
 def chay_cong_cu(user, ten: str, ts: dict) -> str:
     if ten == "bao_cao_tong":
         d = _ngay_hop_le(ts.get("den"))
@@ -542,6 +602,8 @@ def chay_cong_cu(user, ten: str, ts: dict) -> str:
         out = bang.rename(index=ten_p)
         out.loc["TỔNG"] = out.sum()
         return f"{TEN_CHI_SO[chi_so]} từng ngày tháng {thang} (cột = ngày):\n" + out.to_csv().strip()
+    if ten == "nhan_su_ca_nhan":
+        return nhan_su_ca_nhan(user, str(ts.get("nguoi") or ""), ts.get("den"))
     if ten == "nhan_su_phong":
         code = _ma_phong(ts.get("phong"))
         return ngu_canh_phong(user, ts.get("den"), code)[1]()
@@ -593,15 +655,20 @@ QUY_TAC_CHAT = (
     "bầy, không phải tổng của một nhóm phòng tự chọn. Cần tổng một nhóm thì tự cộng các dòng phòng và ghi rõ là tự "
     "cộng; không chắc thì không nêu.\n"
     "5. SỐ LIỆU: câu có số thì LUÔN lấy qua công cụ, không dùng số nhớ trong hội thoại nếu khác kỳ/phạm vi, không "
-    "trả lời bằng hiểu biết chung. Ưu tiên cột tính sẵn; tự tính thì ghi phép tính. Công cụ báo LỖI hoặc trống "
-    "thì nói thẳng; LỖI quyền thì nói người hỏi không có quyền.\n"
+    "trả lời bằng hiểu biết chung. Ưu tiên cột tính sẵn; tự tính thì ghi phép tính.\n"
+    "5b. KHI CÔNG CỤ BÁO LỖI: đọc câu lỗi, SỬA THAM SỐ rồi gọi lại (VD truyền nhầm acc nhân sự vào ô 'phong' "
+    "thì gọi nhan_su_ca_nhan; sai mã phòng thì lấy mã trong danh sách phòng). Chỉ sau khi đã thử lại mà vẫn "
+    "không có số thì mới trả lời, và nói bằng lời thường ('chưa tra được số của ... trong kỳ này'), TUYỆT ĐỐI "
+    "không in chữ 'LỖI' hay câu lỗi kỹ thuật cho người đọc. Lỗi về quyền thì nói người hỏi không có quyền xem.\n"
+    "5c. Câu hỏi nhắc tới MỘT người (có acc kiểu DNG.Abc123 hoặc họ tên): gọi nhan_su_ca_nhan, không gọi "
+    "nhan_su_phong rồi tự dò.\n"
     "6. Mở đầu gọn bằng kỳ trong ngoặc (VD '(01-16/09)'), không nhắc lại câu hỏi. Chỉ trả lời về số bán, dự "
     "báo, NSLĐ/tân binh; ngoài phạm vi thì từ chối lịch sự.\n"
     "7. Câu 'phòng nào/bầy nào' xét MỌI phòng/bầy trong phạm vi được xem, không thu hẹp về phòng đang chọn trên "
     "trang; chỉ giới hạn khi câu hỏi nói 'phòng này', 'phòng mình' hoặc nêu tên.\n"
     "8. Gọi ít công cụ nhất có thể.\n"
     "9. KHÔNG tự đặt chỉ tiêu mới, KHÔNG đề xuất 'họp gấp', thêm người, tăng ca hay việc không có trong dữ liệu; "
-    "không nói 'số do hệ thống tính, tôi chỉ báo cáo'. Không xưng 'tôi', không gọi 'anh/chị'.")
+    "không nói 'số do hệ thống tính, tôi chỉ báo cáo'. Xưng hô theo phần NHÂN VẬT, không xưng 'tôi'.")
 
 # Bộ lọc chung (ky-chung) được nhiều trang cùng ghi: chỉ lấy các ô mà trang đang xem thật sự có,
 # tránh VD phòng chọn ở Báo cáo phòng vẫn "dính" khi đang hỏi ở Báo cáo Tổng.

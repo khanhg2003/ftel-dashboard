@@ -158,8 +158,8 @@ def test_chat_tra_loi_ngan_nhan_xet_moi_day_du():
     chat = ai.loi_dan("Fox", chat=True) + dl.ngu_canh_chat(u, "/", {})[0]
     assert "Việc cần làm" not in ai.loi_dan("Fox", chat=True) and "Việc cần làm" in ai.loi_dan("Fox")
     ld = ai.loi_dan("Fox")
-    assert "KHÔNG chép lại bảng" in ld and "140 từ" in ld and "**Nhận định:**" in ld and "kéo giảm" in ld
-    assert "GIỌNG VĂN" in ai.loi_dan("Fox", chat=True) and "VÍ DỤ VIẾT ĐẠT" not in ai.loi_dan("Fox", chat=True)
+    assert "KHÔNG chép lại bảng" in ld and "170 từ" in ld and "**Nhận định:**" in ld and "kéo giảm" in ld
+    assert "NHÂN VẬT" in ai.loi_dan("Fox", chat=True) and "VÍ DỤ VIẾT ĐẠT" not in ai.loi_dan("Fox", chat=True)
     assert "NGẮN, ĐÚNG TRỌNG TÂM" in chat and "| IBB |" in chat and "| DIABAN |" in chat
 
 
@@ -316,7 +316,8 @@ def test_tin_hieu_chinh_tinh_san_cho_nhan_xet(monkeypatch):
     import app.overview as ov
     monkeypatch.setattr(ov, "trang_thai_ngay", lambda d: (False, None))
     t = dl.tin_hieu_tong(date(2026, 9, 11), "2026-09", "all", "2026-09-01", None)
-    assert "THIẾU 319 online" in t and "Phần thiếu tập trung ở: Tam Kỳ" in t
+    assert "THIẾU 319 online" in t and "Hụt nhiều nhất so với mục tiêu tháng" in t and "Tam Kỳ hụt" in t
+    assert "đóng góp" not in t.lower()          # phần thiếu phải nói là "chiếm", không phải "đóng góp"
     assert "Hợp đồng chờ lâu" in t and "kéo" not in t.lower() and "Năng suất" in t and "7 ngày đã chốt" in t
     assert "TÍN HIỆU CHÍNH" in dl.ngu_canh_tong(_nguoi(), None, "2026-09-11", "all")[1]()
 
@@ -369,3 +370,50 @@ def test_lam_sach_cau_tra_loi():
     assert lam_sach("làm 129.8/ngày, chờ >7 ngày, thêm ~39, 4.211 số") == "làm 129,8/ngày, chờ quá 7 ngày, thêm khoảng 39, 4.211 số"
     assert lam_sach("sale kéo giảm tỷ lệ, kéo tụt tiến độ") == "sale làm giảm tỷ lệ, làm tụt tiến độ"
     assert lam_sach("đạt 93% (số này do hệ thống tính, tôi chỉ báo cáo).") == "đạt 93%."
+
+
+def test_tra_mot_nhan_su_theo_acc_hoac_ten():
+    """Hỏi về một người cụ thể phải ra số của người đó, không báo 'không tìm thấy' (lỗi chủ app gặp 19/09)."""
+    admin = _nguoi()
+    kq = dl.chay_cong_cu(admin, "nhan_su_ca_nhan", {"nguoi": "DNG.ChiPTL4", "den": "2026-09-11"})
+    assert "Phạm Thị Lan Chi" in kq and "IBB6" in kq and "Vị trí trong phòng" in kq
+    assert dl.chay_cong_cu(admin, "nhan_su_ca_nhan", {"nguoi": "Phạm Thị Lan Chi", "den": "2026-09-11"}) == kq
+    with pytest.raises(ai.LoiAI, match="Không có nhân sự"):
+        dl.chay_cong_cu(admin, "nhan_su_ca_nhan", {"nguoi": "Nguyễn Không Có Thật", "den": "2026-09-11"})
+    # trưởng phòng chỉ tra được người của phòng mình
+    tp = _nguoi("phong", "kiemthu.tp", ["IBB2"])
+    with pytest.raises(ai.LoiAI):
+        dl.chay_cong_cu(tp, "nhan_su_ca_nhan", {"nguoi": "DNG.ChiPTL4", "den": "2026-09-11"})
+
+
+def test_truyen_acc_vao_o_ma_phong_thi_chi_duong_sang_cong_cu_dung():
+    with pytest.raises(ai.LoiAI, match="nhan_su_ca_nhan"):
+        dl.chay_cong_cu(_nguoi(), "nhan_su_phong", {"phong": "DNG.ChiPTL4", "den": "2026-09-11"})
+
+
+def test_khong_dung_tu_dong_gop_cho_phan_thieu():
+    """'Đóng góp' chỉ dành cho việc tốt; phần thiếu phải nói là 'chiếm' và không dán phép tính."""
+    from app.tro_ly import lam_sach
+    assert lam_sach("Tam Kỳ, IBB2 đóng góp 51% phần thiếu (87+64+63 = 214/323) của chi nhánh") == (
+        "Tam Kỳ, IBB2 chiếm 51% phần thiếu của chi nhánh")
+    assert lam_sach("cần 183/ngày vs đang 129,8/ngày") == "cần 183/ngày so với đang 129,8/ngày"
+    assert lam_sach("IBB7 đóng góp 40% phần tăng") == "IBB7 đóng góp 40% phần tăng"
+
+
+def test_loi_dan_giu_dung_nhan_vat_fox():
+    d = ai.loi_dan("Fox")
+    assert "bạn là Fox" in d and "anh/chị" in d
+    assert "không viết 'đóng góp phần thiếu'" in d
+    assert ai.loi_dan("Mây").count("Mây") >= 3          # đổi tên trợ lý thì nhân vật đổi theo
+
+
+def test_he_so_cuoi_thang_giai_thich_bang_so_thang_truoc():
+    import re
+
+    from app.du_bao import nhip_cuoi_thang
+    from app.ui.tro_ly import loi_he_so
+    n = nhip_cuoi_thang("2026-09", 11)
+    assert n["dau"] and n["cuoi"] and abs(n["he_so"] - round(n["cuoi"] / n["dau"], 2)) < 0.01
+    loi = loi_he_so(n)
+    assert "Hệ số cuối tháng đang dùng" in loi and "/08" in loi
+    assert not re.search(r"\d\.\d", loi)              # số kiểu Việt Nam: 159,2 chứ không phải 159.2

@@ -659,7 +659,8 @@ def register(app):
             return ""
         thang, ngay = ky.thang, ky.ngay
         db = du_bao_thang(thang, ngay, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
-        return tl.dong_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), TEN_PHAM_VI.get(chi_nhanh or "all"))
+        return tl.dong_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), TEN_PHAM_VI.get(chi_nhanh or "all"),
+                              db.attrs.get("nhip"))
 
     @app.callback(Output("pt-tai-xuong", "data"), Input("pt-xls", "n_clicks"),
                   State("pt-khoang", "start_date"), State("pt-khoang", "end_date"), State("pt-cn", "value"),

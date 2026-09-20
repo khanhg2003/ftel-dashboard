@@ -19,19 +19,27 @@ HE_SO_MIN, HE_SO_MAX = 0.7, 1.5
 AN_TOAN, TANG_TOC, RUI_RO, CHUA_MT = "An toàn", "Cần tăng tốc", "Rủi ro", "Chưa có mục tiêu"
 
 
-def he_so_cuoi_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> float:
+def nhip_cuoi_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> dict:
+    """Nhịp tháng trước, dùng để giải thích hệ số cho người đọc: bình quân mỗi ngày của phần đầu tháng
+    (tới ngày `ngay`) và của phần còn lại, cùng hệ số = cuối / đầu."""
     pm = prev_month(thang)
     days = month_range(pm)[2]
     k = min(ngay, days)
+    goc = {"thang_truoc": pm, "cat": k, "so_ngay": days, "dau": None, "cuoi": None, "he_so": 1.0}
     if k >= days:
-        return 1.0
+        return goc
     d = daily_counts(pm, "online")
     if chi_phong is not None:
         d = d.loc[[c for c in d.index if c in set(chi_phong)]]
     dau, cuoi = d.loc[:, :k].to_numpy().sum() / k, d.loc[:, k + 1:].to_numpy().sum() / (days - k)
     if not dau or not cuoi:
-        return 1.0
-    return round(float(min(HE_SO_MAX, max(HE_SO_MIN, cuoi / dau))), 2)
+        return goc
+    return {**goc, "dau": round(float(dau), 1), "cuoi": round(float(cuoi), 1),
+            "he_so": round(float(min(HE_SO_MAX, max(HE_SO_MIN, cuoi / dau))), 2)}
+
+
+def he_so_cuoi_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> float:
+    return nhip_cuoi_thang(thang, ngay, chi_phong)["he_so"]
 
 
 def danh_gia(pct: float | None) -> str:
@@ -52,7 +60,8 @@ def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> p
     luy_ke = daily_counts(thang, "online").loc[:, :ngay].sum(axis=1).reindex(codes).fillna(0)
     tgt = _targets(thang)
     mt = (tgt["internet"] if "internet" in tgt.columns else pd.Series(dtype=float)).reindex(codes).fillna(0)
-    he_so = he_so_cuoi_thang(thang, ngay, chi_phong)
+    nhip = nhip_cuoi_thang(thang, ngay, chi_phong)
+    he_so = nhip["he_so"]
 
     def dong(code, ten_dong, lk, muc_tieu):
         du_bao = round(lk + lk / ngay * con_lai * he_so)
@@ -66,5 +75,5 @@ def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> p
     bo = phong_khong_cong_tong()
     rows.append(dong("TOTAL", "TỔNG", float(luy_ke.sum()), float(mt[[c for c in codes if c not in bo]].sum())))
     out = pd.DataFrame(rows).astype(object).where(lambda d: d.notna(), None)
-    out.attrs.update(he_so=he_so, ngay=ngay, so_ngay=days)
+    out.attrs.update(he_so=he_so, ngay=ngay, so_ngay=days, nhip=nhip)
     return out
