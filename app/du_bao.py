@@ -106,6 +106,7 @@ def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> p
         can = math.ceil((muc_tieu - lk) / con_lai) if muc_tieu > lk and con_lai else 0
         return {"phong_code": code, "phong": ten_dong, "mt": int(muc_tieu), "luy_ke": int(lk),
                 "du_bao": int(du_bao), "du_bao_tuan": int(theo_tuan), "pct_mt": pct,
+                "ngay": ngay, "con_lai": con_lai, "nhip": he_so,
                 "pct_tuan": round(theo_tuan / muc_tieu * 100) if muc_tieu else None,
                 "can_moi_ngay": can if muc_tieu else None,
                 "tb_ngay": round(lk / ngay, 1), "danh_gia": danh_gia(pct)}

@@ -442,7 +442,10 @@ def register(app):
         d = date.fromisoformat(ngay_iso)
         thang = f"{d.year}-{d.month:02d}"
         db = du_bao_thang(thang, d.day, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
-        return (db[(db.phong_code == "TOTAL") | (db.mt > 0) | (db.luy_ke > 0)].to_dict("records"),
+        rows = db[(db.phong_code == "TOTAL") | (db.mt > 0) | (db.luy_ke > 0)].to_dict("records")
+        for x in rows:
+            x["phep_tinh"] = tl.phep_tinh_du_bao(x, f"{x['phong']}: ")
+        return (rows,
                 tl.giai_thich_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(),
                                      db.attrs.get("nhip"), db.attrs.get("tuan")))
     kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),

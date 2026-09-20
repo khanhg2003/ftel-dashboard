@@ -432,6 +432,22 @@ def test_du_bao_kich_ban_giu_nhip_7_ngay():
     assert nhip_tuan("2026-09", 11, ["IBB2"])["tb"] < t["tb"]
 
 
+def test_phep_tinh_du_bao_cong_lai_dung_so_tren_bang():
+    """Chủ app tự cộng lại phải ra đúng số dự báo (không lệch vì làm tròn bình quân mỗi ngày)."""
+    import re
+
+    from app.du_bao import du_bao_thang
+    from app.ui.tro_ly import phep_tinh_du_bao
+    db = du_bao_thang("2026-09", 11)
+    for r in db.to_dict("records"):
+        chu = phep_tinh_du_bao(r)
+        if not chu:
+            continue
+        lk, tb, con, nh, kq = re.findall(r"[\d.,]+", chu)
+        lay = lambda x: float(x.replace(".", "").replace(",", "."))      # noqa: E731
+        assert round(lay(lk) + lay(tb) * lay(con) * lay(nh)) == lay(kq) == r["du_bao"], chu
+
+
 def test_giai_thich_du_bao_noi_bang_loi_thuong():
     import re
 
@@ -440,7 +456,7 @@ def test_giai_thich_du_bao_noi_bang_loi_thuong():
     db = du_bao_thang("2026-09", 11)
     chu = " ".join(d.children for d in giai_thich_du_bao(
         db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("nhip"), db.attrs.get("tuan")))
-    assert "giữ đúng nhịp tháng trước" in chu and "7 ngày gần nhất" in chu
+    assert "nhịp tháng trước" in chu and "7 ngày gần nhất" in chu
     assert "hệ số" not in chu.lower()                 # chủ app không hiểu chữ này
     assert "bán" not in chu.lower()                  # dự báo tính trên số ONLINE, không phải số bán
     assert not re.search(r"\d\.\d", chu)          # số thập phân kiểu Việt Nam: 135,7
