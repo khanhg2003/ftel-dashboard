@@ -153,8 +153,8 @@ def bang_du_bao(gid: str):
              "cellStyle": {"fontWeight": "650"},
              "headerTooltip": "Luỹ kế + phần còn lại theo đúng nhịp tháng trước"},
             {"field": "du_bao_tuan", "headerName": "Giữ nhịp 7 ngày", "valueFormatter": so,
-             "headerTooltip": "Kịch bản thận trọng: từ giờ tới cuối tháng chỉ bán đều như 7 ngày gần nhất "
-                              "đã chốt số, không bứt tốc cuối tháng"},
+             "headerTooltip": "Kịch bản thận trọng: từ giờ tới cuối tháng mỗi ngày chỉ có số online bằng "
+                              "7 ngày gần nhất đã chốt số, không bứt tốc cuối tháng"},
             {"field": "pct_mt", "headerName": "% MT", "valueFormatter":
                 {"function": "params.value == null ? '–' : params.value + '%'"}},
             {"field": "can_moi_ngay", "headerName": "Cần mỗi ngày", "valueFormatter": so,
@@ -186,14 +186,14 @@ def giai_thich_du_bao(r: dict, nhip: dict | None, tuan: dict | None) -> list:
         t, k, n = nhip["thang_truoc"][5:7], nhip["cat"], nhip["so_ngay"]
         huong = "nhanh hơn" if nhip["he_so"] >= 1 else "chậm hơn"
         dong.append(f"Số chính giả định tháng này giữ đúng nhịp tháng trước: tháng {t} các ngày "
-                    f"{k + 1:02d}-{n}/{t} bán {_so1(nhip['cuoi'])} online mỗi ngày, {huong} "
+                    f"{k + 1:02d}-{n}/{t} có {_so1(nhip['cuoi'])} online mỗi ngày, {huong} "
                     f"{str(nhip['he_so']).replace('.', ',')} lần mức {_so1(nhip['dau'])} của các ngày "
                     f"01-{k:02d}/{t}.")
     if tuan and r.get("du_bao_tuan") is not None and tuan.get("so_ngay"):
         th = tuan["thang"][5:7]
         so = f"{int(r['du_bao_tuan']):,}".replace(",", ".")
-        dong.append(f"Nếu từ giờ tới cuối tháng chỉ bán đều như {tuan['so_ngay']} ngày gần nhất "
-                    f"({tuan['tu']:02d}-{tuan['den']:02d}/{th}, {_so1(tuan['tb'])} online mỗi ngày) thì cuối "
+        dong.append(f"Nếu từ giờ tới cuối tháng mỗi ngày chỉ có số online bằng {tuan['so_ngay']} ngày gần "
+                    f"nhất ({tuan['tu']:02d}-{tuan['den']:02d}/{th}, {_so1(tuan['tb'])} online mỗi ngày) thì cuối "
                     f"tháng khoảng {so}"
                     + (f" = {round(r['pct_tuan'])}% mục tiêu." if r.get("pct_tuan") else " online."))
     return [html.Div(c, className="desc") for c in dong]
@@ -216,11 +216,11 @@ def dong_du_bao(r: dict | None, ten: str = "Phòng", nhip: dict | None = None, t
     return html.Div([hang, *loi]) if loi else hang
 
 
-MO_TA_DU_BAO = ("Dự báo cuối tháng lấy luỹ kế hiện tại rồi cộng phần còn lại theo đúng nhịp tháng trước "
-                "(tháng trước, những ngày cuối tháng bán nhanh hơn đầu tháng bao nhiêu lần thì tháng này tính "
-                "như vậy). "
-                "Cột 'Giữ nhịp 7 ngày' là kịch bản thận trọng: từ giờ tới cuối tháng chỉ bán đều như 7 ngày "
-                "gần nhất, không bứt tốc. "
+MO_TA_DU_BAO = ("Dự báo tính trên SỐ ONLINE (không phải số bán): lấy luỹ kế online hiện tại rồi cộng phần "
+                "còn lại theo đúng nhịp tháng trước (tháng trước những ngày cuối tháng có online nhiều hơn đầu "
+                "tháng bao nhiêu lần thì tháng này tính như vậy). "
+                "Cột 'Giữ nhịp 7 ngày' là kịch bản thận trọng: từ giờ tới cuối tháng mỗi ngày chỉ có số online "
+                "bằng 7 ngày gần nhất, không bứt tốc. "
                 "Thử lại trên tháng 8 đã biết kết quả: cách tính chính sai khoảng 1-2%, kịch bản 7 ngày thấp "
                 "hơn thực tế khoảng 4-6%. "
                 "Đánh giá theo số chính: An toàn từ 100% mục tiêu trở lên · Cần tăng tốc 90-99% · Rủi ro dưới "

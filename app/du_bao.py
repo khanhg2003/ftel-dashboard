@@ -5,10 +5,10 @@ HAI CON SỐ, hai giả định khác nhau:
 1. `du_bao` (số chính) = luỹ kế + (luỹ kế / số ngày đã qua) × số ngày còn lại × hệ số cuối tháng.
    Hệ số cuối tháng lấy từ tháng trước của chính phạm vi đang xem: tốc độ bình quân/ngày của phần
    còn lại tháng trước chia tốc độ của cùng số ngày đầu tháng. Nói gọn: **giữ đúng nhịp tháng
-   trước** - cuối tháng thường bán nhanh hơn đầu tháng. Giới hạn 0,7 - 1,5 để một tháng bất thường
+   trước** - cuối tháng thường có nhiều online hơn đầu tháng. Giới hạn 0,7 - 1,5 để một tháng bất thường
    không kéo lệch.
 2. `du_bao_tuan` = luỹ kế + bình quân 7 ngày gần nhất đã chốt × số ngày còn lại. Đây là kịch bản
-   **không bứt tốc**: từ giờ tới cuối tháng vẫn bán đều như tuần vừa rồi.
+   **không bứt tốc**: từ giờ tới cuối tháng mỗi ngày vẫn có số online như tuần vừa rồi.
 
 Thử lại trên tháng 8/2026 (đã biết kết quả thật 4.322): cách 1 sai trung bình 1,9% (từ ngày 15 trở
 đi 1,3%), cách 2 sai 6,0% (từ ngày 15 là 3,9%) vì bỏ qua nhịp bứt cuối tháng. Vì vậy số chính vẫn
@@ -57,7 +57,7 @@ def he_so_cuoi_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) 
 def nhip_tuan(thang: str, ngay: int, chi_phong: list[str] | None = None) -> dict:
     """Bình quân online/ngày của 7 ngày gần nhất ĐÃ CHỐT (bỏ ngày còn đang cập nhật), theo phòng.
 
-    Dùng cho kịch bản "không bứt tốc": từ giờ tới cuối tháng vẫn bán đều như tuần vừa rồi.
+    Dùng cho kịch bản "không bứt tốc": từ giờ tới cuối tháng mỗi ngày vẫn có số online như tuần vừa rồi.
     """
     from app.overview import trang_thai_ngay
     days = month_range(thang)[2]

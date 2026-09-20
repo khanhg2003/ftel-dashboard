@@ -207,7 +207,7 @@ def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
         tuan = db.attrs.get("tuan") or {}
         if tong.du_bao_tuan is not None and tuan.get("so_ngay"):
             chenh = int(tong.du_bao) - int(tong.du_bao_tuan)
-            dong.append(f"- Kịch bản không bứt tốc: nếu từ giờ tới cuối tháng chỉ bán đều như "
+            dong.append(f"- Kịch bản không bứt tốc: nếu từ giờ tới cuối tháng mỗi ngày chỉ có số online như "
                         f"{tuan['so_ngay']} ngày gần nhất ({str(tuan['tb']).replace('.', ',')} online/ngày) thì "
                         f"cuối tháng {_so(tong.du_bao_tuan)} = {int(tong.pct_tuan)}% mục tiêu"
                         + (f", thấp hơn dự báo chính {_so(chenh)} online - đây là phần đang trông vào nhịp bứt "
@@ -340,7 +340,7 @@ def loi_du_bao(db) -> str:
     """Giải thích hai cột dự báo cho AI bằng lời thường (không dùng chữ 'hệ số')."""
     t = db.attrs.get("tuan") or {}
     return (f"DỰ BÁO CUỐI THÁNG (luỹ kế từ 01). Cột 'Dự báo cuối tháng' = luỹ kế + phần còn lại tính theo "
-            f"đúng nhịp tháng trước (tháng trước phần cuối tháng bán nhanh hơn phần đầu tháng "
+            f"đúng nhịp tháng trước (tháng trước phần cuối tháng có online nhiều hơn phần đầu tháng "
             f"{str(db.attrs['he_so']).replace('.', ',')} lần). Cột 'Nếu chỉ giữ nhịp 7 ngày gần nhất' = kịch "
             f"bản không bứt tốc, lấy bình quân {str(t.get('tb', 0)).replace('.', ',')} online/ngày của ngày "
             f"{t.get('tu', 0):02d}-{t.get('den', 0):02d} nhân số ngày còn lại. Chênh giữa hai cột là phần "

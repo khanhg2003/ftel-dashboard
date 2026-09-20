@@ -442,5 +442,6 @@ def test_giai_thich_du_bao_noi_bang_loi_thuong():
         db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("nhip"), db.attrs.get("tuan")))
     assert "giữ đúng nhịp tháng trước" in chu and "7 ngày gần nhất" in chu
     assert "hệ số" not in chu.lower()                 # chủ app không hiểu chữ này
+    assert "bán" not in chu.lower()                  # dự báo tính trên số ONLINE, không phải số bán
     assert not re.search(r"\d\.\d", chu)          # số thập phân kiểu Việt Nam: 135,7
 
