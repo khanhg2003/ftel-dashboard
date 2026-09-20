@@ -150,7 +150,11 @@ def bang_du_bao(gid: str):
             {"field": "luy_ke", "headerName": "Luỹ kế", "valueFormatter": so},
             {"field": "tb_ngay", "headerName": "TB/ngày"},
             {"field": "du_bao", "headerName": "Dự báo cuối tháng", "valueFormatter": so,
-             "cellStyle": {"fontWeight": "650"}},
+             "cellStyle": {"fontWeight": "650"},
+             "headerTooltip": "Luỹ kế + phần còn lại theo đúng nhịp tháng trước"},
+            {"field": "du_bao_tuan", "headerName": "Giữ nhịp 7 ngày", "valueFormatter": so,
+             "headerTooltip": "Kịch bản thận trọng: từ giờ tới cuối tháng chỉ bán đều như 7 ngày gần nhất "
+                              "đã chốt số, không bứt tốc cuối tháng"},
             {"field": "pct_mt", "headerName": "% MT", "valueFormatter":
                 {"function": "params.value == null ? '–' : params.value + '%'"}},
             {"field": "can_moi_ngay", "headerName": "Cần mỗi ngày", "valueFormatter": so,
@@ -168,19 +172,34 @@ def bang_du_bao(gid: str):
         style={"width": "100%", "height": "380px"})
 
 
-def loi_he_so(nhip: dict | None) -> str:
-    """Giải thích hệ số cuối tháng bằng chính số của tháng trước (thay vì nói 'nhịp phần cuối tháng')."""
-    if not nhip or not nhip.get("dau") or not nhip.get("cuoi"):
-        return ""
-    so = lambda v: f"{v:,.1f}".replace(",", "@").replace(".", ",").replace("@", ".")   # noqa: E731
-    t, k, n = nhip["thang_truoc"][5:7], nhip["cat"], nhip["so_ngay"]
-    huong = "nhanh hơn" if nhip["he_so"] >= 1 else "chậm hơn"
-    return (f"Hệ số cuối tháng đang dùng {str(nhip['he_so']).replace('.', ',')}: tháng {t}, các ngày "
-            f"{k + 1:02d}-{n}/{t} bán {so(nhip['cuoi'])} online mỗi ngày, {huong} mức {so(nhip['dau'])} của "
-            f"các ngày 01-{k:02d}/{t}.")
+def _so1(v) -> str:
+    return f"{v:,.1f}".replace(",", "@").replace(".", ",").replace("@", ".")
 
 
-def dong_du_bao(r: dict | None, ten: str = "Phòng", nhip: dict | None = None):
+def giai_thich_du_bao(r: dict, nhip: dict | None, tuan: dict | None) -> list:
+    """Hai dòng nhỏ dưới ô số: số chính dựa vào nhịp tháng trước, và kịch bản không bứt tốc.
+
+    Nói bằng chính số của tháng trước và của tuần vừa rồi, không dùng chữ "hệ số".
+    """
+    dong = []
+    if nhip and nhip.get("dau") and nhip.get("cuoi"):
+        t, k, n = nhip["thang_truoc"][5:7], nhip["cat"], nhip["so_ngay"]
+        huong = "nhanh hơn" if nhip["he_so"] >= 1 else "chậm hơn"
+        dong.append(f"Số chính giả định tháng này giữ đúng nhịp tháng trước: tháng {t} các ngày "
+                    f"{k + 1:02d}-{n}/{t} bán {_so1(nhip['cuoi'])} online mỗi ngày, {huong} "
+                    f"{str(nhip['he_so']).replace('.', ',')} lần mức {_so1(nhip['dau'])} của các ngày "
+                    f"01-{k:02d}/{t}.")
+    if tuan and r.get("du_bao_tuan") is not None and tuan.get("so_ngay"):
+        th = tuan["thang"][5:7]
+        so = f"{int(r['du_bao_tuan']):,}".replace(",", ".")
+        dong.append(f"Nếu từ giờ tới cuối tháng chỉ bán đều như {tuan['so_ngay']} ngày gần nhất "
+                    f"({tuan['tu']:02d}-{tuan['den']:02d}/{th}, {_so1(tuan['tb'])} online mỗi ngày) thì cuối "
+                    f"tháng khoảng {so}"
+                    + (f" = {round(r['pct_tuan'])}% mục tiêu." if r.get("pct_tuan") else " online."))
+    return [html.Div(c, className="desc") for c in dong]
+
+
+def dong_du_bao(r: dict | None, ten: str = "Phòng", nhip: dict | None = None, tuan: dict | None = None):
     """Một dòng tóm tắt dự báo (Báo cáo phòng, Phân tích)."""
     if not r:
         return html.Div()
@@ -193,14 +212,19 @@ def dong_du_bao(r: dict | None, ten: str = "Phòng", nhip: dict | None = None):
         kpi("Bình quân mỗi ngày", str(r["tb_ngay"]).replace(".", ","), f"luỹ kế {r['luy_ke']:,}".replace(",", ".")),
         kpi("Cần mỗi ngày còn lại", f"{r['can_moi_ngay'] or 0:,}".replace(",", "."), "để đủ mục tiêu tháng"),
     ], className="kpi-row", style={"marginBottom": "6px"})
-    loi = loi_he_so(nhip)
-    return html.Div([hang, html.Div(loi, className="desc")]) if loi else hang
+    loi = giai_thich_du_bao(r, nhip, tuan)
+    return html.Div([hang, *loi]) if loi else hang
 
 
-MO_TA_DU_BAO = ("Dự báo = luỹ kế + bình quân mỗi ngày × số ngày còn lại × hệ số cuối tháng. "
-                "Hệ số cuối tháng cho biết tháng trước những ngày cuối tháng bán nhanh hơn những ngày đầu tháng "
-                "bao nhiêu lần, vì cuối tháng thường bứt tốc. "
-                "Đánh giá: An toàn từ 100% mục tiêu trở lên · Cần tăng tốc 90-99% · Rủi ro dưới 90%.")
+MO_TA_DU_BAO = ("Dự báo cuối tháng lấy luỹ kế hiện tại rồi cộng phần còn lại theo đúng nhịp tháng trước "
+                "(tháng trước, những ngày cuối tháng bán nhanh hơn đầu tháng bao nhiêu lần thì tháng này tính "
+                "như vậy). "
+                "Cột 'Giữ nhịp 7 ngày' là kịch bản thận trọng: từ giờ tới cuối tháng chỉ bán đều như 7 ngày "
+                "gần nhất, không bứt tốc. "
+                "Thử lại trên tháng 8 đã biết kết quả: cách tính chính sai khoảng 1-2%, kịch bản 7 ngày thấp "
+                "hơn thực tế khoảng 4-6%. "
+                "Đánh giá theo số chính: An toàn từ 100% mục tiêu trở lên · Cần tăng tốc 90-99% · Rủi ro dưới "
+                "90%.")
 
 
 # ------------------------------------------------------------------ khung chat nổi

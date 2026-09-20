@@ -167,7 +167,9 @@ def layout(ky: dict | None = None):
                 getRowStyle=ROW_STYLE, style={"width": "100%"})),
                 id="tq-zoom-wrap", className="zoom-wrap"),
         ], className="card"),
-        tl.the_ai("tq", "Dự báo cuối tháng & nhận xét", tl.MO_TA_DU_BAO, tl.bang_du_bao("tq-du-bao")),
+        tl.the_ai("tq", "Dự báo cuối tháng & nhận xét", tl.MO_TA_DU_BAO,
+                  html.Div([tl.bang_du_bao("tq-du-bao"),
+                            html.Div(id="tq-du-bao-loi", style={"marginTop": "8px"})])),
     ])
 
 
@@ -430,16 +432,19 @@ def register(app):
     tl.gan_nhan_xet(app, "tq", "tong", [("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value")],
                     dl.ngu_canh_tong, dl.YEU_CAU_TONG)
 
-    @app.callback(Output("tq-du-bao", "rowData"), Input("tq-khoang", "end_date"), Input("tq-cn", "value"))
+    @app.callback(Output("tq-du-bao", "rowData"), Output("tq-du-bao-loi", "children"),
+                  Input("tq-khoang", "end_date"), Input("tq-cn", "value"))
     def _du_bao(ngay_iso, chi_nhanh):
         ngays = cac_ngay_co_du_lieu()
         ngay_iso = (ngay_iso or (ngays[-1] if ngays else ""))[:10]
         if not ngay_iso:
-            return []
+            return [], ""
         d = date.fromisoformat(ngay_iso)
         thang = f"{d.year}-{d.month:02d}"
         db = du_bao_thang(thang, d.day, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
-        return db[(db.phong_code == "TOTAL") | (db.mt > 0) | (db.luy_ke > 0)].to_dict("records")
+        return (db[(db.phong_code == "TOTAL") | (db.mt > 0) | (db.luy_ke > 0)].to_dict("records"),
+                tl.giai_thich_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(),
+                                     db.attrs.get("nhip"), db.attrs.get("tuan")))
     kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),
            chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     # Điện thoại: mở trang là dùng bảng Gọn luôn

@@ -33,7 +33,8 @@ COT_TONG = {"phong": "Phòng", "nhan_su": "Nhân sự", "mt_internet": "MT Inter
             "mau_nho": "Mẫu nhỏ", "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó",
             "ton_qua_7": "Hợp đồng chờ quá 7 ngày"}
 COT_DU_BAO = {"phong": "Phòng", "mt": "MT tháng", "luy_ke": "Luỹ kế", "tb_ngay": "TB/ngày",
-              "du_bao": "Dự báo cuối tháng", "pct_mt": "%MT dự báo", "can_moi_ngay": "Cần mỗi ngày",
+              "du_bao": "Dự báo cuối tháng", "pct_mt": "%MT dự báo",
+              "du_bao_tuan": "Nếu chỉ giữ nhịp 7 ngày gần nhất", "can_moi_ngay": "Cần mỗi ngày",
               "danh_gia": "Đánh giá"}
 COT_NV = {"ho_ten": "Họ tên", "acc": "Acc", "hang": "Hạng", "online": "Online", "ck_online": "Cùng kỳ",
           "online_ngay": "Online ngày cuối", "vvip": "V.VIP", "camera": "Camera", "ban_moi": "Bán mới",
@@ -203,6 +204,15 @@ def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
                         "còn thiếu của các phòng): " + ", ".join(
                             f"{meta[c]['ten']} hụt {_so(v)} online ({round(v / gap.sum() * 100)}%)"
                             for c, v in top.items()) + f"; {len(gap)} phòng dự báo không đạt.")
+        tuan = db.attrs.get("tuan") or {}
+        if tong.du_bao_tuan is not None and tuan.get("so_ngay"):
+            chenh = int(tong.du_bao) - int(tong.du_bao_tuan)
+            dong.append(f"- Kịch bản không bứt tốc: nếu từ giờ tới cuối tháng chỉ bán đều như "
+                        f"{tuan['so_ngay']} ngày gần nhất ({str(tuan['tb']).replace('.', ',')} online/ngày) thì "
+                        f"cuối tháng {_so(tong.du_bao_tuan)} = {int(tong.pct_tuan)}% mục tiêu"
+                        + (f", thấp hơn dự báo chính {_so(chenh)} online - đây là phần đang trông vào nhịp bứt "
+                           "cuối tháng." if chenh > 0 else "; tuần vừa rồi đang chạy nhanh hơn nhịp tháng "
+                           "trước."))
         ton7 = int(ph.ton_qua_7.sum())
         if ton7:
             dong.append(f"- Hợp đồng chờ lâu: {_so(ton7)} hợp đồng đã chờ quá 7 ngày. Nếu chuyển được một nửa thành online thì "
@@ -326,12 +336,22 @@ def tin_hieu_phong(d: date, code: str) -> str:
     return "TÍN HIỆU CHÍNH (app đã tính sẵn - ưu tiên dùng):\n" + "\n".join(dong)
 
 
+def loi_du_bao(db) -> str:
+    """Giải thích hai cột dự báo cho AI bằng lời thường (không dùng chữ 'hệ số')."""
+    t = db.attrs.get("tuan") or {}
+    return (f"DỰ BÁO CUỐI THÁNG (luỹ kế từ 01). Cột 'Dự báo cuối tháng' = luỹ kế + phần còn lại tính theo "
+            f"đúng nhịp tháng trước (tháng trước phần cuối tháng bán nhanh hơn phần đầu tháng "
+            f"{str(db.attrs['he_so']).replace('.', ',')} lần). Cột 'Nếu chỉ giữ nhịp 7 ngày gần nhất' = kịch "
+            f"bản không bứt tốc, lấy bình quân {str(t.get('tb', 0)).replace('.', ',')} online/ngày của ngày "
+            f"{t.get('tu', 0):02d}-{t.get('den', 0):02d} nhân số ngày còn lại. Chênh giữa hai cột là phần "
+            "đang trông vào nhịp bứt cuối tháng:")
+
+
 def _du_lieu_tong(user, d: date, thang: str, cn: str, tu: str, scope) -> str:
     db = du_bao_thang(thang, d.day, scope)
     return (f"{fi.boi_canh_chung(user, d, scope)}\n\n{tin_hieu_tong(d, thang, cn, tu, scope)}\n\n"
             f"{_bang_tong(d, thang, cn, tu, scope)}\n\n"
-            f"DỰ BÁO CUỐI THÁNG {d.month} (luỹ kế từ 01, hệ số cuối tháng {db.attrs['he_so']}):\n"
-            f"{csv(db, COT_DU_BAO)}")
+            f"{loi_du_bao(db)}\n{csv(db, COT_DU_BAO)}")
 
 
 YEU_CAU_TONG = ("LĂNG KÍNH BÁO CÁO TỔNG - KẾT QUẢ & TIẾN ĐỘ cho Ban giám đốc: tháng này có kịp mục tiêu không (đặt "
@@ -585,8 +605,8 @@ def chay_cong_cu(user, ten: str, ts: dict) -> str:
         d = _ngay_hop_le(ts.get("den"))
         thang = f"{d.year}-{d.month:02d}"
         db = du_bao_thang(thang, d.day, loc_chi_nhanh(user.phong_duoc_xem(), ts.get("chi_nhanh"), thang))
-        return (f"Luỹ kế 01-{d:%d/%m/%Y}, tháng có {db.attrs['so_ngay']} ngày, hệ số cuối tháng "
-                f"{db.attrs['he_so']}.\n{csv(db, COT_DU_BAO)}")
+        return (f"Luỹ kế 01-{d:%d/%m/%Y}, tháng có {db.attrs['so_ngay']} ngày. {loi_du_bao(db)}\n"
+                f"{csv(db, COT_DU_BAO)}")
     if ten == "so_theo_ngay":
         thang, chi_so = str(ts.get("thang", ""))[:7], ts.get("chi_so", "online")
         if chi_so not in METRICS:

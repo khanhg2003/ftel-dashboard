@@ -1,15 +1,27 @@
 """Dự báo số online cuối tháng theo phòng - tính bằng công thức, AI chỉ diễn giải.
 
-Dự báo = luỹ kế + (luỹ kế / số ngày đã qua) × số ngày còn lại × hệ số cuối tháng.
-Hệ số cuối tháng lấy từ tháng trước của cả phạm vi đang xem: tốc độ bình quân/ngày của phần còn lại
-tháng trước chia tốc độ của cùng số ngày đầu tháng (cuối tháng thường bán nhanh hơn). Giới hạn
-0,7 - 1,5 để một tháng bất thường không kéo lệch dự báo.
+HAI CON SỐ, hai giả định khác nhau:
+
+1. `du_bao` (số chính) = luỹ kế + (luỹ kế / số ngày đã qua) × số ngày còn lại × hệ số cuối tháng.
+   Hệ số cuối tháng lấy từ tháng trước của chính phạm vi đang xem: tốc độ bình quân/ngày của phần
+   còn lại tháng trước chia tốc độ của cùng số ngày đầu tháng. Nói gọn: **giữ đúng nhịp tháng
+   trước** - cuối tháng thường bán nhanh hơn đầu tháng. Giới hạn 0,7 - 1,5 để một tháng bất thường
+   không kéo lệch.
+2. `du_bao_tuan` = luỹ kế + bình quân 7 ngày gần nhất đã chốt × số ngày còn lại. Đây là kịch bản
+   **không bứt tốc**: từ giờ tới cuối tháng vẫn bán đều như tuần vừa rồi.
+
+Thử lại trên tháng 8/2026 (đã biết kết quả thật 4.322): cách 1 sai trung bình 1,9% (từ ngày 15 trở
+đi 1,3%), cách 2 sai 6,0% (từ ngày 15 là 3,9%) vì bỏ qua nhịp bứt cuối tháng. Vì vậy số chính vẫn
+là cách 1; cách 2 để cạnh làm mốc thận trọng. Thêm hệ số theo thứ trong tuần không cải thiện
+(nhịp theo thứ tháng 7 và 8 chỉ lệch 0,94-1,08 quanh mức chung) nên không đưa vào.
 """
 from __future__ import annotations
 
 import math
 
 import pandas as pd
+
+from datetime import date
 
 from app.metrics import daily_counts, month_range, prev_month
 from app.org import phong_order
@@ -42,6 +54,27 @@ def he_so_cuoi_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) 
     return nhip_cuoi_thang(thang, ngay, chi_phong)["he_so"]
 
 
+def nhip_tuan(thang: str, ngay: int, chi_phong: list[str] | None = None) -> dict:
+    """Bình quân online/ngày của 7 ngày gần nhất ĐÃ CHỐT (bỏ ngày còn đang cập nhật), theo phòng.
+
+    Dùng cho kịch bản "không bứt tốc": từ giờ tới cuối tháng vẫn bán đều như tuần vừa rồi.
+    """
+    from app.overview import trang_thai_ngay
+    days = month_range(thang)[2]
+    ngay = max(1, min(ngay, days))
+    chot = ngay
+    if ngay > 1 and trang_thai_ngay(date(int(thang[:4]), int(thang[5:7]), ngay).isoformat())[0]:
+        chot = ngay - 1                     # ngày cuối đang nạp số: chưa tính vào nhịp tuần
+    tu = max(1, chot - 6)
+    d = daily_counts(thang, "online")
+    if chi_phong is not None:
+        d = d.loc[[c for c in d.index if c in set(chi_phong)]]
+    so_ngay = chot - tu + 1
+    return {"thang": thang, "tu": tu, "den": chot, "so_ngay": so_ngay,
+            "theo_phong": d.loc[:, tu:chot].sum(axis=1) / so_ngay,
+            "tb": round(float(d.loc[:, tu:chot].to_numpy().sum() / so_ngay), 1)}
+
+
 def danh_gia(pct: float | None) -> str:
     if pct is None:
         return CHUA_MT
@@ -49,7 +82,8 @@ def danh_gia(pct: float | None) -> str:
 
 
 def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> pd.DataFrame:
-    """Dòng = phòng (+ dòng TỔNG): mt, luy_ke, du_bao, pct_mt, can_moi_ngay, danh_gia."""
+    """Dòng = phòng (+ dòng TỔNG): mt, luy_ke, du_bao (giữ nhịp tháng trước), du_bao_tuan (giữ nhịp
+    7 ngày gần nhất), pct_mt, can_moi_ngay, danh_gia."""
     days = month_range(thang)[2]
     ngay = max(1, min(ngay, days))
     con_lai = days - ngay
@@ -62,18 +96,24 @@ def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> p
     mt = (tgt["internet"] if "internet" in tgt.columns else pd.Series(dtype=float)).reindex(codes).fillna(0)
     nhip = nhip_cuoi_thang(thang, ngay, chi_phong)
     he_so = nhip["he_so"]
+    tuan = nhip_tuan(thang, ngay, chi_phong)
+    tb_tuan = tuan["theo_phong"].reindex(codes).fillna(0)
 
-    def dong(code, ten_dong, lk, muc_tieu):
+    def dong(code, ten_dong, lk, muc_tieu, tb7):
         du_bao = round(lk + lk / ngay * con_lai * he_so)
+        theo_tuan = round(lk + tb7 * con_lai)
         pct = round(du_bao / muc_tieu * 100) if muc_tieu else None
         can = math.ceil((muc_tieu - lk) / con_lai) if muc_tieu > lk and con_lai else 0
         return {"phong_code": code, "phong": ten_dong, "mt": int(muc_tieu), "luy_ke": int(lk),
-                "du_bao": int(du_bao), "pct_mt": pct, "can_moi_ngay": can if muc_tieu else None,
+                "du_bao": int(du_bao), "du_bao_tuan": int(theo_tuan), "pct_mt": pct,
+                "pct_tuan": round(theo_tuan / muc_tieu * 100) if muc_tieu else None,
+                "can_moi_ngay": can if muc_tieu else None,
                 "tb_ngay": round(lk / ngay, 1), "danh_gia": danh_gia(pct)}
 
-    rows = [dong(c, ten[c], float(luy_ke[c]), float(mt[c])) for c in codes]
+    rows = [dong(c, ten[c], float(luy_ke[c]), float(mt[c]), float(tb_tuan[c])) for c in codes]
     bo = phong_khong_cong_tong()
-    rows.append(dong("TOTAL", "TỔNG", float(luy_ke.sum()), float(mt[[c for c in codes if c not in bo]].sum())))
+    rows.append(dong("TOTAL", "TỔNG", float(luy_ke.sum()),
+                     float(mt[[c for c in codes if c not in bo]].sum()), float(tb_tuan.sum())))
     out = pd.DataFrame(rows).astype(object).where(lambda d: d.notna(), None)
-    out.attrs.update(he_so=he_so, ngay=ngay, so_ngay=days, nhip=nhip)
+    out.attrs.update(he_so=he_so, ngay=ngay, so_ngay=days, nhip=nhip, tuan=tuan)
     return out

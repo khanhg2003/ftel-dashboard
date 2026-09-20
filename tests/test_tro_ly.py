@@ -407,13 +407,40 @@ def test_loi_dan_giu_dung_nhan_vat_fox():
     assert ai.loi_dan("Mây").count("Mây") >= 3          # đổi tên trợ lý thì nhân vật đổi theo
 
 
-def test_he_so_cuoi_thang_giai_thich_bang_so_thang_truoc():
-    import re
-
+def test_nhip_cuoi_thang_do_bang_so_thang_truoc():
+    """Hệ số = tốc độ phần cuối tháng trước / tốc độ phần đầu, để giao diện nói được bằng số thật."""
     from app.du_bao import nhip_cuoi_thang
-    from app.ui.tro_ly import loi_he_so
     n = nhip_cuoi_thang("2026-09", 11)
     assert n["dau"] and n["cuoi"] and abs(n["he_so"] - round(n["cuoi"] / n["dau"], 2)) < 0.01
-    loi = loi_he_so(n)
-    assert "Hệ số cuối tháng đang dùng" in loi and "/08" in loi
-    assert not re.search(r"\d\.\d", loi)              # số kiểu Việt Nam: 159,2 chứ không phải 159.2
+    assert n["thang_truoc"] == "2026-08" and n["cat"] == 11
+
+
+def test_du_bao_kich_ban_giu_nhip_7_ngay():
+    """Cột thứ hai của dự báo: luỹ kế + bình quân 7 ngày gần nhất ĐÃ CHỐT × số ngày còn lại."""
+    from app.du_bao import du_bao_thang, nhip_tuan
+    from app.metrics import daily_counts, month_range
+    db = du_bao_thang("2026-09", 11)
+    t = db.attrs["tuan"]
+    assert t["den"] - t["tu"] + 1 == t["so_ngay"] <= 7 and t["den"] <= 11
+    bang = daily_counts("2026-09", "online")
+    assert round(float(bang.loc[:, t["tu"]:t["den"]].to_numpy().sum() / t["so_ngay"]), 1) == t["tb"]
+    r = db[db.phong_code == "TOTAL"].iloc[0]
+    con_lai = month_range("2026-09")[2] - 11
+    assert abs(r.du_bao_tuan - (r.luy_ke + t["tb"] * con_lai)) <= 2   # tb làm tròn 1 chữ số
+    assert r.pct_tuan == round(r.du_bao_tuan / r.mt * 100)
+    # lọc phòng thì nhịp tuần chỉ tính phòng đó
+    assert nhip_tuan("2026-09", 11, ["IBB2"])["tb"] < t["tb"]
+
+
+def test_giai_thich_du_bao_noi_bang_loi_thuong():
+    import re
+
+    from app.du_bao import du_bao_thang
+    from app.ui.tro_ly import giai_thich_du_bao
+    db = du_bao_thang("2026-09", 11)
+    chu = " ".join(d.children for d in giai_thich_du_bao(
+        db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("nhip"), db.attrs.get("tuan")))
+    assert "giữ đúng nhịp tháng trước" in chu and "7 ngày gần nhất" in chu
+    assert "hệ số" not in chu.lower()                 # chủ app không hiểu chữ này
+    assert not re.search(r"\d\.\d", chu)          # số thập phân kiểu Việt Nam: 135,7
+
