@@ -312,7 +312,7 @@ def layout(tab: str | None = None):
                  html.Div(seg_control("ads-ngay-loai", [("all", "Tất cả page"), ("sale", "Page sale"),
                                                         ("cong_ty", "Trung lập")], "all"),
                           style={"margin": "0 0 10px"}),
-                 _grid("ads-g-ngay", [], cao=400, opts=CHON_1_DONG),
+                 _grid("ads-g-ngay", [], cao=520, opts=CHON_1_DONG),
                  html.Div(id="ads-chu-mau"),
                  nut=seg_control("ads-chi-so", [("chi_tieu", "Chi tiêu"), ("tin_nhan", "Tin nhắn"),
                                                 ("lead", "Số ĐT"), ("pttb", "PTTB"), ("cp_pttb", "CP/PTTB")],
