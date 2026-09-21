@@ -495,3 +495,13 @@ def test_bang_du_bao_chu_thich_hien_nhanh():
     for ten, c in co.items():
         assert "ⓘ" in ten                       # cột có chú thích thì phải thấy được là bấm/rê được
         assert "co-chu-thich" in c["headerClass"]
+
+
+def test_mo_ta_du_bao_khong_ghi_so_vi_du():
+    """Ghi chú là chữ tĩnh: ghi số ví dụ trong đó sẽ lệch số thật trên thẻ, người đọc tưởng app sai."""
+    import re
+
+    from app.ui.tro_ly import MO_TA_DU_BAO
+    assert not re.search(r"\d\.\d{3}", MO_TA_DU_BAO)      # không có số kiểu 3.892
+    assert "bán" not in MO_TA_DU_BAO.replace("số bán", "")  # dự báo tính trên số ONLINE
+    assert "Số đứng trước" in MO_TA_DU_BAO and "Số trong ngoặc" in MO_TA_DU_BAO

@@ -293,11 +293,12 @@ def dong_du_bao(r: dict | None, ten: str = "Phòng", tuan: dict | None = None, n
     return html.Div([hang, giai_thich_du_bao(r, tuan, nhip)])
 
 
-MO_TA_DU_BAO = ("Dự báo tính trên SỐ ONLINE (không phải số bán) và hiện hai số: 3.892 (4.134). "
+# Không ghi số ví dụ ở đây: người đọc thấy số trong ghi chú khác số trên thẻ sẽ tưởng app tính sai.
+MO_TA_DU_BAO = ("Dự báo tính trên SỐ ONLINE (không phải số bán) và hiện hai số. "
                 "Số đứng trước = luỹ kế + bình quân mỗi ngày × số ngày còn lại, tức giữ nguyên đà từ đầu "
                 "tháng tới nay. "
                 "Số trong ngoặc = nhân thêm nhịp dồn cuối tháng đo từ tháng trước, vì chi nhánh tháng nào "
-                "cũng bán mạnh hơn ở những ngày cuối. "
+                "cũng có nhiều online hơn ở những ngày cuối. "
                 "Thực tế thường rơi vào giữa hai số, gần số trong ngoặc hơn. "
                 "Cột 'Giữ nhịp 7 ngày' cũng là số đứng trước nhưng lấy đà của tuần vừa rồi, nhạy hơn khi "
                 "đang tăng tốc hay chững lại. "
