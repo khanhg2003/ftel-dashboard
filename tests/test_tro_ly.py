@@ -67,14 +67,16 @@ def test_du_bao_dung_cong_thuc_va_cong_du():
     phong = db[db.phong_code != "TOTAL"]
     tong = db[db.phong_code == "TOTAL"].iloc[0]
     assert tong.luy_ke == phong.luy_ke.sum() == 1394
+    import math
+    tron = lambda x: math.floor(x + 0.5)          # noqa: E731  - làm tròn như bấm máy tính, 0,5 lên 1
     he_so = db.attrs["he_so"]
     assert 0.7 <= he_so <= 1.5
     r = db[db.phong_code == "IBB7"].iloc[0]
-    assert r.du_bao == round(r.luy_ke + r.luy_ke / 11 * 19)
-    assert r.du_bao_nhip == round(r.luy_ke + r.luy_ke / 11 * 19 * he_so)
+    assert r.du_bao == tron(r.luy_ke + r.luy_ke / 11 * 19)
+    assert r.du_bao_nhip == tron(r.luy_ke + r.luy_ke / 11 * 19 * he_so)
     assert r.du_bao_nhip >= r.du_bao              # nhịp >= 1 thì số trong ngoặc cao hơn
-    assert r.pct_mt == round(r.du_bao / r.mt * 100)
-    assert r.pct_nhip == round(r.du_bao_nhip / r.mt * 100)
+    assert r.pct_mt == tron(r.du_bao / r.mt * 100)
+    assert r.pct_nhip == tron(r.du_bao_nhip / r.mt * 100)
 
 
 def test_nhan_xet_luu_lai_khong_goi_ai_lan_hai(ai_bat):
@@ -435,33 +437,38 @@ def test_du_bao_kich_ban_giu_nhip_7_ngay():
 
 def test_phep_tinh_du_bao_cong_lai_dung_so_tren_bang():
     """Chủ app tự cộng lại phải ra đúng số dự báo (không lệch vì làm tròn bình quân mỗi ngày)."""
+    import math
     import re
 
     from app.du_bao import du_bao_thang
     from app.ui.tro_ly import phep_tinh_du_bao
     db = du_bao_thang("2026-09", 11)
+    lay = lambda x: float(x.replace(".", "").replace(",", "."))          # noqa: E731
+    tron = lambda x: math.floor(x + 0.5)                                 # noqa: E731
     for r in db.to_dict("records"):
         chu = phep_tinh_du_bao(r)
         if not chu:
             continue
-        lay = lambda x: float(x.replace(".", "").replace(",", "."))      # noqa: E731
         truoc, sau = chu.split(";")
         lk, tb, con, kq = re.findall(r"[\d.,]+", truoc)
-        assert round(lay(lk) + lay(tb) * lay(con)) == lay(kq) == r["du_bao"], chu
+        assert tron(lay(lk) + lay(tb) * lay(con)) == lay(kq) == r["du_bao"], chu
         nh, kq2 = re.findall(r"[\d.,]+", sau)                            # phần "nhân thêm nhịp ... = ..."
-        assert round(lay(lk) + lay(tb) * lay(con) * lay(nh)) == lay(kq2) == r["du_bao_nhip"], chu
+        assert tron(lay(lk) + lay(tb) * lay(con) * lay(nh)) == lay(kq2) == r["du_bao_nhip"], chu
 
 
 def test_giai_thich_du_bao_noi_bang_loi_thuong():
     import re
 
     from app.du_bao import du_bao_thang
-    from app.ui.tro_ly import cau_du_bao, giai_thich_du_bao
+    from app.ui.tro_ly import giai_thich_du_bao, muc_du_bao
     db = du_bao_thang("2026-09", 11)
-    chu = " ".join(cau_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(),
-                              db.attrs.get("tuan"), db.attrs.get("nhip")))
-    assert "bình quân mỗi ngày × số ngày còn lại" in chu and "7 ngày gần nhất" in chu
-    assert "Số trong ngoặc" in chu                # phải giải thích số thứ hai
+    muc = muc_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(),
+                     db.attrs.get("tuan"), db.attrs.get("nhip"))
+    ten = [t for t, _ in muc]
+    assert any(t.startswith("Số đứng trước") for t in ten) and any(t.startswith("Số trong ngoặc") for t in ten)
+    assert "Nên đọc thế nào" in ten and any(t.startswith("Giữ nhịp") for t in ten)
+    assert all(len(c) < 320 for _, c in muc)     # mỗi mục ngắn, không dính thành cục chữ
+    chu = " ".join(t + " " + c for t, c in muc)
     assert "hệ số" not in chu.lower()                 # chủ app không hiểu chữ này
     assert "bán" not in chu.lower()                  # dự báo tính trên số ONLINE, không phải số bán
     assert not re.search(r"\d\.\d", chu)          # số thập phân kiểu Việt Nam: 135,7

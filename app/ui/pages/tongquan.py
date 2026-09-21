@@ -444,7 +444,7 @@ def register(app):
         db = du_bao_thang(thang, d.day, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
         rows = db[(db.phong_code == "TOTAL") | (db.mt > 0) | (db.luy_ke > 0)].to_dict("records")
         for x in rows:
-            x["phep_tinh"] = tl.phep_tinh_du_bao(x, f"{x['phong']}: ")
+            x["phep_tinh"] = tl.phep_tinh_du_bao(x, f"{x['phong']}\n")
         return (rows,
                 tl.giai_thich_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("tuan"),
                                      db.attrs.get("nhip")))

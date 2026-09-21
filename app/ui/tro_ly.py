@@ -14,7 +14,7 @@ from app.admin_service import ROLES, danh_sach_user
 from app.auth import ghi_log
 from app.du_bao import AN_TOAN, RUI_RO, TANG_TOC
 from app.thoi_gian import chu_gio_vn, gio_viet_nam
-from app.ui.components import alert, callback_can_quyen, card, gap, kpi, tip, ghi_chu
+from app.ui.components import alert, callback_can_quyen, card, chu_giai, kpi, tip, ghi_chu
 from app.ui.icons import icon
 
 AN = {"display": "none"}
@@ -159,13 +159,15 @@ def bang_du_bao(gid: str):
             {"field": "tb_ngay", "headerName": "TB/ngày", "valueFormatter": {"function":
                 "params.value == null ? '–' : Number(params.value).toLocaleString('vi-VN', "
                 "{minimumFractionDigits: 1, maximumFractionDigits: 1})"}},
-            {"field": "du_bao", "headerName": "Dự báo cuối tháng", "minWidth": 150,
+            {"field": "du_bao", "headerName": "Dự báo cuối tháng ⓘ", "minWidth": 158,
              "valueFormatter": {"function": HAI_SO}, "cellStyle": {"fontWeight": "650"},
-             "headerTooltip": "Số đứng trước: luỹ kế + bình quân mỗi ngày × số ngày còn lại. "
-                              "Số trong ngoặc: nhân thêm nhịp dồn cuối tháng đo từ tháng trước. "
-                              "Rê chuột vào ô của một phòng để xem phép tính của phòng đó",
+             "headerTooltip": "Số đứng trước = luỹ kế + bình quân mỗi ngày × số ngày còn lại.\n"
+                              "Số trong ngoặc = nhân thêm nhịp dồn cuối tháng, đo từ tháng trước.\n"
+                              "Thực tế thường rơi vào giữa hai số, gần số trong ngoặc hơn.\n"
+                              "Đánh giá An toàn / Cần tăng tốc / Rủi ro bám số đứng trước.\n"
+                              "Rê chuột vào ô của một phòng để xem phép tính của phòng đó.",
              "tooltipValueGetter": {"function": PHEP_TINH}},
-            {"field": "du_bao_tuan", "headerName": "Giữ nhịp 7 ngày", "valueFormatter": so,
+            {"field": "du_bao_tuan", "headerName": "Giữ nhịp 7 ngày", "minWidth": 118, "valueFormatter": so,
              "headerTooltip": "Cũng là luỹ kế + bình quân × số ngày còn lại, nhưng bình quân lấy của 7 ngày "
                               "gần nhất đã chốt số. Cao hơn cột bên trái nghĩa là tuần vừa rồi đang chạy "
                               "nhanh hơn đà cả tháng"},
@@ -198,6 +200,23 @@ def hai_so(chinh, trong_ngoac=None, duoi: str = "") -> str:
     return f"{chu} ({f'{int(trong_ngoac):,}'.replace(',', '.') + duoi})"
 
 
+def _tb_khop(r: dict) -> float:
+    """Bình quân mỗi ngày với ít số lẻ nhất mà CẢ HAI phép tính vẫn cộng ra đúng số trên bảng.
+
+    Làm tròn 1 chữ số có thể lệch 1-2 và người đọc sẽ tưởng app tính sai.
+    """
+    import math
+    tron = lambda x: math.floor(x + 0.5)                     # noqa: E731
+    lk, nh = int(r["luy_ke"]), r.get("nhip")
+    for le in (1, 2, 3, 4):
+        tb = round(lk / r["ngay"], le)
+        if tron(lk + tb * r["con_lai"]) == int(r["du_bao"]) and (
+                not nh or r.get("du_bao_nhip") is None
+                or tron(lk + tb * r["con_lai"] * nh) == int(r["du_bao_nhip"])):
+            return tb
+    return round(lk / r["ngay"], 4)
+
+
 def phep_tinh_du_bao(r: dict, dau_dong: str = "") -> str:
     """Phép tính của chính dòng đang xem, để người đọc tự cộng lại được.
 
@@ -207,14 +226,7 @@ def phep_tinh_du_bao(r: dict, dau_dong: str = "") -> str:
     if not r.get("con_lai") or not r.get("ngay") or r.get("luy_ke") is None:
         return ""
     so = lambda v: f"{int(v):,}".replace(",", ".")            # noqa: E731
-    lk, nh = int(r["luy_ke"]), r.get("nhip")
-    tb = round(lk / r["ngay"], 1)
-    for le in (1, 2, 3, 4):          # đủ số lẻ để CẢ HAI phép tính cộng lại ra đúng số trên bảng
-        tb = round(lk / r["ngay"], le)
-        khop = round(lk + tb * r["con_lai"]) == int(r["du_bao"])
-        if khop and (not nh or r.get("du_bao_nhip") is None
-                     or round(lk + tb * r["con_lai"] * nh) == int(r["du_bao_nhip"])):
-            break
+    lk, tb = int(r["luy_ke"]), _tb_khop(r)
     chu = (f"{dau_dong}{so(lk)} + {str(tb).replace('.', ',')}/ngày × {r['con_lai']} ngày "
            f"= {so(r['du_bao'])}")
     if r.get("du_bao_nhip") is not None and r.get("nhip"):
@@ -223,42 +235,41 @@ def phep_tinh_du_bao(r: dict, dau_dong: str = "") -> str:
     return chu
 
 
-def cau_du_bao(r: dict, tuan: dict | None, nhip: dict | None = None) -> list[str]:
-    """Hai dòng nhỏ dưới ô số: số chính dựa vào nhịp tháng trước, và kịch bản không bứt tốc.
-
-    Nói bằng chính số của tháng trước và của tuần vừa rồi, không dùng chữ "hệ số".
-    """
-    dong = []
-    phep = phep_tinh_du_bao(r, "Số đứng trước = luỹ kế + bình quân mỗi ngày × số ngày còn lại = ")
-    if phep:
-        dong.append(phep + ". Số đứng trước giả định từ giờ tới cuối tháng mỗi ngày vẫn có số online "
-                    "bằng bình quân từ đầu tháng tới nay, không nhanh hơn cũng không chậm hơn.")
-    if nhip and nhip.get("dau") and nhip.get("cuoi"):
-        t, k, n = nhip["thang_truoc"][5:7], nhip["cat"], nhip["so_ngay"]
-        huong = "nhanh hơn" if nhip["he_so"] >= 1 else "chậm hơn"
-        dong.append(f"Số trong ngoặc tính thêm phần dồn cuối tháng: tháng {t} các ngày {k + 1:02d}-{n}/{t} "
-                    f"có {_so1(nhip['cuoi'])} online mỗi ngày, {huong} "
-                    f"{str(nhip['he_so']).replace('.', ',')} lần mức {_so1(nhip['dau'])} của các ngày "
-                    f"01-{k:02d}/{t}; nếu tháng này lặp lại nhịp đó thì ra số trong ngoặc. Thử trên tháng 8 "
-                    "đã biết kết quả: số trong ngoặc sát hơn (lệch 1-2%), số đứng trước thấp hơn thực tế "
-                    "6-10% ở giữa tháng rồi khít dần. Đánh giá An toàn / Cần tăng tốc / Rủi ro vẫn bám số "
-                    "đứng trước.")
+def muc_du_bao(r: dict, tuan: dict | None, nhip: dict | None = None) -> list[tuple[str, str]]:
+    """Cách tính dự báo, tách thành từng mục ngắn có tiêu đề (đọc nhanh hơn một đoạn chữ dài)."""
+    so = lambda v: f"{int(v):,}".replace(",", ".")            # noqa: E731
+    muc = []
+    if r.get("con_lai") and r.get("ngay") and r.get("luy_ke") is not None:
+        lk, tb = int(r["luy_ke"]), _tb_khop(r)
+        muc.append((f"Số đứng trước {so(r['du_bao'])}",
+                    f"= luỹ kế {so(lk)} + {str(tb).replace('.', ',')}/ngày × {r['con_lai']} ngày. "
+                    "Giả định mỗi ngày còn lại vẫn có số online bằng bình quân từ đầu tháng tới nay."))
+        if r.get("du_bao_nhip") is not None and r.get("nhip"):
+            nh = str(r["nhip"]).replace(".", ",")
+            chu = f"= số đứng trước nhân thêm {nh}, vì cuối tháng chi nhánh luôn có nhiều online hơn đầu tháng."
+            if nhip and nhip.get("dau") and nhip.get("cuoi"):
+                t, k, n = nhip["thang_truoc"][5:7], nhip["cat"], nhip["so_ngay"]
+                chu += (f" Mức {nh} đo từ tháng {t}: các ngày {k + 1:02d}-{n}/{t} có {_so1(nhip['cuoi'])} "
+                        f"online mỗi ngày, so với {_so1(nhip['dau'])} của các ngày 01-{k:02d}/{t}.")
+            muc.append((f"Số trong ngoặc {so(r['du_bao_nhip'])}", chu))
+        muc.append(("Nên đọc thế nào",
+                    "Thực tế thường rơi vào giữa hai số, gần số trong ngoặc hơn. Thử lại trên tháng 8 đã biết "
+                    "kết quả: số trong ngoặc lệch 1-2%, số đứng trước thấp hơn thực tế 6-10% ở giữa tháng rồi "
+                    "khít dần. Đánh giá An toàn / Cần tăng tốc / Rủi ro bám số đứng trước."))
     if tuan and r.get("du_bao_tuan") is not None and tuan.get("so_ngay"):
         th = tuan["thang"][5:7]
-        so = f"{int(r['du_bao_tuan']):,}".replace(",", ".")
-        dong.append(f"Nếu thay bằng đà của {tuan['so_ngay']} ngày gần nhất "
-                    f"({tuan['tu']:02d}-{tuan['den']:02d}/{th}, {_so1(tuan['tb'])} online mỗi ngày) thì cuối "
-                    f"tháng khoảng {so}"
-                    + (f" = {round(r['pct_tuan'])}% mục tiêu." if r.get("pct_tuan") else " online."))
-    return dong
+        muc.append((f"Giữ nhịp {tuan['so_ngay']} ngày {so(r['du_bao_tuan'])}"
+                    + (f" = {round(r['pct_tuan'])}% mục tiêu" if r.get("pct_tuan") else ""),
+                    f"= luỹ kế + {_so1(tuan['tb'])}/ngày × {r['con_lai']} ngày, lấy đà của {tuan['tu']:02d}-"
+                    f"{tuan['den']:02d}/{th}. Cao hơn số đứng trước nghĩa là tuần vừa rồi đang chạy nhanh hơn "
+                    "đà cả tháng."))
+    return muc
 
 
 def giai_thich_du_bao(r: dict, tuan: dict | None, nhip: dict | None = None):
     """Khối "Cách tính dự báo", mặc định đóng - trên màn hình chỉ còn con số."""
-    cau = cau_du_bao(r, tuan, nhip)
-    if not cau:
-        return html.Div()
-    return gap("Cách tính dự báo", [html.Div(c, className="desc") for c in cau])
+    muc = muc_du_bao(r, tuan, nhip)
+    return chu_giai("Cách tính dự báo", muc) if muc else html.Div()
 
 
 def dong_du_bao(r: dict | None, ten: str = "Phòng", tuan: dict | None = None, nhip: dict | None = None):

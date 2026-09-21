@@ -71,6 +71,12 @@ def nhip_tuan(thang: str, ngay: int, chi_phong: list[str] | None = None) -> dict
             "tb": round(float(d.loc[:, tu:chot].to_numpy().sum() / so_ngay), 1)}
 
 
+def _tron(x: float) -> int:
+    """Làm tròn kiểu người dùng máy tính bấm tay (0,5 lên 1) - `round()` của Python làm tròn 432,5
+    thành 432 nên người đọc cộng lại thấy lệch 1 và tưởng app sai."""
+    return math.floor(x + 0.5)
+
+
 def danh_gia(pct: float | None) -> str:
     if pct is None:
         return CHUA_MT
@@ -96,14 +102,14 @@ def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> p
     tb_tuan = tuan["theo_phong"].reindex(codes).fillna(0)
 
     def dong(code, ten_dong, lk, muc_tieu, tb7):
-        du_bao = round(lk + lk / ngay * con_lai)
-        theo_nhip = round(lk + lk / ngay * con_lai * he_so)
-        theo_tuan = round(lk + tb7 * con_lai)
-        pct = round(du_bao / muc_tieu * 100) if muc_tieu else None
+        du_bao = _tron(lk + lk / ngay * con_lai)
+        theo_nhip = _tron(lk + lk / ngay * con_lai * he_so)
+        theo_tuan = _tron(lk + tb7 * con_lai)
+        pct = _tron(du_bao / muc_tieu * 100) if muc_tieu else None
         can = math.ceil((muc_tieu - lk) / con_lai) if muc_tieu > lk and con_lai else 0
         return {"phong_code": code, "phong": ten_dong, "mt": int(muc_tieu), "luy_ke": int(lk),
                 "du_bao": int(du_bao), "du_bao_nhip": int(theo_nhip), "du_bao_tuan": int(theo_tuan),
-                "pct_mt": pct, "pct_nhip": round(theo_nhip / muc_tieu * 100) if muc_tieu else None,
+                "pct_mt": pct, "pct_nhip": _tron(theo_nhip / muc_tieu * 100) if muc_tieu else None,
                 "nhip": he_so,
                 "ngay": ngay, "con_lai": con_lai,
 
