@@ -85,11 +85,14 @@ def ngay_du_lieu_moi_nhat() -> pd.Timestamp | None:
 
 
 @nho("so_lieu")
-def hop_dong_ton(chi_phong: list[str] | None = None) -> pd.DataFrame:
-    """Hợp đồng đã ký, chưa online, còn trong file mới nhất - kèm số ngày đã chờ."""
+def hop_dong_ton(chi_phong: list[str] | None = None, ten_kh: bool = False) -> pd.DataFrame:
+    """Hợp đồng đã ký, chưa online, còn trong file mới nhất - kèm số ngày đã chờ.
+
+    ten_kh=True thêm tên khách hàng (chỉ cho trang Nhập tồn; không bao giờ đưa lên AI)."""
     dk, p = dieu_kien_ton("f.")
+    them = ", f.ten_khach_hang" if ten_kh else ""
     df = pd.read_sql_query(text(f"""SELECT f.hop_dong, f.phong_code, f.acc_nhan_vien, f.acc_norm,
-                                     f.goi_dich_vu, f.ngay_tao_hd, f.nguon_ban
+                                     f.goi_dich_vu, f.ngay_tao_hd, f.nguon_ban{them}
                               FROM fact_internet f WHERE {dk}"""), engine, params=p)
     if chi_phong is not None:
         df = df[df.phong_code.isin(set(chi_phong))]

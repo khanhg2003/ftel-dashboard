@@ -18,7 +18,9 @@ from app.org import phong_order
 from app.thoi_gian import chu_gio_vn, gio_viet_nam, utc_bay_gio
 
 ph = PasswordHasher()
-ROLES = [("admin", "Quản trị (BGD)"), ("operator", "Nhập liệu"), ("phong", "Trưởng phòng")]
+ROLES = [("admin", "Quản trị (BGD)"), ("operator", "Nhập liệu"), ("phong", "Trưởng phòng"),
+         ("nvkd", "Nhân viên KD")]
+ROLE_CO_PHONG = {"phong", "nvkd"}       # vai trò phải gán phòng (Nhân viên KD: tài khoản dùng chung của phòng)
 ROLE_TEN = {**dict(ROLES), "bay": "Trưởng phòng", "nhanvien": "Nhân viên"}
 TEN_ROLE = {v: k for k, v in ROLES}
 FACTS = {"internet": FactInternet, "fptplay": FactFptPlay, "camera": FactCamera}
@@ -36,7 +38,7 @@ def danh_sach_user() -> pd.DataFrame:
     if "ma_nv" in df.columns:
         df["ma_nv"] = df["ma_nv"].apply(lambda v: str(v).split(".")[0] if pd.notna(v) and v != "" else "")
     df["vai_tro"] = df["role"].map(ROLE_TEN).fillna(df["role"])
-    df["pham_vi"] = [_scope_text(s) if r in ("phong", "bay") else "Toàn chi nhánh"
+    df["pham_vi"] = [_scope_text(s) if r in ROLE_CO_PHONG | {"bay"} else "Toàn chi nhánh"
                      for s, r in zip(df["scope"], df["role"])]
     df["trang_thai"] = df.apply(
         # locked_until trống đọc ra NaT - NaT vẫn "đúng" khi xét if và str(NaT)="NaT" > "2026..." nên trước đây mọi
@@ -85,7 +87,7 @@ def luu_user(rows: list[dict], nguoi_thuc_hien: str) -> tuple[int, list[str]]:
             row.ma_nv = ma_nv_nhu_nhap(r.get("ma_nv")) or None
             pv = [x.strip() for x in norm_text(r.get("pham_vi")).split(",") if x.strip()]
             pv = [ten2ma.get(x, x) for x in pv if x.lower() != "toàn chi nhánh"]
-            if row.role != "phong":
+            if row.role not in ROLE_CO_PHONG:
                 pv = []                  # Quản trị / Nhập liệu luôn xem toàn chi nhánh
             row.scope = json.dumps(pv, ensure_ascii=False) if pv else None
             row.active = norm_text(r.get("trang_thai")) != "Ngừng dùng"
@@ -116,9 +118,9 @@ def them_user(d: dict, nguoi_thuc_hien: str) -> tuple[bool, str]:
     if role not in ROLE_TEN:
         return False, "Vai trò không hợp lệ."
     pham_vi = [x for x in (d.get("pham_vi") or []) if x]
-    if role == "phong" and not pham_vi:
-        return False, "Trưởng phòng bắt buộc chọn phòng phụ trách."
-    if role != "phong":
+    if role in ROLE_CO_PHONG and not pham_vi:
+        return False, f"{ROLE_TEN[role]} bắt buộc chọn phòng phụ trách."
+    if role not in ROLE_CO_PHONG:
         pham_vi = []
     with session_scope() as s:
         if s.execute(select(User).where(User.username == username)).scalars().first():
@@ -215,9 +217,9 @@ def sua_user(username: str, d: dict, nguoi_thuc_hien: str) -> tuple[bool, str]:
         return False, "Vai trò không hợp lệ."
     ma_phong = {p["code"] for p in phong_order()}
     pham_vi = [x for x in (d.get("pham_vi") or []) if x in ma_phong]
-    if role == "phong" and not pham_vi:
-        return False, "Trưởng phòng bắt buộc chọn phòng phụ trách."
-    if role != "phong":
+    if role in ROLE_CO_PHONG and not pham_vi:
+        return False, f"{ROLE_TEN[role]} bắt buộc chọn phòng phụ trách."
+    if role not in ROLE_CO_PHONG:
         pham_vi = []
     active = d.get("trang_thai", "Đang dùng") != "Ngừng dùng"
     email = norm_text(d.get("email"))

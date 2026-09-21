@@ -47,7 +47,9 @@ LOGIN_PAGE = """<!doctype html>
 
 
 def trang_mo_dau(user) -> str:
-    """Trưởng phòng vào thẳng Báo cáo phòng của mình; các vai trò khác vào Báo cáo Tổng."""
+    """Nhân viên KD vào Nhập tồn, Trưởng phòng vào Báo cáo phòng của mình, các vai trò khác vào Báo cáo Tổng."""
+    if user.role == "nvkd":
+        return "/nhapton"
     return "/phong" if user.role == "phong" and user.phong_nhan_su() else "/"
 
 
@@ -104,6 +106,8 @@ def _bat_buoc_dang_nhap():
         if path.startswith("/_dash"):
             return "Phiên đăng nhập đã hết hạn. Tải lại trang.", 401
         return redirect("/login")
+    if path == "/" and not current_user.vao_duoc("/"):      # Nhân viên KD mở địa chỉ app -> vào thẳng Nhập tồn
+        return redirect(trang_mo_dau(current_user))
     return None
 
 
@@ -122,12 +126,13 @@ NAV = [
         ("/tracking", "Tracking ngày & So sánh", "trend", None),
     ]),
     ("Phòng & nhân sự", [
+        ("/nhapton", "Nhập tồn", "edit", "nhapton"),
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
         ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
     ]),
     ("Phân tích", [
         ("/phantich", "Phân tích bán hàng", "pie", None),
-        ("/ads", "Ads IBB7", "trend", "settings"),
+        ("/ads", "Ads IBB7", "trend", "ads"),
     ]),
     ("Dữ liệu", [
         ("/upload", "Nạp dữ liệu", "upload", "upload"),
@@ -150,6 +155,12 @@ def _sidebar(path: str):
     for nhom, muc in NAV:
         muc_hien = []
         for href, label, ico, quyen in muc:
+            if not current_user.vao_duoc(href):
+                continue
+            if quyen == "nhapton" and not current_user.duoc_nhap_ton:
+                continue
+            if quyen == "ads" and not current_user.duoc_xem_ads:
+                continue
             if quyen == "upload" and not current_user.duoc_upload:
                 continue
             if quyen == "settings" and not current_user.duoc_cau_hinh:
@@ -338,6 +349,13 @@ def _router(path, search=None, store=None):
 
     path = path or "/"
     tab = (parse_qs((search or "").lstrip("?")).get("tab") or [None])[0]
+    if not current_user.vao_duoc(path):
+        return (html.Div([html.H3("Tài khoản này không mở được trang này"),
+                          dcc.Link("← Về Nhập tồn", href="/nhapton", className="btn primary")], className="card"),
+                _topbar_simple("Không có quyền"))
+    if path == "/nhapton":
+        from app.ui.pages import nhapton
+        return nhapton.layout(), nhapton.topbar()
     ky = ky_chung.doc(store, search)
     if path in TRANG_CAN_SO:
         from app.metrics import ngay_moi_nhat
@@ -361,8 +379,8 @@ def _router(path, search=None, store=None):
         return chatluong.layout(ky), chatluong.topbar()
     if path == "/ads":
         from app.ui.pages import ads as ads_page
-        if not current_user.duoc_cau_hinh:
-            return html.Div("Chỉ tài khoản Quản trị được xem mục Ads IBB7."), _topbar_simple("Ads IBB7")
+        if not current_user.duoc_xem_ads:
+            return html.Div("Tài khoản này không xem được mục Ads IBB7."), _topbar_simple("Ads IBB7")
         return ads_page.layout(tab), ads_page.topbar()
     if path in ("/quantri", "/settings"):
         if not current_user.duoc_cau_hinh:
@@ -404,8 +422,9 @@ def _register_pages():
     from app.ui import tro_ly
 
     from app.ui.pages import ads as ads_page
+    from app.ui.pages import nhapton
     for mod in (tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
-                settings_page, huongdan, taikhoan, tro_ly, ads_page):
+                settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton):
         mod.register(app)
 
 

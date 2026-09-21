@@ -11,6 +11,7 @@ MO_TA_QUYEN = {
     "admin": "Toàn quyền: xem số chung và chi tiết nhân sự mọi phòng, nạp dữ liệu, quản trị hệ thống.",
     "operator": "Nạp dữ liệu và xem số chung toàn chi nhánh. Không xem chi tiết từng nhân sự.",
     "phong": "Xem số chung toàn chi nhánh; chi tiết nhân sự chỉ của phòng phụ trách.",
+    "nvkd": "Tài khoản dùng chung của phòng: Nhập tồn, Báo cáo phòng và Ads IBB7 (chỉ xem).",
     "nhanvien": "Xem số của phòng mình.",
 }
 

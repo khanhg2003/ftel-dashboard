@@ -164,21 +164,23 @@ def _huong_dan_tab():
 
 def layout(tab: str | None = None):
     from app.ui.pages import ads_cau_hinh
-    if not current_user.duoc_cau_hinh:
-        return alert("Chỉ tài khoản Quản trị được xem mục Ads IBB7.", "bad")
+    if not current_user.duoc_xem_ads:
+        return alert("Tài khoản này không xem được mục Ads IBB7.", "bad")
     ads.dam_bao_bang()
     thangs = _thang_co()
-    tab = tab if tab in dict(TAB) else "tong"
+    sua = current_user.duoc_cau_hinh           # Nhân viên KD IBB7 chỉ xem: không có Cấu hình, tỷ giá, sửa page
+    cac_tab = TAB if sua else [t for t in TAB if t[0] != "cauhinh"]
+    tab = tab if tab in dict(cac_tab) else "tong"
     return html.Div([
         html.Div([
             field("Tháng", chon_ky("ads-thang", thangs, thangs[0])),
-            field("Xem", seg_control("ads-tab", TAB, tab)),
+            field("Xem", seg_control("ads-tab", cac_tab, tab)),
             html.Div([_huong_dan_tab(), html.Span("Mỗi mục xem gì?", className="ghi-chu-nhan")],
                      className="ghi-chu ads-tab-tip"),
         ], className="toolbar loc-trang"),
         dcc.Store(id="ads-sua"),                    # tín hiệu: vừa lưu cấu hình -> nạp lại số
         dcc.Store(id="ads-ct-page"),
-        _modal_ct(),
+        _modal_ct(sua),
         _modal_page(),
         _modal_sale(),
 
@@ -247,7 +249,7 @@ def layout(tab: str | None = None):
                      dcc.Input(id="ads-ty-gia", type="number", min=1000, step=1, className="inp",
                                style={"width": "110px"}),
                      html.Button([icon("save", 14), html.Span("Lưu tỷ giá")], id="ads-luu-ty-gia", className="btn")],
-                     style={"display": "flex", "alignItems": "center", "gap": "8px"})),
+                     style={"display": "flex", "alignItems": "center", "gap": "8px"} if sua else AN)),
             _the("Diễn biến từng ngày", "Chi tiêu & PTTB: cột xanh là tiền (trục trái), đường cam là PTTB (trục phải). "
                  "Chi phí / PTTB: cột màu từng ngày, đường đen là trung bình 7 ngày gần nhất (đỡ nhiễu hơn từng ngày). "
                  "Vẽ tới ngày đã có chi tiêu.",
@@ -319,17 +321,18 @@ def layout(tab: str | None = None):
                                  "chi_tieu")),
         ]),
 
-        html.Div(id="ads-p-cauhinh", style=AN, children=ads_cau_hinh.layout()),
+        html.Div(id="ads-p-cauhinh", style=AN, children=ads_cau_hinh.layout() if sua else []),
     ])
 
 
-def _modal_ct():
+def _modal_ct(sua: bool = True):
     """Cửa sổ chi tiết một page (mở bằng bấm đúp ở Tổng quan / Tracking ngày) - như trang tính từng page của sheet."""
     return cua_so("ads-md-ct", [html.Div(id="ads-ct-dau", className="ct-dau"),
                                 _grid("ads-g-ct", [], cao=520, opts={"pinnedBottomRowData": []})],
                   ghi_chu="Mỗi dòng một camp một ngày, ngày tăng dần. Số điện thoại / PTTB báo qua bot ghi ở dòng đầu "
                           "của ngày. Tiền/người = chi tiêu chia cho người chạy (theo tỷ lệ nếu có).",
-                  nut=html.Button([icon("settings", 14), html.Span("Sửa tên / link")], id="ads-ct-sua", className="btn"))
+                  nut=html.Button([icon("settings", 14), html.Span("Sửa tên / link")], id="ads-ct-sua", className="btn",
+                                  style={} if sua else AN))
 
 
 def _modal_sale():
@@ -515,20 +518,21 @@ def _bo_cuc(fig, cao=300, **kw):
 
 
 def register(app):
-    cb = callback_can_quyen(app, "duoc_cau_hinh")
+    cb = callback_can_quyen(app, "duoc_cau_hinh")       # ghi: tỷ giá, sửa page, tab Cấu hình
+    xem = callback_can_quyen(app, "duoc_xem_ads")       # đọc số: cả Nhân viên KD IBB7
     gan_dieu_huong_ky(app, "ads-thang")
 
     @app.callback(*[Output(f"ads-p-{k}", "style") for k, _ in TAB], Input("ads-tab", "value"))
     def _doi_tab(tab):
         return [{} if k == tab else AN for k, _ in TAB]
 
-    @cb(Output("ads-tab", "value", allow_duplicate=True), Input("ads-sang-nd", "n_clicks"),
+    @xem(Output("ads-tab", "value", allow_duplicate=True), Input("ads-sang-nd", "n_clicks"),
         prevent_initial_call=True)
     def _sang_nd(_n):
         return "nhan_dinh"
 
     # ------------------------------------------------ tổng quan + theo sale
-    @cb(Output("ads-badge", "children"), Input("ads-thang", "value"), Input("ads-sua", "data"))
+    @xem(Output("ads-badge", "children"), Input("ads-thang", "value"), Input("ads-sua", "data"))
     def _nhan_ngay(thang, _s):
         dau, den_t = _ky(thang)
         cuoi_t = ads.ngay_cuoi_chi(dau, den_t)
@@ -537,7 +541,7 @@ def register(app):
                 if cuoi_t else html.Span("Chưa có số tháng này", className="badge warn"))
 
     # mỗi tab chỉ tính khi người xem mở tab đó (mở lại tab thì lấy số đã nhớ tạm, xem app/bo_nho.py)
-    @cb(Output("ads-kpi", "children"), Output("ads-g-page", "rowData"),
+    @xem(Output("ads-kpi", "children"), Output("ads-g-page", "rowData"),
         Output("ads-bieu-do", "figure"), Output("ads-bd-chu", "children"), Output("ads-loc-sale", "options"),
         Output("ads-ky-chu", "children"), Output("ads-kiem-tra", "children"),
         Input("ads-tab", "value"), Input("ads-thang", "value"), Input("ads-khoang", "value"),
@@ -606,7 +610,7 @@ def register(app):
         return (the, _ban_ghi(tp), fig, chu, [{"label": x, "value": x} for x in sales], ky_chu,
                 _kiem_tra(dau, den_t))
 
-    @cb(Output("ads-g-sale", "rowData"), Output("ads-g-sale", "dashGridOptions"), Output("ads-sale-mo-ta", "children"),
+    @xem(Output("ads-g-sale", "rowData"), Output("ads-g-sale", "dashGridOptions"), Output("ads-sale-mo-ta", "children"),
         Output("ads-ty-gia", "value"),
         Input("ads-tab", "value"), Input("ads-thang", "value"), Input("ads-sua", "data"),
         State("ads-g-sale", "dashGridOptions"))
@@ -634,7 +638,7 @@ def register(app):
                      f"· tỷ giá {so_vn(rate)}")
         return _ban_ghi(ts.drop(columns=["acc"], errors="ignore")), opts, mo_ta, round(rate)
 
-    @cb(Output("ads-md-sale", "className"), Output("ads-md-sale-tieu-de", "children"),
+    @xem(Output("ads-md-sale", "className"), Output("ads-md-sale-tieu-de", "children"),
         Output("ads-g-ct-sale", "rowData"), Output("ads-g-ct-sale", "dashGridOptions"),
         Input("ads-g-sale", "cellDoubleClicked"), Input("ads-md-sale-dong", "n_clicks"),
         Input("ads-md-sale-nen", "n_clicks"), State("ads-g-sale", "selectedRows"), State("ads-g-sale", "rowData"),
@@ -675,7 +679,7 @@ def register(app):
         return alert(f"Đã lưu tỷ giá tháng {thang[5:]}/{thang[:4]}: {so_vn(rate)}.", "ok"), gio_viet_nam().isoformat()
 
     # ------------------------------------------------ nhận định (tổng quan hiện 4 thẻ đầu)
-    @cb(Output("ads-tq-the", "children"), Output("ads-nd-the", "children"), Output("ads-nd-den", "children"),
+    @xem(Output("ads-tq-the", "children"), Output("ads-nd-the", "children"), Output("ads-nd-den", "children"),
         Output("ads-nd-ma-tran", "figure"), Output("ads-nd-nhom", "figure"), Output("ads-nd-xu", "rowData"),
         Output("ads-nd-pheu", "rowData"), Output("ads-nd-muc-chung", "children"),
         Output("ads-nd-nhom-chu", "children"),
@@ -750,7 +754,7 @@ def register(app):
         return (_the_nd(nd["the"], 4), _the_nd(nd["the"]), den_, f1, f2, _ban_ghi(xu), _ban_ghi(ph), " · ".join(muc),
                 chu_nhom)
 
-    @cb(Output("ads-pheu-page", "options"), Output("ads-nd-pheu-bd", "figure"),
+    @xem(Output("ads-pheu-page", "options"), Output("ads-nd-pheu-bd", "figure"),
         Input("ads-pheu-page", "value"), Input("ads-tab", "value"), Input("ads-thang", "value"),
         Input("ads-sua", "data"))
     def _pheu(pid, tab, thang, _s):
@@ -777,7 +781,7 @@ def register(app):
         return opts, f
 
     # ------------------------------------------------ tracking ngày (page × ngày)
-    @cb(Output("ads-g-ngay", "columnDefs"), Output("ads-g-ngay", "rowData"), Output("ads-chu-mau", "children"),
+    @xem(Output("ads-g-ngay", "columnDefs"), Output("ads-g-ngay", "rowData"), Output("ads-chu-mau", "children"),
         Output("ads-g-ngay", "dashGridOptions"),
         Input("ads-tab", "value"), Input("ads-thang", "value"), Input("ads-chi-so", "value"),
         Input("ads-ngay-loai", "value"), Input("ads-sua", "data"), State("ads-g-ngay", "dashGridOptions"))
@@ -847,7 +851,7 @@ def register(app):
         return cot, _ban_ghi(pv), _chu_mau(huong), opts
 
     # ------------------------------------------------ chi tiết một page
-    @cb(Output("ads-ct-page", "data"), Input("ads-g-ngay", "cellDoubleClicked"),
+    @xem(Output("ads-ct-page", "data"), Input("ads-g-ngay", "cellDoubleClicked"),
         Input("ads-g-page", "cellDoubleClicked"), State("ads-g-ngay", "selectedRows"),
         State("ads-g-page", "selectedRows"), State("ads-g-ngay", "rowData"), State("ads-g-page", "rowData"),
         prevent_initial_call=True)
@@ -862,12 +866,12 @@ def register(app):
             raise PreventUpdate
         return {"id": int(r["page_id"]), "t": o.get("timestamp")}
 
-    @cb(Output("ads-md-ct", "className", allow_duplicate=True), Input("ads-md-ct-dong", "n_clicks"),
+    @xem(Output("ads-md-ct", "className", allow_duplicate=True), Input("ads-md-ct-dong", "n_clicks"),
         Input("ads-md-ct-nen", "n_clicks"), prevent_initial_call=True)
     def _dong_ct(_a, _b):
         return "modal"
 
-    @cb(Output("ads-g-ct", "columnDefs"), Output("ads-g-ct", "rowData"), Output("ads-g-ct", "dashGridOptions"),
+    @xem(Output("ads-g-ct", "columnDefs"), Output("ads-g-ct", "rowData"), Output("ads-g-ct", "dashGridOptions"),
         Output("ads-ct-dau", "children"), Output("ads-md-ct-tieu-de", "children"),
         Output("ads-md-ct", "className"),
         Input("ads-ct-page", "data"), Input("ads-thang", "value"), Input("ads-sua", "data"),

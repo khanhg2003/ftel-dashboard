@@ -25,7 +25,9 @@ Người dùng ──► Vercel (chạy app, máy chủ Tokyo) ──► Supabas
 
 1. **Dữ liệu nội bộ ra ngoài công ty.** Số bán, acc nhân viên, hồ sơ NSLĐ sẽ nằm trên máy chủ
    của Supabase và Vercel (đặt tại Tokyo, Nhật Bản). Nên hỏi bộ phận IT / bảo mật của chi nhánh trước.
-   App đã **bỏ không lưu tên khách hàng** để giảm rủi ro.
+   App đã **bỏ không lưu tên khách hàng** để giảm rủi ro. Ngoại lệ (chốt 21/09/2026): phòng bật trang
+   Nhập tồn (hiện chỉ IBB7, `config/rules.yml` → `nhap_ton`) được lưu tên khách hàng trong file Internet, vì sale
+   cần tên để cập nhật từng ca tồn. Tên chỉ hiện ở trang Nhập tồn, không gửi lên AI.
 2. **Chi phí khi dùng cho công ty.**
    - Vercel gói miễn phí (Hobby) chỉ cho mục đích cá nhân, phi thương mại → dùng cho công ty
      cần gói **Pro (~20 USD/tháng)**.

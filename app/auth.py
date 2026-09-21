@@ -22,7 +22,7 @@ KHOA_SAU = 5            # sai 5 lần thì khoá
 KHOA_PHUT = 15
 
 ROLE_LABEL = {"admin": "Quản trị (BGD)", "operator": "Nhập liệu",
-              "phong": "Trưởng phòng", "nhanvien": "Nhân viên"}
+              "phong": "Trưởng phòng", "nvkd": "Nhân viên KD", "nhanvien": "Nhân viên"}
 # Nạp dữ liệu: Trưởng phòng được nạp 3 file bán hàng (họ là người tải file hằng ngày), nhưng
 # file NSLĐ và Danh mục nhân viên thì chỉ Quản trị (BGĐ) - BGĐ chốt 16/09/2026.
 ROLE_UPLOAD = {"admin", "operator", "phong"}
@@ -35,7 +35,11 @@ ROLE_SETTINGS = {"admin"}
 # - SỐ CHUNG (theo phòng, bầy, chi nhánh): Quản trị, Nhập liệu, Trưởng phòng đều xem toàn chi nhánh.
 # - CHI TIẾT NHÂN SỰ (tên, acc, số từng người): Quản trị xem mọi phòng, Trưởng phòng chỉ phòng
 #   mình phụ trách, Nhập liệu không xem.
-ROLE_XEM_NHAN_SU = {"admin", "phong"}
+ROLE_XEM_NHAN_SU = {"admin", "phong", "nvkd"}
+# Nhân viên KD (tài khoản dùng chung của một phòng, chốt 21/09/2026): chỉ vào đúng các trang này,
+# chi tiết nhân sự chỉ phòng mình, Ads chỉ khi phòng mình là phòng chạy Ads.
+TRANG_NVKD = {"/nhapton", "/phong", "/ads", "/taikhoan", "/huongdan"}
+PHONG_ADS = "IBB7"
 
 
 class SessionUser(UserMixin):
@@ -79,9 +83,29 @@ class SessionUser(UserMixin):
     def duoc_xem_nhan_su(self) -> bool:
         return self.role in ROLE_XEM_NHAN_SU
 
+    @property
+    def duoc_xem_ads(self) -> bool:
+        """Xem Ads IBB7 (chỉ xem). Sửa cấu hình Ads vẫn là duoc_cau_hinh."""
+        return self.duoc_cau_hinh or (self.role == "nvkd" and PHONG_ADS in self.scope)
+
+    def phong_nhap_ton(self) -> list[str]:
+        """Phòng được xem / ghi Nhập tồn: phòng bật mục này (rules.yml) giao với phạm vi nhân sự."""
+        from app.config import rules_config
+        bat = list((rules_config().get("nhap_ton") or {}).get("phong") or [])
+        pham_vi = self.phong_nhan_su()
+        return bat if pham_vi is None else [c for c in bat if c in set(pham_vi)]
+
+    @property
+    def duoc_nhap_ton(self) -> bool:
+        return bool(self.phong_nhap_ton())
+
+    def vao_duoc(self, path: str) -> bool:
+        """Nhân viên KD chỉ vào các trang của mình; vai trò khác do từng trang tự kiểm."""
+        return self.role != "nvkd" or path in TRANG_NVKD
+
     def phong_duoc_xem(self) -> list[str] | None:
         """Phạm vi SỐ CHUNG. None = toàn chi nhánh, ngược lại là danh sách mã phòng."""
-        if self.role in ("admin", "operator", "phong"):
+        if self.role in ("admin", "operator", "phong", "nvkd"):
             return None
         if self.role == "nhanvien":
             return self.phong_cua_minh()
@@ -91,7 +115,7 @@ class SessionUser(UserMixin):
         """Phạm vi CHI TIẾT NHÂN SỰ. None = mọi phòng, [] = không được xem ai."""
         if self.role == "admin":
             return None
-        if self.role == "phong":
+        if self.role in ("phong", "nvkd"):
             return list(self.scope)
         return []
 

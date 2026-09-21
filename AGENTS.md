@@ -22,7 +22,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 
 | Việc | File |
 |---|---|
-| Đọc / ghi số liệu, công thức (không có giao diện) | `app/*.py`: `metrics.py`, `overview.py`, `phan_tich.py`, `hr_metrics.py`, `ads.py`, `ads_phan_tich.py`... |
+| Đọc / ghi số liệu, công thức (không có giao diện) | `app/*.py`: `metrics.py`, `overview.py`, `phan_tich.py`, `hr_metrics.py`, `ads.py`, `ads_phan_tich.py`, `nhap_ton.py`... |
 | Nạp file Excel / CSV | `app/ingest/` (`loader.py` đọc, `commit.py` ghi) |
 | Cơ cấu bầy / phòng, gán phòng | `app/org.py` (có bộ nhớ tạm riêng + `xoa_cache_org()`) |
 | Quyền, người dùng, ghi nhật ký | `app/auth.py` (`ghi_log`, `loc_nhan_su`, `phong_duoc_xem`, `phong_nhan_su`) |
@@ -83,6 +83,12 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - *Tên gọi trong giao diện:* dùng "online" / "chưa online", **không bao giờ viết "đấu nối"** (có test kiểm tra). "Bán" (hợp đồng tạo mới) và "online" là HAI chỉ số khác nhau: không viết "bán 159 online", viết "có 159 online". Tránh chữ "kỳ" trơn: ghi "tháng 9", "tháng trước", "khoảng trước đó", "cùng kỳ T8".
    - *Dự báo cuối tháng:* giao diện hiện **hai số song song "3.892 (4.134)"** (chủ app chốt 21/09/2026). Số đứng trước `du_bao` = luỹ kế + (luỹ kế / số ngày đã qua) × số ngày còn lại, không nhân gì - ai cũng cộng lại được. Số trong ngoặc `du_bao_nhip` = nhân thêm hệ số nhịp dồn cuối tháng đo từ tháng trước (`du_bao.nhip_cuoi_thang`, chặn 0,7-1,5, dùng CHUNG cho mọi phòng). Cột `du_bao_tuan` ("Giữ nhịp 7 ngày") = số đứng trước nhưng lấy bình quân 7 ngày gần nhất đã chốt. Đánh giá An toàn / Cần tăng tốc / Rủi ro bám **số đứng trước**. Thử trên tháng 8/2026 (thật 4.322): số đứng trước sai 6,5% (giữa tháng thấp hơn thật 8-10%, khít dần về cuối tháng), số trong ngoặc sai 1,9% (từ ngày 15 là 1,3%) - thực tế thường rơi vào giữa hai số. Nhịp riêng từng phòng KHÔNG lặp lại giữa các tháng (tương quan T7 với T8 của cùng phòng r = -0,05) nên không dùng; nhịp cả chi nhánh ổn định (T7 1,25 · T8 1,26). Thêm hệ số theo thứ trong tuần không cải thiện. Đổi công thức thì phải chạy lại kiểu thử này trước và hỏi chủ app.
    - *Trợ lý AI (Fox):* nhân vật ở `tro_ly.giong_van()` - cố vấn điềm đạm, xưng tên trợ lý, gọi "anh/chị", mỗi số kèm một câu nói rõ ý nghĩa. "Đóng góp" chỉ dùng cho phần tăng; phần thiếu nói "hụt" / "chiếm". Sửa lời dặn hoặc `lam_sach` thì phải tăng `PHIEN_LOI_DAN` để nhận xét cũ hết hiệu lực. Hỏi về một người cụ thể thì dùng công cụ `nhan_su_ca_nhan`.
+   - *Nhập tồn* (`app/nhap_ton.py`, chốt 21/09/2026, bật theo phòng ở `config/rules.yml` → `nhap_ton`, hiện chỉ
+     IBB7): danh sách = đúng "Số tồn" (`phan_tich.hop_dong_ton`), hợp đồng / tên KH / ngày tạo / acc lấy từ file
+     Internet, sale chỉ ghi 3 mục bắt buộc (ghi chú, mốc + ngày, phương án). Trả về ngày D → hạn hết ngày D +
+     `han_tra_ve_ngay` (3), quá hạn HĐ tự huỷ nên luôn đỏ; hẹn quá ngày đỏ, đúng hôm nay vàng. Treo / CPTC ghi vào
+     ghi chú. Danh sách xếp theo từng cụm nhân viên. Đã đối chiếu với sheet 20/09: 160/167 HĐ khớp, 7 HĐ lệch đều
+     đúng là phải bỏ (đã online / không còn trong file).
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`). Tiền nhập tay tổng tháng không vẽ theo ngày. Page Trung lập = tài khoản công ty, không chia cho sale.
 3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
 4. Định dạng kiểu Việt Nam: `1.234`, `5,40 $`, `45%`. Khi tự `.replace(",", ".")` thì **chỉ áp lên con số**, không áp lên cả câu.
@@ -96,10 +102,19 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - *Số chung* (`phong_duoc_xem()`): theo phòng / bầy / chi nhánh.
    - *Chi tiết nhân sự* (`phong_nhan_su()`, `loc_nhan_su()`): tên, acc, số từng người.
    Dữ liệu từng người luôn đi qua lớp thứ hai.
-3. **Chỉ Quản trị:** Ads IBB7, Bán theo tỉnh, Cấu hình, file NSLĐ / danh mục nhân viên.
-4. **Ghi nhật ký** (`ghi_log` / `AuditLog`): xuất Excel / file, nạp / gỡ file, sửa cấu hình, xoá, gọi AI.
-5. **Không gửi lên AI** tên khách hàng hay dữ liệu vượt quyền của người hỏi.
-6. **Không in ra** chuỗi kết nối database, mật khẩu, token, API key: kể cả trong log, thông báo lỗi hay câu trả lời. Khoá OpenAI chỉ nằm ở máy chủ.
+3. **Chỉ Quản trị:** Bán theo tỉnh, Cấu hình, file NSLĐ / danh mục nhân viên, và mọi thao tác SỬA của Ads IBB7
+   (tỷ giá, page, tab Cấu hình). **Xem** Ads IBB7: Quản trị + Nhân viên KD của IBB7 (`duoc_xem_ads`): callback đọc
+   dùng `callback_can_quyen(app, "duoc_xem_ads")`, callback ghi vẫn `"duoc_cau_hinh"`.
+4. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
+   Chỉ vào `TRANG_NVKD` (Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản, Hướng dẫn) - kiểm ở
+   `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Nhập tồn. Không nạp file, không xuất Excel, không
+   dùng AI. Ở Nhập tồn phải chọn tên mình ở bộ lọc mới sửa được, chỉ sửa ca của người đó, và "cập nhật bởi" ghi tên
+   người đó (nhật ký ghi tài khoản thật). Thêm trang mới mà Nhân viên KD cần vào thì phải thêm vào `TRANG_NVKD`.
+5. **Ghi nhật ký** (`ghi_log` / `AuditLog`): xuất Excel / file, nạp / gỡ file, sửa cấu hình, xoá, gọi AI.
+6. **Không gửi lên AI** tên khách hàng hay dữ liệu vượt quyền của người hỏi. Tên khách hàng chỉ được LƯU cho
+   phòng bật Nhập tồn (`ingest/commit.phong_luu_ten_kh`, file Internet) và chỉ HIỆN ở trang Nhập tồn
+   (`phan_tich.hop_dong_ton(ten_kh=True)`). Thêm chỗ nào dùng tên khách hàng thì phải hỏi chủ app.
+7. **Không in ra** chuỗi kết nối database, mật khẩu, token, API key: kể cả trong log, thông báo lỗi hay câu trả lời. Khoá OpenAI chỉ nằm ở máy chủ.
 
 ---
 

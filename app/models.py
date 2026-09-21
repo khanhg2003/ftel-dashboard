@@ -340,3 +340,17 @@ class AdsThang(Base):
     __tablename__ = "ads_thang"
     thang: Mapped[str] = mapped_column(String(7), primary_key=True)
     ty_gia: Mapped[float] = mapped_column(Float)
+
+
+# ---------------------------------------------------------------- nhập tồn
+class TonTheoDoi(Base):
+    """Sale ghi tình trạng hợp đồng chưa online (trang Nhập tồn). Giữ theo mã HĐ qua các ngày; phần hợp đồng
+    (tên KH, ngày tạo, acc) luôn đọc từ fact_internet nên không lưu lại ở đây."""
+    __tablename__ = "ton_theo_doi"
+    hop_dong: Mapped[str] = mapped_column(String(30), primary_key=True)
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    loai_moc: Mapped[str | None] = mapped_column(String(10), nullable=True)      # hen | tra_ve
+    ngay_moc: Mapped[date | None] = mapped_column(Date, nullable=True)
+    phuong_an: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC
+    cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)

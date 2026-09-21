@@ -28,6 +28,13 @@ CHUNK = 800
 LUU_TEN_KHACH_HANG = os.getenv("LUU_TEN_KHACH_HANG", "false").lower() == "true"
 
 
+def phong_luu_ten_kh() -> set[str]:
+    """Phòng được lưu tên khách hàng dù LUU_TEN_KHACH_HANG tắt: các phòng bật Nhập tồn (`rules.yml` → nhap_ton),
+    vì sale cần tên KH để cập nhật từng ca tồn (chủ app chốt 21/09/2026). Chỉ file Internet; phòng khác vẫn không
+    lưu, tránh mang dữ liệu cá nhân lên cloud. Tên chỉ hiện ở trang Nhập tồn, không bao giờ gửi lên AI."""
+    return set((rules_config().get("nhap_ton") or {}).get("phong") or [])
+
+
 def file_hash(path: str | Path) -> str:
     h = hashlib.sha1()
     with open(path, "rb") as f:
@@ -121,13 +128,14 @@ def _fact_rows(res: LoadResult, staff_map: dict, batch_id: int) -> list[dict]:
     goi_vvip = {norm_text(x).lower() for x in rules["vvip"]["goi_tinh_vvip"]}
     df = res.df.copy()
     rows: list[dict] = []
+    giu_ten = phong_luu_ten_kh() if res.dataset == "internet" else set()
     for r in df.to_dict("records"):
         acc = r.get("acc_nhan_vien", "")
         code, la_ecom = assign_phong(acc, r.get("phong_he_thong"), r.get("cn_ban"),
                                      r.get("cn_quan_ly"), staff_map, r.get("ngay_online") or r.get("ngay_tao_hd"))
         r["phong_code"] = code
         r["la_ecom"] = la_ecom
-        if not LUU_TEN_KHACH_HANG:
+        if not LUU_TEN_KHACH_HANG and code not in giu_ten:
             # báo cáo không dùng tên khách -> không lưu, tránh mang dữ liệu cá nhân lên cloud
             r["ten_khach_hang"] = None
         r["acc_norm"] = norm_acc(acc)

@@ -12,7 +12,7 @@ import dash_ag_grid as dag
 from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
-from app.admin_service import (ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau, lay_staff,
+from app.admin_service import (ROLE_CO_PHONG, ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau, lay_staff,
                                lay_user, luu_mot_staff, pham_vi_options, sua_user, them_user,
                                xoa_staff, xoa_user, xoa_truong_phong_khong_dang_nhap)
 from app.db import session_scope
@@ -323,7 +323,7 @@ def register(app):
         Input("qt-f-role", "value"), Input("qt-user-dang-sua", "data"))
     def _theo_vai_tro(role, dang_sua):
         ban_than = bool(dang_sua) and dang_sua == current_user.username
-        la_tp = role == "phong"
+        la_tp = role in ROLE_CO_PHONG
         return (not la_tp, "Chọn phòng (kiêm nhiệm chọn nhiều)" if la_tp else "Toàn chi nhánh - không cần chọn",
                 ban_than, ban_than)
 
