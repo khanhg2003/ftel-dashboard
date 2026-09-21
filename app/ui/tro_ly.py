@@ -15,6 +15,7 @@ from app.auth import ghi_log
 from app.du_bao import AN_TOAN, RUI_RO, TANG_TOC
 from app.thoi_gian import chu_gio_vn, gio_viet_nam
 from app.ui.components import alert, callback_can_quyen, card, chu_giai, kpi, tip, ghi_chu
+from app.ui.luoi import bang
 from app.ui.icons import icon
 
 AN = {"display": "none"}
@@ -149,10 +150,16 @@ HAI_SO = ("params.value == null ? '–' : Number(params.value).toLocaleString('v
 
 
 def bang_du_bao(gid: str):
+    """Bảng dự báo từng phòng. Dùng bang() chung để có sẵn chữ tiếng Việt và chú thích hiện nhanh."""
     so = {"function": "params.value == null ? '–' : Number(params.value).toLocaleString('vi-VN')"}
-    return dag.AgGrid(
-        id=gid, className="ag-theme-quartz ag-theme-ftel", rowData=[],
-        columnDefs=[
+    return bang(
+        gid, cao=380,
+        cot_mac_dinh={"flex": 1, "minWidth": 96, "sortable": True, "resizable": True,
+                      "cellClass": "o-giua", "headerClass": "tieu-de-giua"},
+        tuy_chon={"rowHeight": 32, "headerHeight": 38, "tooltipHideDelay": 20000},
+        getRowStyle={"styleConditions": [{"condition": "params.data.phong_code == 'TOTAL'",
+                                          "style": {"backgroundColor": "#B9D3EB", "fontWeight": "700"}}]},
+        cot=[
             {"field": "phong", "headerName": "Phòng", "pinned": "left", "minWidth": 130, "flex": 1.3},
             {"field": "mt", "headerName": "MT tháng", "valueFormatter": so},
             {"field": "luy_ke", "headerName": "Luỹ kế", "valueFormatter": so},
@@ -161,31 +168,28 @@ def bang_du_bao(gid: str):
                 "{minimumFractionDigits: 1, maximumFractionDigits: 1})"}},
             {"field": "du_bao", "headerName": "Dự báo cuối tháng ⓘ", "minWidth": 158,
              "valueFormatter": {"function": HAI_SO}, "cellStyle": {"fontWeight": "650"},
+             "headerClass": "tieu-de-giua co-chu-thich",
              "headerTooltip": "Số đứng trước = luỹ kế + bình quân mỗi ngày × số ngày còn lại.\n"
                               "Số trong ngoặc = nhân thêm nhịp dồn cuối tháng, đo từ tháng trước.\n"
                               "Thực tế thường rơi vào giữa hai số, gần số trong ngoặc hơn.\n"
                               "Đánh giá An toàn / Cần tăng tốc / Rủi ro bám số đứng trước.\n"
                               "Rê chuột vào ô của một phòng để xem phép tính của phòng đó.",
              "tooltipValueGetter": {"function": PHEP_TINH}},
-            {"field": "du_bao_tuan", "headerName": "Giữ nhịp 7 ngày", "minWidth": 118, "valueFormatter": so,
-             "headerTooltip": "Cũng là luỹ kế + bình quân × số ngày còn lại, nhưng bình quân lấy của 7 ngày "
-                              "gần nhất đã chốt số. Cao hơn cột bên trái nghĩa là tuần vừa rồi đang chạy "
-                              "nhanh hơn đà cả tháng"},
+            {"field": "du_bao_tuan", "headerName": "Giữ nhịp 7 ngày ⓘ", "minWidth": 132,
+             "valueFormatter": so, "headerClass": "tieu-de-giua co-chu-thich",
+             "headerTooltip": "Cũng là luỹ kế + bình quân mỗi ngày × số ngày còn lại.\n"
+                              "Khác ở chỗ bình quân lấy của 7 ngày gần nhất đã chốt số.\n"
+                              "Cao hơn cột bên trái nghĩa là tuần vừa rồi đang chạy nhanh hơn đà cả tháng."},
             {"field": "pct_mt", "headerName": "% MT", "valueFormatter":
                 {"function": "params.value == null ? '–' : params.value + '%'"}},
-            {"field": "can_moi_ngay", "headerName": "Cần mỗi ngày", "valueFormatter": so,
-             "headerTooltip": "Số online mỗi ngày còn lại cần đạt để đủ mục tiêu tháng"},
+            {"field": "can_moi_ngay", "valueFormatter": so,
+             "headerClass": "tieu-de-giua co-chu-thich", "headerName": "Cần mỗi ngày ⓘ",
+             "headerTooltip": "Số online mỗi ngày còn lại cần đạt để đủ mục tiêu tháng."},
             {"field": "danh_gia", "headerName": "Đánh giá", "minWidth": 130, "cellStyle": {"styleConditions": [
                 {"condition": f"params.value == '{AN_TOAN}'", "style": {"color": "#0A5B31", "fontWeight": "650"}},
                 {"condition": f"params.value == '{TANG_TOC}'", "style": {"color": "#8A5709", "fontWeight": "650"}},
                 {"condition": f"params.value == '{RUI_RO}'", "style": {"color": "#B42318", "fontWeight": "650"}}]}},
-        ],
-        defaultColDef={"flex": 1, "minWidth": 96, "sortable": True, "resizable": True,
-                       "cellClass": "o-giua", "headerClass": "tieu-de-giua"},
-        dashGridOptions={"suppressCellFocus": True, "rowHeight": 32, "headerHeight": 38},
-        getRowStyle={"styleConditions": [{"condition": "params.data.phong_code == 'TOTAL'",
-                                          "style": {"backgroundColor": "#B9D3EB", "fontWeight": "700"}}]},
-        style={"width": "100%", "height": "380px"})
+        ])
 
 
 def _so1(v) -> str:

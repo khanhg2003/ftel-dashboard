@@ -108,7 +108,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 - **Bảng dài** thì đặt `cao` cố định để cuộn trong khung. Bảng Ads / tỉnh dùng lớp `luoi-ke` (kẻ ô).
 - **Ô bấm được để mở chi tiết:** `cellClass: "o-bam"` + dòng gợi ý `goi-y-bam`.
 - **Chú thích trong bảng:** `headerTooltip` viết mỗi câu một dòng bằng `
-` (CSS `.ag-tooltip` đã đặt `white-space: pre-line`). Cột khó hiểu thì thêm `ⓘ` vào `headerName`.
+` (CSS `.ag-tooltip` đã đặt `white-space: pre-line`). Cột khó hiểu thì thêm `ⓘ` vào `headerName` và `headerClass` kèm `co-chu-thich` (con trỏ dấu hỏi + gạch chân chấm). Bảng phải dựng bằng `bang()` của `app/ui/luoi.py`: tự dựng `dag.AgGrid` là mất `tooltipShowDelay` nên chú thích chỉ hiện sau 2 giây, người dùng tưởng không có.
 - **Khối giải thích dài** dùng `chu_giai(tiêu đề, [(tên mục, nội dung)])`: gập được, mặc định đóng, mỗi mục một ô ngắn. Không viết một đoạn chữ dài.
 - **Màu đánh giá** tối đa 3 mức: xanh tốt · vàng trung bình · đỏ cần xử lý. Chi tiêu (không tốt không xấu) dùng thang xanh dương.
 - **dash-ag-grid:**

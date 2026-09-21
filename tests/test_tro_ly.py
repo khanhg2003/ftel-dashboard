@@ -484,3 +484,14 @@ def test_o_so_hien_song_song_hai_con_so():
     assert hai_so(79, 91, "%") == "79% (91%)"
     assert hai_so(3892) == "3.892"               # chưa có số thứ hai thì chỉ hiện số chính
 
+
+def test_bang_du_bao_chu_thich_hien_nhanh():
+    """Mặc định của ag-grid là 2 giây - rê chuột vào ⓘ tưởng như không có gì (chủ app báo 21/09/2026)."""
+    from app.ui.tro_ly import bang_du_bao
+    g = bang_du_bao("x")
+    assert g.dashGridOptions["tooltipShowDelay"] <= 500
+    co = {c["headerName"]: c for c in g.columnDefs if c.get("headerTooltip")}
+    assert co, "phải có cột kèm chú thích"
+    for ten, c in co.items():
+        assert "ⓘ" in ten                       # cột có chú thích thì phải thấy được là bấm/rê được
+        assert "co-chu-thich" in c["headerClass"]

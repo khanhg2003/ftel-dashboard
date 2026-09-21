@@ -1031,3 +1031,6 @@ table.simple tr:last-child td { border-bottom: none; }
 
 /* Chú thích trong bảng (ag-grid): xuống dòng theo đúng chỗ đã viết, không dính thành cục chữ */
 .ag-tooltip { white-space: pre-line; max-width: 420px; line-height: 1.55; }
+.ag-theme-ftel .co-chu-thich { cursor: help; }
+.ag-theme-ftel .co-chu-thich .ag-header-cell-text { text-decoration: underline dotted 1px;
+    text-underline-offset: 3px; }
