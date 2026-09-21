@@ -1041,6 +1041,27 @@ table.simple tr:last-child td { border-bottom: none; }
 #nt-luoi .ag-row.dong-nhom { background: var(--row-total); }
 #nt-luoi .ag-row.dong-nhom .ag-cell { font-weight: 700; color: var(--fpt-blue-900); }
 #nt-luoi .ag-row.dong-huy .ag-cell { color: var(--text-soft); background: #F4F6F9; }
+/* dòng cần xử lý: tô cả dòng + vạch màu ở cột Hợp đồng để TP lướt là thấy */
+#nt-luoi .ag-row.dong-do { background: #FFF6F5; }
+#nt-luoi .ag-row.dong-vang { background: #FFFBEF; }
+#nt-luoi .ag-row.dong-do .ag-cell[col-id="hop_dong"] { box-shadow: inset 3px 0 0 var(--bad); }
+#nt-luoi .ag-row.dong-vang .ag-cell[col-id="hop_dong"] { box-shadow: inset 3px 0 0 var(--warn); }
+/* 4 ô số cũng là nút lọc */
+.kpi.kpi-bam { text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; }
+.kpi.kpi-bam.dang-chon { border-color: var(--fpt-blue); box-shadow: 0 0 0 2px var(--fpt-blue) inset, var(--shadow-md); }
+.kpi.kpi-bam.dang-chon .label { color: var(--fpt-blue-700); }
+/* hàng tên nhân viên ngay trên danh sách: bấm là danh sách bên dưới đổi liền */
+.nt-chip { display: flex; gap: 10px; align-items: flex-start; padding-bottom: 12px; margin-bottom: 12px;
+    border-bottom: 1px solid var(--border); }
+.nt-chip-nhan { display: flex; align-items: center; gap: 4px; height: 32px; font-size: 13px; white-space: nowrap; }
+.nt-chip-ds { display: flex; flex-wrap: wrap; gap: 6px; }
+.nt-chip-ds .chip { gap: 6px; font-weight: 550; }
+.nt-chip-ds .chip-dem { font-weight: 750; color: var(--text); }
+.nt-chip-ds .chip.active .chip-dem { color: #fff; }
+.chip-so { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; color: #fff; }
+.chip-so.do { background: var(--bad); }
+.chip-so.cam { background: #E8A33D; }
 #nt-luoi .ag-cell.o-dam { font-weight: 600; }
 #nt-luoi .ag-cell.o-thieu { box-shadow: inset 0 0 0 2px #F0B35B; background: #FFFAF0; }
 #nt-luoi .ag-cell-wrap-text { line-height: 1.45; padding-top: 6px; padding-bottom: 6px; word-break: break-word; }
@@ -1051,6 +1072,7 @@ table.simple tr:last-child td { border-bottom: none; }
 #nt-luoi .ag-cell.pa-xong .ag-cell-value, .pa.pa-xong { background: #473822; color: #FFFFFF; }
 #nt-luoi .ag-cell[class*="pa-"] .ag-cell-value, .pa { border-radius: 999px; padding: 2px 10px; font-size: 12.5px;
     white-space: nowrap; }
+#nt-luoi .ag-cell[class*="pa-"] .ag-cell-value { white-space: normal; line-height: 1.35; display: inline-block; }
 .pa.pa-trong { background: #FFFAF0; color: #8A5A00; border: 1px dashed #F0B35B; }
 .nt-dien-thoai { display: none; }
 @media (max-width: 767px) {

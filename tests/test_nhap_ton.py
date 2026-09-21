@@ -164,3 +164,22 @@ def test_chi_luu_ten_khach_hang_cua_phong_bat_nhap_ton(monkeypatch):
     assert [r["ten_khach_hang"] for r in net] == ["Nguyen Van A", None]
     fpl = cm._fact_rows(SimpleNamespace(df=df, dataset="fptplay"), {}, 1)
     assert [r["ten_khach_hang"] for r in fpl] == [None, None]
+
+
+# ------------------------------------------------------------------ giao diện (chủ app 21/09: bấm tên phải thấy đổi ngay)
+def test_ten_tren_chip_ngan_gon_va_khong_trung():
+    import pandas as pd
+
+    from app.ui.pages.nhapton import _ten_chip
+    tong = pd.DataFrame({"acc_norm": ["a", "b", "c"],
+                         "ho_ten": ["Bùi Ngô Anh Thắng", "Trần Văn Anh Thắng", "Hồ Thị Mỹ Chi"]})
+    assert _ten_chip(tong) == {"a": "Bùi Ngô Anh Thắng", "b": "Trần Văn Anh Thắng", "c": "Mỹ Chi"}
+
+
+def test_o_so_cung_la_nut_loc_va_danh_dau_o_dang_chon():
+    from app.ui.pages.nhapton import _kpi
+    d = {"ton": 32, "chua_cap_nhat": 5, "gap": 2, "den_han": 1, "tra_ve": 1, "qua_hen": 1, "huy": 0}
+    o = _kpi(d, "gap")
+    assert [x.id["v"] for x in o] == ["all", "gap", "den_han", "thieu"]      # gấp đứng ngay sau tổng
+    assert ["dang-chon" in x.className for x in o] == [False, True, False, False]
+    assert "bad" in o[1].className                                          # còn ca gấp thì đỏ
