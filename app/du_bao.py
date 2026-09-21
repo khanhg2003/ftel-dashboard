@@ -1,16 +1,19 @@
 """Dự báo số online cuối tháng theo phòng - tính bằng công thức, AI chỉ diễn giải.
 
-HAI CON SỐ, cùng một ý "cứ đà này thì cuối tháng được bao nhiêu", khác nhau ở chỗ lấy đà từ đâu:
+Giao diện hiện SONG SONG hai số: `du_bao` và trong ngoặc là `du_bao_nhip`.
 
-1. `du_bao` (số chính) = luỹ kế + (luỹ kế / số ngày đã qua) × số ngày còn lại. Đà tính trên CẢ THÁNG
-   tới nay.
-2. `du_bao_tuan` = luỹ kế + bình quân 7 ngày gần nhất đã chốt × số ngày còn lại. Đà tính trên tuần
-   vừa rồi, nhanh nhạy hơn khi phòng đang tăng tốc hoặc chững lại.
+1. `du_bao` (số chính) = luỹ kế + (luỹ kế / số ngày đã qua) × số ngày còn lại. Giữ nguyên đà từ đầu
+   tháng tới nay, không cộng thêm gì. Dễ kiểm tra bằng tay.
+2. `du_bao_nhip` (số trong ngoặc) = như trên nhưng × hệ số nhịp cuối tháng trước: tháng trước tốc độ
+   bình quân/ngày của phần cuối tháng chia tốc độ của cùng số ngày đầu tháng (chi nhánh tháng nào
+   cũng dồn về cuối tháng). Giới hạn 0,7 - 1,5 để một tháng bất thường không kéo lệch.
+3. `du_bao_tuan` (cột "Giữ nhịp 7 ngày") = luỹ kế + bình quân 7 ngày gần nhất đã chốt × số ngày còn
+   lại. Cao hơn `du_bao` nghĩa là tuần vừa rồi chạy nhanh hơn đà cả tháng.
 
-Cả hai đều KHÔNG cộng thêm phần bứt tốc cuối tháng (chủ app chốt 21/09/2026: bỏ hệ số nhịp tháng
-trước cho dễ hiểu và dễ giải thích). Hệ quả đã đo trên tháng 8/2026 (thật 4.322 online): dự báo
-thấp hơn thực tế trung bình 6,5% (giữa tháng khoảng 8-10%), tự khít dần về cuối tháng. Nếu sau này
-muốn tính cả phần bứt tốc thì xem lại git lịch sử ngày 20-21/09/2026.
+Thử lại trên tháng 8/2026 (thật 4.322 online), đứng ở từng ngày 7-30: `du_bao` sai trung bình 6,5%
+(giữa tháng thấp hơn thật 8-10%, khít dần về cuối tháng), `du_bao_nhip` sai 1,9% (từ ngày 15 là
+1,3%). Hai số đứng cạnh nhau cho người đọc thấy khoảng dao động; đánh giá An toàn / Cần tăng tốc /
+Rủi ro vẫn bám số chính (chủ app chốt 21/09/2026).
 """
 from __future__ import annotations
 
@@ -20,11 +23,31 @@ import pandas as pd
 
 from datetime import date
 
-from app.metrics import daily_counts, month_range
+from app.metrics import daily_counts, month_range, prev_month
 from app.org import phong_order
 from app.overview import _targets, phong_khong_cong_tong
 
+HE_SO_MIN, HE_SO_MAX = 0.7, 1.5
 AN_TOAN, TANG_TOC, RUI_RO, CHUA_MT = "An toàn", "Cần tăng tốc", "Rủi ro", "Chưa có mục tiêu"
+
+
+def nhip_cuoi_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> dict:
+    """Nhịp tháng trước, nói được bằng số thật: bình quân mỗi ngày của phần đầu tháng (tới ngày `ngay`)
+    và của phần còn lại, cùng hệ số = cuối / đầu."""
+    pm = prev_month(thang)
+    days = month_range(pm)[2]
+    k = min(ngay, days)
+    goc = {"thang_truoc": pm, "cat": k, "so_ngay": days, "dau": None, "cuoi": None, "he_so": 1.0}
+    if k >= days:
+        return goc
+    d = daily_counts(pm, "online")
+    if chi_phong is not None:
+        d = d.loc[[c for c in d.index if c in set(chi_phong)]]
+    dau, cuoi = d.loc[:, :k].to_numpy().sum() / k, d.loc[:, k + 1:].to_numpy().sum() / (days - k)
+    if not dau or not cuoi:
+        return goc
+    return {**goc, "dau": round(float(dau), 1), "cuoi": round(float(cuoi), 1),
+            "he_so": round(float(min(HE_SO_MAX, max(HE_SO_MIN, cuoi / dau))), 2)}
 
 
 def nhip_tuan(thang: str, ngay: int, chi_phong: list[str] | None = None) -> dict:
@@ -68,16 +91,22 @@ def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> p
     tgt = _targets(thang)
     mt = (tgt["internet"] if "internet" in tgt.columns else pd.Series(dtype=float)).reindex(codes).fillna(0)
     tuan = nhip_tuan(thang, ngay, chi_phong)
+    nhip = nhip_cuoi_thang(thang, ngay, chi_phong)
+    he_so = nhip["he_so"]
     tb_tuan = tuan["theo_phong"].reindex(codes).fillna(0)
 
     def dong(code, ten_dong, lk, muc_tieu, tb7):
         du_bao = round(lk + lk / ngay * con_lai)
+        theo_nhip = round(lk + lk / ngay * con_lai * he_so)
         theo_tuan = round(lk + tb7 * con_lai)
         pct = round(du_bao / muc_tieu * 100) if muc_tieu else None
         can = math.ceil((muc_tieu - lk) / con_lai) if muc_tieu > lk and con_lai else 0
         return {"phong_code": code, "phong": ten_dong, "mt": int(muc_tieu), "luy_ke": int(lk),
-                "du_bao": int(du_bao), "du_bao_tuan": int(theo_tuan), "pct_mt": pct,
+                "du_bao": int(du_bao), "du_bao_nhip": int(theo_nhip), "du_bao_tuan": int(theo_tuan),
+                "pct_mt": pct, "pct_nhip": round(theo_nhip / muc_tieu * 100) if muc_tieu else None,
+                "nhip": he_so,
                 "ngay": ngay, "con_lai": con_lai,
+
                 "pct_tuan": round(theo_tuan / muc_tieu * 100) if muc_tieu else None,
                 "can_moi_ngay": can if muc_tieu else None,
                 "tb_ngay": round(lk / ngay, 1), "danh_gia": danh_gia(pct)}
@@ -87,5 +116,5 @@ def du_bao_thang(thang: str, ngay: int, chi_phong: list[str] | None = None) -> p
     rows.append(dong("TOTAL", "TỔNG", float(luy_ke.sum()),
                      float(mt[[c for c in codes if c not in bo]].sum()), float(tb_tuan.sum())))
     out = pd.DataFrame(rows).astype(object).where(lambda d: d.notna(), None)
-    out.attrs.update(ngay=ngay, so_ngay=days, tuan=tuan)
+    out.attrs.update(ngay=ngay, so_ngay=days, tuan=tuan, nhip=nhip, he_so=he_so)
     return out

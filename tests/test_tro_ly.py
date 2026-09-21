@@ -61,16 +61,20 @@ def test_ma_hoa_key_giai_ma_duoc_va_khong_lo_ma():
 
 
 def test_du_bao_dung_cong_thuc_va_cong_du():
-    """Chủ app chốt 21/09/2026: luỹ kế + bình quân mỗi ngày × số ngày còn lại, KHÔNG nhân thêm gì."""
+    """Hai số song song: số chính giữ nguyên đà, số trong ngoặc nhân thêm nhịp dồn cuối tháng trước."""
     from app.du_bao import du_bao_thang
     db = du_bao_thang("2026-09", 11)
     phong = db[db.phong_code != "TOTAL"]
     tong = db[db.phong_code == "TOTAL"].iloc[0]
     assert tong.luy_ke == phong.luy_ke.sum() == 1394
+    he_so = db.attrs["he_so"]
+    assert 0.7 <= he_so <= 1.5
     r = db[db.phong_code == "IBB7"].iloc[0]
     assert r.du_bao == round(r.luy_ke + r.luy_ke / 11 * 19)
+    assert r.du_bao_nhip == round(r.luy_ke + r.luy_ke / 11 * 19 * he_so)
+    assert r.du_bao_nhip >= r.du_bao              # nhịp >= 1 thì số trong ngoặc cao hơn
     assert r.pct_mt == round(r.du_bao / r.mt * 100)
-    assert "he_so" not in db.attrs and "nhip" not in r
+    assert r.pct_nhip == round(r.du_bao_nhip / r.mt * 100)
 
 
 def test_nhan_xet_luu_lai_khong_goi_ai_lan_hai(ai_bat):
@@ -440,9 +444,12 @@ def test_phep_tinh_du_bao_cong_lai_dung_so_tren_bang():
         chu = phep_tinh_du_bao(r)
         if not chu:
             continue
-        lk, tb, con, kq = re.findall(r"[\d.,]+", chu)
         lay = lambda x: float(x.replace(".", "").replace(",", "."))      # noqa: E731
+        truoc, sau = chu.split(";")
+        lk, tb, con, kq = re.findall(r"[\d.,]+", truoc)
         assert round(lay(lk) + lay(tb) * lay(con)) == lay(kq) == r["du_bao"], chu
+        nh, kq2 = re.findall(r"[\d.,]+", sau)                            # phần "nhân thêm nhịp ... = ..."
+        assert round(lay(lk) + lay(tb) * lay(con) * lay(nh)) == lay(kq2) == r["du_bao_nhip"], chu
 
 
 def test_giai_thich_du_bao_noi_bang_loi_thuong():
@@ -451,13 +458,22 @@ def test_giai_thich_du_bao_noi_bang_loi_thuong():
     from app.du_bao import du_bao_thang
     from app.ui.tro_ly import cau_du_bao, giai_thich_du_bao
     db = du_bao_thang("2026-09", 11)
-    chu = " ".join(cau_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("tuan")))
+    chu = " ".join(cau_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(),
+                              db.attrs.get("tuan"), db.attrs.get("nhip")))
     assert "bình quân mỗi ngày × số ngày còn lại" in chu and "7 ngày gần nhất" in chu
-    assert "nhịp tháng trước" not in chu          # đã bỏ khỏi công thức
+    assert "Số trong ngoặc" in chu                # phải giải thích số thứ hai
     assert "hệ số" not in chu.lower()                 # chủ app không hiểu chữ này
     assert "bán" not in chu.lower()                  # dự báo tính trên số ONLINE, không phải số bán
     assert not re.search(r"\d\.\d", chu)          # số thập phân kiểu Việt Nam: 135,7
     # phần giải thích phải nằm trong khối gập, mặc định đóng (không có thuộc tính "open")
-    kh = giai_thich_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("tuan"))
+    kh = giai_thich_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("tuan"),
+                           db.attrs.get("nhip"))
     assert kh.children[0].children == "Cách tính dự báo" and not getattr(kh, "open", False)
+
+
+def test_o_so_hien_song_song_hai_con_so():
+    from app.ui.tro_ly import hai_so
+    assert hai_so(3892, 4134) == "3.892 (4.134)"
+    assert hai_so(79, 91, "%") == "79% (91%)"
+    assert hai_so(3892) == "3.892"               # chưa có số thứ hai thì chỉ hiện số chính
 

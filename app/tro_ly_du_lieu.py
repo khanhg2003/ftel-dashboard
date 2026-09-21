@@ -34,6 +34,7 @@ COT_TONG = {"phong": "Phòng", "nhan_su": "Nhân sự", "mt_internet": "MT Inter
             "ton_qua_7": "Hợp đồng chờ quá 7 ngày"}
 COT_DU_BAO = {"phong": "Phòng", "mt": "MT tháng", "luy_ke": "Luỹ kế", "tb_ngay": "TB/ngày",
               "du_bao": "Dự báo cuối tháng", "pct_mt": "%MT dự báo",
+              "du_bao_nhip": "Nếu dồn cuối tháng như tháng trước",
               "du_bao_tuan": "Nếu chỉ giữ nhịp 7 ngày gần nhất", "can_moi_ngay": "Cần mỗi ngày",
               "danh_gia": "Đánh giá"}
 COT_NV = {"ho_ten": "Họ tên", "acc": "Acc", "hang": "Hạng", "online": "Online", "ck_online": "Cùng kỳ",
@@ -338,11 +339,13 @@ def tin_hieu_phong(d: date, code: str) -> str:
 def loi_du_bao(db) -> str:
     """Giải thích hai cột dự báo cho AI bằng lời thường (không dùng chữ 'hệ số')."""
     t = db.attrs.get("tuan") or {}
-    return ("DỰ BÁO CUỐI THÁNG (luỹ kế từ 01). Cột 'Dự báo cuối tháng' = luỹ kế + bình quân mỗi ngày từ đầu "
-            "tháng × số ngày còn lại. Cột 'Nếu chỉ giữ nhịp 7 ngày gần nhất' = cũng vậy nhưng lấy bình quân "
+    return ("DỰ BÁO CUỐI THÁNG (luỹ kế từ 01). Giao diện hiện 'Dự báo cuối tháng (Nếu dồn cuối tháng như "
+            "tháng trước)'. Cột 'Dự báo cuối tháng' = luỹ kế + bình quân mỗi ngày từ đầu tháng × số ngày còn "
+            f"lại. Cột 'Nếu dồn cuối tháng như tháng trước' = nhân thêm {str(db.attrs['he_so']).replace('.', ',')} "
+            "(tháng trước phần cuối tháng có online nhiều hơn phần đầu tháng chừng đó lần); thực tế thường rơi "
+            "vào giữa hai số. Cột 'Nếu chỉ giữ nhịp 7 ngày gần nhất' = như cột đầu nhưng lấy bình quân "
             f"{str(t.get('tb', 0)).replace('.', ',')} online/ngày của ngày {t.get('tu', 0):02d}-"
-            f"{t.get('den', 0):02d}. Cột thứ hai cao hơn nghĩa là tuần vừa rồi đang chạy nhanh hơn đà cả "
-            "tháng, thấp hơn là đang chững lại. Cả hai đều không cộng phần bứt tốc cuối tháng:")
+            f"{t.get('den', 0):02d}; cao hơn cột đầu nghĩa là tuần vừa rồi đang chạy nhanh hơn đà cả tháng:")
 
 
 def _du_lieu_tong(user, d: date, thang: str, cn: str, tu: str, scope) -> str:
