@@ -206,13 +206,12 @@ def tin_hieu_tong(d: date, thang: str, cn: str, tu: str, scope) -> str:
                             for c, v in top.items()) + f"; {len(gap)} phòng dự báo không đạt.")
         tuan = db.attrs.get("tuan") or {}
         if tong.du_bao_tuan is not None and tuan.get("so_ngay"):
-            chenh = int(tong.du_bao) - int(tong.du_bao_tuan)
-            dong.append(f"- Kịch bản không bứt tốc: nếu từ giờ tới cuối tháng mỗi ngày chỉ có số online như "
-                        f"{tuan['so_ngay']} ngày gần nhất ({str(tuan['tb']).replace('.', ',')} online/ngày) thì "
-                        f"cuối tháng {_so(tong.du_bao_tuan)} = {int(tong.pct_tuan)}% mục tiêu"
-                        + (f", thấp hơn dự báo chính {_so(chenh)} online - đây là phần đang trông vào nhịp bứt "
-                           "cuối tháng." if chenh > 0 else "; tuần vừa rồi đang chạy nhanh hơn nhịp tháng "
-                           "trước."))
+            chenh = int(tong.du_bao_tuan) - int(tong.du_bao)
+            dong.append(f"- Theo nhịp {tuan['so_ngay']} ngày gần nhất ({str(tuan['tb']).replace('.', ',')} "
+                        f"online/ngày) thì cuối tháng {_so(tong.du_bao_tuan)} = {int(tong.pct_tuan)}% mục tiêu"
+                        + (f", cao hơn dự báo chính {_so(chenh)} online - tuần vừa rồi đang chạy nhanh hơn đà "
+                           "cả tháng." if chenh > 0 else f", thấp hơn dự báo chính {_so(-chenh)} online - tuần "
+                           "vừa rồi đang chững lại so với đà cả tháng."))
         ton7 = int(ph.ton_qua_7.sum())
         if ton7:
             dong.append(f"- Hợp đồng chờ lâu: {_so(ton7)} hợp đồng đã chờ quá 7 ngày. Nếu chuyển được một nửa thành online thì "
@@ -339,12 +338,11 @@ def tin_hieu_phong(d: date, code: str) -> str:
 def loi_du_bao(db) -> str:
     """Giải thích hai cột dự báo cho AI bằng lời thường (không dùng chữ 'hệ số')."""
     t = db.attrs.get("tuan") or {}
-    return (f"DỰ BÁO CUỐI THÁNG (luỹ kế từ 01). Cột 'Dự báo cuối tháng' = luỹ kế + phần còn lại tính theo "
-            f"đúng nhịp tháng trước (tháng trước phần cuối tháng có online nhiều hơn phần đầu tháng "
-            f"{str(db.attrs['he_so']).replace('.', ',')} lần). Cột 'Nếu chỉ giữ nhịp 7 ngày gần nhất' = kịch "
-            f"bản không bứt tốc, lấy bình quân {str(t.get('tb', 0)).replace('.', ',')} online/ngày của ngày "
-            f"{t.get('tu', 0):02d}-{t.get('den', 0):02d} nhân số ngày còn lại. Chênh giữa hai cột là phần "
-            "đang trông vào nhịp bứt cuối tháng:")
+    return ("DỰ BÁO CUỐI THÁNG (luỹ kế từ 01). Cột 'Dự báo cuối tháng' = luỹ kế + bình quân mỗi ngày từ đầu "
+            "tháng × số ngày còn lại. Cột 'Nếu chỉ giữ nhịp 7 ngày gần nhất' = cũng vậy nhưng lấy bình quân "
+            f"{str(t.get('tb', 0)).replace('.', ',')} online/ngày của ngày {t.get('tu', 0):02d}-"
+            f"{t.get('den', 0):02d}. Cột thứ hai cao hơn nghĩa là tuần vừa rồi đang chạy nhanh hơn đà cả "
+            "tháng, thấp hơn là đang chững lại. Cả hai đều không cộng phần bứt tốc cuối tháng:")
 
 
 def _du_lieu_tong(user, d: date, thang: str, cn: str, tu: str, scope) -> str:
