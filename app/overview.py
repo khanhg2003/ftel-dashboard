@@ -83,7 +83,7 @@ def _nhan_su() -> pd.Series:
     """
     from app.canh_bao import acc_truong_phong
     df = pd.read_sql_query(text("""SELECT acc_norm, phong_code FROM staff_map
-                             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghi%'
+                             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Ngh%'
                                AND COALESCE(ghi_chu, '') NOT LIKE '%Truong%'
                                AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE)"""), engine)
     df = df[~df.acc_norm.isin(acc_truong_phong())]
