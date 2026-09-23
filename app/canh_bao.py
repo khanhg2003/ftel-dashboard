@@ -63,6 +63,8 @@ def _tp_va_danh_muc():
     ten_tp = {str(u).strip().lower() for u, _ in tp if u}
     ma_tp = {norm_manv(m) for _, m in tp if m} - {""}
     la_tp = {a for a, ma, _ in staff if a and (a.split(".")[-1] in ten_tp or (ma and norm_manv(ma) in ma_tp))}
+    # TP dùng acc admin (không có role='phong'): nhận diện qua ghi_chu chứa 'truong' (không dấu, lower)
+    la_tp |= {a for a, _, gc in staff if a and "truong" in (gc or "").lower()}
     return staff, ten_tp, la_tp
 
 

@@ -75,10 +75,16 @@ def _so_lieu_phong(d_tu: date, d_den: date) -> pd.DataFrame:
 
 
 def _nhan_su() -> pd.Series:
-    """Số nhân sự đang làm của phòng: không ghi Nghỉ, dòng danh mục còn hiệu lực, không đếm trưởng phòng."""
+    """Số nhân sự đang làm của phòng: không ghi Nghỉ hoặc Trưởng, dòng danh mục còn hiệu lực, không đếm trưởng phòng.
+
+    Nhận diện trưởng phòng qua hai lớp:
+    1. SQL: ghi_chu chứa 'truong' (không phân biệt hoa thường, không dấu) — dùng cho TP không có role='phong'.
+    2. Python: acc_truong_phong() — dùng cho TP có tài khoản riêng role='phong'.
+    """
     from app.canh_bao import acc_truong_phong
     df = pd.read_sql_query(text("""SELECT acc_norm, phong_code FROM staff_map
-                             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghỉ%'
+                             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Nghi%'
+                               AND COALESCE(ghi_chu, '') NOT LIKE '%Truong%'
                                AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE)"""), engine)
     df = df[~df.acc_norm.isin(acc_truong_phong())]
     return df.groupby("phong_code").size().astype(int)
