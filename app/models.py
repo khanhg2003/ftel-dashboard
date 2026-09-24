@@ -343,6 +343,38 @@ class AdsThang(Base):
 
 
 # ---------------------------------------------------------------- nhập tồn
+class BaoCaoNgay(Base):
+    """Báo cáo đầu ngày của sale: 5 ô sale tự nhập. Các số còn lại (thực hiện, đã online, PTTB luỹ kế,
+    số VVIP) app tự lấy từ file Internet nên không lưu ở đây - tránh hai nguồn số lệch nhau."""
+    __tablename__ = "bao_cao_ngay"
+    __table_args__ = (UniqueConstraint("ngay", "acc_norm", name="uq_bao_cao_ngay"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ngay: Mapped[date] = mapped_column(Date, index=True)
+    acc_norm: Mapped[str] = mapped_column(String(60), index=True)
+    phong_code: Mapped[str] = mapped_column(String(20), index=True)
+    muc_tieu: Mapped[int] = mapped_column(Integer, default=0)          # mục tiêu bán hôm nay
+    khtn: Mapped[int] = mapped_column(Integer, default=0)              # KHTN đang có
+    onl_sang: Mapped[int] = mapped_column(Integer, default=0)          # dự kiến online buổi sáng
+    onl_chieu: Mapped[int] = mapped_column(Integer, default=0)
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC
+    cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class BaoCaoNgayChu(Base):
+    """Ba khối chữ trong ảnh báo cáo đầu ngày (Fox viết từ số liệu, Trưởng phòng sửa lại được)."""
+    __tablename__ = "bao_cao_ngay_chu"
+    __table_args__ = (UniqueConstraint("ngay", "phong_code", name="uq_bao_cao_ngay_chu"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ngay: Mapped[date] = mapped_column(Date, index=True)
+    phong_code: Mapped[str] = mapped_column(String(20), index=True)
+    trong_tam: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nhan_dinh: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thong_diep: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
 class TonTheoDoi(Base):
     """Sale ghi tình trạng hợp đồng chưa online (trang Nhập tồn). Giữ theo mã HĐ qua các ngày; phần hợp đồng
     (tên KH, ngày tạo, acc) luôn đọc từ fact_internet nên không lưu lại ở đây."""

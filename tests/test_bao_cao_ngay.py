@@ -1,0 +1,136 @@
+"""Kiểm thử Báo cáo đầu ngày (chốt với chủ app 24/09/2026)."""
+from __future__ import annotations
+
+import json
+import sys
+from datetime import date, timedelta
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app import bao_cao_ngay as bc                                      # noqa: E402
+from app.config import DATA_DIR                                          # noqa: E402
+
+pytestmark = pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(),
+                                reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
+NGAY = date(2026, 9, 10)          # nằm trong kỳ dữ liệu gốc 01-11/09/2026
+PHONG = ["IBB7"]
+
+
+def _tk(role: str, scope: list[str]):
+    from app.auth import SessionUser
+    return SessionUser(SimpleNamespace(id=1, username=f"kiemthu.{role}", ho_ten="Kiểm thử", role=role,
+                                       ma_nv=None, session_version=0, scope=json.dumps(scope)))
+
+
+@pytest.fixture(autouse=True)
+def _don_ngay_thu():
+    """Xoá số đã nhập của ngày kiểm thử trước mỗi phép thử - database kiểm thử dùng lại qua nhiều lần chạy,
+    còn sót dữ liệu cũ thì "chưa nhập" và "đã nhập số 0" không phân biệt được nữa."""
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import BaoCaoNgay, BaoCaoNgayChu
+    bc.dam_bao_bang()
+    with session_scope() as s:
+        s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == NGAY))
+        s.execute(delete(BaoCaoNgayChu).where(BaoCaoNgayChu.ngay == NGAY))
+
+
+@pytest.fixture()
+def mot_nguoi():
+    bc.dam_bao_bang()
+    df = bc.bang(PHONG, NGAY)
+    assert not df.empty, "phòng IBB7 phải có số trong kỳ kiểm thử"
+    return df.iloc[0].acc_norm
+
+
+# ------------------------------------------------------------------ số liệu
+def test_sale_chi_nhap_5_o_con_lai_app_tu_lay(mot_nguoi):
+    """Chủ app chốt: sale nhập mục tiêu / KHTN / ONL sáng / ONL chiều / ghi chú, còn lại app tự tính."""
+    bc.luu(mot_nguoi, {"muc_tieu": 2, "khtn": 3, "onl_sang": 1, "onl_chieu": 2, "ghi_chu": "Care KHTN cũ"},
+           PHONG, "kiemthu.tp", NGAY)
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
+    assert (r.muc_tieu, r.khtn, r.onl_sang, r.onl_chieu) == (2, 3, 1, 2)
+    assert r.dk_onl == 3                                  # dự kiến tổng = sáng + chiều, không nhập riêng
+    assert r.con_phai_onl == max(3 - r.thuc_hien, 0)
+    assert r.pttb_thang >= 0 and r.vvip_thang >= 0        # app tự lấy từ file Internet
+    assert r.da_nhap
+
+
+def test_chua_nhap_thi_khac_voi_nhap_so_0(mot_nguoi):
+    """Ô trống (chưa báo cáo) phải phân biệt được với số 0 thật, nếu không trưởng phòng không biết ai thiếu."""
+    df = bc.bang(PHONG, NGAY)
+    chua = df[df.acc_norm != mot_nguoi].iloc[0]
+    assert not chua.da_nhap and chua.khtn == 0
+    bc.luu(chua.acc_norm, {"muc_tieu": 0, "khtn": 0, "onl_sang": 0, "onl_chieu": 0}, PHONG, "kiemthu.tp", NGAY)
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[chua.acc_norm]
+    assert r.da_nhap and r.khtn == 0
+
+
+def test_tom_tat_ba_khoi_khop_voi_bang():
+    bc.luu(bc.bang(PHONG, NGAY).iloc[0].acc_norm, {"khtn": 4, "onl_sang": 2, "onl_chieu": 1},
+           PHONG, "kiemthu.tp", NGAY)
+    df, t = bc.bang(PHONG, NGAY), bc.tom_tat(PHONG, NGAY)
+    assert t["khtn"] == int(df.khtn.sum()) and t["dk_onl"] == int(df.dk_onl.sum())
+    assert t["dk_onl"] == t["onl_sang"] + t["onl_chieu"]
+    assert t["hom_qua"] == NGAY - timedelta(days=1)
+    assert t["con_thieu"] == max(t["mt_thang"] - t["luy_ke"], 0)
+    assert t["luy_ke"] == int(df.pttb_thang.sum())        # luỹ kế phòng = tổng luỹ kế từng người
+
+
+def test_chan_so_vo_ly(mot_nguoi):
+    for xau in (-1, 5000, "abc"):
+        with pytest.raises(bc.LoiBaoCao):
+            bc.luu(mot_nguoi, {"khtn": xau}, PHONG, "kiemthu.tp", NGAY)
+
+
+def test_tai_khoan_dung_chung_chi_ghi_duoc_dong_cua_minh(mot_nguoi):
+    df = bc.bang(PHONG, NGAY)
+    nguoi_khac = df[df.acc_norm != mot_nguoi].iloc[0].acc_norm
+    with pytest.raises(bc.LoiBaoCao):
+        bc.luu(nguoi_khac, {"khtn": 1}, PHONG, "kiemthu.nvkd", NGAY, chi_acc=mot_nguoi)
+    bc.luu(mot_nguoi, {"khtn": 1}, PHONG, "kiemthu.nvkd", NGAY, chi_acc=mot_nguoi)
+
+
+# ------------------------------------------------------------------ mục tiêu
+def test_muc_tieu_tung_nguoi_khong_dung_vao_muc_tieu_phong(mot_nguoi):
+    """Mục tiêu tháng từng người lưu chung bảng target_monthly nhưng khác `doi_tuong`,
+    không được làm lệch mục tiêu phòng của Báo cáo Tổng."""
+    thang = f"{NGAY:%Y-%m}"
+    truoc = bc.tom_tat(PHONG, NGAY)["mt_thang"]
+    bc.dat_muc_tieu(thang, "NHAN_VIEN", mot_nguoi, "internet", 60, "kiemthu.tp")
+    assert bc.tom_tat(PHONG, NGAY)["mt_thang"] == truoc
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi].mt_thang == 60
+
+
+# ------------------------------------------------------------------ quyền
+def test_quyen_theo_phong():
+    assert _tk("nvkd", ["IBB7"]).phong_bao_cao_ngay() == ["IBB7"]
+    assert _tk("nvkd", ["IBB7"]).duoc_bao_cao_ngay
+    assert _tk("nvkd", ["IBB2"]).phong_bao_cao_ngay() == []
+    assert _tk("nvkd", ["IBB7"]).vao_duoc("/baocaongay")
+
+
+# ------------------------------------------------------------------ chữ + ảnh
+def test_tach_ba_khoi_chu_cua_fox():
+    from app.bao_cao_ngay_ai import _tach
+    chu = ("TRỌNG TÂM HÔM NAY\n- Bám 18 ca online\n- Chăm 6 KHTN\n"
+           "ĐÁNH GIÁ & NHẬN ĐỊNH\n1. Hôm qua 15/25\n2. Luỹ kế 497/700\n"
+           "THÔNG ĐIỆP NGÀY MỚI\nCả team cố lên.")
+    r = _tach(chu)
+    assert r["trong_tam"].splitlines() == ["Bám 18 ca online", "Chăm 6 KHTN"]
+    assert r["nhan_dinh"].splitlines() == ["1. Hôm qua 15/25", "2. Luỹ kế 497/700"]
+    assert r["thong_diep"] == "Cả team cố lên."
+    assert _tach("chỉ một đoạn")["trong_tam"] == "chỉ một đoạn"      # AI quên tiêu đề vẫn không mất chữ
+
+
+def test_ve_duoc_anh_bao_cao():
+    from app.export_png_ngay import anh_bao_cao_ngay
+    bc.luu_chu("IBB7", {"trong_tam": "Bám 18 ca online", "nhan_dinh": "Hôm qua 15/25",
+                        "thong_diep": "Cả team cố lên."}, "kiemthu.tp", NGAY)
+    png = anh_bao_cao_ngay("IBB7", NGAY)
+    assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 20_000
+    assert bc.chu("IBB7", NGAY)["thong_diep"] == "Cả team cố lên."

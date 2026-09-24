@@ -22,7 +22,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 
 | Việc | File |
 |---|---|
-| Đọc / ghi số liệu, công thức (không có giao diện) | `app/*.py`: `metrics.py`, `overview.py`, `phan_tich.py`, `hr_metrics.py`, `ads.py`, `ads_phan_tich.py`, `nhap_ton.py`... |
+| Đọc / ghi số liệu, công thức (không có giao diện) | `app/*.py`: `metrics.py`, `overview.py`, `phan_tich.py`, `hr_metrics.py`, `ads.py`, `ads_phan_tich.py`, `nhap_ton.py`, `bao_cao_ngay.py`... |
 | Nạp file Excel / CSV | `app/ingest/` (`loader.py` đọc, `commit.py` ghi) |
 | Cơ cấu bầy / phòng, gán phòng | `app/org.py` (có bộ nhớ tạm riêng + `xoa_cache_org()`) |
 | Quyền, người dùng, ghi nhật ký | `app/auth.py` (`ghi_log`, `loc_nhan_su`, `phong_duoc_xem`, `phong_nhan_su`) |
@@ -96,6 +96,16 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      dòng phạm vi `#nt-pham-vi` ngay trên (chủ app đọc "Tổng tồn 16" tưởng là cả phòng). Chữ cảnh báo giữ dưới
      ~34 ký tự, cột hẹp nên dài hơn là dòng cao 5 hàng (có test chặn). Laptop nhập bằng Tab: ghi chú → mốc →
      ngày → phương án, mỗi ô tự lưu.
+   - *Báo cáo đầu ngày* (`app/bao_cao_ngay.py`, chốt 24/09/2026, bật theo phòng ở `config/rules.yml` →
+     `bao_cao_ngay`, hiện chỉ IBB7): sale CHỈ nhập 5 ô (mục tiêu bán hôm nay, KHTN đang có, dự kiến online
+     sáng, dự kiến online chiều, ghi chú). Mọi số khác app tự lấy từ file Internet - thực hiện / đã online
+     hôm nay, PTTB luỹ kế tháng, số V.VIP ("Pay" trong ảnh mẫu) - để không có hai nguồn số. Dự kiến tổng =
+     sáng + chiều; còn phải online = tổng dự kiến - đã online. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
+     này, lưu vào `target_monthly` với `doi_tuong = "NHAN_VIEN"` (mọi truy vấn khác đều lọc `= 'PHONG'` nên
+     không đụng nhau); mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có. Ô để TRỐNG nghĩa
+     là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test).
+     Ảnh PNG ở `app/export_png_ngay.py`, ba khối chữ do Fox viết (`bao_cao_ngay_ai.py`) và Trưởng phòng sửa
+     lại trước khi tạo ảnh. Dòng TỔNG trong ảnh lấy mục tiêu tháng CỦA PHÒNG, không cộng mục tiêu từng người.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền
@@ -119,10 +129,11 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    (tỷ giá, page, tab Cấu hình). **Xem** Ads IBB7: Quản trị + Nhân viên KD của IBB7 (`duoc_xem_ads`): callback đọc
    dùng `callback_can_quyen(app, "duoc_xem_ads")`, callback ghi vẫn `"duoc_cau_hinh"`.
 4. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
-   Chỉ vào `TRANG_NVKD` (Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản, Hướng dẫn) - kiểm ở
-   `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Nhập tồn. Không nạp file, không xuất Excel, không
+   Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
+   Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel, không
    dùng AI. Ở Nhập tồn phải chọn tên mình ở bộ lọc mới sửa được, chỉ sửa ca của người đó, và "cập nhật bởi" ghi tên
-   người đó (nhật ký ghi tài khoản thật). Thêm trang mới mà Nhân viên KD cần vào thì phải thêm vào `TRANG_NVKD`.
+   người đó (nhật ký ghi tài khoản thật). Ở Báo cáo ngày cũng vậy: chọn tên mình ở ô "Tôi là" mới sửa được
+   dòng của người đó. Thêm trang mới mà Nhân viên KD cần vào thì phải thêm vào `TRANG_NVKD`.
 5. **Ghi nhật ký** (`ghi_log` / `AuditLog`): xuất Excel / file, nạp / gỡ file, sửa cấu hình, xoá, gọi AI.
 6. **Không gửi lên AI** tên khách hàng hay dữ liệu vượt quyền của người hỏi. Tên khách hàng chỉ được LƯU cho
    phòng bật Nhập tồn (`ingest/commit.phong_luu_ten_kh`, file Internet) và chỉ HIỆN ở trang Nhập tồn

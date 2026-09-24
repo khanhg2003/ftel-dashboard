@@ -38,7 +38,7 @@ ROLE_SETTINGS = {"admin"}
 ROLE_XEM_NHAN_SU = {"admin", "phong", "nvkd"}
 # Nhân viên KD (tài khoản dùng chung của một phòng, chốt 21/09/2026): chỉ vào đúng các trang này,
 # chi tiết nhân sự chỉ phòng mình, Ads chỉ khi phòng mình là phòng chạy Ads.
-TRANG_NVKD = {"/nhapton", "/phong", "/ads", "/taikhoan", "/huongdan"}
+TRANG_NVKD = {"/baocaongay", "/nhapton", "/phong", "/ads", "/taikhoan", "/huongdan"}
 PHONG_ADS = "IBB7"
 
 
@@ -88,16 +88,28 @@ class SessionUser(UserMixin):
         """Xem Ads IBB7 (chỉ xem). Sửa cấu hình Ads vẫn là duoc_cau_hinh."""
         return self.duoc_cau_hinh or (self.role == "nvkd" and PHONG_ADS in self.scope)
 
-    def phong_nhap_ton(self) -> list[str]:
-        """Phòng được xem / ghi Nhập tồn: phòng bật mục này (rules.yml) giao với phạm vi nhân sự."""
+    def _phong_bat(self, muc: str) -> list[str]:
+        """Phòng bật một mục trong rules.yml, giao với phạm vi nhân sự của tài khoản."""
         from app.config import rules_config
-        bat = list((rules_config().get("nhap_ton") or {}).get("phong") or [])
+        bat = list((rules_config().get(muc) or {}).get("phong") or [])
         pham_vi = self.phong_nhan_su()
         return bat if pham_vi is None else [c for c in bat if c in set(pham_vi)]
+
+    def phong_nhap_ton(self) -> list[str]:
+        """Phòng được xem / ghi Nhập tồn."""
+        return self._phong_bat("nhap_ton")
+
+    def phong_bao_cao_ngay(self) -> list[str]:
+        """Phòng được xem / ghi Báo cáo đầu ngày (chốt 24/09/2026)."""
+        return self._phong_bat("bao_cao_ngay")
 
     @property
     def duoc_nhap_ton(self) -> bool:
         return bool(self.phong_nhap_ton())
+
+    @property
+    def duoc_bao_cao_ngay(self) -> bool:
+        return bool(self.phong_bao_cao_ngay())
 
     def vao_duoc(self, path: str) -> bool:
         """Nhân viên KD chỉ vào các trang của mình; vai trò khác do từng trang tự kiểm."""

@@ -47,9 +47,10 @@ LOGIN_PAGE = """<!doctype html>
 
 
 def trang_mo_dau(user) -> str:
-    """Nhân viên KD vào Nhập tồn, Trưởng phòng vào Báo cáo phòng của mình, các vai trò khác vào Báo cáo Tổng."""
+    """Nhân viên KD vào Báo cáo ngày (việc đầu tiên trong ngày), Trưởng phòng vào Báo cáo phòng của mình,
+    các vai trò khác vào Báo cáo Tổng."""
     if user.role == "nvkd":
-        return "/nhapton"
+        return "/baocaongay" if user.duoc_bao_cao_ngay else "/nhapton"
     return "/phong" if user.role == "phong" and user.phong_nhan_su() else "/"
 
 
@@ -106,7 +107,7 @@ def _bat_buoc_dang_nhap():
         if path.startswith("/_dash"):
             return "Phiên đăng nhập đã hết hạn. Tải lại trang.", 401
         return redirect("/login")
-    if path == "/" and not current_user.vao_duoc("/"):      # Nhân viên KD mở địa chỉ app -> vào thẳng Nhập tồn
+    if path == "/" and not current_user.vao_duoc("/"):      # Nhân viên KD mở địa chỉ app -> vào trang đầu của họ
         return redirect(trang_mo_dau(current_user))
     return None
 
@@ -126,6 +127,7 @@ NAV = [
         ("/tracking", "Tracking ngày & So sánh", "trend", None),
     ]),
     ("Phòng & nhân sự", [
+        ("/baocaongay", "Báo cáo ngày", "calendar", "baocaongay"),
         ("/nhapton", "Nhập tồn", "edit", "nhapton"),
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
         ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
@@ -158,6 +160,8 @@ def _sidebar(path: str):
             if not current_user.vao_duoc(href):
                 continue
             if quyen == "nhapton" and not current_user.duoc_nhap_ton:
+                continue
+            if quyen == "baocaongay" and not current_user.duoc_bao_cao_ngay:
                 continue
             if quyen == "ads" and not current_user.duoc_xem_ads:
                 continue
@@ -353,6 +357,9 @@ def _router(path, search=None, store=None):
         return (html.Div([html.H3("Tài khoản này không mở được trang này"),
                           dcc.Link("← Về Nhập tồn", href="/nhapton", className="btn primary")], className="card"),
                 _topbar_simple("Không có quyền"))
+    if path == "/baocaongay":
+        from app.ui.pages import baocaongay
+        return baocaongay.layout(), baocaongay.topbar()
     if path == "/nhapton":
         from app.ui.pages import nhapton
         return nhapton.layout(), nhapton.topbar()
@@ -422,9 +429,9 @@ def _register_pages():
     from app.ui import tro_ly
 
     from app.ui.pages import ads as ads_page
-    from app.ui.pages import nhapton
+    from app.ui.pages import baocaongay, nhapton
     for mod in (tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
-                settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton):
+                settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay):
         mod.register(app)
 
 

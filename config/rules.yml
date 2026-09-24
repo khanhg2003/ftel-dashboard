@@ -58,6 +58,10 @@ mttn:
 
 # Nhập tồn (trang /nhapton, app/nhap_ton.py): sale ghi tình trạng từng hợp đồng chưa online, Trưởng phòng theo dõi.
 # Chốt 21/09/2026: chỉ IBB7. Trả về ngày D thì hạn xử lý là hết ngày D + han_tra_ve_ngay, quá hạn HĐ tự huỷ.
+# Báo cáo đầu ngày (trang Báo cáo ngày): phòng nào dùng. Chốt 24/09/2026.
+bao_cao_ngay:
+  phong: [IBB7]
+
 nhap_ton:
   phong: [IBB7]
   han_tra_ve_ngay: 3
