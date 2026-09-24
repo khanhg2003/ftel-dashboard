@@ -88,8 +88,15 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      Internet, sale chỉ ghi 3 mục bắt buộc (ghi chú, mốc + ngày, phương án). Trả về ngày D → hạn hết ngày D +
      `han_tra_ve_ngay` (3), quá hạn HĐ tự huỷ nên luôn đỏ; hẹn quá ngày đỏ, đúng hôm nay vàng. Treo / CPTC ghi vào
      ghi chú. Danh sách xếp theo từng cụm nhân viên. Đã đối chiếu với sheet 20/09: 160/167 HĐ khớp, 7 HĐ lệch đều
-     đúng là phải bỏ (đã online / không còn trong file).
-   - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`). Tiền nhập tay tổng tháng không vẽ theo ngày. Page Trung lập = tài khoản công ty, không chia cho sale.
+     đúng là phải bỏ (đã online / không còn trong file). Giao diện (rà soát 24/09/2026): 4 ô số = 4 nút lọc,
+     bảng **Theo nhân viên** (dòng ghim cuối "Cả phòng", bấm một dòng là tick người đó ở ô Nhân viên) chỉ hiện
+     trên laptop - điện thoại đã có dòng tóm tắt đầu mỗi cụm thẻ. Ô bắt buộc chưa điền dùng viền nhạt + chữ gợi
+     ý trong ô (`#nt-luoi .ag-cell.o-thieu ... ::after`), KHÔNG tô khối cam đậm: 30 ca trống sẽ thành một bức
+     tường cam. Xem đúng một người thì bỏ dòng tiêu đề cụm.
+   - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
+     Tracking ngày: các dòng tổng hiện USD và VNĐ trên hai dòng trong cùng một ô (chủ app yêu cầu 24/09/2026).
+     Cột của bảng này phải có `colId` kèm tên chỉ số: dash-ag-grid giữ `valueFormatter` đã biên dịch theo
+     colId, đổi chỉ số mà colId không đổi thì Tin nhắn / PTTB vẫn hiện ra "$". Tiền nhập tay tổng tháng không vẽ theo ngày. Page Trung lập = tài khoản công ty, không chia cho sale.
 3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
 4. Định dạng kiểu Việt Nam: `1.234`, `5,40 $`, `45%`. Khi tự `.replace(",", ".")` thì **chỉ áp lên con số**, không áp lên cả câu.
 

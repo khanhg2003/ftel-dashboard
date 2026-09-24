@@ -168,11 +168,14 @@ def dem(df: pd.DataFrame) -> dict:
     return {k: int(t[k].sum()) for k in ("ton", "chua_cap_nhat", "gap", "den_han", "tra_ve", "qua_hen", "huy")}
 
 
-def loc(df: pd.DataFrame, acc: str | None = None, nhanh: str | None = None, tim: str | None = None) -> pd.DataFrame:
+def loc(df: pd.DataFrame, acc: str | list | None = None, nhanh: str | None = None,
+        tim: str | None = None) -> pd.DataFrame:
+    """`acc`: một acc, danh sách acc (chọn nhiều người), hoặc rỗng / "all" = mọi người."""
     if df.empty:
         return df
-    if acc and acc != "all":
-        df = df[df.acc_norm == acc]
+    ds = [a for a in ([acc] if isinstance(acc, str) else acc or []) if a and a != "all"]
+    if ds:
+        df = df[df.acc_norm.isin(ds)]
     if nhanh == "gap":
         df = df[df.thu_tu.isin([0, 1, 2])]
     elif nhanh == "den_han":

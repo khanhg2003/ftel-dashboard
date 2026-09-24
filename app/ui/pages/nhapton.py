@@ -16,11 +16,11 @@ from app import nhap_ton as nt
 from app.auth import ghi_log
 from app.org import phong_order
 from app.thoi_gian import gio_viet_nam
-from app.ui.components import alert, field, modal, seg_control, tip
+from app.ui.components import alert, field, modal, seg_control
 from app.ui.icons import icon
-from app.ui.luoi import SO, bang
+from app.ui.luoi import PCT, SO, bang
 
-TAT_CA = {"label": "Tất cả nhân viên", "value": "all"}
+TAT_CA = "Tất cả nhân viên"
 TEN_LOC = {"all": "", "gap": "Cần xử lý gấp", "den_han": "Đến hạn hôm nay", "thieu": "Chưa cập nhật"}
 AN = {"display": "none"}
 NHOM = "params.data.loai_dong == 'nhom'"
@@ -31,10 +31,22 @@ THIEU = {"o-thieu": f"{LA_CA} && params.data.muc != 'huy' && !params.value"}
 MAU_CANH_BAO = {"styleConditions": [
     {"condition": "params.data.muc == 'do'", "style": {"color": "#B42318", "fontWeight": "650"}},
     {"condition": "params.data.muc == 'vang'", "style": {"color": "#8A5A00", "fontWeight": "650"}}]}
+MAU_NV = {"styleConditions": [{"condition": "params.value > 0", "style": {"color": "#B42318",
+                                                                             "fontWeight": "700"}}]}
+MAU_VANG = {"styleConditions": [{"condition": "params.value > 0", "style": {"color": "#8A5A00",
+                                                                           "fontWeight": "700"}}]}
+MAU_XONG = {"styleConditions": [{"condition": "params.value >= 100", "style": {"color": "#0A7A3E",
+                                                                              "fontWeight": "700"}}]}
+OPTS_NV = {"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableClickSelection": True},
+           "suppressCellFocus": True}
 MAU_PA = {"pa-cho": "params.value == 'Đang chờ triển khai'", "pa-huy": "params.value == 'Huỷ'",
           "pa-suy-nghi": "params.value == 'KH đang suy nghĩ - Chốt lại'", "pa-xong": "params.value == 'Đã triển khai'"}
 GOI_Y_GHI_CHU = "Nguyên nhân tồn + thời gian hẹn thực tế. Treo, CPTC... cũng ghi ở đây."
-CHON_TEN = "Bấm vào tên mình để bắt đầu cập nhật."
+CHON_TEN = "Tick tên mình ở ô Nhân viên để bắt đầu cập nhật."
+CHON_MOT = "Chỉ tick một tên (tên mình) để cập nhật."
+NHAN_O_NV = {"select_all": "Chọn tất cả", "deselect_all": "Bỏ chọn tất cả", "search": "Tìm tên...",
+             "selected_count": "{num_selected} người", "clear_search": "Xoá tìm", "clear_selection": "Bỏ chọn",
+             "no_options_found": "Không có tên nào khớp"}
 GOI_Y_MOC = ("Mốc đang hiển thị trên PTC.\nHẹn thi công: quá ngày mà chưa online thì báo đỏ, đúng hôm nay báo vàng.\n"
              "Trả về: điền ngày bị trả về. Quá {han} ngày không xử lý thì HĐ tự huỷ nên luôn báo đỏ.")
 
@@ -53,9 +65,15 @@ def _nguoi_ghi(acc) -> tuple[str | None, str | None]:
     """(chỉ được sửa ca của acc nào, tên ghi vào "cập nhật bởi"). Tài khoản riêng thì (None, None)."""
     if not _dung_chung():
         return None, None
-    if not acc or acc == "all":
-        raise nt.LoiNhapTon(CHON_TEN)
-    return acc, nt.ten_cua(acc) or acc
+    ds = _ds_acc(acc)
+    if len(ds) != 1:
+        raise nt.LoiNhapTon(CHON_TEN if not ds else CHON_MOT)
+    return ds[0], nt.ten_cua(ds[0]) or ds[0]
+
+
+def _ds_acc(acc) -> list[str]:
+    """Giá trị ô Nhân viên (chọn nhiều) -> danh sách acc; rỗng = mọi người."""
+    return [a for a in ([acc] if isinstance(acc, str) else acc or []) if a and a != "all"]
 
 
 def _phong_hop_le(code) -> list[str]:
@@ -66,35 +84,55 @@ def _phong_hop_le(code) -> list[str]:
 
 
 def _cot(han: int, pa: list[str]) -> list[dict]:
-    sua = {"editable": {"function": SUA}, "cellClassRules": THIEU}
+    """4 cột sale phải điền mang lớp `o-sale` (nền kem, có vạch ngăn với phần hệ thống tự lấy)."""
+    sua = {"editable": {"function": SUA}, "cellClass": "o-sale", "cellClassRules": THIEU}
     return [
-        {"field": "hop_dong", "headerName": "Hợp đồng", "pinned": "left", "width": 108, "minWidth": 108, "maxWidth": 120,
-         "cellClass": "o-dam"},
-        {"field": "ten_khach_hang", "headerName": "Tên khách hàng", "minWidth": 118, "flex": 1,
+        {"field": "hop_dong", "headerName": "Hợp đồng", "pinned": "left", "width": 114, "minWidth": 114,
+         "maxWidth": 126, "cellClass": "o-dam"},
+        {"field": "ten_khach_hang", "headerName": "Tên khách hàng", "minWidth": 130, "flex": 1.5,
          "tooltipField": "ten_khach_hang", "colSpan": {"function": f"{NHOM} ? 20 : 1"}},
-        {"field": "ngay_tao_hd", "headerName": "Ngày tạo", "width": 68, "minWidth": 68, "maxWidth": 78,
+        {"field": "ngay_tao_hd", "headerName": "Ngày tạo", "width": 74, "minWidth": 74, "maxWidth": 82,
          "valueFormatter": NGAY_DM, "headerTooltip": "Ngày tạo hợp đồng."},
-        {"field": "so_ngay_cho", "headerName": "Chờ", "width": 52, "minWidth": 52, "maxWidth": 60, "type": "numericColumn",
-         "valueFormatter": SO, "headerTooltip": "Số ngày từ ngày tạo HĐ đến ngày có số mới nhất."},
-        {"field": "canh_bao", "headerName": "Cảnh báo", "minWidth": 128, "flex": 1, "wrapText": True,
+        {"field": "so_ngay_cho", "headerName": "Chờ", "width": 54, "minWidth": 54, "maxWidth": 62,
+         "type": "numericColumn", "valueFormatter": SO,
+         "headerTooltip": "Số ngày từ ngày tạo HĐ đến ngày có số mới nhất."},
+        {"field": "canh_bao", "headerName": "Cảnh báo", "minWidth": 96, "flex": .7, "wrapText": True,
          "autoHeight": True, "cellStyle": MAU_CANH_BAO},
-        {"field": "ghi_chu", "headerName": "Ghi chú tình trạng * ⓘ", "headerClass": "co-chu-thich",
-         "headerTooltip": GOI_Y_GHI_CHU, "minWidth": 190, "flex": 2.2, "wrapText": True, "autoHeight": True,
+        {"field": "ghi_chu", "headerName": "Ghi chú tình trạng * ⓘ", "headerClass": "co-chu-thich vung-sale",
+         "headerTooltip": GOI_Y_GHI_CHU, "minWidth": 170, "flex": 2.2, "wrapText": True, "autoHeight": True,
          "cellEditor": "agLargeTextCellEditor", "cellEditorPopup": True,
          "cellEditorParams": {"maxLength": nt.GHI_CHU_TOI_DA, "rows": 5, "cols": 50}, **sua},
-        {"field": "loai_moc", "headerName": "Mốc tick hẹn (PTC) * ⓘ", "headerClass": "co-chu-thich",
-         "headerTooltip": GOI_Y_MOC.format(han=han), "width": 104, "minWidth": 104, "maxWidth": 124,
+        {"field": "loai_moc", "headerName": "Mốc tick (PTC) * ⓘ", "headerClass": "co-chu-thich",
+         "headerTooltip": GOI_Y_MOC.format(han=han), "width": 106, "minWidth": 106, "maxWidth": 126,
          "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": list(nt.LOAI_MOC.values())}, **sua},
-        {"field": "ngay_moc", "headerName": "Ngày mốc *", "width": 78, "minWidth": 78, "maxWidth": 96,
+        {"field": "ngay_moc", "headerName": "Ngày mốc *", "width": 84, "minWidth": 84, "maxWidth": 100,
          "cellEditor": "agDateStringCellEditor", "valueFormatter": NGAY_DM, **sua},
-        {"field": "phuong_an", "headerName": "Phương án *", "width": 150, "minWidth": 150, "maxWidth": 190, "wrapText": True,
-         "autoHeight": True,
+        {"field": "phuong_an", "headerName": "Phương án *", "width": 140, "minWidth": 140, "maxWidth": 180,
+         "wrapText": True, "autoHeight": True,
          "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": pa},
-         "editable": {"function": SUA}, "cellClassRules": {**THIEU, **MAU_PA}},
-        {"field": "cap_nhat", "headerName": "Cập nhật", "width": 90, "minWidth": 90, "maxWidth": 140, "wrapText": True,
-         "autoHeight": True,
-         "tooltipField": "cap_nhat_boi",
+         "editable": {"function": SUA}, "cellClass": "o-sale",
+         "cellClassRules": {**THIEU, **MAU_PA}},
+        {"field": "cap_nhat", "headerName": "Cập nhật", "width": 86, "minWidth": 86, "maxWidth": 130,
+         "wrapText": True, "autoHeight": True, "tooltipField": "cap_nhat_boi",
          "headerTooltip": "Lần sửa gần nhất và người sửa.\nGiờ hôm nay, hoặc ngày giờ nếu sửa hôm khác."},
+    ]
+
+
+def _cot_nv() -> list[dict]:
+    """Bảng tổng quan: mỗi nhân viên một dòng, dòng ghim cuối là cả phòng."""
+    so = {"type": "numericColumn", "valueFormatter": SO, "width": 104, "minWidth": 88, "maxWidth": 130}
+    return [
+        {"field": "ho_ten", "headerName": "Nhân viên", "minWidth": 160, "flex": 1.2, "cellClass": "o-dam o-bam"},
+        {"field": "acc", "headerName": "Acc", "minWidth": 128, "flex": 1},
+        {"field": "ton", "headerName": "Tổng tồn", **so, "cellStyle": {"fontWeight": "700"}},
+        {"field": "gap", "headerName": "Cần xử lý gấp", **so, "cellStyle": MAU_NV,
+         "headerTooltip": "Hợp đồng bị trả về, hoặc đã quá ngày hẹn thi công."},
+        {"field": "den_han", "headerName": "Đến hạn hôm nay", **so, "cellStyle": MAU_VANG,
+         "headerTooltip": "Hẹn thi công đúng hôm nay."},
+        {"field": "chua_cap_nhat", "headerName": "Chưa cập nhật", **so, "cellStyle": MAU_VANG,
+         "headerTooltip": "Còn thiếu ghi chú, mốc hoặc phương án."},
+        {"field": "pct", "headerName": "Đã cập nhật", **so, "valueFormatter": PCT, "cellStyle": MAU_XONG,
+         "headerTooltip": "Phần trăm ca đã điền đủ 3 mục bắt buộc."},
     ]
 
 
@@ -112,18 +150,7 @@ def layout():
                                                                           for c in ds],
                                                  value=ds[0], clearable=False, style={"width": "150px"})),
                      style={} if len(ds) > 1 else AN),
-            # laptop chọn người bằng hàng tên phía dưới; điện thoại dùng ô này (ô này cũng nhớ tên trên máy)
-            # rỗng = tất cả: ô tự về rỗng (và nhớ luôn) khi tên đang chọn không còn ca nào trong danh sách
-            html.Div(field("Nhân viên", dcc.Dropdown(id="nt-nv", value="all", clearable=False, persistence=True,
-                                                     persistence_type="local", options=[TAT_CA],
-                                                     placeholder=TAT_CA["label"], style={"minWidth": "240px"})),
-                     className="nt-dien-thoai"),
-            field("Tìm", dcc.Input(id="nt-tim", type="search", placeholder="Mã HĐ hoặc tên KH", className="o-tim",
-                                   debounce=True)),
-            html.Div(className="grow"),
-            field(" ", html.Button([icon("download", 14), html.Span("Excel")], id="nt-xls", className="btn",
-                                   title="Xuất đúng danh sách đang lọc", style={} if xem_tong else AN)),
-        ], className="toolbar loc-trang"),
+        ], className="toolbar loc-trang", style={} if len(ds) > 1 else AN),
         dcc.Download(id="nt-tai"),
         dcc.Store(id="nt-da-luu"),
         dcc.Store(id="nt-nhanh", data="all"),
@@ -131,7 +158,31 @@ def layout():
         html.Div(id="nt-kpi", className="kpi-row kpi-4"),
 
         html.Div([
-            html.Div(id="nt-chip", className="nt-chip nt-laptop"),
+            html.Div([html.H3("Theo nhân viên", style={"margin": 0}),
+                      html.Div("Ai còn nhiều ca chưa xử lý. Dòng cuối là cả phòng.",
+                               className="desc", style={"margin": "2px 0 0"})],
+                     className="the-thanh"),
+            bang("nt-nv-luoi", _cot_nv(), cao=300, lop="ag-theme-quartz ag-theme-ftel luoi-ke",
+                 cot_mac_dinh={"resizable": True, "sortable": True, "suppressMovable": True,
+                               "wrapHeaderText": True, "autoHeaderHeight": True},
+                 tuy_chon=dict(OPTS_NV)),
+            html.Div("Bấm một dòng để xem riêng ca của người đó ở danh sách bên dưới.", className="goi-y-bam"),
+        ], className="card nt-laptop"),           # điện thoại: mỗi cụm thẻ đã có dòng tóm tắt của nhân viên
+
+        html.Div([
+            html.Div([
+                # tick nhiều người; rỗng = tất cả. Chỉ gửi lọc khi đóng ô (tick xong mới tải lại một lần).
+                # Ô nhớ lựa chọn trên máy: sale tick tên mình một lần, lần sau mở là đúng tên.
+                field("Nhân viên", dcc.Dropdown(
+                    id="nt-nv", value=[], multi=True, closeOnSelect=False, debounce=True, search_order="original",
+                    maxHeight=380, placeholder=TAT_CA, labels=NHAN_O_NV, persistence=True,
+                    persistence_type="local", className="nt-o-nv")),
+                field("Tìm", dcc.Input(id="nt-tim", type="search", placeholder="Mã HĐ hoặc tên KH",
+                                       className="o-tim", debounce=True)),
+                html.Div(className="grow"),
+                html.Button([icon("download", 14), html.Span("Excel")], id="nt-xls", className="btn nt-nut",
+                            title="Xuất đúng danh sách đang lọc", style={} if xem_tong else AN),
+            ], className="toolbar nt-loc"),
             html.Div([html.H3(id="nt-tieu-de-ds", style={"margin": 0}),
                       html.Div(id="nt-mo-ta", className="desc", style={"margin": "2px 0 0"})], className="the-thanh"),
             html.Div(bang("nt-luoi", _cot(ch["han_tra_ve"], ch["phuong_an"]), cao=640,
@@ -186,30 +237,34 @@ def _nap_sheet():
 
 
 # ------------------------------------------------------------------ dựng nội dung
-def _dong_luoi(df: pd.DataFrame) -> list[dict]:
-    """Chèn một dòng tiêu đề trước mỗi cụm nhân viên (bảng không nhóm được dòng)."""
+def _dong_luoi(df: pd.DataFrame, nhom: bool = True) -> list[dict]:
+    """Chèn một dòng tiêu đề trước mỗi cụm nhân viên (bảng không nhóm được dòng). Đang xem đúng một người
+    thì bỏ dòng tiêu đề - tên và số ca đã nằm ở tiêu đề thẻ."""
     if df.empty:
         return []
+    if not nhom:
+        return df.assign(loai_moc=df.loai_moc.map(nt.LOAI_MOC).fillna(""),
+                         so_ngay_cho=df.so_ngay_cho.astype(int)).drop(columns=["thieu"]).to_dict("records")
     ds = df.assign(loai_moc=df.loai_moc.map(nt.LOAI_MOC).fillna(""), so_ngay_cho=df.so_ngay_cho.astype(int))
     tong = nt.tong_hop_nv(ds).set_index("acc_norm")
     out = []
     for acc, g in ds.groupby("acc_norm", sort=False):
         t = tong.loc[acc]
-        out.append({"id": f"nhom-{acc}", "loai_dong": "nhom", "hop_dong": nt._ten_ngan(t.ho_ten),
-                    "ten_khach_hang": f"{t.ho_ten} · {t.acc} · {_tom_tat(t)}"})
+        out.append({"id": f"nhom-{acc}", "loai_dong": "nhom", "hop_dong": f"{int(t.ton)} ca",
+                    "ten_khach_hang": f"{t.ho_ten} · {t.acc} · {_tom_tat(t, ton=False)}"})
         out.extend(g.drop(columns=["thieu"]).to_dict("records"))
     return out
 
 
-def _tom_tat(t) -> str:
-    phan = [f"{int(t.ton)} ca"]
+def _tom_tat(t, ton: bool = True) -> str:
+    phan = [f"{int(t.ton)} ca"] if ton else []
     if t.gap:
         phan.append(f"{int(t.gap)} cần xử lý gấp")
     if t.den_han:
         phan.append(f"{int(t.den_han)} đến hạn hôm nay")
     if t.chua_cap_nhat:
         phan.append(f"{int(t.chua_cap_nhat)} chưa cập nhật")
-    return " · ".join(phan)
+    return " · ".join(phan) if phan else "đã cập nhật đủ"
 
 
 def _the(df: pd.DataFrame) -> list:
@@ -262,69 +317,74 @@ def _kpi(d: dict, nhanh: str) -> list:
             for v, nhan, so, goi_y, mau in o]
 
 
-def _ten_chip(tong: pd.DataFrame) -> dict:
-    """Tên trên chip: hai chữ cuối ("Anh Thắng"); trùng nhau thì dùng họ tên đầy đủ."""
-    ngan = {r.acc_norm: " ".join(str(r.ho_ten).split()[-2:]) for r in tong.itertuples()}
-    trung = {v for v in ngan.values() if list(ngan.values()).count(v) > 1}
-    return {r.acc_norm: r.ho_ten if ngan[r.acc_norm] in trung else ngan[r.acc_norm] for r in tong.itertuples()}
+def _nhan_nv(r) -> str:
+    """Một dòng trong ô Nhân viên: họ tên (tìm được theo tên) + số ca, số gấp, số chưa cập nhật."""
+    phan = [f"{int(r.ton)} ca"]
+    if r.gap:
+        phan.append(f"{int(r.gap)} gấp")
+    if r.chua_cap_nhat:
+        phan.append(f"{int(r.chua_cap_nhat)} chưa cập nhật")
+    return f"{r.ho_ten} · " + " · ".join(phan)
 
 
-def _chip(tong: pd.DataFrame, acc: str) -> list:
-    """Hàng tên nhân viên: bấm là danh sách ngay bên dưới chỉ còn ca của người đó. Chấm đỏ = số ca cần xử lý
-    gấp, chấm cam = số ca chưa cập nhật - TP nhìn là biết ai đang có vấn đề."""
-    ten = _ten_chip(tong)
-    ds = [html.Button([html.Span("Tất cả"), html.B(f"{int(tong.ton.sum())}", className="chip-dem")],
-                      id={"type": "nt-chip", "acc": "all"}, n_clicks=0,
-                      className="chip" + (" active" if acc == "all" else ""))]
-    for r in tong.itertuples():
-        dau = [html.Span(int(r.gap), className="chip-so do", title=f"{int(r.gap)} ca cần xử lý gấp")] if r.gap else []
-        if r.chua_cap_nhat:
-            dau.append(html.Span(int(r.chua_cap_nhat), className="chip-so cam",
-                                 title=f"{int(r.chua_cap_nhat)} ca chưa cập nhật"))
-        ds.append(html.Button([html.Span(ten[r.acc_norm]), html.B(int(r.ton), className="chip-dem"), *dau],
-                              id={"type": "nt-chip", "acc": r.acc_norm}, n_clicks=0,
-                              title=f"{r.ho_ten} · {r.acc} · {int(r.ton)} ca",
-                              className="chip" + (" active" if acc == r.acc_norm else "")))
-    return [html.Div([html.B("Nhân viên"), tip("Bấm một người để chỉ xem ca của người đó. Số đậm là số ca tồn. "
-                                               "Chấm đỏ là số ca cần xử lý gấp. Chấm cam là số ca chưa cập nhật.")],
-                     className="nt-chip-nhan"),
-            html.Div(ds, className="nt-chip-ds")]
+def _dong_nv(tong: pd.DataFrame) -> tuple[list[dict], list[dict]]:
+    """(mỗi nhân viên một dòng, dòng ghim "Cả phòng"). `pct` = % ca đã điền đủ 3 mục."""
+    cot = ["acc_norm", "ho_ten", "acc", "ton", "gap", "den_han", "chua_cap_nhat"]
+    if tong.empty:
+        return [], []
+    ds = [{**{c: (r[c] if c in ("acc_norm", "ho_ten", "acc") else int(r[c])) for c in cot},
+           "pct": round(100 * (r["ton"] - r["chua_cap_nhat"]) / r["ton"]) if r["ton"] else 100}
+          for r in tong.to_dict("records")]
+    t = {c: int(tong[c].sum()) for c in ("ton", "gap", "den_han", "chua_cap_nhat")}
+    t["pct"] = round(100 * (t["ton"] - t["chua_cap_nhat"]) / t["ton"]) if t["ton"] else 100
+    return ds, [{"ho_ten": "Cả phòng", "acc": f"{len(tong)} nhân viên", **t}]
+
+
+def _tieu_de(tong: pd.DataFrame, chon: list[str]) -> str:
+    if not chon:
+        return TAT_CA
+    ten = tong.set_index("acc_norm").ho_ten
+    return ", ".join(ten[a] for a in chon) if len(chon) <= 3 else f"{len(chon)} nhân viên"
 
 
 # ------------------------------------------------------------------ callbacks
 def register(app):
-    @app.callback(Output("nt-nv", "options"), Output("nt-kpi", "children"), Output("nt-chip", "children"),
+    @app.callback(Output("nt-nv", "options"), Output("nt-kpi", "children"),
+                  Output("nt-nv-luoi", "rowData"), Output("nt-nv-luoi", "dashGridOptions"),
                   Output("nt-luoi", "rowData"), Output("nt-the", "children"), Output("nt-tieu-de-ds", "children"),
                   Output("nt-mo-ta", "children"),
                   Input("nt-phong", "value"), Input("nt-nv", "value"), Input("nt-nhanh", "data"),
-                  Input("nt-tim", "value"), Input("nt-da-luu", "data"), State("ui-vw", "data"))
-    def _nap(code, acc, nhanh, tim, _luu, vw):
+                  Input("nt-tim", "value"), Input("nt-da-luu", "data"), State("ui-vw", "data"),
+                  State("nt-nv-luoi", "dashGridOptions"))
+    def _nap(code, acc, nhanh, tim, _luu, vw, opts_nv):
         nhanh = nhanh if nhanh in TEN_LOC else "all"
         df = nt.danh_sach(_phong_hop_le(code))
         if df.empty:
-            return [TAT_CA], _kpi(nt.dem(df), nhanh), [], [], [], "Danh sách hợp đồng tồn", \
+            return [], _kpi(nt.dem(df), nhanh), [], no_update, [], [], "Danh sách hợp đồng tồn", \
                 "Phòng chưa có hợp đồng tồn (hoặc chưa nạp file Internet)."
         tong = nt.tong_hop_nv(df)
-        chon = [TAT_CA] + [{"label": f"{r.ho_ten} ({r.acc}) · {int(r.ton)} ca", "value": r.acc_norm}
-                           for r in tong.itertuples()]
-        acc = acc if acc in set(tong.acc_norm) else "all"
-        xem = nt.loc(df, acc, nhanh, tim)
-        xem = xem.assign(sua_duoc=not _dung_chung() or acc != "all")
+        dong_nv, ghim_nv = _dong_nv(tong)
+        ds_nv = [{"label": _nhan_nv(r), "value": r.acc_norm} for r in tong.itertuples()]
+        chon = [a for a in _ds_acc(acc) if a in set(tong.acc_norm)]
+        xem = nt.loc(df, chon, nhanh, tim)
+        xem = xem.assign(sua_duoc=not _dung_chung() or len(chon) == 1)
         dien_thoai = (vw or {}).get("w", 1440) < 768
-        ai = "Tất cả nhân viên" if acc == "all" else tong.set_index("acc_norm").at[acc, "ho_ten"]
-        tieu_de = " · ".join(x for x in (ai, TEN_LOC[nhanh], f"{len(xem)} ca") if x)
+        tieu_de = " · ".join(x for x in (_tieu_de(tong, chon), TEN_LOC[nhanh], f"{len(xem)} ca") if x)
         mo_ta = f"{len(xem)} / {len(df)} hợp đồng của phòng. Số tồn tính theo file Internet mới nhất đã nạp."
-        if _dung_chung() and acc == "all":
-            mo_ta = html.Span([html.B(CHON_TEN, style={"color": "#B42318"}), " ", mo_ta])
-        return (chon, _kpi(nt.dem(nt.loc(df, acc)), nhanh), _chip(tong, acc),
-                [] if dien_thoai else _dong_luoi(xem), _the(xem) if dien_thoai else [], tieu_de, mo_ta)
+        if _dung_chung() and len(chon) != 1:
+            mo_ta = html.Span([html.B(CHON_TEN if not chon else CHON_MOT, style={"color": "#B42318"}), " ", mo_ta])
+        return (ds_nv, _kpi(nt.dem(nt.loc(df, chon)), nhanh),
+                dong_nv, {**(opts_nv or {}), "pinnedBottomRowData": ghim_nv},
+                [] if dien_thoai else _dong_luoi(xem, len(chon) != 1),
+                _the(xem) if dien_thoai else [], tieu_de, mo_ta)
 
-    @app.callback(Output("nt-nv", "value"), Input({"type": "nt-chip", "acc": ALL}, "n_clicks"),
-                  prevent_initial_call=True)
-    def _bam_chip(bam):
-        if not isinstance(ctx.triggered_id, dict) or not any(bam or []):
-            raise PreventUpdate                 # hàng tên vừa dựng lại, chưa ai bấm
-        return ctx.triggered_id["acc"]
+    @app.callback(Output("nt-nv", "value"), Input("nt-nv-luoi", "selectedRows"), prevent_initial_call=True)
+    def _bam_dong_nv(rows):
+        """Bấm một dòng ở bảng tổng quan = tick đúng người đó ở ô Nhân viên (danh sách dưới lọc theo)."""
+        r = (rows or [None])[0]
+        if not r or not r.get("acc_norm"):
+            raise PreventUpdate
+        return [r["acc_norm"]]
 
     @app.callback(Output("nt-nhanh", "data"), Input({"type": "nt-loc", "v": ALL}, "n_clicks"),
                   prevent_initial_call=True)

@@ -309,8 +309,9 @@ def layout(tab: str | None = None):
         # ---------------- Theo ngày
         html.Div(id="ads-p-ngay", style=AN, children=[
             _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày; màu cho thấy ngày nào nhiều / ít. Cuối "
-                 "bảng có dòng tổng riêng của page sale và của page Trung lập (tài khoản công ty), rồi tổng chung "
-                 "và quy đổi VNĐ theo tỷ giá tháng. Bấm đúp vào một page để xem từng camp từng ngày.",
+                 "bảng có dòng tổng riêng của page sale, của page Trung lập (tài khoản công ty) và tổng chung. "
+                 "Ở các dòng tổng, số nhỏ phía dưới là tiền VNĐ quy đổi theo tỷ giá tháng. Bấm đúp vào một page "
+                 "để xem từng camp từng ngày.",
                  html.Div(seg_control("ads-ngay-loai", [("all", "Tất cả page"), ("sale", "Page sale"),
                                                         ("cong_ty", "Trung lập")], "all"),
                           style={"margin": "0 0 10px"}),
@@ -792,34 +793,39 @@ def register(app):
         chi_so = chi_so or "chi_tieu"
         pv, so_ngay = ads.tracking(thang, chi_so, loai or "all")
         tien = chi_so in ("chi_tieu", "cp_pttb")
+        rate = ads.ty_gia(thang) if chi_so == "chi_tieu" else 0.0
         fmt = USD_D if tien else SO
         huong = HUONG_CHI_SO[chi_so]
         ngay = [str(i) for i in range(1, so_ngay + 1)]
         gia_tri = pv[[c for c in pv.columns if str(c).isdigit()]].values.ravel().tolist() if len(pv) else []
         nhiet = _mau_nhiet(gia_tri, huong)
         pg = ads.ds_page().set_index("id")
+        # colId kèm chỉ số: đổi chỉ số là cột mới, nếu không bảng giữ cách định dạng cũ (tin nhắn hiện ra "$")
         cot = [{"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 180, "tooltipField": "ten"}]
         if chi_so == "chi_tieu":
-            cot += [{"field": "tong", "headerName": "Tổng ($)", "pinned": "left", "width": 100,
-                     "type": "numericColumn", "valueFormatter": USD_D, "cellStyle": {"fontWeight": "700"}},
+            cot += [{"field": "tong", "colId": f"{chi_so}-tong", "headerName": "Tổng ($)", "pinned": "left",
+                     "width": 100, "type": "numericColumn", "valueFormatter": USD_D,
+                     "cellStyle": {"fontWeight": "700"}},
                     {"field": "vnd", "headerName": "≈ VNĐ", "pinned": "left", "width": 115, "type": "numericColumn",
                      "valueFormatter": VND, "headerTooltip": "Tổng USD × tỷ giá tháng"}]
         else:
-            cot.append({"field": "tong", "headerName": "Cả tháng" if chi_so == "cp_pttb" else "Tổng",
+            cot.append({"field": "tong", "colId": f"{chi_so}-tong",
+                        "headerName": "Cả tháng" if chi_so == "cp_pttb" else "Tổng",
                         "pinned": "left", "width": 95, "type": "numericColumn", "valueFormatter": fmt,
                         "cellStyle": MAU_CP if chi_so == "cp_pttb" else {"fontWeight": "700"}})
         dau = date.fromisoformat(f"{thang}-01")
         dinh_dang = "params.value ? " + fmt["function"] + " : ''"
-        if chi_so == "chi_tieu":           # dòng '≈ VNĐ từng ngày' ghim cuối bảng: số VNĐ, không tô màu
-            dinh_dang = ("params.data && params.data.la_vnd ? (params.value ? Math.round(params.value)"
-                         ".toLocaleString('vi-VN') : '') : (" + dinh_dang + ")")
-            nhiet = {"styleConditions": [{"condition": "params.data && params.data.la_vnd",
-                                          "style": {"backgroundColor": "#FFF8E6", "fontWeight": "700"}},
-                                         *(nhiet or {}).get("styleConditions", [])]}
+        lop_o = {}
+        if chi_so == "chi_tieu":           # các dòng tổng: thêm dòng thứ hai bằng VNĐ cho dễ nhìn
+            dinh_dang = ("params.data && params.data.hai_dong && params.value ? (" + dinh_dang + ") + '\\n' + "
+                         f"Math.round(params.value * {rate}).toLocaleString('vi-VN') : (" + dinh_dang + ")")
+            lop_o = {"o-hai-dong": "params.data && params.data.hai_dong"}
+
         def thu(d: str) -> int:
             return (dau + timedelta(days=int(d) - 1)).weekday()
-        cot += [{"field": d, "headerName": d, "width": 92 if tien else 54, "type": "numericColumn",
-                 "cellStyle": nhiet, "sortable": False, "filter": False,
+        cot += [{"field": d, "colId": f"{chi_so}-{d}", "headerName": d, "width": 92 if tien else 54,
+                 "type": "numericColumn",
+                 "cellStyle": nhiet, "cellClassRules": lop_o, "sortable": False, "filter": False,
                  "headerTooltip": f"Ngày {d}/{thang[5:7]} · {THU_DAY[thu(d)]}",
                  "headerClass": "cot-cn" if thu(d) == 6 else None,
                  "valueFormatter": {"function": dinh_dang}} for d in ngay]
@@ -836,18 +842,13 @@ def register(app):
                 if len(x):
                     ghim.append({"ten": ten_nhom, "la_nhom": True,
                                  **{c: float(x[c].sum()) for c in x.columns if str(c).isdigit() or c == "tong"}})
-        dong_vnd = []
         if chi_so == "chi_tieu":
-            rate = ads.ty_gia(thang)
             pv["vnd"] = pv["tong"] * rate
             tong["vnd"] = (tong.get("tong") or 0) * rate
-            dong_vnd = [{"ten": "≈ VNĐ từng ngày", "la_vnd": True, "vnd": tong["vnd"],
-                         **{d: v * rate for d, v in tong.items() if d.isdigit() and v}}]
-        if ghim and chi_so == "chi_tieu":
             for g in ghim:
                 g["vnd"] = g.get("tong", 0) * rate
-        opts["pinnedBottomRowData"] = ghim + [
-            {"ten": "Tổng từng ngày" if chi_so != "cp_pttb" else "Chung từng ngày", **tong}] + dong_vnd
+        ghim.append({"ten": "Tổng từng ngày" if chi_so != "cp_pttb" else "Chung từng ngày", **tong})
+        opts["pinnedBottomRowData"] = [{**g, "hai_dong": chi_so == "chi_tieu"} for g in ghim]
         return cot, _ban_ghi(pv), _chu_mau(huong), opts
 
     # ------------------------------------------------ chi tiết một page

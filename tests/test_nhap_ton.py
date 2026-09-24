@@ -167,13 +167,56 @@ def test_chi_luu_ten_khach_hang_cua_phong_bat_nhap_ton(monkeypatch):
 
 
 # ------------------------------------------------------------------ giao diện (chủ app 21/09: bấm tên phải thấy đổi ngay)
-def test_ten_tren_chip_ngan_gon_va_khong_trung():
+def test_o_nhan_vien_tick_nhieu_nguoi():
+    """Chủ app chốt 21/09/2026: ô thả xuống có ô tick, chọn nhiều người; rỗng = tất cả."""
     import pandas as pd
 
-    from app.ui.pages.nhapton import _ten_chip
-    tong = pd.DataFrame({"acc_norm": ["a", "b", "c"],
-                         "ho_ten": ["Bùi Ngô Anh Thắng", "Trần Văn Anh Thắng", "Hồ Thị Mỹ Chi"]})
-    assert _ten_chip(tong) == {"a": "Bùi Ngô Anh Thắng", "b": "Trần Văn Anh Thắng", "c": "Mỹ Chi"}
+    from app.ui.pages.nhapton import _ds_acc, _nhan_nv, _tieu_de
+    tong = pd.DataFrame({"acc_norm": ["a", "b", "c", "d"], "ho_ten": ["An", "Bình", "Chi", "Dũng"],
+                         "ton": [21, 6, 3, 1], "gap": [6, 0, 1, 0], "chua_cap_nhat": [2, 4, 0, 0]})
+    r = next(tong.itertuples())
+    assert _nhan_nv(r) == "An · 21 ca · 6 gấp · 2 chưa cập nhật"
+    assert _nhan_nv(list(tong.itertuples())[3]) == "Dũng · 1 ca"                  # không có gì đáng lo thì gọn
+    assert _ds_acc(None) == [] and _ds_acc([]) == [] and _ds_acc("all") == [] and _ds_acc(["a", "b"]) == ["a", "b"]
+    assert _tieu_de(tong, []) == "Tất cả nhân viên"
+    assert _tieu_de(tong, ["a", "c"]) == "An, Chi"
+    assert _tieu_de(tong, ["a", "b", "c", "d"]) == "4 nhân viên"
+    df = pd.DataFrame({"acc_norm": ["a", "a", "b", "c"], "thu_tu": [5] * 4, "thieu": [False] * 4,
+                       "hop_dong": ["1", "2", "3", "4"], "ten_khach_hang": [""] * 4})
+    assert len(nt.loc(df, ["a", "c"])) == 3 and len(nt.loc(df, [])) == 4 and len(nt.loc(df, "b")) == 1
+
+
+def test_bang_theo_nhan_vien_va_dong_ca_phong():
+    """Tổng quan từng nhân sự + dòng ghim "Cả phòng" (chủ app yêu cầu 24/09/2026)."""
+    import pandas as pd
+
+    from app.ui.pages.nhapton import _cot_nv, _dong_nv
+    tong = pd.DataFrame({"acc_norm": ["a", "b"], "acc": ["DNG.A", "DNG.B"], "ho_ten": ["An", "Bình"],
+                         "ton": [10, 5], "gap": [2, 0], "den_han": [1, 0], "chua_cap_nhat": [4, 5]})
+    ds, ghim = _dong_nv(tong)
+    assert [r["ho_ten"] for r in ds] == ["An", "Bình"]
+    assert ds[0]["pct"] == 60 and ds[1]["pct"] == 0                       # 6/10 và 0/5 đã điền đủ
+    assert ghim[0]["ho_ten"] == "Cả phòng" and ghim[0]["acc"] == "2 nhân viên"
+    assert ghim[0]["ton"] == 15 and ghim[0]["gap"] == 2 and ghim[0]["chua_cap_nhat"] == 9 and ghim[0]["pct"] == 40
+    assert _dong_nv(pd.DataFrame()) == ([], [])
+    assert [c["field"] for c in _cot_nv()][:3] == ["ho_ten", "acc", "ton"]
+
+
+def test_dong_tieu_de_cum_gon_va_bo_khi_xem_mot_nguoi():
+    """Ô ghim bên trái hiện "N ca", ô dài hiện tên - acc - việc còn lại (không lặp tên).
+    Xem đúng một người thì bỏ dòng tiêu đề cụm cho đỡ rối."""
+    import pandas as pd
+
+    from app.ui.pages.nhapton import _dong_luoi
+    df = pd.DataFrame({"acc_norm": ["a", "a"], "acc": ["DNG.A"] * 2, "ho_ten": ["Bùi Ngô Anh Thắng"] * 2,
+                       "hop_dong": ["H1", "H2"], "ten_khach_hang": ["KH1", "KH2"], "loai_moc": ["hen", None],
+                       "so_ngay_cho": [3, 4], "thu_tu": [5, 5], "thieu": [True, False], "muc": ["", ""]})
+    dong = _dong_luoi(df)
+    assert dong[0]["hop_dong"] == "2 ca" and dong[0]["loai_dong"] == "nhom"
+    assert dong[0]["ten_khach_hang"] == "Bùi Ngô Anh Thắng · DNG.A · 1 chưa cập nhật"
+    assert len(dong) == 3
+    mot = _dong_luoi(df, nhom=False)
+    assert len(mot) == 2 and all(r.get("loai_dong") is None for r in mot)
 
 
 def test_o_so_cung_la_nut_loc_va_danh_dau_o_dang_chon():

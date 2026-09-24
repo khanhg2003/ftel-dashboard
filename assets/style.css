@@ -1050,20 +1050,27 @@ table.simple tr:last-child td { border-bottom: none; }
 .kpi.kpi-bam { text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; }
 .kpi.kpi-bam.dang-chon { border-color: var(--fpt-blue); box-shadow: 0 0 0 2px var(--fpt-blue) inset, var(--shadow-md); }
 .kpi.kpi-bam.dang-chon .label { color: var(--fpt-blue-700); }
-/* hàng tên nhân viên ngay trên danh sách: bấm là danh sách bên dưới đổi liền */
-.nt-chip { display: flex; gap: 10px; align-items: flex-start; padding-bottom: 12px; margin-bottom: 12px;
-    border-bottom: 1px solid var(--border); }
-.nt-chip-nhan { display: flex; align-items: center; gap: 4px; height: 32px; font-size: 13px; white-space: nowrap; }
-.nt-chip-ds { display: flex; flex-wrap: wrap; gap: 6px; }
-.nt-chip-ds .chip { gap: 6px; font-weight: 550; }
-.nt-chip-ds .chip-dem { font-weight: 750; color: var(--text); }
-.nt-chip-ds .chip.active .chip-dem { color: #fff; }
-.chip-so { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 11px; font-weight: 700;
-    display: inline-flex; align-items: center; justify-content: center; color: #fff; }
-.chip-so.do { background: var(--bad); }
-.chip-so.cam { background: #E8A33D; }
+/* ô chọn nhân viên (tick nhiều người) + tìm + Excel ngay trên danh sách */
+.toolbar.nt-loc { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.nt-o-nv { min-width: 340px; max-width: 560px; }
+@media (max-width: 767px) {
+  .nt-o-nv { min-width: 0; width: 100%; }
+  .toolbar.nt-loc .field { flex: 1 1 100%; }
+  .toolbar.nt-loc .o-tim { width: 100% !important; }
+}
 #nt-luoi .ag-cell.o-dam { font-weight: 600; }
-#nt-luoi .ag-cell.o-thieu { box-shadow: inset 0 0 0 2px #F0B35B; background: #FFFAF0; }
+/* Ô bắt buộc chưa điền: viền đứt nhạt + chữ gợi ý, nhìn ra là ô cần điền chứ không phải báo lỗi */
+#nt-luoi .ag-cell.o-sale { background: #FEFCF7; }
+#nt-luoi .ag-cell[col-id="ghi_chu"] { border-left: 2px solid #E4D3B2; }
+#nt-luoi .ag-cell.o-thieu { background: #FFFAF0; box-shadow: inset 0 0 0 1px #EBC58C; }
+#nt-luoi .ag-cell.o-thieu .ag-cell-value::after { color: #A9834A; font-style: italic; font-weight: 400; }
+#nt-luoi .ag-cell.o-thieu[col-id="ghi_chu"] .ag-cell-value::after { content: "Bấm để ghi tình trạng..."; }
+#nt-luoi .ag-cell.o-thieu[col-id="loai_moc"] .ag-cell-value::after { content: "Chọn mốc"; }
+#nt-luoi .ag-cell.o-thieu[col-id="ngay_moc"] .ag-cell-value::after { content: "Chọn ngày"; }
+#nt-luoi .ag-cell.o-thieu[col-id="phuong_an"] .ag-cell-value::after { content: "Chọn phương án"; }
+#nt-luoi .ag-header-cell.vung-sale { border-left: 2px solid #E4D3B2; }
+#nt-luoi .ag-row:not(.dong-nhom):hover .ag-cell.o-sale { background: #FFF6E4; }
+#nt-nv-luoi .ag-row { cursor: pointer; }
 #nt-luoi .ag-cell-wrap-text { line-height: 1.45; padding-top: 6px; padding-bottom: 6px; word-break: break-word; }
 /* Phương án: nhãn màu như sheet cũ */
 #nt-luoi .ag-cell.pa-cho .ag-cell-value, .pa.pa-cho { background: #E8EAED; color: #3C4043; }
@@ -1097,3 +1104,6 @@ table.simple tr:last-child td { border-bottom: none; }
 .nt-moc { font-weight: 600; color: var(--text); }
 .nt-cb.do { color: var(--bad); font-weight: 650; }
 .nt-cb.vang { color: var(--warn); font-weight: 650; }
+
+/* Tracking ngày: dòng tổng hiện USD, xuống dòng là VNĐ quy đổi (chủ app yêu cầu 24/09/2026) */
+#ads-g-ngay .ag-cell.o-hai-dong { white-space: pre-line; line-height: 1.25; font-size: 11px; }
