@@ -1107,5 +1107,14 @@ table.simple tr:last-child td { border-bottom: none; }
 .nt-cb.do { color: var(--bad); font-weight: 650; }
 .nt-cb.vang { color: var(--warn); font-weight: 650; }
 
-/* Tracking ngày: dòng tổng hiện USD, xuống dòng là VNĐ quy đổi (chủ app yêu cầu 24/09/2026) */
-#ads-g-ngay .ag-cell.o-hai-dong { white-space: pre-line; line-height: 1.25; font-size: 11px; }
+/* Tracking ngày · các dòng tổng: USD là số chính, VNĐ quy đổi là dòng phụ nhỏ và nhạt ở dưới.
+   Khối tổng để nền phẳng, không tô màu nhiệt: tổng luôn vượt thang màu của các page nên màu không
+   nói lên gì, mà nền đậm làm dòng VNĐ khó đọc. (Chủ app 24/09/2026) */
+#ads-g-ngay .ag-floating-bottom .ag-cell { background: #EEF4FA !important; }
+#ads-g-ngay .ag-cell.o-hai-dong .ag-cell-value {
+  display: block; width: 100%; white-space: pre; overflow: hidden;
+  font-size: 10.5px; font-weight: 500; line-height: 1.34; color: #64809A; letter-spacing: .1px;
+}
+#ads-g-ngay .ag-cell.o-hai-dong .ag-cell-value::first-line {
+  font-size: 12.5px; font-weight: 700; color: #0C3B66; letter-spacing: -.1px;
+}

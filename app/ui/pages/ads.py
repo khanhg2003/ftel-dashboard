@@ -310,8 +310,8 @@ def layout(tab: str | None = None):
         html.Div(id="ads-p-ngay", style=AN, children=[
             _the("Tracking ngày", "Mỗi dòng một page, mỗi cột một ngày; màu cho thấy ngày nào nhiều / ít. Cuối "
                  "bảng có dòng tổng riêng của page sale, của page Trung lập (tài khoản công ty) và tổng chung. "
-                 "Ở các dòng tổng, số nhỏ phía dưới là tiền VNĐ quy đổi theo tỷ giá tháng. Bấm đúp vào một page "
-                 "để xem từng camp từng ngày.",
+                 "Ở cột Tổng tháng và các dòng tổng, số nhỏ phía dưới là tiền VNĐ quy đổi theo tỷ giá tháng. "
+                 "Bấm đúp vào một page để xem từng camp từng ngày.",
                  html.Div(seg_control("ads-ngay-loai", [("all", "Tất cả page"), ("sale", "Page sale"),
                                                         ("cong_ty", "Trung lập")], "all"),
                           style={"margin": "0 0 10px"}),
@@ -371,6 +371,17 @@ def _ky(thang: str) -> tuple[date, date]:
 
 def _usd(v) -> str:
     return "–" if v is None else f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _hai_dong(fmt: dict, rate: float, dieu_kien: str = "") -> dict:
+    """Ô hai dòng: USD ở trên, VNĐ quy đổi ở dưới. Phần chữ to / nhỏ do CSS `.o-hai-dong` lo.
+    `dieu_kien` rỗng thì mọi dòng đều hai dòng; có thì chỉ các dòng khớp (dùng cho dòng tổng)."""
+    chinh = "params.value ? " + fmt["function"] + " : ''"
+    hai = ("(" + chinh + ") + '\\n' + Math.round(params.value * " + repr(rate)
+           + ").toLocaleString('vi-VN') + ' ₫'")
+    if dieu_kien:
+        return {"function": f"{dieu_kien} && params.value ? {hai} : ({chinh})"}
+    return {"function": f"params.value ? {hai} : ''"}
 
 
 def _ban_ghi(df, cot=None):
@@ -803,22 +814,22 @@ def register(app):
         # colId kèm chỉ số: đổi chỉ số là cột mới, nếu không bảng giữ cách định dạng cũ (tin nhắn hiện ra "$")
         cot = [{"field": "ten", "headerName": "Page", "pinned": "left", "minWidth": 180, "tooltipField": "ten"}]
         if chi_so == "chi_tieu":
-            cot += [{"field": "tong", "colId": f"{chi_so}-tong", "headerName": "Tổng ($)", "pinned": "left",
-                     "width": 100, "type": "numericColumn", "valueFormatter": USD_D,
-                     "cellStyle": {"fontWeight": "700"}},
-                    {"field": "vnd", "headerName": "≈ VNĐ", "pinned": "left", "width": 115, "type": "numericColumn",
-                     "valueFormatter": VND, "headerTooltip": "Tổng USD × tỷ giá tháng"}]
+            cot.append({"field": "tong", "colId": f"{chi_so}-tong", "headerName": "Tổng tháng", "pinned": "left",
+                        "width": 124, "type": "numericColumn",
+                        "cellClass": "ag-right-aligned-cell o-hai-dong",
+                        "valueFormatter": _hai_dong(USD_D, rate),
+                        "headerTooltip": "Cả tháng của page này.\nDòng nhỏ phía dưới là quy đổi VNĐ theo tỷ "
+                                         "giá tháng."})
         else:
             cot.append({"field": "tong", "colId": f"{chi_so}-tong",
                         "headerName": "Cả tháng" if chi_so == "cp_pttb" else "Tổng",
                         "pinned": "left", "width": 95, "type": "numericColumn", "valueFormatter": fmt,
                         "cellStyle": MAU_CP if chi_so == "cp_pttb" else {"fontWeight": "700"}})
         dau = date.fromisoformat(f"{thang}-01")
-        dinh_dang = "params.value ? " + fmt["function"] + " : ''"
+        dinh_dang = {"function": "params.value ? " + fmt["function"] + " : ''"}
         lop_o = {}
-        if chi_so == "chi_tieu":           # các dòng tổng: thêm dòng thứ hai bằng VNĐ cho dễ nhìn
-            dinh_dang = ("params.data && params.data.hai_dong && params.value ? (" + dinh_dang + ") + '\\n' + "
-                         f"Math.round(params.value * {rate}).toLocaleString('vi-VN') : (" + dinh_dang + ")")
+        if chi_so == "chi_tieu":           # các dòng tổng: thêm dòng VNĐ quy đổi ở dưới cho dễ nhìn
+            dinh_dang = _hai_dong(fmt, rate, "params.data && params.data.hai_dong")
             lop_o = {"o-hai-dong": "params.data && params.data.hai_dong"}
 
         def thu(d: str) -> int:
@@ -828,7 +839,7 @@ def register(app):
                  "cellStyle": nhiet, "cellClassRules": lop_o, "sortable": False, "filter": False,
                  "headerTooltip": f"Ngày {d}/{thang[5:7]} · {THU_DAY[thu(d)]}",
                  "headerClass": "cot-cn" if thu(d) == 6 else None,
-                 "valueFormatter": {"function": dinh_dang}} for d in ngay]
+                 "valueFormatter": dinh_dang} for d in ngay]
         opts["pinnedBottomRowData"] = []
         if pv.empty:
             return cot, [], _chu_mau(huong), opts
@@ -842,11 +853,6 @@ def register(app):
                 if len(x):
                     ghim.append({"ten": ten_nhom, "la_nhom": True,
                                  **{c: float(x[c].sum()) for c in x.columns if str(c).isdigit() or c == "tong"}})
-        if chi_so == "chi_tieu":
-            pv["vnd"] = pv["tong"] * rate
-            tong["vnd"] = (tong.get("tong") or 0) * rate
-            for g in ghim:
-                g["vnd"] = g.get("tong", 0) * rate
         ghim.append({"ten": "Tổng từng ngày" if chi_so != "cp_pttb" else "Chung từng ngày", **tong})
         opts["pinnedBottomRowData"] = [{**g, "hai_dong": chi_so == "chi_tieu"} for g in ghim]
         return cot, _ban_ghi(pv), _chu_mau(huong), opts

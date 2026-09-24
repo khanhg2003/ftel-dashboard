@@ -97,7 +97,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      ~34 ký tự, cột hẹp nên dài hơn là dòng cao 5 hàng (có test chặn). Laptop nhập bằng Tab: ghi chú → mốc →
      ngày → phương án, mỗi ô tự lưu.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
-     Tracking ngày: các dòng tổng hiện USD và VNĐ trên hai dòng trong cùng một ô (chủ app yêu cầu 24/09/2026).
+     Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
+     dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền
+     "Tổng tháng", không tách "Tổng ($)" và "≈ VNĐ". Các dòng tổng để nền phẳng, KHÔNG tô màu nhiệt: tổng luôn
+     vượt thang màu của các page nên màu không nói gì mà lại làm dòng VNĐ khó đọc.
      Cột của bảng này phải có `colId` kèm tên chỉ số: dash-ag-grid giữ `valueFormatter` đã biên dịch theo
      colId, đổi chỉ số mà colId không đổi thì Tin nhắn / PTTB vẫn hiện ra "$". Tiền nhập tay tổng tháng không vẽ theo ngày. Page Trung lập = tài khoản công ty, không chia cho sale.
 3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
@@ -139,7 +142,9 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 - **dash-ag-grid:**
   - chuỗi `valueFormatter` / `styleConditions` **không dùng** `typeof`, `===`, `isNaN`;
   - `getRowId` hay ra "undefined": chọn dòng bằng `rowSelection` + `selectedRows`;
-  - `cellDoubleClicked` không có dữ liệu dòng: ghép với `selectedRows`.
+  - `cellDoubleClicked` không có dữ liệu dòng: ghép với `selectedRows`;
+  - đặt `cellClass` cho cột có `type: "numericColumn"` thì **mất** lớp căn phải của kiểu cột: phải tự viết
+    `"cellClass": "ag-right-aligned-cell <lớp của mình>"`.
 - **Component Dash** là falsy (có `__len__`): kiểm bằng `is not None`, không dùng `if comp`.
 - **Mọi trang phải dùng được ở màn laptop hẹp** (khoảng 800 px): lưới 2-3 cột phải tự xuống 1 cột.
 
