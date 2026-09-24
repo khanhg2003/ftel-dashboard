@@ -175,12 +175,13 @@ def _so(v) -> int:
 
 
 def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | None = None,
-        chi_acc: str | None = None) -> None:
-    """Ghi phần sale nhập cho một người. `chi_acc`: tài khoản dùng chung chỉ được ghi dòng của người này."""
+        ghi_ten: str | None = None) -> None:
+    """Ghi phần sale nhập cho một người.
+
+    Tài khoản sale dùng chung sửa được mọi dòng (chủ app chốt 24/09/2026); `ghi_ten` là tên người đang
+    chọn ở ô "Tôi là", lưu vào "cập nhật bởi" để Trưởng phòng biết ai sửa - nhật ký vẫn ghi tài khoản thật."""
     dam_bao_bang()
     ngay = ngay or hom_nay()
-    if chi_acc is not None and acc_norm != chi_acc:
-        raise LoiBaoCao("Đây không phải dòng của người đang chọn ở ô Nhân viên.")
     d = {}
     for k, v in truong.items():
         if k not in O_NHAP:
@@ -197,7 +198,7 @@ def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | 
             s.add(r)
         for k, v in d.items():
             setattr(r, k, v)
-        r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), nguoi[:60]
+        r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), (ghi_ten or nguoi)[:60]
 
 
 def _phong_cua(acc_norm: str, phong: list[str]) -> str:

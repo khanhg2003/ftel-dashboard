@@ -87,12 +87,20 @@ def test_chan_so_vo_ly(mot_nguoi):
             bc.luu(mot_nguoi, {"khtn": xau}, PHONG, "kiemthu.tp", NGAY)
 
 
-def test_tai_khoan_dung_chung_chi_ghi_duoc_dong_cua_minh(mot_nguoi):
+def test_tai_khoan_sale_sua_duoc_moi_dong_va_ghi_dung_ten(mot_nguoi):
+    """Chủ app chốt 24/09/2026: tài khoản sale dùng chung full quyền. Ô tên chỉ để ghi "cập nhật bởi"."""
+    from sqlalchemy import select
+    from app.db import session_scope
+    from app.models import BaoCaoNgay
     df = bc.bang(PHONG, NGAY)
     nguoi_khac = df[df.acc_norm != mot_nguoi].iloc[0].acc_norm
-    with pytest.raises(bc.LoiBaoCao):
-        bc.luu(nguoi_khac, {"khtn": 1}, PHONG, "kiemthu.nvkd", NGAY, chi_acc=mot_nguoi)
-    bc.luu(mot_nguoi, {"khtn": 1}, PHONG, "kiemthu.nvkd", NGAY, chi_acc=mot_nguoi)
+    bc.luu(nguoi_khac, {"khtn": 1}, PHONG, "kiemthu.nvkd", NGAY, ghi_ten="Hồ Thị Mỹ Chi")
+    bc.luu(mot_nguoi, {"khtn": 2}, PHONG, "kiemthu.nvkd", NGAY)
+    with session_scope() as s:
+        boi = {r.acc_norm: r.cap_nhat_boi for r in
+               s.execute(select(BaoCaoNgay).where(BaoCaoNgay.ngay == NGAY)).scalars()}
+    assert boi[nguoi_khac] == "Hồ Thị Mỹ Chi"          # có chọn tên thì ghi tên người đó
+    assert boi[mot_nguoi] == "kiemthu.nvkd"            # không chọn thì ghi tên tài khoản
 
 
 # ------------------------------------------------------------------ mục tiêu

@@ -133,17 +133,21 @@ def mot_ca():
 
 
 def test_tai_khoan_dung_chung_ghi_duoi_ten_nguoi_dang_chon(mot_ca):
+    """Sale full quyền (chốt 24/09/2026) nên trang không truyền `chi_acc` nữa; ô tên chỉ để ghi
+    "cập nhật bởi" cho Trưởng phòng biết ai sửa."""
     r = mot_ca
     nt.luu(r.hop_dong, {"ghi_chu": "KH hẹn cuối tuần", "loai_moc": "hen", "ngay_moc": "2026-09-27",
-                        "phuong_an": "Đang chờ triển khai"}, ["IBB7"], "kiemthu.nvkd", r.acc_norm, "Nguyễn Văn Kiểm")
+                        "phuong_an": "Đang chờ triển khai"}, ["IBB7"], "kiemthu.nvkd",
+           ghi_ten="Nguyễn Văn Kiểm")
     moi = nt.danh_sach(["IBB7"]).set_index("hop_dong").loc[r.hop_dong]
     assert moi.cap_nhat_boi == "Nguyễn Văn Kiểm" and moi.cap_nhat.endswith("· Kiểm")
     assert moi.ghi_chu == "KH hẹn cuối tuần" and not moi.thieu
 
 
-def test_tai_khoan_dung_chung_khong_sua_ca_nguoi_khac(mot_ca):
-    with pytest.raises(nt.LoiNhapTon, match="không phải ca của người đang chọn"):
-        nt.luu(mot_ca.hop_dong, {"ghi_chu": "x"}, ["IBB7"], "kiemthu.nvkd", "acc.nguoi.khac", "Ai Đó")
+def test_sale_sua_duoc_ca_cua_nguoi_khac(mot_ca):
+    """Chủ app chốt 24/09/2026: tài khoản sale full quyền, ai cũng sửa hộ được ca của đồng đội."""
+    nt.luu(mot_ca.hop_dong, {"ghi_chu": "Sửa hộ đồng đội"}, ["IBB7"], "kiemthu.nvkd", ghi_ten="Ai Đó")
+    assert nt.danh_sach(["IBB7"]).set_index("hop_dong").loc[mot_ca.hop_dong].ghi_chu == "Sửa hộ đồng đội"
 
 
 def test_khong_ghi_duoc_hop_dong_ngoai_danh_sach_ton():

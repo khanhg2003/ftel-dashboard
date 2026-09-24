@@ -106,6 +106,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test).
      Ảnh PNG ở `app/export_png_ngay.py`, ba khối chữ do Fox viết (`bao_cao_ngay_ai.py`) và Trưởng phòng sửa
      lại trước khi tạo ảnh. Dòng TỔNG trong ảnh lấy mục tiêu tháng CỦA PHÒNG, không cộng mục tiêu từng người.
+     Ảnh phải giữ đúng mẫu chủ app đưa (nền xanh chuyển màu + vệt chéo + góc cam + tia sét, ba khối số có
+     biểu tượng tròn, dòng TỔNG nền cam, ba khối chữ, dải nguồn cuối ảnh) và đúng 8 cột: Nhân sự · MT ngày ·
+     KHTN · ONL sáng · ONL chiều · DK ONL · PTTB tháng · Pay (Pay = số V.VIP). Font đi kèm app không có bản
+     nghiêng nên chữ nghiêng làm bằng `_nghieng()` (kéo xiên), đừng thêm file font mới.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền
@@ -132,8 +136,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
    Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel, không
    dùng AI. Ở Nhập tồn phải chọn tên mình ở bộ lọc mới sửa được, chỉ sửa ca của người đó, và "cập nhật bởi" ghi tên
-   người đó (nhật ký ghi tài khoản thật). Ở Báo cáo ngày cũng vậy: chọn tên mình ở ô "Tôi là" mới sửa được
-   dòng của người đó. Thêm trang mới mà Nhân viên KD cần vào thì phải thêm vào `TRANG_NVKD`.
+   người đó (nhật ký ghi tài khoản thật). **Đổi 24/09/2026:** tài khoản sale có FULL quyền sửa ở Nhập tồn và
+   Báo cáo ngày - sửa được mọi dòng, không còn phải tick tên mình trước. Ô "Nhân viên" / "Tôi là" giờ chỉ để
+   lọc và để ghi "cập nhật bởi": chọn đúng một tên thì ghi tên người đó, không chọn thì ghi tên tài khoản.
+   Thêm trang mới mà Nhân viên KD cần vào thì phải thêm vào `TRANG_NVKD`.
 5. **Ghi nhật ký** (`ghi_log` / `AuditLog`): xuất Excel / file, nạp / gỡ file, sửa cấu hình, xoá, gọi AI.
 6. **Không gửi lên AI** tên khách hàng hay dữ liệu vượt quyền của người hỏi. Tên khách hàng chỉ được LƯU cho
    phòng bật Nhập tồn (`ingest/commit.phong_luu_ten_kh`, file Internet) và chỉ HIỆN ở trang Nhập tồn

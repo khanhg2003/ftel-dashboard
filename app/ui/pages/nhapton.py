@@ -42,8 +42,7 @@ OPTS_NV = {"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableCli
 MAU_PA = {"pa-cho": "params.value == 'Đang chờ triển khai'", "pa-huy": "params.value == 'Huỷ'",
           "pa-suy-nghi": "params.value == 'KH đang suy nghĩ - Chốt lại'", "pa-xong": "params.value == 'Đã triển khai'"}
 GOI_Y_GHI_CHU = "Nguyên nhân tồn + thời gian hẹn thực tế. Treo, CPTC... cũng ghi ở đây."
-CHON_TEN = "Tick tên mình ở ô Nhân viên để bắt đầu cập nhật."
-CHON_MOT = "Chỉ tick một tên (tên mình) để cập nhật."
+GHI_TEN = "Tick tên mình ở ô Nhân viên để phần \"cập nhật bởi\" ghi đúng tên."
 NHAN_O_NV = {"select_all": "Chọn tất cả", "deselect_all": "Bỏ chọn tất cả", "search": "Tìm tên...",
              "selected_count": "{num_selected} người", "clear_search": "Xoá tìm", "clear_selection": "Bỏ chọn",
              "no_options_found": "Không có tên nào khớp"}
@@ -62,13 +61,14 @@ def _dung_chung() -> bool:
 
 
 def _nguoi_ghi(acc) -> tuple[str | None, str | None]:
-    """(chỉ được sửa ca của acc nào, tên ghi vào "cập nhật bởi"). Tài khoản riêng thì (None, None)."""
-    if not _dung_chung():
-        return None, None
+    """(chỉ được sửa ca của acc nào, tên ghi vào "cập nhật bởi").
+
+    Tài khoản sale dùng chung được sửa mọi ca (chủ app chốt 24/09/2026) nên không chặn ai; chỉ khi đang
+    tick đúng một tên thì ghi tên người đó vào "cập nhật bởi" cho Trưởng phòng biết ai vừa sửa."""
     ds = _ds_acc(acc)
-    if len(ds) != 1:
-        raise nt.LoiNhapTon(CHON_TEN if not ds else CHON_MOT)
-    return ds[0], nt.ten_cua(ds[0]) or ds[0]
+    if not _dung_chung() or len(ds) != 1:
+        return None, None
+    return None, nt.ten_cua(ds[0]) or ds[0]
 
 
 def _ds_acc(acc) -> list[str]:
@@ -383,12 +383,12 @@ def register(app):
         ds_nv = [{"label": _nhan_nv(r), "value": r.acc_norm} for r in tong.itertuples()]
         chon = [a for a in _ds_acc(acc) if a in set(tong.acc_norm)]
         xem = nt.loc(df, chon, nhanh, tim)
-        xem = xem.assign(sua_duoc=not _dung_chung() or len(chon) == 1)
+        xem = xem.assign(sua_duoc=True)           # sale sửa được mọi ca
         dien_thoai = (vw or {}).get("w", 1440) < 768
         tieu_de = " · ".join(x for x in (_tieu_de(tong, chon), TEN_LOC[nhanh], f"{len(xem)} ca") if x)
         mo_ta = f"{len(xem)} / {len(df)} hợp đồng của phòng. Số tồn tính theo file Internet mới nhất đã nạp."
         if _dung_chung() and len(chon) != 1:
-            mo_ta = html.Span([html.B(CHON_TEN if not chon else CHON_MOT, style={"color": "#B42318"}), " ", mo_ta])
+            mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
         return (ds_nv, _pham_vi(tong, chon),
                 _kpi(nt.dem(nt.loc(df, chon)), nhanh, _tieu_de(tong, chon) if chon else "cả phòng"),
                 dong_nv, {**(opts_nv or {}), "pinnedBottomRowData": ghim_nv},

@@ -21,8 +21,8 @@ from app.ui.icons import icon
 from app.ui.luoi import SO, bang
 
 AN = {"display": "none"}
-TOI_LA = "Chọn tên mình để nhập"
-CHON_TEN = "Chọn tên mình ở ô \"Tôi là\" rồi mới nhập được."
+TOI_LA = "Chọn tên mình (để ghi tên)"
+GHI_TEN = "Chọn tên mình ở ô \"Tôi là\" để phần \"cập nhật bởi\" ghi đúng tên."
 SUA = "params.data.sua_duoc"
 # tô cam theo NGƯỜI chưa nhập báo cáo hôm nay, không theo ô bằng 0: KHTN 0 hay ONL sáng 0 là số thật
 THIEU = {"o-thieu": "!params.data.da_nhap"}
@@ -42,6 +42,12 @@ def topbar():
 
 def _dung_chung() -> bool:
     return current_user.role == "nvkd"
+
+
+def nt_ten(acc_norm) -> str | None:
+    """Họ tên của acc đang chọn ở ô "Tôi là" - máy chủ tự tra, không tin tên trình duyệt gửi lên."""
+    from app.nhap_ton import ten_cua
+    return (ten_cua(acc_norm) or acc_norm) if acc_norm else None
 
 
 def _phong_hop_le(code) -> list[str]:
@@ -252,13 +258,13 @@ def register(app):
             return [], _tom_tat(t), [], no_update, [], "Bảng chỉ số toàn bộ nhân sự", \
                 "Phòng chưa có số liệu (chưa nạp file Internet của tháng này)."
         chon = [{"label": r.ho_ten, "value": r.acc_norm} for r in df.itertuples()]
-        df = df.assign(sua_duoc=(df.acc_norm == toi_la) if _dung_chung() else True)
+        df = df.assign(sua_duoc=True)             # sale sửa được mọi dòng (chốt 24/09/2026)
         dien_thoai = (vw or {}).get("w", 1440) < 768
         tieu_de = f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"
         mo_ta = (f"{t['so_nguoi']} nhân sự · {t['chua_nhap']} người chưa nhập. "
                  "Ô có dấu * là sale nhập, còn lại app tự lấy từ file Internet.")
         if _dung_chung() and not toi_la:
-            mo_ta = html.Span([html.B(CHON_TEN, style={"color": "#B42318"}), " ", mo_ta])
+            mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
         return (chon, _tom_tat(t), [] if dien_thoai else df.to_dict("records"),
                 {**(opts or {}), "pinnedBottomRowData": _ghim(df)},
                 _the(df) if dien_thoai else [], tieu_de, mo_ta)
@@ -268,7 +274,7 @@ def register(app):
                   State("bn-toi-la", "value"), prevent_initial_call=True)
     def _luu_o(doi, code, ngay, toi_la):
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
-        chi = toi_la if _dung_chung() else None
+        ten = nt_ten(toi_la) if _dung_chung() else None
         loi = []
         for x in (doi if isinstance(doi, list) else [doi] if doi else []):
             r, cot = x.get("data") or {}, x.get("colId")
@@ -277,7 +283,8 @@ def register(app):
                     bc.dat_muc_tieu(f"{d:%Y-%m}", "NHAN_VIEN", r.get("acc_norm"), "internet",
                                     float(x.get("value") or 0), current_user.username)
                 elif cot in bc.O_NHAP:
-                    bc.luu(r.get("acc_norm"), {cot: x.get("value")}, phong, current_user.username, d, chi)
+                    bc.luu(r.get("acc_norm"), {cot: x.get("value")}, phong, current_user.username, d,
+                           ghi_ten=ten)
             except bc.LoiBaoCao as e:
                 loi.append(str(e))
         return gio_viet_nam().isoformat(), alert(" ".join(loi), "bad") if loi else None
@@ -316,7 +323,7 @@ def register(app):
             return alert("Chưa điền Ghi chú.", "bad"), no_update
         try:
             bc.luu(acc, {"muc_tieu": mt, "khtn": khtn, "onl_sang": sang, "onl_chieu": chieu, "ghi_chu": gc},
-                   phong, current_user.username, d, toi_la if _dung_chung() else None)
+                   phong, current_user.username, d, ghi_ten=nt_ten(toi_la) if _dung_chung() else None)
         except bc.LoiBaoCao as e:
             return alert(str(e), "bad"), no_update
         return "", gio_viet_nam().isoformat()
