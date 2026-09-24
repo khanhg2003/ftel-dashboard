@@ -109,7 +109,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      Ảnh phải giữ đúng mẫu chủ app đưa (nền xanh chuyển màu + vệt chéo + góc cam + tia sét, ba khối số có
      biểu tượng tròn, dòng TỔNG nền cam, ba khối chữ, dải nguồn cuối ảnh) và đúng 8 cột: Nhân sự · MT ngày ·
      KHTN · ONL sáng · ONL chiều · DK ONL · PTTB tháng · Pay (Pay = số V.VIP). Font đi kèm app không có bản
-     nghiêng nên chữ nghiêng làm bằng `_nghieng()` (kéo xiên), đừng thêm file font mới.
+     nghiêng nên chữ nghiêng làm bằng `_nghieng()` (kéo xiên), đừng thêm file font mới. Cỡ chữ trong ảnh
+     phải ĐỌC ĐƯỢC TRÊN ĐIỆN THOẠI: đừng giảm xuống dưới mức hiện tại (dòng số 19, bảng 17, ba khối chữ
+     16,5 ở tỷ lệ vẽ 1). Nút gọi AI hoặc vẽ ảnh phải có `running=` khoá nút + đổi chữ trong lúc chạy,
+     nếu không người dùng bấm lại nhiều lần - mỗi lần là một lượt gọi AI tốn tiền.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền

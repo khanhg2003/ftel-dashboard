@@ -36,7 +36,7 @@ XAM_VONG = "#D5DEE8"
 
 LE = 18
 KHE = 12
-CAO_DONG = 30
+CAO_DONG = 35
 
 
 def _k(v: float) -> int:
@@ -194,15 +194,15 @@ def _dau_the(d, x, y, w, so: str | None, ten: str, bt: str | None = None, cao=34
     d.rounded_rectangle([_k(x), _k(y), _k(x + w), _k(y + cao + 10)], radius=_k(10), fill=NAVY)
     d.rectangle([_k(x), _k(y + cao - 6), _k(x + w), _k(y + cao)], fill=NAVY)
     if so is not None:
-        d.rounded_rectangle([_k(x + 10), _k(y + 7), _k(x + 33), _k(y + cao - 7)], radius=_k(4), fill=CAM)
-        _giua(d, _k(x + 10), _k(y + 7), _k(23), _k(cao - 14), so, _font("rat_dam", 15, TY_LE), TRANG)
+        d.rounded_rectangle([_k(x + 10), _k(y + 7), _k(x + 36), _k(y + cao - 7)], radius=_k(4), fill=CAM)
+        _giua(d, _k(x + 10), _k(y + 7), _k(26), _k(cao - 14), so, _font("rat_dam", 17, TY_LE), TRANG)
     if bt is not None:
-        _bt(d, _k(x + 24), _k(y + cao / 2), _k(12), bt, nen=CAM)
-    f = _font("rat_dam", 17.5 if not giua else 19, TY_LE)
-    _giua(d, _k(x), _k(y), _k(w), _k(cao), ten, f, TRANG, trai=None if giua else _k(44))
+        _bt(d, _k(x + 26), _k(y + cao / 2), _k(14), bt, nen=CAM)
+    f = _font("rat_dam", 19.5 if not giua else 22, TY_LE)
+    _giua(d, _k(x), _k(y), _k(w), _k(cao), ten, f, TRANG, trai=None if giua else _k(48))
 
 
-def _dong_so(img, d, x, y, w, bt: str, nhan: str, gt: str, mau=CHU, co=17, r=14):
+def _dong_so(img, d, x, y, w, bt: str, nhan: str, gt: str, mau=CHU, co=19, r=16):
     """Một dòng "biểu tượng · nhãn: giá trị". Nhãn và giá trị căn giữa chung một ô cao r*2 nên luôn
     thẳng dòng với biểu tượng, không tự tính bằng hệ số như trước (hay lệch, dòng đầu bị đè)."""
     cao = _k(r * 2)
@@ -221,26 +221,26 @@ def _vong_tron(d, cx, cy, r, pct: float):
         d.pieslice(hop, -90, -90 + min(pct, 100) * 3.6, fill=NAVY)
     trong = _k(r * 0.76)
     d.ellipse([_k(cx) - trong, _k(cy) - trong, _k(cx) + trong, _k(cy) + trong], fill=TRANG)
-    _giua(d, _k(cx - r), _k(cy - 19), _k(r * 2), _k(21), f"{pct:g}%", _font("rat_dam", 19, TY_LE), NAVY)
-    _giua(d, _k(cx - r), _k(cy + 4), _k(r * 2), _k(13), "hoàn thành", _font("thuong", 11, TY_LE), CHU_NHAT)
+    _giua(d, _k(cx - r), _k(cy - 21), _k(r * 2), _k(23), f"{pct:g}%", _font("rat_dam", 22, TY_LE), NAVY)
+    _giua(d, _k(cx - r), _k(cy + 5), _k(r * 2), _k(14), "hoàn thành", _font("thuong", 12, TY_LE), CHU_NHAT)
 
 
 def _ba_khoi(img, d, t: dict, y: int) -> int:
-    cao = 268
+    cao = 302
     w = (RONG - LE * 2 - KHE * 2) / 3
     x1, x2, x3 = [LE + (w + KHE) * i for i in range(3)]
     for i, x in enumerate((x1, x2, x3)):
         _the(d, x, y, w, cao)
         _dau_the(d, x, y, w, f"{i + 1}.", [f"KẾT QUẢ NGÀY {t['hom_qua']:%d/%m}",
                                            f"TÌNH HÌNH SÁNG NAY {t['ngay']:%d/%m}", "LUỸ KẾ THÁNG"][i])
-    y0, dx = y + 54, 16
+    y0, dx = y + 60, 16
     ty = t["hq_ty_le"]
     for i, (bt, nhan, gt, mau) in enumerate([
             ("cot", "Kết quả thực tế", f"{_so(t['hq_thuc_te'])} PTTB", CHU),
             ("bia", "Mục tiêu ngày", f"{_so(t['hq_muc_tieu'])} PTTB", CHU),
             ("canh_bao", "Thiếu mục tiêu", f"{_so(t['hq_thieu'])} PTTB", DO if t["hq_thieu"] else XANH_LA),
             ("tang", "Tỷ lệ đạt", f"{ty}%", XANH_LA if ty >= 80 else DO)]):
-        _dong_so(img, d, x1 + dx, y0 + i * 50, w, bt, nhan, gt, mau)
+        _dong_so(img, d, x1 + dx, y0 + i * 57, w, bt, nhan, gt, mau)
 
     for i, (bt, nhan, gt) in enumerate([
             ("thu", "KHTN hiện có", _so(t["khtn"])),
@@ -250,7 +250,7 @@ def _ba_khoi(img, d, t: dict, y: int) -> int:
             ("tang", "Tổng DK Online", _so(t["dk_onl"])),
             ("man_hinh", "Đã Online", _so(t["da_online"])),
             ("nhom", "Còn phải Online", _so(t["con_phai_onl"]))]):
-        _dong_so(img, d, x2 + dx, y0 - 4 + i * 29, w, bt, nhan, gt, co=15, r=12)
+        _dong_so(img, d, x2 + dx, y0 - 6 + i * 33, w, bt, nhan, gt, co=17, r=14)
 
     for i, (bt, nhan, gt, mau) in enumerate([
             ("lich", "PTTB luỹ kế", _so(t["luy_ke"]), CHU),
@@ -258,8 +258,8 @@ def _ba_khoi(img, d, t: dict, y: int) -> int:
             ("canh_bao", "Còn thiếu", _so(t["con_thieu"]), DO if t["con_thieu"] else XANH_LA),
             ("tang", "Tỷ lệ hoàn thành", f"{t['ty_le_thang']:g}%",
              XANH_LA if t["ty_le_thang"] >= 80 else DO)]):
-        _dong_so(img, d, x3 + dx, y0 + i * 50, w - 140, bt, nhan, gt, mau)
-    _vong_tron(d, x3 + w - 20 - 62, y + cao / 2 + 26, 62, t["ty_le_thang"])
+        _dong_so(img, d, x3 + dx, y0 + i * 57, w - 150, bt, nhan, gt, mau)
+    _vong_tron(d, x3 + w - 20 - 68, y + cao / 2 + 28, 68, t["ty_le_thang"])
     return y + cao + KHE
 
 
@@ -272,11 +272,11 @@ def _bang(d, df, y: int, mt_phong: int) -> int:
     w = RONG - LE * 2
     rong = [c[2] for c in COT]
     rong[0] += w - sum(rong)
-    _dau_the(d, LE, y, w, None, "BẢNG CHỈ SỐ TOÀN BỘ NHÂN SỰ", bt="nhom", cao=40, giua=True)
-    y += 40
+    _dau_the(d, LE, y, w, None, "BẢNG CHỈ SỐ TOÀN BỘ NHÂN SỰ", bt="nhom", cao=44, giua=True)
+    y += 44
 
-    f_cot, f_o, f_dam = _font("dam", 14, TY_LE), _font("vua", 15, TY_LE), _font("rat_dam", 15, TY_LE)
-    cao_cot = 34
+    f_cot, f_o, f_dam = _font("dam", 16, TY_LE), _font("vua", 17, TY_LE), _font("rat_dam", 17, TY_LE)
+    cao_cot = 38
     d.rectangle([_k(LE), _k(y), _k(LE + w), _k(y + cao_cot)], fill="#E6ECF3")
     x = LE
     for (ten, khoa, _), rw in zip(COT, rong):
@@ -322,11 +322,11 @@ def _bang(d, df, y: int, mt_phong: int) -> int:
 
 def _cao_khoi_chu(d, chu: dict) -> int:
     w = (RONG - LE * 2 - KHE * 2) / 3
-    f, f_trich = _font("thuong", 14.5, TY_LE), _font("vua", 15.5, TY_LE)
-    can = [len(_xuong_dong(d, chu["thong_diep"], f_trich, _k(w - 74), 9)) * 24 + 38]
+    f, f_trich = _font("thuong", 16.5, TY_LE), _font("vua", 17.5, TY_LE)
+    can = [len(_xuong_dong(d, chu["thong_diep"], f_trich, _k(w - 78), 9)) * 27 + 42]
     for khoa in ("trong_tam", "nhan_dinh"):
-        can.append(sum(len(_xuong_dong(d, m, f, _k(w - 58), 3)) * 20 + 8 for m in _dong_chu(chu[khoa])[:5]))
-    return max(140, min(max(can) + 58, 360))
+        can.append(sum(len(_xuong_dong(d, m, f, _k(w - 64), 3)) * 23 + 9 for m in _dong_chu(chu[khoa])[:5]))
+    return max(152, min(max(can) + 64, 400))
 
 
 def _khoi_chu(img, d, chu: dict, y: int, cao: int) -> int:
@@ -334,43 +334,43 @@ def _khoi_chu(img, d, chu: dict, y: int, cao: int) -> int:
     muc = [("TRỌNG TÂM HÔM NAY", "set", _dong_chu(chu["trong_tam"]), "cham"),
            ("ĐÁNH GIÁ & NHẬN ĐỊNH", "cot", _dong_chu(chu["nhan_dinh"]), "so"),
            ("THÔNG ĐIỆP NGÀY MỚI", "loa", [chu["thong_diep"]] if chu["thong_diep"] else [], "trich")]
-    f, f_trich = _font("thuong", 14.5, TY_LE), _font("vua", 15.5, TY_LE)
+    f, f_trich = _font("thuong", 16.5, TY_LE), _font("vua", 17.5, TY_LE)
     for i, (ten, bt, dong, kieu) in enumerate(muc):
         x = LE + (w + KHE) * i
         _the(d, x, y, w, cao)
-        _dau_the(d, x, y, w, None, ten, bt=bt, cao=36)
-        yy = y + 52
+        _dau_the(d, x, y, w, None, ten, bt=bt, cao=40)
+        yy = y + 58
         if not dong:
             d.text((_k(x + 18), _k(yy)), "(Chưa có nội dung)", font=f, fill=CHU_NHAT)
             continue
         if kieu == "trich":
             d.rounded_rectangle([_k(x + 12), _k(yy - 8), _k(x + w - 12), _k(y + cao - 10)],
                                 radius=_k(8), fill=KEM, outline=CAM_NHAT, width=max(1, _k(1)))
-            fq = _font("rat_dam", 32, TY_LE)
-            d.text((_k(x + 18), _k(yy - 18)), "“", font=fq, fill=CAM)
-            for j, l in enumerate(_xuong_dong(d, dong[0], f_trich, _k(w - 74), 9)):
-                _nghieng(img, _k(x + 38), _k(yy + 8 + j * 24), l, f_trich, CHU)
+            fq = _font("rat_dam", 36, TY_LE)
+            d.text((_k(x + 18), _k(yy - 20)), "“", font=fq, fill=CAM)
+            for j, l in enumerate(_xuong_dong(d, dong[0], f_trich, _k(w - 78), 9)):
+                _nghieng(img, _k(x + 40), _k(yy + 8 + j * 27), l, f_trich, CHU)
             continue
         for j, m in enumerate(dong[:5]):
-            dd = _xuong_dong(d, m, f, _k(w - 58), 3)
+            dd = _xuong_dong(d, m, f, _k(w - 64), 3)
             if kieu == "so":
-                d.ellipse([_k(x + 14), _k(yy - 1), _k(x + 35), _k(yy + 20)], fill=CAM)
-                _giua(d, _k(x + 14), _k(yy - 1), _k(21), _k(21), str(j + 1),
-                      _font("rat_dam", 11.5, TY_LE), TRANG)
+                d.ellipse([_k(x + 14), _k(yy - 1), _k(x + 38), _k(yy + 23)], fill=CAM)
+                _giua(d, _k(x + 14), _k(yy - 1), _k(24), _k(24), str(j + 1),
+                      _font("rat_dam", 13, TY_LE), TRANG)
             else:
-                d.ellipse([_k(x + 19), _k(yy + 5), _k(x + 30), _k(yy + 16)], fill=CAM)
+                d.ellipse([_k(x + 20), _k(yy + 6), _k(x + 32), _k(yy + 18)], fill=CAM)
             for k, l in enumerate(dd):
-                d.text((_k(x + 44), _k(yy + k * 20)), l, font=f, fill=CHU)
-            yy += 20 * len(dd) + 8
+                d.text((_k(x + 48), _k(yy + k * 23)), l, font=f, fill=CHU)
+            yy += 23 * len(dd) + 9
             if yy > y + cao - 20:
                 break
     return y + cao + KHE
 
 
 def _chan(img, d, ngay: date, y: int) -> int:
-    cao, f = 46, _font("vua", 14, TY_LE)
-    _bt(d, _k(LE + 22), _k(y + cao / 2), _k(15), "cot", nen=CAM)
-    _nghieng(img, _k(LE + 48), _k(y + cao / 2) - f.size * 0.80,
+    cao, f = 52, _font("vua", 16, TY_LE)
+    _bt(d, _k(LE + 24), _k(y + cao / 2), _k(17), "cot", nen=CAM)
+    _nghieng(img, _k(LE + 52), _k(y + cao / 2) - f.size * 0.80,
              f"Nguồn số liệu: file Internet đã nạp trên app + phần sale nhập sáng {ngay:%d/%m}", f, TRANG)
     _cham_tron(d, _k(RONG - 200), _k(y + 8), _k(170), _k(24), _k(11), (240, 100, 30, 255))
     return y + cao
@@ -384,7 +384,7 @@ def anh_bao_cao_ngay(phong_code: str, ngay: date | None = None) -> bytes:
     chu = bc.chu(phong_code, ngay)
     ten_phong = {p["code"]: p["ten"] for p in phong_order()}.get(phong_code, phong_code)
 
-    cao = 124 + 268 + KHE + 40 + 34 + CAO_DONG * max(len(df), 1) + 36 + KHE + 360 + KHE + 54
+    cao = 132 + 302 + KHE + 44 + 38 + CAO_DONG * max(len(df), 1) + 42 + KHE + 400 + KHE + 60
     img = Image.new("RGBA", (_k(RONG), _k(cao)))
     _nen(img)
     d = ImageDraw.Draw(img)
@@ -393,12 +393,12 @@ def anh_bao_cao_ngay(phong_code: str, ngay: date | None = None) -> bytes:
     _tia_set(d, _k(RONG - 196), _k(16), _k(74), "#2F6FE4")
     _tia_set(d, _k(RONG - 132), _k(10), _k(82), "#FFC61A")
     t1 = f"BÁO CÁO ĐẦU NGÀY {ngay:%d/%m}"
-    _giua(d, 0, _k(12), _k(RONG), _k(52), t1, _font("rat_dam", 44, TY_LE), TRANG)
-    f2 = _font("vua", 18, TY_LE)
+    _giua(d, 0, _k(12), _k(RONG), _k(56), t1, _font("rat_dam", 48, TY_LE), TRANG)
+    f2 = _font("vua", 20, TY_LE)
     phu = f"{ten_phong} · tình hình hôm nay & chỉ số toàn bộ nhân sự"
-    _nghieng(img, (_k(RONG) - d.textlength(phu, font=f2)) / 2, _k(72), phu, f2, "#CFE2F7")
+    _nghieng(img, (_k(RONG) - d.textlength(phu, font=f2)) / 2, _k(76), phu, f2, "#CFE2F7")
 
-    y = _ba_khoi(img, d, t, 124)
+    y = _ba_khoi(img, d, t, 132)
     if not df.empty:
         y = _bang(d, df, y, t["mt_thang"])
     y = _khoi_chu(img, d, chu, y, _cao_khoi_chu(d, chu))

@@ -121,7 +121,7 @@ def layout():
                                                   style={"minWidth": "220px"})),
                      style={} if _dung_chung() else AN),
             html.Div(className="grow"),
-            html.Button([icon("camera", 14), html.Span("Tạo ảnh báo cáo")], id="bn-png",
+            html.Button([icon("camera", 14), html.Span("Tạo ảnh báo cáo", id="bn-png-chu")], id="bn-png",
                         className="btn primary", n_clicks=0, title="Vẽ ảnh PNG để gửi nhóm Zalo"),
         ], className="toolbar loc-trang"),
         dcc.Download(id="bn-tai"),
@@ -181,14 +181,14 @@ def _khoi_chu():
                   html.Div("Fox viết sẵn từ số liệu, anh/chị sửa lại rồi bấm Lưu. Ảnh lấy đúng phần này.",
                            className="desc", style={"margin": "2px 0 0"}),
                   html.Div(className="grow"),
-                  html.Button([icon("refresh", 14), html.Span("Fox viết giúp")], id="bn-fox",
-                              className="btn", n_clicks=0),
+                  html.Button([icon("refresh", 14), html.Span("Fox viết giúp", id="bn-fox-chu")],
+                              id="bn-fox", className="btn", n_clicks=0),
                   html.Button("Lưu", id="bn-luu-chu", className="btn primary", n_clicks=0)],
                  className="the-thanh"),
         html.Div([html.Div([html.Label([nhan, tip(mo_ta)]),
                             dcc.Textarea(id=i, className="inp", style={"width": "100%", "minHeight": "150px"})],
                            className="field rong") for i, nhan, mo_ta in o], className="form-grid bn-chu"),
-        html.Div(id="bn-chu-msg"),
+        dcc.Loading(html.Div(id="bn-chu-msg"), type="dot"),
     ], className="card")
 
 
@@ -331,7 +331,11 @@ def register(app):
     _dang_ky_chu(app)
 
     @app.callback(Output("bn-tai", "data"), Input("bn-png", "n_clicks"), State("bn-phong", "value"),
-                  State("bn-ngay", "date"), prevent_initial_call=True)
+                  State("bn-ngay", "date"),
+                  running=[(Output("bn-png", "disabled"), True, False),
+                           (Output("bn-png", "className"), "btn primary dang-chay", "btn primary"),
+                           (Output("bn-png-chu", "children"), "Đang vẽ ảnh...", "Tạo ảnh báo cáo")],
+                  prevent_initial_call=True)
     def _anh(_n, code, ngay):
         from app.export_png_ngay import anh_bao_cao_ngay
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
@@ -352,8 +356,14 @@ def _dang_ky_chu(app):
         c = bc.chu(_phong_hop_le(code)[0], _ngay_hop_le(ngay))
         return c["trong_tam"], c["nhan_dinh"], c["thong_diep"]
 
+    # `running`: khoá nút và đổi chữ trong lúc AI viết - không thì người dùng bấm lại nhiều lần,
+    # mỗi lần là một lượt gọi AI tốn tiền
     @app.callback([Output(i, "value", allow_duplicate=True) for i in o], Output("bn-chu-msg", "children"),
                   Input("bn-fox", "n_clicks"), State("bn-phong", "value"), State("bn-ngay", "date"),
+                  running=[(Output("bn-fox", "disabled"), True, False),
+                           (Output("bn-fox", "className"), "btn dang-chay", "btn"),
+                           (Output("bn-fox-chu", "children"), "Fox đang viết...", "Fox viết giúp"),
+                           (Output("bn-luu-chu", "disabled"), True, False)],
                   prevent_initial_call=True)
     def _fox(_n, code, ngay):
         from app.bao_cao_ngay_ai import fox_viet
