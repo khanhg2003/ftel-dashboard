@@ -61,15 +61,15 @@ def trang_thai(loai: str | None, ngay: date | None, phuong_an: str | None, hom: 
     if phuong_an == PA_HUY:
         return "huy", "Đã chọn Huỷ", 9
     if phuong_an == PA_DA_TRIEN_KHAI:
-        return "", "Đã triển khai, chờ online", 7
+        return "", "Đã triển khai · chờ online", 7
     if loai == "tra_ve" and ngay:
         han_chot = ngay + timedelta(days=han)
         con = (han_chot - hom).days
         if con < 0:
-            return "do", f"Quá hạn xử lý {-con} ngày, HĐ có thể đã tự huỷ", 0
+            return "do", f"Quá hạn {-con} ngày · có thể đã tự huỷ", 0
         if con == 0:
-            return "do", f"Trả về, hạn chót hôm nay ({han_chot:%d/%m})", 1
-        return "do", f"Trả về, còn {con} ngày để xử lý (hạn {han_chot:%d/%m})", 1
+            return "do", "Trả về · hạn hết hôm nay", 1
+        return "do", f"Trả về · còn {con} ngày (hạn {han_chot:%d/%m})", 1
     if loai == "hen" and ngay:
         tre = (hom - ngay).days
         if tre > 0:

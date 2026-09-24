@@ -30,10 +30,11 @@ def test_tra_ve_han_chot_la_het_ngay_d_cong_3():
     d = date(2026, 9, 19)
     muc, chu, _ = nt.trang_thai("tra_ve", d, None, date(2026, 9, 21))
     assert muc == "do" and "còn 1 ngày" in chu and "22/09" in chu
+    assert len(chu) <= 34, "chữ cảnh báo phải ngắn, cột hẹp - dài quá là dòng cao 5 hàng"
     muc, chu, _ = nt.trang_thai("tra_ve", d, None, date(2026, 9, 22))
-    assert muc == "do" and "hạn chót hôm nay" in chu
+    assert muc == "do" and "hạn hết hôm nay" in chu
     muc, chu, thu_tu = nt.trang_thai("tra_ve", d, None, date(2026, 9, 23))
-    assert muc == "do" and "Quá hạn xử lý 1 ngày" in chu and thu_tu == 0      # quá hạn đứng đầu cụm
+    assert muc == "do" and "Quá hạn 1 ngày" in chu and thu_tu == 0      # quá hạn đứng đầu cụm
 
 
 def test_hen_thi_cong_qua_ngay_bao_do_dung_hom_nay_bao_vang():
@@ -200,6 +201,32 @@ def test_bang_theo_nhan_vien_va_dong_ca_phong():
     assert ghim[0]["ton"] == 15 and ghim[0]["gap"] == 2 and ghim[0]["chua_cap_nhat"] == 9 and ghim[0]["pct"] == 40
     assert _dong_nv(pd.DataFrame()) == ([], [])
     assert [c["field"] for c in _cot_nv()][:3] == ["ho_ten", "acc", "ton"]
+
+
+def test_bon_o_so_noi_ro_dang_dem_cho_ai():
+    """Chu app hoi "tong ton 16 la sao?": 4 o dem theo o Nhan vien dang tick nen phai ghi ro pham vi."""
+    import pandas as pd
+
+    from app.ui.pages.nhapton import _kpi, _pham_vi
+    tong = pd.DataFrame({"acc_norm": ["a", "b"], "acc": ["DNG.A", "DNG.B"], "ho_ten": ["An", "Binh"],
+                         "ton": [16, 153], "gap": [5, 44], "den_han": [0, 8], "chua_cap_nhat": [4, 76]})
+    chu = "".join(x if isinstance(x, str) else x.children for x in _pham_vi(tong, []))
+    assert "cả phòng" in chu and "2 nhân viên" in chu and "169 ca" in chu
+    chu = "".join(x if isinstance(x, str) else x.children for x in _pham_vi(tong, ["a"]))
+    assert "chỉ là số của" in chu and "An" in chu and "Bỏ tick" in chu
+    d = {"ton": 16, "chua_cap_nhat": 4, "gap": 5, "den_han": 0, "tra_ve": 0, "qua_hen": 5, "huy": 0}
+    assert _kpi(d, "all", "An")[0].children[2].children == "Tất cả ca của An"
+
+
+def test_bang_nhan_vien_xep_nguoi_con_nhieu_viec_len_dau():
+    import pandas as pd
+
+    from app.ui.pages.nhapton import _dong_nv
+    tong = pd.DataFrame({"acc_norm": ["a", "b", "c"], "acc": ["A", "B", "C"], "ho_ten": ["An", "Bình", "Chi"],
+                         "ton": [4, 17, 14], "gap": [0, 5, 8], "den_han": [0, 0, 2],
+                         "chua_cap_nhat": [4, 8, 1]})
+    ds, _ = _dong_nv(tong)
+    assert [r["ho_ten"] for r in ds] == ["Chi", "Bình", "An"]           # gấp nhiều nhất lên đầu
 
 
 def test_dong_tieu_de_cum_gon_va_bo_khi_xem_mot_nguoi():

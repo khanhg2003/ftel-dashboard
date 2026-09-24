@@ -1071,6 +1071,8 @@ table.simple tr:last-child td { border-bottom: none; }
 #nt-luoi .ag-header-cell.vung-sale { border-left: 2px solid #E4D3B2; }
 #nt-luoi .ag-row:not(.dong-nhom):hover .ag-cell.o-sale { background: #FFF6E4; }
 #nt-nv-luoi .ag-row { cursor: pointer; }
+.nt-pham-vi { font-size: 12.5px; color: var(--text-muted); margin: -4px 0 10px; }
+.nt-pham-vi b { color: var(--text); font-weight: 650; }
 #nt-luoi .ag-cell-wrap-text { line-height: 1.45; padding-top: 6px; padding-bottom: 6px; word-break: break-word; }
 /* Phương án: nhãn màu như sheet cũ */
 #nt-luoi .ag-cell.pa-cho .ag-cell-value, .pa.pa-cho { background: #E8EAED; color: #3C4043; }

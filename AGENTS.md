@@ -92,7 +92,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      bảng **Theo nhân viên** (dòng ghim cuối "Cả phòng", bấm một dòng là tick người đó ở ô Nhân viên) chỉ hiện
      trên laptop - điện thoại đã có dòng tóm tắt đầu mỗi cụm thẻ. Ô bắt buộc chưa điền dùng viền nhạt + chữ gợi
      ý trong ô (`#nt-luoi .ag-cell.o-thieu ... ::after`), KHÔNG tô khối cam đậm: 30 ca trống sẽ thành một bức
-     tường cam. Xem đúng một người thì bỏ dòng tiêu đề cụm.
+     tường cam. Xem đúng một người thì bỏ dòng tiêu đề cụm. 4 ô số đếm theo ô Nhân viên đang tick, nên PHẢI có
+     dòng phạm vi `#nt-pham-vi` ngay trên (chủ app đọc "Tổng tồn 16" tưởng là cả phòng). Chữ cảnh báo giữ dưới
+     ~34 ký tự, cột hẹp nên dài hơn là dòng cao 5 hàng (có test chặn). Laptop nhập bằng Tab: ghi chú → mốc →
+     ngày → phương án, mỗi ô tự lưu.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: các dòng tổng hiện USD và VNĐ trên hai dòng trong cùng một ô (chủ app yêu cầu 24/09/2026).
      Cột của bảng này phải có `colId` kèm tên chỉ số: dash-ag-grid giữ `valueFormatter` đã biên dịch theo

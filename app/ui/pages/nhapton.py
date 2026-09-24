@@ -16,7 +16,7 @@ from app import nhap_ton as nt
 from app.auth import ghi_log
 from app.org import phong_order
 from app.thoi_gian import gio_viet_nam
-from app.ui.components import alert, field, modal, seg_control
+from app.ui.components import alert, field, modal, seg_control, tip
 from app.ui.icons import icon
 from app.ui.luoi import PCT, SO, bang
 
@@ -132,7 +132,7 @@ def _cot_nv() -> list[dict]:
         {"field": "chua_cap_nhat", "headerName": "Chưa cập nhật", **so, "cellStyle": MAU_VANG,
          "headerTooltip": "Còn thiếu ghi chú, mốc hoặc phương án."},
         {"field": "pct", "headerName": "Đã cập nhật", **so, "valueFormatter": PCT, "cellStyle": MAU_XONG,
-         "headerTooltip": "Phần trăm ca đã điền đủ 3 mục bắt buộc."},
+         "headerTooltip": "Phần trăm ca đã điền đủ 3 mục bắt buộc.\nCa đã chọn Huỷ tính là xong."},
     ]
 
 
@@ -155,14 +155,16 @@ def layout():
         dcc.Store(id="nt-da-luu"),
         dcc.Store(id="nt-nhanh", data="all"),
         html.Div(id="nt-msg"),
+        html.Div(id="nt-pham-vi", className="nt-pham-vi"),
         html.Div(id="nt-kpi", className="kpi-row kpi-4"),
 
         html.Div([
             html.Div([html.H3("Theo nhân viên", style={"margin": 0}),
-                      html.Div("Ai còn nhiều ca chưa xử lý. Dòng cuối là cả phòng.",
+                      html.Div("Người còn nhiều việc xếp lên đầu. Dòng cuối là cả phòng. "
+                               "Bấm tiêu đề cột để xếp lại.",
                                className="desc", style={"margin": "2px 0 0"})],
                      className="the-thanh"),
-            bang("nt-nv-luoi", _cot_nv(), cao=300, lop="ag-theme-quartz ag-theme-ftel luoi-ke",
+            bang("nt-nv-luoi", _cot_nv(), cao=356, lop="ag-theme-quartz ag-theme-ftel luoi-ke",
                  cot_mac_dinh={"resizable": True, "sortable": True, "suppressMovable": True,
                                "wrapHeaderText": True, "autoHeaderHeight": True},
                  tuy_chon=dict(OPTS_NV)),
@@ -179,7 +181,6 @@ def layout():
                     persistence_type="local", className="nt-o-nv")),
                 field("Tìm", dcc.Input(id="nt-tim", type="search", placeholder="Mã HĐ hoặc tên KH",
                                        className="o-tim", debounce=True)),
-                html.Div(className="grow"),
                 html.Button([icon("download", 14), html.Span("Excel")], id="nt-xls", className="btn nt-nut",
                             title="Xuất đúng danh sách đang lọc", style={} if xem_tong else AN),
             ], className="toolbar nt-loc"),
@@ -197,20 +198,22 @@ def layout():
                                                       "dong-vang": f"{LA_CA} && params.data.muc == 'vang'"}}),
                      className="nt-laptop"),
             html.Div(id="nt-the", className="nt-dien-thoai"),
-            html.Div("Bấm vào ô để sửa, sửa xong tự lưu. Ô có viền cam là mục bắt buộc chưa điền.",
+            html.Div("Bấm vào ô để sửa, sửa xong tự lưu. Nhấn Tab để nhảy sang ô kế tiếp: "
+                     "ghi chú → mốc → ngày → phương án, không cần dùng chuột. "
+                     "Ô viền cam là mục bắt buộc chưa điền.",
                      className="goi-y-bam nt-laptop"),
         ], className="card"),
 
         _nap_sheet() if xem_tong else None,
         modal("nt-md", html.Span(id="nt-md-tieu-de"), [
             dcc.Store(id="nt-md-hd"),
-            html.Div(id="nt-md-dau", className="desc"),
+            html.Div(id="nt-md-dau", className="desc", style={"margin": "0 0 14px"}),
             html.Div([
                 html.Div([html.Label("Ghi chú tình trạng *"),
                           dcc.Textarea(id="nt-f-ghi-chu", className="inp", maxLength=nt.GHI_CHU_TOI_DA,
                                        placeholder=GOI_Y_GHI_CHU, style={"width": "100%", "minHeight": "90px"})],
                          className="field rong"),
-                html.Div([html.Label("Mốc tick hẹn (PTC) *"),
+                html.Div([html.Label(["Mốc tick hẹn (PTC) *", tip(GOI_Y_MOC.format(han=ch["han_tra_ve"]))]),
                           seg_control("nt-f-loai", list(nt.LOAI_MOC.items()), "hen")], className="field rong"),
                 html.Div([html.Label("Ngày mốc *"), dcc.Input(id="nt-f-ngay", type="date", className="inp")],
                          className="field rong"),
@@ -218,7 +221,6 @@ def layout():
                           dcc.Dropdown(id="nt-f-pa", options=ch["phuong_an"], searchable=False,
                                        placeholder="Chọn phương án")], className="field rong"),
             ], className="form-grid"),
-            html.Div(GOI_Y_MOC.format(han=ch["han_tra_ve"]), className="desc", style={"whiteSpace": "pre-line"}),
             html.Div(id="nt-md-msg"),
         ]),
     ])
@@ -302,9 +304,12 @@ def _moc_chu(r) -> str:
     return f"{nt.LOAI_MOC.get(r.loai_moc, r.loai_moc)} {r.ngay_moc[8:10]}/{r.ngay_moc[5:7]}"
 
 
-def _kpi(d: dict, nhanh: str) -> list:
-    """4 ô số cũng là 4 nút lọc: bấm ô nào thì danh sách chỉ còn các ca đó, bấm lại ô Tổng tồn để xem hết."""
-    o = [("all", "Tổng tồn", d["ton"], f"{d['huy']} ca đã chọn Huỷ" if d["huy"] else "Xem tất cả ca", ""),
+def _kpi(d: dict, nhanh: str, ai: str = "cả phòng") -> list:
+    """4 ô số cũng là 4 nút lọc: bấm ô nào thì danh sách chỉ còn các ca đó, bấm lại ô Tổng tồn để xem hết.
+
+    `ai`: 4 ô đếm theo ô Nhân viên đang tick, nên phải ghi rõ đang là cả phòng hay của ai."""
+    goi_y = " · ".join(x for x in (f"Tất cả ca của {ai}", f"{d['huy']} đã chọn Huỷ" if d["huy"] else "") if x)
+    o = [("all", "Tổng tồn", d["ton"], goi_y, ""),
          ("gap", "Cần xử lý gấp", d["gap"], f"Trả về {d['tra_ve']} · Quá hẹn {d['qua_hen']}",
           "bad" if d["gap"] else "ok"),
          ("den_han", "Đến hạn hôm nay", d["den_han"], "Hẹn thi công đúng hôm nay", "warn" if d["den_han"] else ""),
@@ -327,11 +332,22 @@ def _nhan_nv(r) -> str:
     return f"{r.ho_ten} · " + " · ".join(phan)
 
 
+def _pham_vi(tong: pd.DataFrame, chon: list[str]) -> list:
+    """Nói rõ 4 ô số đang đếm cho ai - nếu không, tick một người xong thì "Tổng tồn 16" đọc ra như cả phòng."""
+    if not chon:
+        return ["Bốn ô dưới đây là số của ", html.B("cả phòng"),
+                f" · {len(tong)} nhân viên · {int(tong.ton.sum())} ca."]
+    return ["Bốn ô dưới đây chỉ là số của ", html.B(_tieu_de(tong, chon)),
+            ". Bỏ tick ở ô Nhân viên để xem lại cả phòng."]
+
+
 def _dong_nv(tong: pd.DataFrame) -> tuple[list[dict], list[dict]]:
-    """(mỗi nhân viên một dòng, dòng ghim "Cả phòng"). `pct` = % ca đã điền đủ 3 mục."""
+    """(mỗi nhân viên một dòng, dòng ghim "Cả phòng"). `pct` = % ca đã điền đủ 3 mục.
+    Xếp người còn nhiều việc lên đầu: gấp -> chưa cập nhật -> tồn nhiều."""
     cot = ["acc_norm", "ho_ten", "acc", "ton", "gap", "den_han", "chua_cap_nhat"]
     if tong.empty:
         return [], []
+    tong = tong.sort_values(["gap", "chua_cap_nhat", "ton"], ascending=False)
     ds = [{**{c: (r[c] if c in ("acc_norm", "ho_ten", "acc") else int(r[c])) for c in cot},
            "pct": round(100 * (r["ton"] - r["chua_cap_nhat"]) / r["ton"]) if r["ton"] else 100}
           for r in tong.to_dict("records")]
@@ -349,7 +365,7 @@ def _tieu_de(tong: pd.DataFrame, chon: list[str]) -> str:
 
 # ------------------------------------------------------------------ callbacks
 def register(app):
-    @app.callback(Output("nt-nv", "options"), Output("nt-kpi", "children"),
+    @app.callback(Output("nt-nv", "options"), Output("nt-pham-vi", "children"), Output("nt-kpi", "children"),
                   Output("nt-nv-luoi", "rowData"), Output("nt-nv-luoi", "dashGridOptions"),
                   Output("nt-luoi", "rowData"), Output("nt-the", "children"), Output("nt-tieu-de-ds", "children"),
                   Output("nt-mo-ta", "children"),
@@ -360,7 +376,7 @@ def register(app):
         nhanh = nhanh if nhanh in TEN_LOC else "all"
         df = nt.danh_sach(_phong_hop_le(code))
         if df.empty:
-            return [], _kpi(nt.dem(df), nhanh), [], no_update, [], [], "Danh sách hợp đồng tồn", \
+            return [], [], _kpi(nt.dem(df), nhanh), [], no_update, [], [], "Danh sách hợp đồng tồn", \
                 "Phòng chưa có hợp đồng tồn (hoặc chưa nạp file Internet)."
         tong = nt.tong_hop_nv(df)
         dong_nv, ghim_nv = _dong_nv(tong)
@@ -373,7 +389,8 @@ def register(app):
         mo_ta = f"{len(xem)} / {len(df)} hợp đồng của phòng. Số tồn tính theo file Internet mới nhất đã nạp."
         if _dung_chung() and len(chon) != 1:
             mo_ta = html.Span([html.B(CHON_TEN if not chon else CHON_MOT, style={"color": "#B42318"}), " ", mo_ta])
-        return (ds_nv, _kpi(nt.dem(nt.loc(df, chon)), nhanh),
+        return (ds_nv, _pham_vi(tong, chon),
+                _kpi(nt.dem(nt.loc(df, chon)), nhanh, _tieu_de(tong, chon) if chon else "cả phòng"),
                 dong_nv, {**(opts_nv or {}), "pinnedBottomRowData": ghim_nv},
                 [] if dien_thoai else _dong_luoi(xem, len(chon) != 1),
                 _the(xem) if dien_thoai else [], tieu_de, mo_ta)
@@ -427,7 +444,9 @@ def register(app):
         if r.empty:
             raise PreventUpdate
         r = r.iloc[0]
-        dau = f"{r.ten_khach_hang or 'Khách hàng'} · {r.ho_ten} · tạo {r.ngay_tao_hd[8:10]}/{r.ngay_tao_hd[5:7]}"
+        dau = [f"{r.ten_khach_hang or 'Khách hàng'} · {r.ho_ten} · tạo {r.ngay_tao_hd[8:10]}/"
+               f"{r.ngay_tao_hd[5:7]} · chờ {int(r.so_ngay_cho)} ngày",
+               html.Span(f" · {r.canh_bao}", className=f"nt-cb {r.muc}") if r.canh_bao else None]
         return ("modal mo", f"Cập nhật {r.hop_dong}", r.hop_dong, dau, r.ghi_chu, r.loai_moc or "hen",
                 r.ngay_moc or None, r.phuong_an or None, "")
 
