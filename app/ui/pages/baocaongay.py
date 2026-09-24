@@ -25,7 +25,7 @@ TOI_LA = "Chọn tên mình (để ghi tên)"
 GHI_TEN = "Chọn tên mình ở ô \"Tôi là\" để phần \"cập nhật bởi\" ghi đúng tên."
 SUA = "params.data.sua_duoc"
 # tô cam theo NGƯỜI chưa nhập báo cáo hôm nay, không theo ô bằng 0: KHTN 0 hay ONL sáng 0 là số thật
-THIEU = {"o-thieu": "!params.data.da_nhap"}
+THIEU = {"o-thieu": "!params.data.da_nhap && !params.data.la_tong"}
 # chưa nhập thì để ô trống chứ không hiện 0, nhìn là biết ngay ai còn thiếu
 SO_NHAP = {"function": "params.data.da_nhap ? " + SO["function"] + " : ''"}
 GOI_Y = ("Mục tiêu bán của riêng hôm nay.\nKHTN là khách đang theo, chưa lên hợp đồng.\n"
@@ -88,7 +88,8 @@ def _cot() -> list[dict]:
          "headerTooltip": "Luỹ kế online từ đầu tháng. App tự lấy."},
         {"field": "mt_thang", "headerName": "MT tháng *", "headerClass": "vung-sale",
          "headerTooltip": "Mục tiêu cả tháng của người này.\nNhập một lần đầu tháng, app nhớ cho các ngày sau.",
-         **{**sua, "valueFormatter": SO, "cellClassRules": {"o-thieu": "!params.value"}}},
+         **{**sua, "valueFormatter": SO,
+            "cellClassRules": {"o-thieu": "!params.value && !params.data.la_tong"}}},
         {"field": "vvip_thang", "headerName": "V.VIP", **doc,
          "headerTooltip": "Số V.VIP luỹ kế tháng (cột \"Pay\" trong ảnh báo cáo). App tự lấy."},
         # ghi chú để MỘT dòng, xem đủ bằng rê chuột: cột hẹp mà xuống dòng thì 17 người thành bảng dài
@@ -215,11 +216,13 @@ def _tom_tat(t: dict) -> list:
 
 
 def _ghim(df: pd.DataFrame) -> list[dict]:
+    """Dòng TỔNG ghim cuối bảng. `da_nhap` / `la_tong` để dòng này không dính hai quy tắc của dòng
+    người: "chưa nhập thì để ô trống" (nếu không cả dòng tổng sẽ trắng) và tô cam ô còn thiếu."""
     if df.empty:
         return []
     c = ["muc_tieu", "khtn", "onl_sang", "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl",
          "pttb_thang", "mt_thang", "vvip_thang"]
-    return [{"ho_ten": "TỔNG", **{k: int(df[k].sum()) for k in c}}]
+    return [{"ho_ten": "TỔNG", "da_nhap": True, "la_tong": True, **{k: int(df[k].sum()) for k in c}}]
 
 
 def _the(df: pd.DataFrame) -> list:

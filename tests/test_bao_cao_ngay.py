@@ -114,6 +114,19 @@ def test_muc_tieu_tung_nguoi_khong_dung_vao_muc_tieu_phong(mot_nguoi):
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi].mt_thang == 60
 
 
+def test_dong_tong_co_du_so(mot_nguoi):
+    """Dòng TỔNG phải mang cờ `da_nhap` / `la_tong`, nếu không quy tắc "chưa nhập thì để ô trống"
+    ăn luôn cả dòng tổng (chủ app báo 24/09/2026: bốn ô đầu của dòng TỔNG bị trắng)."""
+    from app.ui.pages.baocaongay import _ghim
+    bc.luu(mot_nguoi, {"muc_tieu": 2, "khtn": 3, "onl_sang": 1, "onl_chieu": 2}, PHONG, "kiemthu.tp", NGAY)
+    df = bc.bang(PHONG, NGAY)
+    g = _ghim(df)[0]
+    assert g["da_nhap"] is True and g["la_tong"] is True
+    assert g["muc_tieu"] == int(df.muc_tieu.sum()) and g["khtn"] == int(df.khtn.sum())
+    assert g["onl_sang"] == int(df.onl_sang.sum()) and g["onl_chieu"] == int(df.onl_chieu.sum())
+    assert _ghim(df.iloc[0:0]) == []
+
+
 # ------------------------------------------------------------------ quyền
 def test_quyen_theo_phong():
     assert _tk("nvkd", ["IBB7"]).phong_bao_cao_ngay() == ["IBB7"]

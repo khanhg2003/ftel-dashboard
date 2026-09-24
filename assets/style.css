@@ -1127,6 +1127,7 @@ table.simple tr:last-child td { border-bottom: none; }
 }
 #bn-luoi .ag-cell.o-dam { font-weight: 600; }
 #bn-luoi .ag-cell.o-sale { background: #FEFCF7; }
+#bn-luoi .ag-floating-bottom .ag-cell.o-sale { background: #EEF4FA; }   /* dòng TỔNG giữ nền của nó */
 #bn-luoi .ag-cell.o-thieu { background: #FFFAF0; box-shadow: inset 0 0 0 1px #F0DCBE; }
 #bn-luoi .ag-header-cell.vung-sale { border-bottom: 2px solid #E4D3B2; }
 #bn-luoi .ag-row:hover .ag-cell.o-sale { background: #FFF6E4; }
