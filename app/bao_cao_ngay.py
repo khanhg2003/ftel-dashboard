@@ -1,9 +1,12 @@
 """Báo cáo đầu ngày của phòng kinh doanh (thay sheet "Mục tiêu và công việc đầu ngày").
 
 Chốt với chủ app 24/09/2026:
-- Sale chỉ nhập 5 ô: mục tiêu bán hôm nay, KHTN đang có, dự kiến online sáng, dự kiến online chiều, ghi chú.
-  Mọi số khác app tự lấy từ file đã nạp (thực hiện hôm nay, đã online, PTTB luỹ kế tháng, số V.VIP),
-  để số trong báo cáo luôn khớp Báo cáo phòng - không có hai nguồn số.
+- Sale nhập 6 ô: mục tiêu bán hôm nay, KHTN đang có, dự kiến online sáng, dự kiến online chiều,
+  đã online, ghi chú. PTTB luỹ kế tháng và số V.VIP app tự lấy từ file đã nạp, để luôn khớp
+  Báo cáo phòng - không có hai nguồn số.
+- "Đã online" (chốt 25/09/2026): file Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn
+  bằng 0, "còn phải online" thành vô nghĩa. Cho sale gõ tay, và lấy số LỚN HƠN giữa số gõ tay và
+  số từ file: file chỉ có thể chậm chứ không đếm dư, nên cách này không bao giờ báo thiếu.
 - Mục tiêu tháng của từng người nhập ngay trong bảng này, lưu vào `target_monthly` với
   `doi_tuong = "NHAN_VIEN"` (mọi chỗ khác đều lọc `doi_tuong = 'PHONG'` nên không đụng nhau).
   Mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có sẵn của Báo cáo Tổng.
@@ -25,7 +28,7 @@ from app.metrics import month_range
 from app.models import AuditLog, BaoCaoNgay, BaoCaoNgayChu, Target
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
-O_NHAP = ("muc_tieu", "khtn", "onl_sang", "onl_chieu", "ghi_chu")
+O_NHAP = ("muc_tieu", "khtn", "onl_sang", "onl_chieu", "da_online", "ghi_chu")
 GHI_CHU_TOI_DA = 400
 TOI_DA = 999                       # chặn gõ nhầm 9999
 _da_tao = False
@@ -40,6 +43,10 @@ def dam_bao_bang() -> None:
     if not _da_tao:
         BaoCaoNgay.__table__.create(engine, checkfirst=True)
         BaoCaoNgayChu.__table__.create(engine, checkfirst=True)
+        from sqlalchemy import inspect
+        if "da_online" not in {c["name"] for c in inspect(engine).get_columns("bao_cao_ngay")}:
+            with engine.begin() as c:                                  # cột thêm sau (25/09/2026)
+                c.execute(text("ALTER TABLE bao_cao_ngay ADD COLUMN da_online INTEGER"))
         _da_tao = True
 
 
@@ -115,7 +122,7 @@ def _vvip_theo_acc(phong: list[str], tu: str, den: str) -> pd.Series:
 
 
 def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
-    """Mỗi dòng một nhân sự của phòng: 5 ô sale nhập + các số app tự lấy.
+    """Mỗi dòng một nhân sự của phòng: 6 ô sale nhập + các số app tự lấy.
 
     Danh sách người = người có bán trong tháng, cộng người đã nhập báo cáo hôm nay (người mới chưa có số)."""
     dam_bao_bang()
@@ -133,15 +140,15 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
          if len(hd) else pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"],
                                       index=pd.Index([], name="acc_norm")))
     hom = hd[hd.ngay_online.dt.date == ngay] if len(hd) else hd
-    g["thuc_hien"] = (hom.groupby("acc_norm").size().reindex(g.index).fillna(0).astype(int)
-                      if len(g) else pd.Series(dtype=int))
+    g["onl_file"] = (hom.groupby("acc_norm").size().reindex(g.index).fillna(0).astype(int)
+                     if len(g) else pd.Series(dtype=int))
     df = g.reset_index()
     # người chỉ bán V.VIP (chưa có hợp đồng Internet online) cũng phải có dòng, nếu không
     # dòng TỔNG sẽ thiếu V.VIP so với Báo cáo phòng
     thieu = (set(nhap.acc_norm) | set(vvip.index)) - set(df.acc_norm)
     if thieu:
         them = pd.DataFrame({"acc_norm": sorted(thieu), "acc": sorted(thieu), "phong_code": phong[0],
-                             "pttb_thang": 0, "thuc_hien": 0})
+                             "pttb_thang": 0, "onl_file": 0})
         df = pd.concat([df, them], ignore_index=True)
     df["vvip_thang"] = df.acc_norm.map(vvip).fillna(0).astype(int)
 
@@ -153,6 +160,11 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     for c in ("muc_tieu", "khtn", "onl_sang", "onl_chieu"):
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
     df["ghi_chu"] = df.ghi_chu.where(df.ghi_chu.notna(), "")
+    # "Đã online": lấy số LỚN HƠN giữa số sale gõ tay và số từ file. File Internet chỉ về vào hôm sau
+    # nên buổi sáng số file luôn 0; ngược lại file có thể ghi nhận ca sale chưa kịp đếm. File không
+    # bao giờ đếm dư, nên lấy số lớn hơn thì không bao giờ báo thiếu.
+    df["da_online"] = pd.to_numeric(df.get("da_online"), errors="coerce")
+    df["thuc_hien"] = df[["onl_file", "da_online"]].max(axis=1).fillna(0).astype(int)
     df["dk_onl"] = df.onl_sang + df.onl_chieu
     df["con_phai_onl"] = (df.dk_onl - df.thuc_hien).clip(lower=0)
     df["da_nhap"] = df.acc_norm.isin(set(nhap.acc_norm))       # đã có bản ghi hôm nay hay chưa

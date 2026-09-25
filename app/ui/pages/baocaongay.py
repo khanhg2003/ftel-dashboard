@@ -1,4 +1,4 @@
-"""Trang Báo cáo ngày - sale nhập 5 ô đầu ngày, cả phòng nhìn một bảng (quy tắc: app/bao_cao_ngay.py).
+"""Trang Báo cáo ngày - sale nhập 6 ô đầu ngày, cả phòng nhìn một bảng (quy tắc: app/bao_cao_ngay.py).
 
 Laptop: sửa ngay trong ô như Google Sheet, tự lưu từng ô. Điện thoại (< 768 px): mỗi người một thẻ,
 bấm thẻ mở form. Nút "Tạo ảnh báo cáo" vẽ PNG gửi nhóm. Mọi callback kiểm lại phòng được xem ở máy chủ.
@@ -66,7 +66,9 @@ def _ngay_hop_le(v) -> date:
 
 
 def _cot() -> list[dict]:
-    sua = {"editable": {"function": SUA}, "cellClass": "o-sale", "cellClassRules": THIEU,
+    # cellClass phải kèm "ag-right-aligned-cell": đặt cellClass cho cột numericColumn thì mất lớp
+    # căn phải của kiểu cột, số trong ô sale nhập sẽ lệch hàng với các cột số còn lại
+    sua = {"editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale", "cellClassRules": THIEU,
            "type": "numericColumn", "valueFormatter": SO_NHAP, "width": 84, "minWidth": 74, "maxWidth": 104}
     doc = {"type": "numericColumn", "valueFormatter": SO, "width": 84, "minWidth": 72, "maxWidth": 104}
     return [
@@ -81,8 +83,12 @@ def _cot() -> list[dict]:
          **sua},
         {"field": "dk_onl", "headerName": "DK ONL", **doc, "cellStyle": {"fontWeight": "700"},
          "headerTooltip": "Dự kiến online cả ngày = sáng + chiều. App tự cộng."},
-        {"field": "thuc_hien", "headerName": "Đã online", **doc,
-         "headerTooltip": "Số online hôm nay của người này.\nApp tự lấy từ file Internet đã nạp."},
+        # sale gõ tay được: file Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn là 0,
+        # không gõ được thì "Còn phải ONL" vô nghĩa. Hiện số lớn hơn giữa số gõ tay và số từ file.
+        {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **doc,
+         "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale",
+         "headerTooltip": "Số đã online hôm nay của người này.\nSale gõ tay trong ngày; khi file Internet "
+                          "về thì app lấy số lớn hơn giữa hai bên."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON},
         {"field": "pttb_thang", "headerName": "PTTB tháng", **doc, "cellStyle": {"fontWeight": "700"},
          "headerTooltip": "Luỹ kế online từ đầu tháng. App tự lấy."},
@@ -154,6 +160,7 @@ def layout():
             html.Div([
                 _o_so("bn-f-mt", "Mục tiêu ngày *"), _o_so("bn-f-khtn", "KHTN đang có *"),
                 _o_so("bn-f-sang", "Dự kiến ONL sáng *"), _o_so("bn-f-chieu", "Dự kiến ONL chiều *"),
+                _o_so("bn-f-onl", "Đã online *"),
             ], className="form-grid"),
             html.Div([html.Label("Ghi chú *"),
                       dcc.Textarea(id="bn-f-ghi-chu", className="inp", maxLength=bc.GHI_CHU_TOI_DA,
@@ -285,8 +292,10 @@ def register(app):
                 if cot == "mt_thang":
                     bc.dat_muc_tieu(f"{d:%Y-%m}", "NHAN_VIEN", r.get("acc_norm"), "internet",
                                     float(x.get("value") or 0), current_user.username)
-                elif cot in bc.O_NHAP:
-                    bc.luu(r.get("acc_norm"), {cot: x.get("value")}, phong, current_user.username, d,
+                elif cot in bc.O_NHAP or cot == "thuc_hien":
+                    # cột "Đã online" hiện số đã gộp với file, nhưng gõ vào thì lưu vào ô nhập tay
+                    o = "da_online" if cot == "thuc_hien" else cot
+                    bc.luu(r.get("acc_norm"), {o: x.get("value")}, phong, current_user.username, d,
                            ghi_ten=ten)
             except bc.LoiBaoCao as e:
                 loi.append(str(e))
@@ -295,13 +304,13 @@ def register(app):
     @app.callback(Output("bn-md", "className"), Output("bn-md-tieu-de", "children"),
                   Output("bn-md-acc", "data"), Output("bn-md-dau", "children"), Output("bn-f-mt", "value"),
                   Output("bn-f-khtn", "value"), Output("bn-f-sang", "value"), Output("bn-f-chieu", "value"),
-                  Output("bn-f-ghi-chu", "value"), Output("bn-md-msg", "children"),
+                  Output("bn-f-onl", "value"), Output("bn-f-ghi-chu", "value"), Output("bn-md-msg", "children"),
                   Input({"type": "bn-the", "acc": ALL}, "n_clicks"), Input("bn-md-dong", "n_clicks"),
                   Input("bn-md-huy", "n_clicks"), Input("bn-da-luu", "data"), State("bn-phong", "value"),
                   State("bn-ngay", "date"), prevent_initial_call=True)
     def _mo_form(bam, _d, _h, _l, code, ngay):
         if not isinstance(ctx.triggered_id, dict):
-            return ("modal",) + (no_update,) * 9
+            return ("modal",) + (no_update,) * 10
         if not any(bam or []):
             raise PreventUpdate
         d = _ngay_hop_le(ngay)
@@ -310,22 +319,23 @@ def register(app):
         if r.empty:
             raise PreventUpdate
         r = r.iloc[0]
-        dau = f"{r.acc} · PTTB tháng {int(r.pttb_thang)}/{int(r.mt_thang)} · đã online hôm nay {int(r.thuc_hien)}"
+        dau = f"{r.acc} · PTTB tháng {int(r.pttb_thang)}/{int(r.mt_thang)} · V.VIP {int(r.vvip_thang)}"
         return ("modal mo", f"{r.ho_ten} · {d:%d/%m}", r.acc_norm, dau, int(r.muc_tieu), int(r.khtn),
-                int(r.onl_sang), int(r.onl_chieu), r.ghi_chu, "")
+                int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), r.ghi_chu, "")
 
     @app.callback(Output("bn-md-msg", "children", allow_duplicate=True),
                   Output("bn-da-luu", "data", allow_duplicate=True),
                   Input("bn-md-ok", "n_clicks"), State("bn-md-acc", "data"), State("bn-f-mt", "value"),
                   State("bn-f-khtn", "value"), State("bn-f-sang", "value"), State("bn-f-chieu", "value"),
-                  State("bn-f-ghi-chu", "value"), State("bn-phong", "value"), State("bn-ngay", "date"),
-                  State("bn-toi-la", "value"), prevent_initial_call=True)
-    def _luu_form(_n, acc, mt, khtn, sang, chieu, gc, code, ngay, toi_la):
+                  State("bn-f-onl", "value"), State("bn-f-ghi-chu", "value"), State("bn-phong", "value"),
+                  State("bn-ngay", "date"), State("bn-toi-la", "value"), prevent_initial_call=True)
+    def _luu_form(_n, acc, mt, khtn, sang, chieu, onl, gc, code, ngay, toi_la):
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
         if not (gc or "").strip():
             return alert("Chưa điền Ghi chú.", "bad"), no_update
         try:
-            bc.luu(acc, {"muc_tieu": mt, "khtn": khtn, "onl_sang": sang, "onl_chieu": chieu, "ghi_chu": gc},
+            bc.luu(acc, {"muc_tieu": mt, "khtn": khtn, "onl_sang": sang, "onl_chieu": chieu,
+                         "da_online": onl, "ghi_chu": gc},
                    phong, current_user.username, d, ghi_ten=nt_ten(toi_la) if _dung_chung() else None)
         except bc.LoiBaoCao as e:
             return alert(str(e), "bad"), no_update

@@ -344,8 +344,8 @@ class AdsThang(Base):
 
 # ---------------------------------------------------------------- nhập tồn
 class BaoCaoNgay(Base):
-    """Báo cáo đầu ngày của sale: 5 ô sale tự nhập. Các số còn lại (thực hiện, đã online, PTTB luỹ kế,
-    số VVIP) app tự lấy từ file Internet nên không lưu ở đây - tránh hai nguồn số lệch nhau."""
+    """Báo cáo đầu ngày của sale: 6 ô sale tự nhập. PTTB luỹ kế và số V.VIP app tự lấy từ file nên
+    không lưu ở đây - tránh hai nguồn số lệch nhau."""
     __tablename__ = "bao_cao_ngay"
     __table_args__ = (UniqueConstraint("ngay", "acc_norm", name="uq_bao_cao_ngay"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -356,6 +356,10 @@ class BaoCaoNgay(Base):
     khtn: Mapped[int] = mapped_column(Integer, default=0)              # KHTN đang có
     onl_sang: Mapped[int] = mapped_column(Integer, default=0)          # dự kiến online buổi sáng
     onl_chieu: Mapped[int] = mapped_column(Integer, default=0)
+    # đã online trong ngày: để TRỐNG nghĩa là chưa đếm tay, lúc đó lấy số từ file Internet.
+    # File chỉ về vào hôm sau nên buổi sáng số từ file luôn bằng 0 - phải cho sale gõ thì
+    # "còn phải online" mới có nghĩa.
+    da_online: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
     cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC
     cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)

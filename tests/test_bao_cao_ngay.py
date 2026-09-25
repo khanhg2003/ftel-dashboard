@@ -81,6 +81,22 @@ def test_tom_tat_ba_khoi_khop_voi_bang():
     assert t["luy_ke"] == int(df.pttb_thang.sum())        # luỹ kế phòng = tổng luỹ kế từng người
 
 
+def test_da_online_sale_go_tay_duoc(mot_nguoi):
+    """File Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn 0; sale phải gõ tay được thì
+    "còn phải online" mới có nghĩa. Hiển thị lấy số LỚN HƠN giữa số gõ tay và số từ file."""
+    tu_file = int(bc.bang(PHONG, NGAY).set_index("acc_norm").at[mot_nguoi, "thuc_hien"])
+
+    bc.luu(mot_nguoi, {"onl_sang": 3, "onl_chieu": 2, "da_online": tu_file + 2},
+           PHONG, "kiemthu.tp", NGAY)
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
+    assert int(r.thuc_hien) == tu_file + 2                      # số gõ tay lớn hơn thì dùng số gõ tay
+    assert int(r.con_phai_onl) == max(5 - (tu_file + 2), 0)     # còn phải online tính theo số đó
+
+    bc.luu(mot_nguoi, {"da_online": 0}, PHONG, "kiemthu.tp", NGAY)
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
+    assert int(r.thuc_hien) == tu_file                          # file không đếm dư nên không tụt xuống
+
+
 def test_vvip_dem_giong_bao_cao_phong():
     """Số V.VIP phải đếm từ file FPT Play (mỗi dòng la_vvip là một V.VIP, theo ngày online của
     chính gói đó) - KHÔNG đếm gián tiếp qua cờ V.VIP của hợp đồng Internet, vì gói V.VIP có thể
