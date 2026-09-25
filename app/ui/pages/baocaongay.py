@@ -178,9 +178,12 @@ def _o_so(id_: str, nhan: str):
 
 
 def _khoi_chu():
-    """Ba khối chữ của ảnh báo cáo: Fox viết từ số liệu, Trưởng phòng sửa lại rồi lưu."""
-    if current_user.role == "nvkd":
-        return None
+    """Ba khối chữ của ảnh báo cáo: Fox viết từ số liệu, người dùng sửa lại rồi lưu.
+
+    Tài khoản Nhân viên KD cũng thấy khối này (chủ app chốt 25/09/2026): họ vốn đã bấm được
+    "Tạo ảnh báo cáo", mà ảnh lấy đúng ba khối chữ này - không cho sửa thì ảnh ra trống chữ.
+    Riêng nút Fox chỉ gọi được đúng lượt viết báo cáo, không mở khung chat (`tro_ly.duoc_dung`).
+    """
     o = [("bn-c-trong-tam", "Trọng tâm hôm nay", "Việc cả team phải bám trong ngày."),
          ("bn-c-nhan-dinh", "Đánh giá & nhận định", "Đọc số hôm qua, sáng nay và luỹ kế tháng."),
          ("bn-c-thong-diep", "Thông điệp ngày mới", "Một đoạn ngắn động viên cả team.")]
@@ -364,8 +367,6 @@ def _dang_ky_chu(app):
     @app.callback([Output(i, "value") for i in o],
                   Input("bn-phong", "value"), Input("bn-ngay", "date"))
     def _nap_chu(code, ngay):
-        if current_user.role == "nvkd":
-            raise PreventUpdate
         c = bc.chu(_phong_hop_le(code)[0], _ngay_hop_le(ngay))
         return c["trong_tam"], c["nhan_dinh"], c["thong_diep"]
 

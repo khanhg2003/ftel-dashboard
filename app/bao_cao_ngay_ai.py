@@ -74,6 +74,7 @@ def _tach(chu: str) -> dict:
 
 def fox_viet(user, phong: list[str], ngay: date) -> dict:
     """Gọi AI một lượt, trả về ba khối chữ. Ném `tro_ly.LoiAI` với lời đã viết sẵn tiếng Việt."""
+    # chi_viet=True: tài khoản Nhân viên KD bấm được nút này dù không được mở quyền chat
     kq = tro_ly.tao_nhan_xet(user, "bao_cao_ngay", f"{phong[0]}|{ngay:%Y-%m-%d}",
-                             _du_lieu(phong, ngay), YEU_CAU)
+                             _du_lieu(phong, ngay), YEU_CAU, chi_viet=True)
     return _tach(kq["noi_dung"])

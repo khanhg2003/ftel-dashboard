@@ -170,6 +170,24 @@ def test_quyen_theo_phong():
 
 
 # ------------------------------------------------------------------ chữ + ảnh
+def test_nvkd_bam_duoc_fox_nhung_khong_chat():
+    """Chủ app chốt 25/09/2026: tài khoản Nhân viên KD bấm được nút "Fox viết giúp" ở Báo cáo ngày,
+    nhưng KHÔNG mở khung chat Hỏi Fox và không bấm được nút nhận xét ở các trang khác."""
+    from app import tro_ly as ai
+    ch = {**ai.MAC_DINH, "bat": True, "tai_khoan": []}
+    sale = SimpleNamespace(role="nvkd", username="ibb7.sale")
+
+    assert ai.duoc_dung(sale, ch, chi_viet=True)                        # nút Fox viết giúp
+    assert not ai.duoc_dung(sale, ch)                                   # chat / nhận xét trang khác
+    assert not ai.duoc_dung(sale, {**ch, "bat": False}, chi_viet=True)  # AI tắt thì không ai bấm được
+    for vt in ("admin", "operator", "phong"):
+        assert ai.duoc_dung(SimpleNamespace(role=vt, username=f"kiemthu.{vt}"), ch)
+
+    # qua được cửa quyền thì lỗi tiếp theo phải là thiếu mã API, không phải lỗi quyền
+    with pytest.raises(ai.LoiAI, match="mã API"):
+        ai.kiem_tra(sale, {**ch, "key": None}, chi_viet=True)
+
+
 def test_tach_ba_khoi_chu_cua_fox():
     from app.bao_cao_ngay_ai import _tach
     chu = ("TRỌNG TÂM HÔM NAY\n- Bám 18 ca online\n- Chăm 6 KHTN\n"

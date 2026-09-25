@@ -144,8 +144,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    dùng `callback_can_quyen(app, "duoc_xem_ads")`, callback ghi vẫn `"duoc_cau_hinh"`.
 4. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
    Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
-   Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel, không
-   dùng AI. Ở Nhập tồn phải chọn tên mình ở bộ lọc mới sửa được, chỉ sửa ca của người đó, và "cập nhật bởi" ghi tên
+   Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel.
+   **AI (đổi 25/09/2026):** bấm được đúng nút "Fox viết giúp" ở Báo cáo ngày (`tro_ly.VAI_TRO_VIET_BAO_CAO`
+   + tham số `chi_viet=True` của `duoc_dung` / `kiem_tra` / `tao_nhan_xet`), KHÔNG có khung chat Hỏi Fox và
+   không bấm được nút nhận xét ở trang khác. Tài khoản dùng chung nên hạn mức "Số câu mỗi người / ngày" là
+   của CẢ PHÒNG - Quản trị nâng ô đó lên cho đủ. Thêm nơi gọi AI cho nvkd thì phải truyền `chi_viet=True`,
+   đừng nới `ch["vai_tro"]` (nới là mở luôn cả chat).
+   Ở Nhập tồn phải chọn tên mình ở bộ lọc mới sửa được, chỉ sửa ca của người đó, và "cập nhật bởi" ghi tên
    người đó (nhật ký ghi tài khoản thật). **Đổi 24/09/2026:** tài khoản sale có FULL quyền sửa ở Nhập tồn và
    Báo cáo ngày - sửa được mọi dòng, không còn phải tick tên mình trước. Ô "Nhân viên" / "Tôi là" giờ chỉ để
    lọc và để ghi "cập nhật bởi": chọn đúng một tên thì ghi tên người đó, không chọn thì ghi tên tài khoản.
