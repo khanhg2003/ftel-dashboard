@@ -2,12 +2,13 @@
 
 Chốt với chủ app 24/09/2026:
 - Sale chỉ nhập 5 ô: mục tiêu bán hôm nay, KHTN đang có, dự kiến online sáng, dự kiến online chiều, ghi chú.
-  Mọi số khác app tự lấy từ file Internet đã nạp (thực hiện hôm nay, đã online, PTTB luỹ kế tháng, số VVIP),
+  Mọi số khác app tự lấy từ file đã nạp (thực hiện hôm nay, đã online, PTTB luỹ kế tháng, số V.VIP),
   để số trong báo cáo luôn khớp Báo cáo phòng - không có hai nguồn số.
 - Mục tiêu tháng của từng người nhập ngay trong bảng này, lưu vào `target_monthly` với
   `doi_tuong = "NHAN_VIEN"` (mọi chỗ khác đều lọc `doi_tuong = 'PHONG'` nên không đụng nhau).
   Mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có sẵn của Báo cáo Tổng.
-- "Pay" trong ảnh báo cáo = số V.VIP luỹ kế tháng của người đó.
+- "Pay" trong ảnh báo cáo = số V.VIP luỹ kế tháng của người đó, đếm từ file FPT Play
+  (`_vvip_theo_acc`) đúng như Báo cáo Tổng và Báo cáo phòng.
 - Dự kiến online tổng = sáng + chiều (không nhập riêng); còn phải online = tổng dự kiến - đã online.
 """
 from __future__ import annotations
@@ -93,6 +94,26 @@ def _da_nhap(ngay: date, phong: list[str]) -> pd.DataFrame:
     return df[df.phong_code.isin(set(phong))][["acc_norm", *O_NHAP]]
 
 
+def _vvip_theo_acc(phong: list[str], tu: str, den: str) -> pd.Series:
+    """Số V.VIP luỹ kế của từng người, đếm ĐÚNG cách Báo cáo Tổng và Báo cáo phòng đang đếm:
+    mỗi dòng `la_vvip` trong file FPT Play là một V.VIP, tính theo ngày online của chính gói đó.
+
+    Không đếm gián tiếp qua cờ V.VIP của hợp đồng Internet: gói V.VIP có thể online khác ngày với
+    hợp đồng Internet, hoặc bán thêm trên hợp đồng của tháng trước, nên đếm kiểu đó sẽ lệch với
+    Báo cáo phòng (đã đo trên IBB7 tháng 9: lệch 2 V.VIP, 4 người sai).
+    """
+    if not phong:
+        return pd.Series(dtype=int)
+    ma = {f"p{i}": c for i, c in enumerate(phong)}
+    cho = ", ".join(f":{k}" for k in ma)
+    df = pd.read_sql_query(text(f"""SELECT acc_norm, COUNT(*) AS n FROM fact_fptplay
+                                    WHERE phong_code IN ({cho}) AND la_vvip = TRUE
+                                      AND ngay_online >= :tu AND ngay_online <= :den
+                                    GROUP BY acc_norm"""),
+                           engine, params={**ma, "tu": tu, "den": den})
+    return df.set_index("acc_norm")["n"] if not df.empty else pd.Series(dtype=int)
+
+
 def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     """Mỗi dòng một nhân sự của phòng: 5 ô sale nhập + các số app tự lấy.
 
@@ -102,22 +123,27 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     thang = f"{ngay:%Y-%m}"
     dau, _, _ = month_range(thang)
     hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
+    vvip = _vvip_theo_acc(phong, dau.isoformat(), ngay.isoformat())
     nhap = _da_nhap(ngay, phong)
-    if hd.empty and nhap.empty:
+    if hd.empty and nhap.empty and vvip.empty:
         return pd.DataFrame()
 
     g = (hd.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"),
-                                    pttb_thang=("hop_dong", "size"), vvip_thang=("co_vvip", "sum"))
-         if len(hd) else pd.DataFrame(columns=["acc", "phong_code", "pttb_thang", "vvip_thang"]))
+                                    pttb_thang=("hop_dong", "size"))
+         if len(hd) else pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"],
+                                      index=pd.Index([], name="acc_norm")))
     hom = hd[hd.ngay_online.dt.date == ngay] if len(hd) else hd
     g["thuc_hien"] = (hom.groupby("acc_norm").size().reindex(g.index).fillna(0).astype(int)
                       if len(g) else pd.Series(dtype=int))
     df = g.reset_index()
-    thieu = set(nhap.acc_norm) - set(df.acc_norm)
+    # người chỉ bán V.VIP (chưa có hợp đồng Internet online) cũng phải có dòng, nếu không
+    # dòng TỔNG sẽ thiếu V.VIP so với Báo cáo phòng
+    thieu = (set(nhap.acc_norm) | set(vvip.index)) - set(df.acc_norm)
     if thieu:
         them = pd.DataFrame({"acc_norm": sorted(thieu), "acc": sorted(thieu), "phong_code": phong[0],
-                             "pttb_thang": 0, "vvip_thang": 0, "thuc_hien": 0})
+                             "pttb_thang": 0, "thuc_hien": 0})
         df = pd.concat([df, them], ignore_index=True)
+    df["vvip_thang"] = df.acc_norm.map(vvip).fillna(0).astype(int)
 
     ten = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee WHERE acc_norm IS NOT NULL"), engine)
     ten = ten.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten
@@ -158,7 +184,7 @@ def tom_tat(phong: list[str], ngay: date | None = None) -> dict:
         "da_online": s("thuc_hien"), "con_phai_onl": max(s("dk_onl") - s("thuc_hien"), 0),
         "luy_ke": luy_ke, "mt_thang": mt_thang, "con_thieu": max(mt_thang - luy_ke, 0),
         "ty_le_thang": round(luy_ke / mt_thang * 100, 1) if mt_thang else 0.0,
-        "vvip_thang": int(hd.co_vvip.sum()) if len(hd) else 0,
+        "vvip_thang": s("vvip_thang"),
         "so_nguoi": len(df), "chua_nhap": int((~df.da_nhap).sum()) if not df.empty else 0,
     }
 

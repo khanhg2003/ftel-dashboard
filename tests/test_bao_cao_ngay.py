@@ -81,6 +81,24 @@ def test_tom_tat_ba_khoi_khop_voi_bang():
     assert t["luy_ke"] == int(df.pttb_thang.sum())        # luỹ kế phòng = tổng luỹ kế từng người
 
 
+def test_vvip_dem_giong_bao_cao_phong():
+    """Số V.VIP phải đếm từ file FPT Play (mỗi dòng la_vvip là một V.VIP, theo ngày online của
+    chính gói đó) - KHÔNG đếm gián tiếp qua cờ V.VIP của hợp đồng Internet, vì gói V.VIP có thể
+    online khác ngày hoặc bán thêm trên hợp đồng tháng trước."""
+    import pandas as pd
+    from app import bao_cao_phong as bp
+
+    df = bc.bang(PHONG, NGAY)
+    phong = bp.bang_nhan_su(f"{NGAY:%Y-%m}", NGAY.day, PHONG[0])
+    phong = phong[phong.acc_norm.notna() & (phong.acc_norm != "TOTAL")]
+
+    assert int(df.vvip_thang.sum()) == int(phong.vvip.sum())      # tổng phòng khớp
+    a = df.set_index("acc_norm").vvip_thang
+    b = phong.set_index("acc_norm").vvip
+    chung = pd.DataFrame({"a": a, "b": b}).fillna(0).astype(int)
+    assert (chung.a == chung.b).all()                             # từng người cũng khớp
+
+
 def test_chan_so_vo_ly(mot_nguoi):
     for xau in (-1, 5000, "abc"):
         with pytest.raises(bc.LoiBaoCao):
