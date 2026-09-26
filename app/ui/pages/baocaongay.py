@@ -62,7 +62,8 @@ def _ngay_hop_le(v) -> date:
         d = date.fromisoformat(str(v)[:10])
     except (TypeError, ValueError):
         return bc.hom_nay()
-    return d if d <= bc.hom_nay() else bc.hom_nay()
+    # cho chọn cả ngày tương lai (sale điền trước), nhưng không quá bc.TRUOC_TOI_DA ngày
+    return min(d, bc.ngay_xa_nhat())
 
 
 def _dau_khoi(c: dict) -> dict:
@@ -145,7 +146,8 @@ def layout():
                                                                          for c in ds],
                                                  value=ds[0], clearable=False, style={"width": "150px"})),
                      style={} if len(ds) > 1 else AN),
-            field("Ngày", dcc.DatePickerSingle(id="bn-ngay", date=hom.isoformat(), max_date_allowed=hom,
+            field("Ngày", dcc.DatePickerSingle(id="bn-ngay", date=hom.isoformat(),
+                                               max_date_allowed=bc.ngay_xa_nhat(),
                                                display_format="DD/MM/YYYY", first_day_of_week=1)),
             html.Div(field("Tôi là", dcc.Dropdown(id="bn-toi-la", options=[], placeholder=TOI_LA,
                                                   persistence=True, persistence_type="local",
@@ -312,9 +314,14 @@ def register(app):
         chon = [{"label": r.ho_ten, "value": r.acc_norm} for r in df.itertuples()]
         df = df.assign(sua_duoc=True)             # sale sửa được mọi dòng (chốt 24/09/2026)
         dien_thoai = (vw or {}).get("w", 1440) < 768
-        tieu_de = f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"
+        tieu_de = [f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"]
+        if d > bc.hom_nay():                      # điền trước cho hôm sau: phải nói rõ kẻo đọc nhầm
+            tieu_de.append(html.Span("Nhập trước", className="bn-sau"))
         mo_ta = (f"{t['so_nguoi']} nhân sự · {t['chua_nhap']} người chưa nhập. "
                  "Ô có dấu * là sale nhập, còn lại app tự lấy từ file Internet.")
+        if d > bc.hom_nay():
+            mo_ta = (f"Ngày {d:%d/%m} chưa tới nên các cột app tự lấy từ file vẫn đang là số của hôm nay. "
+                     + mo_ta)
         if _dung_chung() and not toi_la:
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
         return (chon, _tom_tat(t), [] if dien_thoai else _dong_luoi(df),

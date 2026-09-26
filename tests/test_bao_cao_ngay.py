@@ -127,6 +127,30 @@ def test_vvip_dem_giong_bao_cao_phong():
     assert (chung.a == chung.b).all()                             # từng người cũng khớp
 
 
+def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
+    """Sale hay điền trước cho hôm sau (chốt 26/09/2026): mở và lưu được báo cáo của ngày chưa tới,
+    nhưng chỉ trong TRUOC_TOI_DA ngày để không ai gõ nhầm sang tháng khác."""
+    from datetime import timedelta
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import BaoCaoNgay
+    from app.ui.pages.baocaongay import _ngay_hop_le
+
+    mai = bc.hom_nay() + timedelta(days=1)
+    assert _ngay_hop_le(mai.isoformat()) == mai                      # ngày mai: mở được
+    qua_xa = bc.hom_nay() + timedelta(days=bc.TRUOC_TOI_DA + 5)
+    assert _ngay_hop_le(qua_xa.isoformat()) == bc.ngay_xa_nhat()     # quá xa: kéo về mốc cho phép
+
+    try:
+        bc.luu(mot_nguoi, {"muc_tieu": 3, "ghi_chu": "nhập trước"}, PHONG, "kiemthu.tp", mai)
+        r = bc.bang(PHONG, mai).set_index("acc_norm").loc[mot_nguoi]
+        assert int(r.muc_tieu) == 3 and r.ghi_chu == "nhập trước"
+        assert int(r.thuc_hien) == 0        # ngày chưa tới nên chưa có gì online
+    finally:
+        with session_scope() as s:
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == mai))
+
+
 def test_chan_so_vo_ly(mot_nguoi):
     for xau in (-1, 5000, "abc"):
         with pytest.raises(bc.LoiBaoCao):

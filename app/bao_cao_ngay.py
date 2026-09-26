@@ -35,6 +35,7 @@ O_NHAP = ("muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu", "da_online", "g
 COT_THEM = {"da_online": "INTEGER", "da_ban": "INTEGER"}
 GHI_CHU_TOI_DA = 400
 TOI_DA = 999                       # chặn gõ nhầm 9999
+TRUOC_TOI_DA = 7                   # số ngày tương lai được phép nhập trước (chốt 26/09/2026)
 _da_tao = False
 
 
@@ -58,6 +59,12 @@ def dam_bao_bang() -> None:
 
 def hom_nay() -> date:
     return gio_viet_nam().date()
+
+
+def ngay_xa_nhat() -> date:
+    """Ngày xa nhất được phép mở báo cáo. Sale hay điền trước cho hôm sau nên phải cho chọn ngày
+    tương lai, nhưng chặn trong TRUOC_TOI_DA ngày để không ai gõ nhầm sang tháng khác."""
+    return hom_nay() + timedelta(days=TRUOC_TOI_DA)
 
 
 def cau_hinh() -> dict:

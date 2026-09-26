@@ -117,7 +117,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      đứng TRƯỚC ONL sáng. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
      này, lưu vào `target_monthly` với `doi_tuong = "NHAN_VIEN"` (mọi truy vấn khác đều lọc `= 'PHONG'` nên
      không đụng nhau); mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có. Ô để TRỐNG nghĩa
-     là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test).
+     là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test). **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
+     `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
+     file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi
+     là người đọc tưởng số đã có thật.
      Ảnh PNG ở `app/export_png_ngay.py`, ba khối chữ do Fox viết (`bao_cao_ngay_ai.py`) và Trưởng phòng sửa
      lại trước khi tạo ảnh. Dòng TỔNG trong ảnh lấy mục tiêu tháng CỦA PHÒNG, không cộng mục tiêu từng người.
      Ảnh phải giữ đúng mẫu chủ app đưa (nền xanh chuyển màu + vệt chéo + góc cam + tia sét, ba khối số có

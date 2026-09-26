@@ -1147,6 +1147,10 @@ table.simple tr:last-child td { border-bottom: none; }
 .bn-the-dau { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .bn-the-dau .grow { flex: 1; }
 .bn-lk { font-weight: 700; color: var(--fpt-blue-700); font-variant-numeric: tabular-nums; }
+/* Nhãn "Nhập trước" khi Trưởng phòng / sale mở báo cáo của ngày chưa tới */
+.bn-sau { margin-left: 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: #8A5A00; background: #FFF4DF; border: 1px solid #F0DCBE;
+    border-radius: 999px; padding: 3px 10px; vertical-align: middle; }
 .bn-the-so { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 4px; font-size: 12.5px;
     color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .bn-the-gc { font-size: 13px; line-height: 1.45; }
