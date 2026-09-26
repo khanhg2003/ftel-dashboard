@@ -260,6 +260,19 @@ def test_quyen_theo_phong():
     assert _tk("nvkd", ["IBB7"]).vao_duoc("/baocaongay")
 
 
+def test_tai_khoan_xem_nhieu_phong_khong_vao_bao_cao_ngay():
+    """Chủ app chốt 26/09/2026: Nhập tồn và Báo cáo ngày là chỗ NHẬP LIỆU của đúng một phòng.
+    Tài khoản được mở rộng xem nhiều phòng (cấp trên, giám sát) tuy có IBB7 trong phạm vi nhưng
+    không phải người vận hành phòng đó nên không được vào. Quản trị (BGĐ) vẫn vào được."""
+    rong = _tk("phong", ["IBB1", "IBB2", "IBB7"])        # xem nhiều phòng, có cả IBB7
+    assert rong.phong_bao_cao_ngay() == [] and not rong.duoc_bao_cao_ngay
+    assert rong.phong_nhap_ton() == [] and not rong.duoc_nhap_ton
+
+    tp = _tk("phong", ["IBB7"])                          # Trưởng phòng đúng phòng đó: vẫn vào
+    assert tp.duoc_bao_cao_ngay and tp.duoc_nhap_ton
+    assert _tk("admin", []).duoc_bao_cao_ngay            # Quản trị (BGĐ) luôn vào được
+
+
 # ------------------------------------------------------------------ chữ + ảnh
 def test_nvkd_bam_duoc_fox_nhung_khong_chat():
     """Chủ app chốt 25/09/2026: tài khoản Nhân viên KD bấm được nút "Fox viết giúp" ở Báo cáo ngày,

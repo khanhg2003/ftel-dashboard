@@ -160,7 +160,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 3. **Chỉ Quản trị:** Bán theo tỉnh, Cấu hình, file NSLĐ / danh mục nhân viên, và mọi thao tác SỬA của Ads IBB7
    (tỷ giá, page, tab Cấu hình). **Xem** Ads IBB7: Quản trị + Nhân viên KD của IBB7 (`duoc_xem_ads`): callback đọc
    dùng `callback_can_quyen(app, "duoc_xem_ads")`, callback ghi vẫn `"duoc_cau_hinh"`.
-4. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
+4. **Nhập tồn và Báo cáo ngày là chỗ NHẬP LIỆU của đúng một phòng** (chốt 26/09/2026,
+   `_phong_bat`): ngoài Quản trị (BGĐ), chỉ vào được khi phạm vi nhân sự của tài khoản nằm **TRỌN**
+   trong danh sách phòng đã bật ở `config/rules.yml`. Tài khoản được mở rộng xem nhiều phòng (cấp
+   trên, giám sát) tuy có IBB7 trong phạm vi nhưng không phải người vận hành phòng đó nên KHÔNG vào.
+   Trước đây chỉ giao phạm vi với danh sách bật nên ai có IBB7 trong phạm vi là vào được (chủ app
+   phát hiện qua tài khoản LongPH). Bật thêm phòng thì thêm mã phòng vào `rules.yml`, đừng nới quyền.
+5. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
    Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
    Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel.
    **AI (đổi 25/09/2026):** bấm được đúng nút "Fox viết giúp" ở Báo cáo ngày (`tro_ly.VAI_TRO_VIET_BAO_CAO`
@@ -173,11 +179,11 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    Báo cáo ngày - sửa được mọi dòng, không còn phải tick tên mình trước. Ô "Nhân viên" / "Tôi là" giờ chỉ để
    lọc và để ghi "cập nhật bởi": chọn đúng một tên thì ghi tên người đó, không chọn thì ghi tên tài khoản.
    Thêm trang mới mà Nhân viên KD cần vào thì phải thêm vào `TRANG_NVKD`.
-5. **Ghi nhật ký** (`ghi_log` / `AuditLog`): xuất Excel / file, nạp / gỡ file, sửa cấu hình, xoá, gọi AI.
-6. **Không gửi lên AI** tên khách hàng hay dữ liệu vượt quyền của người hỏi. Tên khách hàng chỉ được LƯU cho
+6. **Ghi nhật ký** (`ghi_log` / `AuditLog`): xuất Excel / file, nạp / gỡ file, sửa cấu hình, xoá, gọi AI.
+7. **Không gửi lên AI** tên khách hàng hay dữ liệu vượt quyền của người hỏi. Tên khách hàng chỉ được LƯU cho
    phòng bật Nhập tồn (`ingest/commit.phong_luu_ten_kh`, file Internet) và chỉ HIỆN ở trang Nhập tồn
    (`phan_tich.hop_dong_ton(ten_kh=True)`). Thêm chỗ nào dùng tên khách hàng thì phải hỏi chủ app.
-7. **Không in ra** chuỗi kết nối database, mật khẩu, token, API key: kể cả trong log, thông báo lỗi hay câu trả lời. Khoá OpenAI chỉ nằm ở máy chủ.
+8. **Không in ra** chuỗi kết nối database, mật khẩu, token, API key: kể cả trong log, thông báo lỗi hay câu trả lời. Khoá OpenAI chỉ nằm ở máy chủ.
 
 ---
 
