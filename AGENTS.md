@@ -114,7 +114,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      phải số online; đây là số đối chiếu thẳng với ô "MT ngày" sale tự đặt. Cũng gõ tay được và cũng
      lấy số lớn hơn giữa số gõ tay và số từ file, vì lý do trễ file y hệt "Đã online". Người chỉ mới
      lên hợp đồng (chưa có online) cũng phải có dòng. Ảnh PNG vẫn giữ đúng 8 cột cũ, không thêm cột
-     này vào ảnh. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
+     này vào ảnh. Bảng chia **ba khối cột** (chủ app chốt 26/09/2026, `_dau_khoi` + lớp `khoi-dau` /
+     `nhom-khoi`): *Báo cáo số bán* (MT ngày · KHTN · Thực hiện) · *Dự kiến online* (DK ONL · ONL sáng ·
+     ONL chiều · Đã online · Còn phải ONL) · *Số Net / Pay* (PTTB tháng · MT tháng · V.VIP); DK ONL
+     đứng TRƯỚC ONL sáng. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
      này, lưu vào `target_monthly` với `doi_tuong = "NHAN_VIEN"` (mọi truy vấn khác đều lọc `= 'PHONG'` nên
      không đụng nhau); mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có. Ô để TRỐNG nghĩa
      là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test).
@@ -183,7 +186,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
   - `getRowId` hay ra "undefined": chọn dòng bằng `rowSelection` + `selectedRows`;
   - `cellDoubleClicked` không có dữ liệu dòng: ghép với `selectedRows`;
   - đặt `cellClass` cho cột có `type: "numericColumn"` thì **mất** lớp căn phải của kiểu cột: phải tự viết
-    `"cellClass": "ag-right-aligned-cell <lớp của mình>"`.
+    `"cellClass": "ag-right-aligned-cell <lớp của mình>"`;
+  - `cellValueChanged` **chỉ bắn khi giá trị đổi**. Ô nhập mà để sẵn số 0 thì người dùng gõ 0 vào sẽ
+    không lưu được (phải gõ 1 rồi sửa lại 0 mới ăn - chủ app báo 26/09/2026). Ô "chưa nhập" phải đưa
+    `None` vào `rowData`, đừng đưa 0.
 - **Component Dash** là falsy (có `__len__`): kiểm bằng `is not None`, không dùng `if comp`.
 - **Mọi trang phải dùng được ở màn laptop hẹp** (khoảng 800 px): lưới 2-3 cột phải tự xuống 1 cột.
 

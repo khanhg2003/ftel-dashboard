@@ -1131,6 +1131,14 @@ table.simple tr:last-child td { border-bottom: none; }
 #bn-luoi .ag-cell.o-thieu { background: #FFFAF0; box-shadow: inset 0 0 0 1px #F0DCBE; }
 #bn-luoi .ag-header-cell.vung-sale { border-bottom: 2px solid #E4D3B2; }
 #bn-luoi .ag-row:hover .ag-cell.o-sale { background: #FFF6E4; }
+/* Ba khối cột (số bán · dự kiến online · Net/Pay): kẻ dọc đậm ở cột mở đầu mỗi khối */
+#bn-luoi .ag-header-group-cell.nhom-khoi .ag-header-group-text { font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; font-size: 11.5px; color: var(--fpt-blue-700); }
+#bn-luoi .ag-header-group-cell.nhom-khoi { background: #EAF1F8; justify-content: center;
+    border-bottom: 1px solid #C6D6E6; }
+#bn-luoi .ag-header-cell.khoi-dau, #bn-luoi .ag-cell.khoi-dau,
+#bn-luoi .ag-header-group-cell.nhom-khoi + .ag-header-group-cell.nhom-khoi {
+    border-left: 2px solid #8AA3C0; }
 .bn-the { display: block; width: 100%; text-align: left; background: var(--card);
     border: 1px solid var(--border); border-left: 4px solid var(--fpt-blue); border-radius: 10px;
     padding: 10px 12px; font: inherit; cursor: pointer; }

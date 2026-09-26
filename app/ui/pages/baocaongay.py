@@ -65,38 +65,48 @@ def _ngay_hop_le(v) -> date:
     return d if d <= bc.hom_nay() else bc.hom_nay()
 
 
+def _dau_khoi(c: dict) -> dict:
+    """Cột mở đầu một khối: thêm lớp kẻ dọc đậm cho cả ô header và ô dữ liệu."""
+    c = dict(c)
+    c["headerClass"] = (c.get("headerClass", "") + " khoi-dau").strip()
+    c["cellClass"] = (c.get("cellClass", "") + " khoi-dau").strip()
+    return c
+
+
 def _cot() -> list[dict]:
     # cellClass phải kèm "ag-right-aligned-cell": đặt cellClass cho cột numericColumn thì mất lớp
     # căn phải của kiểu cột, số trong ô sale nhập sẽ lệch hàng với các cột số còn lại
     sua = {"editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale", "cellClassRules": THIEU,
            "type": "numericColumn", "valueFormatter": SO_NHAP, "width": 84, "minWidth": 74, "maxWidth": 104}
     doc = {"type": "numericColumn", "valueFormatter": SO, "width": 84, "minWidth": 72, "maxWidth": 104}
-    return [
-        {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "width": 146, "minWidth": 146,
-         "maxWidth": 190, "cellClass": "o-dam", "tooltipField": "acc"},
+    sua_doc = {**doc, "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale"}
+
+    ban = [
         {"field": "muc_tieu", "headerName": "MT ngày *", "headerClass": "vung-sale",
          "headerTooltip": "Mục tiêu bán của riêng hôm nay.", **sua},
         {"field": "khtn", "headerName": "KHTN *", "headerTooltip": "Khách đang theo, chưa lên hợp đồng.",
          **sua},
         # số BÁN trong ngày (hợp đồng lên mới), không phải số online - đối chiếu thẳng với "MT ngày"
-        {"field": "ban_ngay", "headerName": "Thực hiện *", "headerClass": "vung-sale", **doc,
-         "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale",
+        {"field": "ban_ngay", "headerName": "Thực hiện *", "headerClass": "vung-sale", **sua_doc,
          "cellStyle": {"fontWeight": "700"},
          "headerTooltip": "Số bán thực hiện hôm nay, so với ô MT ngày.\nLà hợp đồng lên mới, không "
                           "phải số online.\nSale gõ tay trong ngày; khi file Internet về thì app lấy "
                           "số lớn hơn giữa hai bên."},
+    ]
+    onl = [
+        {"field": "dk_onl", "headerName": "DK ONL", **doc, "cellStyle": {"fontWeight": "700"},
+         "headerTooltip": "Dự kiến online cả ngày = sáng + chiều. App tự cộng."},
         {"field": "onl_sang", "headerName": "ONL sáng *", "headerTooltip": "Dự kiến online buổi sáng.", **sua},
         {"field": "onl_chieu", "headerName": "ONL chiều *", "headerTooltip": "Dự kiến online buổi chiều.",
          **sua},
-        {"field": "dk_onl", "headerName": "DK ONL", **doc, "cellStyle": {"fontWeight": "700"},
-         "headerTooltip": "Dự kiến online cả ngày = sáng + chiều. App tự cộng."},
         # sale gõ tay được: file Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn là 0,
         # không gõ được thì "Còn phải ONL" vô nghĩa. Hiện số lớn hơn giữa số gõ tay và số từ file.
-        {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **doc,
-         "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale",
+        {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **sua_doc,
          "headerTooltip": "Số đã online hôm nay của người này.\nSale gõ tay trong ngày; khi file Internet "
                           "về thì app lấy số lớn hơn giữa hai bên."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON},
+    ]
+    net = [
         {"field": "pttb_thang", "headerName": "PTTB tháng", **doc, "cellStyle": {"fontWeight": "700"},
          "headerTooltip": "Luỹ kế online từ đầu tháng. App tự lấy."},
         {"field": "mt_thang", "headerName": "MT tháng *", "headerClass": "vung-sale",
@@ -105,12 +115,21 @@ def _cot() -> list[dict]:
             "cellClassRules": {"o-thieu": "!params.value && !params.data.la_tong"}}},
         {"field": "vvip_thang", "headerName": "V.VIP", **doc,
          "headerTooltip": "Số V.VIP luỹ kế tháng (cột \"Pay\" trong ảnh báo cáo). App tự lấy."},
+    ]
+    khoi = [("Báo cáo số bán", ban), ("Dự kiến online", onl), ("Số Net / Pay", net)]
+    return [
+        {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "width": 146, "minWidth": 146,
+         "maxWidth": 190, "cellClass": "o-dam", "tooltipField": "acc"},
+        # gom thành ba khối để đọc theo cụm: số bán trong ngày · dự kiến online · luỹ kế tháng
+        *[{"headerName": ten, "headerClass": "nhom-khoi", "marryChildren": True,
+           "children": [_dau_khoi(c[0]), *c[1:]]} for ten, c in khoi],
         # ghi chú để MỘT dòng, xem đủ bằng rê chuột: cột hẹp mà xuống dòng thì 17 người thành bảng dài
         # gấp bốn, sáng ra không ai đọc hết. Bấm vào ô vẫn mở ô soạn to.
-        {"field": "ghi_chu", "headerName": "Ghi chú *", "headerClass": "vung-sale", "minWidth": 150,
-         "flex": 1, "tooltipField": "ghi_chu", "editable": {"function": SUA},
-         "cellClass": "o-sale", "cellEditor": "agLargeTextCellEditor", "cellEditorPopup": True,
-         "cellEditorParams": {"maxLength": bc.GHI_CHU_TOI_DA, "rows": 5, "cols": 50}},
+        _dau_khoi({"field": "ghi_chu", "headerName": "Ghi chú *", "headerClass": "vung-sale",
+                   "minWidth": 150, "flex": 1, "tooltipField": "ghi_chu",
+                   "editable": {"function": SUA}, "cellClass": "o-sale",
+                   "cellEditor": "agLargeTextCellEditor", "cellEditorPopup": True,
+                   "cellEditorParams": {"maxLength": bc.GHI_CHU_TOI_DA, "rows": 5, "cols": 50}}),
     ]
 
 
@@ -233,6 +252,20 @@ def _tom_tat(t: dict) -> list:
     ]
 
 
+def _dong_luoi(df: pd.DataFrame) -> list[dict]:
+    """Dòng cho bảng. Người CHƯA nhập thì bốn ô sale để trống hẳn (None) chứ không phải số 0:
+    ag-grid chỉ báo `cellValueChanged` khi giá trị thay đổi, nên nếu ô sẵn là 0 thì gõ 0 vào
+    không được tính là sửa - số không lưu, người dùng phải gõ 1 rồi sửa lại 0 mới ăn."""
+    ds = df.to_dict("records")
+    for r in ds:
+        if not r.get("da_nhap"):
+            for k in ("muc_tieu", "khtn", "onl_sang", "onl_chieu"):
+                r[k] = None
+            for k in ("ban_ngay", "thuc_hien"):        # hai cột gộp với file: chỉ để trống khi file cũng 0
+                r[k] = r[k] or None
+    return ds
+
+
 def _ghim(df: pd.DataFrame) -> list[dict]:
     """Dòng TỔNG ghim cuối bảng. `da_nhap` / `la_tong` để dòng này không dính hai quy tắc của dòng
     người: "chưa nhập thì để ô trống" (nếu không cả dòng tổng sẽ trắng) và tô cam ô còn thiếu."""
@@ -287,7 +320,7 @@ def register(app):
                  "Ô có dấu * là sale nhập, còn lại app tự lấy từ file Internet.")
         if _dung_chung() and not toi_la:
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
-        return (chon, _tom_tat(t), [] if dien_thoai else df.to_dict("records"),
+        return (chon, _tom_tat(t), [] if dien_thoai else _dong_luoi(df),
                 {**(opts or {}), "pinnedBottomRowData": _ghim(df)},
                 _the(df) if dien_thoai else [], tieu_de, mo_ta)
 
