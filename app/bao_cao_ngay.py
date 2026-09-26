@@ -1,9 +1,12 @@
 """Báo cáo đầu ngày của phòng kinh doanh (thay sheet "Mục tiêu và công việc đầu ngày").
 
 Chốt với chủ app 24/09/2026:
-- Sale nhập 6 ô: mục tiêu bán hôm nay, KHTN đang có, dự kiến online sáng, dự kiến online chiều,
-  đã online, ghi chú. PTTB luỹ kế tháng và số V.VIP app tự lấy từ file đã nạp, để luôn khớp
-  Báo cáo phòng - không có hai nguồn số.
+- Sale nhập 7 ô: mục tiêu bán hôm nay, KHTN đang có, số bán thực hiện, dự kiến online sáng,
+  dự kiến online chiều, đã online, ghi chú. PTTB luỹ kế tháng và số V.VIP app tự lấy từ file
+  đã nạp, để luôn khớp Báo cáo phòng - không có hai nguồn số.
+- "Thực hiện" (thêm 26/09/2026) là số hợp đồng BÁN trong ngày, đếm theo ngày tạo hợp đồng
+  (`ngay_tao_hd`) giống cột "Bán mới" của Báo cáo Tổng - không phải số online. Đây là số đối
+  chiếu thẳng với ô "MT ngày" mà sale tự đặt. Cũng lấy số lớn hơn giữa số gõ tay và số từ file.
 - "Đã online" (chốt 25/09/2026): file Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn
   bằng 0, "còn phải online" thành vô nghĩa. Cho sale gõ tay, và lấy số LỚN HƠN giữa số gõ tay và
   số từ file: file chỉ có thể chậm chứ không đếm dư, nên cách này không bao giờ báo thiếu.
@@ -28,7 +31,9 @@ from app.metrics import month_range
 from app.models import AuditLog, BaoCaoNgay, BaoCaoNgayChu, Target
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
-O_NHAP = ("muc_tieu", "khtn", "onl_sang", "onl_chieu", "da_online", "ghi_chu")
+O_NHAP = ("muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu", "da_online", "ghi_chu")
+# cột thêm sau, phải tự vá vào database đang chạy: tên cột -> kiểu
+COT_THEM = {"da_online": "INTEGER", "da_ban": "INTEGER"}
 GHI_CHU_TOI_DA = 400
 TOI_DA = 999                       # chặn gõ nhầm 9999
 _da_tao = False
@@ -44,9 +49,11 @@ def dam_bao_bang() -> None:
         BaoCaoNgay.__table__.create(engine, checkfirst=True)
         BaoCaoNgayChu.__table__.create(engine, checkfirst=True)
         from sqlalchemy import inspect
-        if "da_online" not in {c["name"] for c in inspect(engine).get_columns("bao_cao_ngay")}:
-            with engine.begin() as c:                                  # cột thêm sau (25/09/2026)
-                c.execute(text("ALTER TABLE bao_cao_ngay ADD COLUMN da_online INTEGER"))
+        co = {c["name"] for c in inspect(engine).get_columns("bao_cao_ngay")}
+        for ten, kieu in COT_THEM.items():
+            if ten not in co:
+                with engine.begin() as c:
+                    c.execute(text(f"ALTER TABLE bao_cao_ngay ADD COLUMN {ten} {kieu}"))
         _da_tao = True
 
 
@@ -121,6 +128,21 @@ def _vvip_theo_acc(phong: list[str], tu: str, den: str) -> pd.Series:
     return df.set_index("acc_norm")["n"] if not df.empty else pd.Series(dtype=int)
 
 
+def _ban_theo_acc(phong: list[str], ngay: date) -> pd.Series:
+    """Số bán thực hiện trong ngày của từng người: hợp đồng Internet TẠO MỚI trong ngày đó
+    (`ngay_tao_hd`), đúng cách cột "Bán mới" của Báo cáo Tổng và Báo cáo phòng đang đếm.
+    Khác hẳn với số online - online là hợp đồng đã đấu xong, có thể của ngày khác."""
+    if not phong:
+        return pd.Series(dtype=int)
+    ma = {f"p{i}": c for i, c in enumerate(phong)}
+    cho = ", ".join(f":{k}" for k in ma)
+    df = pd.read_sql_query(text(f"""SELECT acc_norm, COUNT(*) AS n FROM fact_internet
+                                    WHERE phong_code IN ({cho}) AND ngay_tao_hd = :n
+                                    GROUP BY acc_norm"""),
+                           engine, params={**ma, "n": ngay.isoformat()})
+    return df.set_index("acc_norm")["n"] if not df.empty else pd.Series(dtype=int)
+
+
 def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     """Mỗi dòng một nhân sự của phòng: 6 ô sale nhập + các số app tự lấy.
 
@@ -131,8 +153,9 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     dau, _, _ = month_range(thang)
     hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
     vvip = _vvip_theo_acc(phong, dau.isoformat(), ngay.isoformat())
+    ban = _ban_theo_acc(phong, ngay)
     nhap = _da_nhap(ngay, phong)
-    if hd.empty and nhap.empty and vvip.empty:
+    if hd.empty and nhap.empty and vvip.empty and ban.empty:
         return pd.DataFrame()
 
     g = (hd.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"),
@@ -143,14 +166,15 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     g["onl_file"] = (hom.groupby("acc_norm").size().reindex(g.index).fillna(0).astype(int)
                      if len(g) else pd.Series(dtype=int))
     df = g.reset_index()
-    # người chỉ bán V.VIP (chưa có hợp đồng Internet online) cũng phải có dòng, nếu không
-    # dòng TỔNG sẽ thiếu V.VIP so với Báo cáo phòng
-    thieu = (set(nhap.acc_norm) | set(vvip.index)) - set(df.acc_norm)
+    # người chỉ bán V.VIP hoặc chỉ mới lên hợp đồng (chưa có hợp đồng Internet online) cũng phải
+    # có dòng, nếu không dòng TỔNG sẽ thiếu so với Báo cáo phòng
+    thieu = (set(nhap.acc_norm) | set(vvip.index) | set(ban.index)) - set(df.acc_norm)
     if thieu:
         them = pd.DataFrame({"acc_norm": sorted(thieu), "acc": sorted(thieu), "phong_code": phong[0],
                              "pttb_thang": 0, "onl_file": 0})
         df = pd.concat([df, them], ignore_index=True)
     df["vvip_thang"] = df.acc_norm.map(vvip).fillna(0).astype(int)
+    df["ban_file"] = df.acc_norm.map(ban).fillna(0).astype(int)
 
     ten = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee WHERE acc_norm IS NOT NULL"), engine)
     ten = ten.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten
@@ -165,12 +189,17 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     # bao giờ đếm dư, nên lấy số lớn hơn thì không bao giờ báo thiếu.
     df["da_online"] = pd.to_numeric(df.get("da_online"), errors="coerce")
     df["thuc_hien"] = df[["onl_file", "da_online"]].max(axis=1).fillna(0).astype(int)
+    # "Thực hiện" (số bán trong ngày) theo đúng quy tắc của "Đã online": file Internet về vào hôm
+    # sau nên trong ngày phải cho sale gõ tay, số hiện ra là số lớn hơn giữa hai bên.
+    df["da_ban"] = pd.to_numeric(df.get("da_ban"), errors="coerce")
+    df["ban_ngay"] = df[["ban_file", "da_ban"]].max(axis=1).fillna(0).astype(int)
     df["dk_onl"] = df.onl_sang + df.onl_chieu
     df["con_phai_onl"] = (df.dk_onl - df.thuc_hien).clip(lower=0)
     df["da_nhap"] = df.acc_norm.isin(set(nhap.acc_norm))       # đã có bản ghi hôm nay hay chưa
     df["id"] = df.acc_norm
-    cot = ["id", "acc_norm", "acc", "ho_ten", "phong_code", "muc_tieu", "khtn", "onl_sang", "onl_chieu",
-           "dk_onl", "thuc_hien", "con_phai_onl", "pttb_thang", "mt_thang", "vvip_thang", "ghi_chu", "da_nhap"]
+    cot = ["id", "acc_norm", "acc", "ho_ten", "phong_code", "muc_tieu", "khtn", "ban_ngay", "onl_sang",
+           "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl", "pttb_thang", "mt_thang", "vvip_thang",
+           "ghi_chu", "da_nhap"]
     return df[cot].sort_values(["pttb_thang", "ho_ten"], ascending=[False, True]).reset_index(drop=True)
 
 
@@ -191,7 +220,7 @@ def tom_tat(phong: list[str], ngay: date | None = None) -> dict:
         "ngay": ngay, "hom_qua": hqua, "thang": thang,
         "hq_thuc_te": onl_hqua, "hq_muc_tieu": mt_ngay,
         "hq_thieu": max(mt_ngay - onl_hqua, 0), "hq_ty_le": round(onl_hqua / mt_ngay * 100) if mt_ngay else 0,
-        "khtn": s("khtn"), "mt_ngay": mt_ngay, "mt_ngay_nhap": s("muc_tieu"),
+        "khtn": s("khtn"), "mt_ngay": mt_ngay, "mt_ngay_nhap": s("muc_tieu"), "ban_ngay": s("ban_ngay"),
         "onl_sang": s("onl_sang"), "onl_chieu": s("onl_chieu"), "dk_onl": s("dk_onl"),
         "da_online": s("thuc_hien"), "con_phai_onl": max(s("dk_onl") - s("thuc_hien"), 0),
         "luy_ke": luy_ke, "mt_thang": mt_thang, "con_thieu": max(mt_thang - luy_ke, 0),

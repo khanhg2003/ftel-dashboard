@@ -97,6 +97,24 @@ def test_da_online_sale_go_tay_duoc(mot_nguoi):
     assert int(r.thuc_hien) == tu_file                          # file không đếm dư nên không tụt xuống
 
 
+def test_thuc_hien_la_so_ban_khong_phai_so_online(mot_nguoi):
+    """Cột "Thực hiện" (thêm 26/09/2026) là số hợp đồng BÁN trong ngày - đếm theo ngày tạo hợp đồng,
+    đúng như cột "Bán mới" của Báo cáo phòng. Sale gõ tay được, hiển thị lấy số lớn hơn giữa hai bên."""
+    from app import bao_cao_phong as bp
+
+    df = bc.bang(PHONG, NGAY)
+    phong = bp.bang_nhan_su(f"{NGAY:%Y-%m}", NGAY.day, PHONG[0])
+    phong = phong[phong.acc_norm.notna() & (phong.acc_norm != "TOTAL")]
+    assert int(df.ban_ngay.sum()) == int(phong.ban_moi_ngay.sum())     # cùng cách đếm với Báo cáo phòng
+
+    tu_file = int(df.set_index("acc_norm").at[mot_nguoi, "ban_ngay"])
+    bc.luu(mot_nguoi, {"da_ban": tu_file + 3}, PHONG, "kiemthu.tp", NGAY)
+    assert int(bc.bang(PHONG, NGAY).set_index("acc_norm").at[mot_nguoi, "ban_ngay"]) == tu_file + 3
+
+    bc.luu(mot_nguoi, {"da_ban": 0}, PHONG, "kiemthu.tp", NGAY)        # file không đếm dư
+    assert int(bc.bang(PHONG, NGAY).set_index("acc_norm").at[mot_nguoi, "ban_ngay"]) == tu_file
+
+
 def test_vvip_dem_giong_bao_cao_phong():
     """Số V.VIP phải đếm từ file FPT Play (mỗi dòng la_vvip là một V.VIP, theo ngày online của
     chính gói đó) - KHÔNG đếm gián tiếp qua cờ V.VIP của hợp đồng Internet, vì gói V.VIP có thể

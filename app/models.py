@@ -344,7 +344,7 @@ class AdsThang(Base):
 
 # ---------------------------------------------------------------- nhập tồn
 class BaoCaoNgay(Base):
-    """Báo cáo đầu ngày của sale: 6 ô sale tự nhập. PTTB luỹ kế và số V.VIP app tự lấy từ file nên
+    """Báo cáo đầu ngày của sale: 7 ô sale tự nhập. PTTB luỹ kế và số V.VIP app tự lấy từ file nên
     không lưu ở đây - tránh hai nguồn số lệch nhau."""
     __tablename__ = "bao_cao_ngay"
     __table_args__ = (UniqueConstraint("ngay", "acc_norm", name="uq_bao_cao_ngay"),)
@@ -354,6 +354,8 @@ class BaoCaoNgay(Base):
     phong_code: Mapped[str] = mapped_column(String(20), index=True)
     muc_tieu: Mapped[int] = mapped_column(Integer, default=0)          # mục tiêu bán hôm nay
     khtn: Mapped[int] = mapped_column(Integer, default=0)              # KHTN đang có
+    # số bán thực hiện trong ngày: cùng cách hiểu với `da_online`, để TRỐNG nghĩa là chưa đếm tay
+    da_ban: Mapped[int | None] = mapped_column(Integer, nullable=True)
     onl_sang: Mapped[int] = mapped_column(Integer, default=0)          # dự kiến online buổi sáng
     onl_chieu: Mapped[int] = mapped_column(Integer, default=0)
     # đã online trong ngày: để TRỐNG nghĩa là chưa đếm tay, lúc đó lấy số từ file Internet.

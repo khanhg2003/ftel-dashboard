@@ -78,6 +78,13 @@ def _cot() -> list[dict]:
          "headerTooltip": "Mục tiêu bán của riêng hôm nay.", **sua},
         {"field": "khtn", "headerName": "KHTN *", "headerTooltip": "Khách đang theo, chưa lên hợp đồng.",
          **sua},
+        # số BÁN trong ngày (hợp đồng lên mới), không phải số online - đối chiếu thẳng với "MT ngày"
+        {"field": "ban_ngay", "headerName": "Thực hiện *", "headerClass": "vung-sale", **doc,
+         "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale",
+         "cellStyle": {"fontWeight": "700"},
+         "headerTooltip": "Số bán thực hiện hôm nay, so với ô MT ngày.\nLà hợp đồng lên mới, không "
+                          "phải số online.\nSale gõ tay trong ngày; khi file Internet về thì app lấy "
+                          "số lớn hơn giữa hai bên."},
         {"field": "onl_sang", "headerName": "ONL sáng *", "headerTooltip": "Dự kiến online buổi sáng.", **sua},
         {"field": "onl_chieu", "headerName": "ONL chiều *", "headerTooltip": "Dự kiến online buổi chiều.",
          **sua},
@@ -159,6 +166,7 @@ def layout():
             html.Div(id="bn-md-dau", className="desc", style={"margin": "0 0 14px"}),
             html.Div([
                 _o_so("bn-f-mt", "Mục tiêu ngày *"), _o_so("bn-f-khtn", "KHTN đang có *"),
+                _o_so("bn-f-ban", "Thực hiện *"),
                 _o_so("bn-f-sang", "Dự kiến ONL sáng *"), _o_so("bn-f-chieu", "Dự kiến ONL chiều *"),
                 _o_so("bn-f-onl", "Đã online *"),
             ], className="form-grid"),
@@ -216,8 +224,8 @@ def _tom_tat(t: dict) -> list:
                 f"Thiếu {t['hq_thieu']} PTTB · đạt {ty}%",
                 "ok" if ty >= 100 else "warn" if ty >= 80 else "bad"),
         _the_so(f"Tình hình sáng {t['ngay']:%d/%m}", f"{t['dk_onl']}",
-                f"KHTN {t['khtn']} · sáng {t['onl_sang']} · chiều {t['onl_chieu']} · "
-                f"đã online {t['da_online']}",
+                f"Bán {t['ban_ngay']} · KHTN {t['khtn']} · sáng {t['onl_sang']} · "
+                f"chiều {t['onl_chieu']} · đã online {t['da_online']}",
                 "ok" if t["mt_ngay"] and t["dk_onl"] >= t["mt_ngay"] else "warn"),
         _the_so("Luỹ kế tháng", f"{t['luy_ke']} / {t['mt_thang']}",
                 f"Còn thiếu {t['con_thieu']} PTTB · đạt {t['ty_le_thang']:g}%",
@@ -230,7 +238,7 @@ def _ghim(df: pd.DataFrame) -> list[dict]:
     người: "chưa nhập thì để ô trống" (nếu không cả dòng tổng sẽ trắng) và tô cam ô còn thiếu."""
     if df.empty:
         return []
-    c = ["muc_tieu", "khtn", "onl_sang", "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl",
+    c = ["muc_tieu", "khtn", "ban_ngay", "onl_sang", "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl",
          "pttb_thang", "mt_thang", "vvip_thang"]
     return [{"ho_ten": "TỔNG", "da_nhap": True, "la_tong": True, **{k: int(df[k].sum()) for k in c}}]
 
@@ -246,8 +254,9 @@ def _the(df: pd.DataFrame) -> list:
             html.Div([html.B(r.ho_ten), html.Div(className="grow"),
                       html.Span(f"{int(r.pttb_thang)}/{int(r.mt_thang)}", className="bn-lk")],
                      className="bn-the-dau"),
-            html.Div([html.Span(f"MT {int(r.muc_tieu)}"), html.Span(f"KHTN {int(r.khtn)}"),
-                      html.Span(f"Sáng {int(r.onl_sang)}"), html.Span(f"Chiều {int(r.onl_chieu)}"),
+            html.Div([html.Span(f"MT {int(r.muc_tieu)}"), html.Span(f"Bán {int(r.ban_ngay)}"),
+                      html.Span(f"KHTN {int(r.khtn)}"), html.Span(f"Sáng {int(r.onl_sang)}"),
+                      html.Span(f"Chiều {int(r.onl_chieu)}"),
                       html.Span(f"Đã ONL {int(r.thuc_hien)}")], className="bn-the-so"),
             html.Div(r.ghi_chu or "Chưa ghi chú", className="bn-the-gc" + ("" if r.ghi_chu else " thieu")),
         ], **({"id": {"type": "bn-the", "acc": r.acc_norm}, "n_clicks": 0} if r.sua_duoc else {}),
@@ -295,9 +304,9 @@ def register(app):
                 if cot == "mt_thang":
                     bc.dat_muc_tieu(f"{d:%Y-%m}", "NHAN_VIEN", r.get("acc_norm"), "internet",
                                     float(x.get("value") or 0), current_user.username)
-                elif cot in bc.O_NHAP or cot == "thuc_hien":
-                    # cột "Đã online" hiện số đã gộp với file, nhưng gõ vào thì lưu vào ô nhập tay
-                    o = "da_online" if cot == "thuc_hien" else cot
+                elif cot in bc.O_NHAP or cot in ("thuc_hien", "ban_ngay"):
+                    # hai cột này hiện số đã gộp với file, nhưng gõ vào thì lưu vào ô nhập tay
+                    o = {"thuc_hien": "da_online", "ban_ngay": "da_ban"}.get(cot, cot)
                     bc.luu(r.get("acc_norm"), {o: x.get("value")}, phong, current_user.username, d,
                            ghi_ten=ten)
             except bc.LoiBaoCao as e:
@@ -306,14 +315,15 @@ def register(app):
 
     @app.callback(Output("bn-md", "className"), Output("bn-md-tieu-de", "children"),
                   Output("bn-md-acc", "data"), Output("bn-md-dau", "children"), Output("bn-f-mt", "value"),
-                  Output("bn-f-khtn", "value"), Output("bn-f-sang", "value"), Output("bn-f-chieu", "value"),
+                  Output("bn-f-khtn", "value"), Output("bn-f-ban", "value"), Output("bn-f-sang", "value"),
+                  Output("bn-f-chieu", "value"),
                   Output("bn-f-onl", "value"), Output("bn-f-ghi-chu", "value"), Output("bn-md-msg", "children"),
                   Input({"type": "bn-the", "acc": ALL}, "n_clicks"), Input("bn-md-dong", "n_clicks"),
                   Input("bn-md-huy", "n_clicks"), Input("bn-da-luu", "data"), State("bn-phong", "value"),
                   State("bn-ngay", "date"), prevent_initial_call=True)
     def _mo_form(bam, _d, _h, _l, code, ngay):
         if not isinstance(ctx.triggered_id, dict):
-            return ("modal",) + (no_update,) * 10
+            return ("modal",) + (no_update,) * 11
         if not any(bam or []):
             raise PreventUpdate
         d = _ngay_hop_le(ngay)
@@ -324,21 +334,22 @@ def register(app):
         r = r.iloc[0]
         dau = f"{r.acc} · PTTB tháng {int(r.pttb_thang)}/{int(r.mt_thang)} · V.VIP {int(r.vvip_thang)}"
         return ("modal mo", f"{r.ho_ten} · {d:%d/%m}", r.acc_norm, dau, int(r.muc_tieu), int(r.khtn),
-                int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), r.ghi_chu, "")
+                int(r.ban_ngay), int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), r.ghi_chu, "")
 
     @app.callback(Output("bn-md-msg", "children", allow_duplicate=True),
                   Output("bn-da-luu", "data", allow_duplicate=True),
                   Input("bn-md-ok", "n_clicks"), State("bn-md-acc", "data"), State("bn-f-mt", "value"),
-                  State("bn-f-khtn", "value"), State("bn-f-sang", "value"), State("bn-f-chieu", "value"),
+                  State("bn-f-khtn", "value"), State("bn-f-ban", "value"), State("bn-f-sang", "value"),
+                  State("bn-f-chieu", "value"),
                   State("bn-f-onl", "value"), State("bn-f-ghi-chu", "value"), State("bn-phong", "value"),
                   State("bn-ngay", "date"), State("bn-toi-la", "value"), prevent_initial_call=True)
-    def _luu_form(_n, acc, mt, khtn, sang, chieu, onl, gc, code, ngay, toi_la):
+    def _luu_form(_n, acc, mt, khtn, ban, sang, chieu, onl, gc, code, ngay, toi_la):
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
         if not (gc or "").strip():
             return alert("Chưa điền Ghi chú.", "bad"), no_update
         try:
-            bc.luu(acc, {"muc_tieu": mt, "khtn": khtn, "onl_sang": sang, "onl_chieu": chieu,
-                         "da_online": onl, "ghi_chu": gc},
+            bc.luu(acc, {"muc_tieu": mt, "khtn": khtn, "da_ban": ban, "onl_sang": sang,
+                         "onl_chieu": chieu, "da_online": onl, "ghi_chu": gc},
                    phong, current_user.username, d, ghi_ten=nt_ten(toi_la) if _dung_chung() else None)
         except bc.LoiBaoCao as e:
             return alert(str(e), "bad"), no_update

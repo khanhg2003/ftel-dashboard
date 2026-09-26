@@ -97,7 +97,8 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      ~34 ký tự, cột hẹp nên dài hơn là dòng cao 5 hàng (có test chặn). Laptop nhập bằng Tab: ghi chú → mốc →
      ngày → phương án, mỗi ô tự lưu.
    - *Báo cáo đầu ngày* (`app/bao_cao_ngay.py`, chốt 24/09/2026, bật theo phòng ở `config/rules.yml` →
-     `bao_cao_ngay`, hiện chỉ IBB7): sale nhập 6 ô (mục tiêu bán hôm nay, KHTN đang có, dự kiến online
+     `bao_cao_ngay`, hiện chỉ IBB7): sale nhập 7 ô (mục tiêu bán hôm nay, KHTN đang có, số bán thực
+     hiện, dự kiến online
      sáng, dự kiến online chiều, đã online, ghi chú). PTTB luỹ kế tháng và số V.VIP ("Pay" trong ảnh mẫu)
      app tự lấy từ file - để không có hai nguồn số. Dự kiến tổng = sáng + chiều; còn phải online = tổng
      dự kiến - đã online. **Số V.VIP đếm THẲNG từ file FPT Play** (`_vvip_theo_acc`: mỗi dòng `la_vvip`
@@ -107,7 +108,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      cũng phải có dòng, nếu không dòng TỔNG thiếu. **"Đã online" sale gõ tay được** (chốt 25/09/2026,
      cột `da_online`, để trống = chưa đếm tay): file Internet chỉ về vào hôm sau nên buổi sáng số từ
      file luôn 0, không gõ được thì "còn phải online" vô nghĩa. Hiển thị = số LỚN HƠN giữa số gõ tay
-     và số từ file, vì file chỉ có thể chậm chứ không đếm dư. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
+     và số từ file, vì file chỉ có thể chậm chứ không đếm dư. **Cột "Thực hiện"** (thêm 26/09/2026,
+     cột `da_ban`, hiện ngay sau KHTN) là số **BÁN** trong ngày - hợp đồng Internet tạo mới, đếm theo
+     `ngay_tao_hd` (`_ban_theo_acc`) đúng như cột "Bán mới" của Báo cáo Tổng / Báo cáo phòng, KHÔNG
+     phải số online; đây là số đối chiếu thẳng với ô "MT ngày" sale tự đặt. Cũng gõ tay được và cũng
+     lấy số lớn hơn giữa số gõ tay và số từ file, vì lý do trễ file y hệt "Đã online". Người chỉ mới
+     lên hợp đồng (chưa có online) cũng phải có dòng. Ảnh PNG vẫn giữ đúng 8 cột cũ, không thêm cột
+     này vào ảnh. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
      này, lưu vào `target_monthly` với `doi_tuong = "NHAN_VIEN"` (mọi truy vấn khác đều lọc `= 'PHONG'` nên
      không đụng nhau); mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có. Ô để TRỐNG nghĩa
      là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test).
