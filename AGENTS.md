@@ -108,13 +108,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      cũng phải có dòng, nếu không dòng TỔNG thiếu. **"Đã online" sale gõ tay được** (chốt 25/09/2026,
      cột `da_online`, để trống = chưa đếm tay): file Internet chỉ về vào hôm sau nên buổi sáng số từ
      file luôn 0, không gõ được thì "còn phải online" vô nghĩa. Hiển thị = số LỚN HƠN giữa số gõ tay
-     và số từ file, vì file chỉ có thể chậm chứ không đếm dư. **Cột "Thực hiện"** (thêm 26/09/2026,
-     cột `da_ban`, hiện ngay sau KHTN) là số **BÁN** trong ngày - hợp đồng Internet tạo mới, đếm theo
-     `ngay_tao_hd` (`_ban_theo_acc`) đúng như cột "Bán mới" của Báo cáo Tổng / Báo cáo phòng, KHÔNG
-     phải số online; đây là số đối chiếu thẳng với ô "MT ngày" sale tự đặt. Cũng gõ tay được và cũng
-     lấy số lớn hơn giữa số gõ tay và số từ file, vì lý do trễ file y hệt "Đã online". Người chỉ mới
-     lên hợp đồng (chưa có online) cũng phải có dòng. Ảnh PNG vẫn giữ đúng 8 cột cũ, không thêm cột
-     này vào ảnh. Bảng chia **ba khối cột** (chủ app chốt 26/09/2026, `_dau_khoi` + lớp `khoi-dau` /
+     và số từ file, vì file chỉ có thể chậm chứ không đếm dư. **Cột "Thực hiện"** (thêm 26/09/2026, cột `da_ban`,
+     hiện ngay sau KHTN) là số bán sale **TỰ NHẬP**, KHÔNG lấy gì từ file và KHÔNG đối chiếu
+     `ngay_tao_hd` - chủ app chốt đây là ô khai báo của sale, để so thẳng với ô "MT ngày" của chính
+     họ. Ảnh PNG vẫn giữ đúng 8 cột cũ, không thêm cột này vào ảnh. Bảng chia **ba khối cột** (chủ app chốt 26/09/2026, `_dau_khoi` + lớp `khoi-dau` /
      `nhom-khoi`): *Báo cáo số bán* (MT ngày · KHTN · Thực hiện) · *Dự kiến online* (DK ONL · ONL sáng ·
      ONL chiều · Đã online · Còn phải ONL) · *Số Net / Pay* (PTTB tháng · MT tháng · V.VIP); DK ONL
      đứng TRƯỚC ONL sáng. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
