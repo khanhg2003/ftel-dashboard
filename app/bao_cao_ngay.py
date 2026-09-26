@@ -180,7 +180,9 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     df["da_online"] = pd.to_numeric(df.get("da_online"), errors="coerce")
     df["thuc_hien"] = df[["onl_file", "da_online"]].max(axis=1).fillna(0).astype(int)
     df["dk_onl"] = df.onl_sang + df.onl_chieu
-    df["con_phai_onl"] = (df.dk_onl - df.thuc_hien).clip(lower=0)
+    # KHÔNG kẹp ở 0: người online vượt dự kiến để số âm thì cộng dọc cột mới ra đúng
+    # tổng dự kiến - tổng đã online (chủ app chốt 26/09/2026: mọi con số phải cộng được).
+    df["con_phai_onl"] = df.dk_onl - df.thuc_hien
     df["da_nhap"] = df.acc_norm.isin(set(nhap.acc_norm))       # đã có bản ghi hôm nay hay chưa
     df["id"] = df.acc_norm
     cot = ["id", "acc_norm", "acc", "ho_ten", "phong_code", "muc_tieu", "khtn", "da_ban", "onl_sang",
@@ -208,7 +210,7 @@ def tom_tat(phong: list[str], ngay: date | None = None) -> dict:
         "hq_thieu": max(mt_ngay - onl_hqua, 0), "hq_ty_le": round(onl_hqua / mt_ngay * 100) if mt_ngay else 0,
         "khtn": s("khtn"), "mt_ngay": mt_ngay, "mt_ngay_nhap": s("muc_tieu"), "da_ban": s("da_ban"),
         "onl_sang": s("onl_sang"), "onl_chieu": s("onl_chieu"), "dk_onl": s("dk_onl"),
-        "da_online": s("thuc_hien"), "con_phai_onl": max(s("dk_onl") - s("thuc_hien"), 0),
+        "da_online": s("thuc_hien"), "con_phai_onl": s("dk_onl") - s("thuc_hien"),
         "luy_ke": luy_ke, "mt_thang": mt_thang, "con_thieu": max(mt_thang - luy_ke, 0),
         "ty_le_thang": round(luy_ke / mt_thang * 100, 1) if mt_thang else 0.0,
         "vvip_thang": s("vvip_thang"),

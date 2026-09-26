@@ -55,7 +55,7 @@ def test_sale_chi_nhap_5_o_con_lai_app_tu_lay(mot_nguoi):
     r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
     assert (r.muc_tieu, r.khtn, r.onl_sang, r.onl_chieu) == (2, 3, 1, 2)
     assert r.dk_onl == 3                                  # dự kiến tổng = sáng + chiều, không nhập riêng
-    assert r.con_phai_onl == max(3 - r.thuc_hien, 0)
+    assert r.con_phai_onl == 3 - r.thuc_hien
     assert r.pttb_thang >= 0 and r.vvip_thang >= 0        # app tự lấy từ file Internet
     assert r.da_nhap
 
@@ -90,7 +90,7 @@ def test_da_online_sale_go_tay_duoc(mot_nguoi):
            PHONG, "kiemthu.tp", NGAY)
     r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
     assert int(r.thuc_hien) == tu_file + 2                      # số gõ tay lớn hơn thì dùng số gõ tay
-    assert int(r.con_phai_onl) == max(5 - (tu_file + 2), 0)     # còn phải online tính theo số đó
+    assert int(r.con_phai_onl) == 5 - (tu_file + 2)             # còn phải online tính theo số đó
 
     bc.luu(mot_nguoi, {"da_online": 0}, PHONG, "kiemthu.tp", NGAY)
     r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
@@ -151,25 +151,32 @@ def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == mai))
 
 
-def test_dong_tong_con_phai_onl_cong_ngang_duoc():
-    """Chủ app báo 26/09/2026: dòng TỔNG ghi dự kiến 33, đã online 26 mà còn phải online 9.
-    Nguyên nhân: cột "còn phải" của từng người đã kẹp ở 0 nên người online vượt dự kiến không bù
-    cho người thiếu, cộng cột lên thành số lớn hơn. Dòng TỔNG phải lấy tổng trừ tổng."""
-    import pandas as pd
+def test_con_phai_onl_cong_doc_va_cong_ngang_deu_khop(mot_nguoi):
+    """Chủ app chốt 26/09/2026: mọi con số trong bảng phải cộng được cả hai chiều.
+    Người online vượt dự kiến để SỐ ÂM, nhờ vậy cộng dọc cột "Còn phải ONL" ra đúng dòng TỔNG,
+    và dòng TỔNG vẫn bằng tổng DK ONL trừ tổng Đã online."""
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import BaoCaoNgay
     from app.ui.pages.baocaongay import _ghim
 
-    df = pd.DataFrame({"muc_tieu": [2, 2], "khtn": [0, 0], "da_ban": [0, 0],
-                       "onl_sang": [1, 0], "onl_chieu": [0, 2], "dk_onl": [1, 2],
-                       "thuc_hien": [4, 0], "con_phai_onl": [0, 2],     # người đầu online vượt dự kiến
-                       "pttb_thang": [0, 0], "mt_thang": [0, 0], "vvip_thang": [0, 0]})
-    t = _ghim(df)[0]
-    assert t["dk_onl"] == 3 and t["thuc_hien"] == 4
-    assert t["con_phai_onl"] == 0          # 3 - 4 < 0 nên về 0, KHÔNG phải 0 + 2 = 2
+    df = bc.bang(PHONG, NGAY)
+    vuot = df[df.thuc_hien >= 2].iloc[0]           # người đã online nhiều -> cho dự kiến thấp
+    thieu = df[df.thuc_hien == 0].iloc[0]          # người chưa online -> cho dự kiến cao
+    try:
+        bc.luu(vuot.acc_norm, {"onl_sang": 1, "onl_chieu": 0}, PHONG, "kiemthu.tp", NGAY)
+        bc.luu(thieu.acc_norm, {"onl_sang": 2, "onl_chieu": 1}, PHONG, "kiemthu.tp", NGAY)
+        d = bc.bang(PHONG, NGAY)
+        r = d.set_index("acc_norm").loc[vuot.acc_norm]
+        assert int(r.con_phai_onl) == 1 - int(r.thuc_hien) < 0      # vượt dự kiến thì để số âm
 
-    df.loc[0, ["thuc_hien"]] = 1           # không ai vượt: cộng cột hay trừ tổng đều như nhau
-    df.loc[0, ["con_phai_onl"]] = 0
-    t = _ghim(df)[0]
-    assert t["con_phai_onl"] == max(3 - 1, 0) == 2
+        t = _ghim(d)[0]
+        assert t["con_phai_onl"] == int(d.con_phai_onl.sum())       # cộng dọc khớp
+        assert t["con_phai_onl"] == t["dk_onl"] - t["thuc_hien"]    # cộng ngang cũng khớp
+        assert bc.tom_tat(PHONG, NGAY)["con_phai_onl"] == t["con_phai_onl"]   # ảnh báo cáo cùng số
+    finally:
+        with session_scope() as s:
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == NGAY))
 
 
 def test_don_ngay_cu_giu_hom_nay_va_ngay_nhap_truoc(mot_nguoi):

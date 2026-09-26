@@ -32,7 +32,9 @@ SO_NHAP = {"function": "params.data.da_nhap ? " + SO["function"] + " : ''"}
 GOI_Y = ("Mục tiêu bán của riêng hôm nay.\nKHTN là khách đang theo, chưa lên hợp đồng.\n"
          "Dự kiến online sáng / chiều là số ca chắc chắn lên trong buổi đó.")
 MAU_CON = {"styleConditions": [{"condition": "params.value > 0",
-                                "style": {"color": "#8A5A00", "fontWeight": "650"}}]}
+                                "style": {"color": "#8A5A00", "fontWeight": "650"}},
+                               {"condition": "params.value < 0",        # đã online vượt dự kiến
+                                "style": {"color": "#1B7A4B", "fontWeight": "650"}}]}
 
 
 def topbar():
@@ -105,9 +107,8 @@ def _cot() -> list[dict]:
          "headerTooltip": "Số đã online hôm nay của người này.\nSale gõ tay trong ngày; khi file Internet "
                           "về thì app lấy số lớn hơn giữa hai bên."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
-         "headerTooltip": "Dự kiến ONL trừ đã online, người nào online vượt dự kiến thì để 0.\n"
-                          "Dòng TỔNG lấy tổng dự kiến trừ tổng đã online nên có thể nhỏ hơn "
-                          "khi cộng cột."},
+         "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "
+                          "vượt dự kiến; nhờ để số âm nên cộng dọc cột ra đúng dòng TỔNG."},
     ]
     net = [
         {"field": "pttb_thang", "headerName": "PTTB tháng", **doc, "cellStyle": {"fontWeight": "700"},
@@ -281,10 +282,8 @@ def _ghim(df: pd.DataFrame) -> list[dict]:
     c = ["muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu", "dk_onl", "thuc_hien",
          "pttb_thang", "mt_thang", "vvip_thang"]
     tong = {k: int(df[k].sum()) for k in c}
-    # "Còn phải ONL" của phòng = tổng dự kiến - tổng đã online, KHÔNG cộng cột. Từng người đã kẹp ở 0
-    # nên ai online vượt dự kiến sẽ không bù cho người thiếu, cộng cột lên sẽ ra số lớn hơn thực tế và
-    # lệch với ô tóm tắt cùng ảnh báo cáo (cùng ngày mà hai chỗ ra hai số).
-    tong["con_phai_onl"] = max(tong["dk_onl"] - tong["thuc_hien"], 0)
+    # cộng thẳng cột: từng người không kẹp ở 0 nữa nên tổng dọc bằng đúng tổng dự kiến - tổng đã online
+    tong["con_phai_onl"] = int(df["con_phai_onl"].sum())
     return [{"ho_ten": "TỔNG", "da_nhap": True, "la_tong": True, **tong}]
 
 

@@ -117,10 +117,11 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      đứng TRƯỚC ONL sáng. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
      này, lưu vào `target_monthly` với `doi_tuong = "NHAN_VIEN"` (mọi truy vấn khác đều lọc `= 'PHONG'` nên
      không đụng nhau); mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có. Ô để TRỐNG nghĩa
-     là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test). **"Còn phải ONL" của dòng TỔNG** = tổng dự kiến − tổng đã online, KHÔNG
-     cộng cột: từng người đã kẹp ở 0 nên người online vượt dự kiến không bù cho người thiếu, cộng cột
-     lên sẽ lệch với ô tóm tắt và ảnh báo cáo (chủ app phát hiện 26/09/2026: dự kiến 33, đã online 26
-     mà dòng TỔNG ghi 9). **Báo cáo của ngày ĐÃ QUA bị xoá** (`don_ngay_cu()`, gọi từ `layout()` chứ
+     là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test). **"Còn phải ONL" = dự kiến − đã online, KHÔNG kẹp ở 0**: người online
+     vượt dự kiến để SỐ ÂM (tô xanh). Chủ app chốt 26/09/2026 là mọi con số phải cộng được cả hai
+     chiều - kẹp ở 0 thì cộng dọc cột ra số lớn hơn dòng TỔNG, còn ép dòng TỔNG bằng tổng trừ tổng
+     thì cộng dọc lại không khớp. Để số âm là cách duy nhất khớp cả hai. `tom_tat` (ảnh báo cáo) cũng
+     bỏ `max(..., 0)` cho cùng một số. **Báo cáo của ngày ĐÃ QUA bị xoá** (`don_ngay_cu()`, gọi từ `layout()` chứ
      KHÔNG gọi trong `dam_bao_bang()` - gọi ở đó thì database kiểm thử tháng 9 bị dọn mất khi chạy
      test); chỉ giữ hôm nay và các ngày nhập trước. **Trang tự nạp lại** mỗi `NHIP_MS` (15 giây) nhưng
      chỉ dựng lại bảng khi `moc_cap_nhat()` đổi, để không cắt ngang ô người khác đang gõ.
