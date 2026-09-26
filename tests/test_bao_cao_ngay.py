@@ -151,6 +151,54 @@ def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == mai))
 
 
+def test_dong_tong_con_phai_onl_cong_ngang_duoc():
+    """Chủ app báo 26/09/2026: dòng TỔNG ghi dự kiến 33, đã online 26 mà còn phải online 9.
+    Nguyên nhân: cột "còn phải" của từng người đã kẹp ở 0 nên người online vượt dự kiến không bù
+    cho người thiếu, cộng cột lên thành số lớn hơn. Dòng TỔNG phải lấy tổng trừ tổng."""
+    import pandas as pd
+    from app.ui.pages.baocaongay import _ghim
+
+    df = pd.DataFrame({"muc_tieu": [2, 2], "khtn": [0, 0], "da_ban": [0, 0],
+                       "onl_sang": [1, 0], "onl_chieu": [0, 2], "dk_onl": [1, 2],
+                       "thuc_hien": [4, 0], "con_phai_onl": [0, 2],     # người đầu online vượt dự kiến
+                       "pttb_thang": [0, 0], "mt_thang": [0, 0], "vvip_thang": [0, 0]})
+    t = _ghim(df)[0]
+    assert t["dk_onl"] == 3 and t["thuc_hien"] == 4
+    assert t["con_phai_onl"] == 0          # 3 - 4 < 0 nên về 0, KHÔNG phải 0 + 2 = 2
+
+    df.loc[0, ["thuc_hien"]] = 1           # không ai vượt: cộng cột hay trừ tổng đều như nhau
+    df.loc[0, ["con_phai_onl"]] = 0
+    t = _ghim(df)[0]
+    assert t["con_phai_onl"] == max(3 - 1, 0) == 2
+
+
+def test_don_ngay_cu_giu_hom_nay_va_ngay_nhap_truoc(mot_nguoi):
+    """Chốt 26/09/2026: báo cáo của ngày đã qua xoá đi cho nhẹ bảng, chỉ giữ hôm nay và ngày
+    nhập trước. Dọn theo NGÀY nên phải giữ nguyên các dòng của hôm nay."""
+    from datetime import timedelta
+    from sqlalchemy import delete, select
+    from app.db import session_scope
+    from app.models import BaoCaoNgay
+
+    hn, hqua = bc.hom_nay(), bc.hom_nay() - timedelta(days=1)
+    mai = bc.hom_nay() + timedelta(days=1)
+    try:
+        for d in (hqua, hn, mai):
+            bc.luu(mot_nguoi, {"khtn": 1}, PHONG, "kiemthu.tp", d)
+        bc._ngay_don = None                      # ép dọn lại trong cùng lần chạy
+        bc.don_ngay_cu()
+        with session_scope() as s:
+            con = {r.ngay for r in s.execute(select(BaoCaoNgay)).scalars()
+                   if r.acc_norm == mot_nguoi}
+        assert hqua not in con                   # ngày đã qua: xoá
+        assert hn in con and mai in con          # hôm nay và ngày nhập trước: giữ
+    finally:
+        bc._ngay_don = None
+        with session_scope() as s:
+            for d in (hqua, hn, mai):
+                s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == d))
+
+
 def test_chan_so_vo_ly(mot_nguoi):
     for xau in (-1, 5000, "abc"):
         with pytest.raises(bc.LoiBaoCao):

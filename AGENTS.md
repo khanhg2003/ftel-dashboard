@@ -117,7 +117,14 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      đứng TRƯỚC ONL sáng. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
      này, lưu vào `target_monthly` với `doi_tuong = "NHAN_VIEN"` (mọi truy vấn khác đều lọc `= 'PHONG'` nên
      không đụng nhau); mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có. Ô để TRỐNG nghĩa
-     là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test). **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
+     là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test). **"Còn phải ONL" của dòng TỔNG** = tổng dự kiến − tổng đã online, KHÔNG
+     cộng cột: từng người đã kẹp ở 0 nên người online vượt dự kiến không bù cho người thiếu, cộng cột
+     lên sẽ lệch với ô tóm tắt và ảnh báo cáo (chủ app phát hiện 26/09/2026: dự kiến 33, đã online 26
+     mà dòng TỔNG ghi 9). **Báo cáo của ngày ĐÃ QUA bị xoá** (`don_ngay_cu()`, gọi từ `layout()` chứ
+     KHÔNG gọi trong `dam_bao_bang()` - gọi ở đó thì database kiểm thử tháng 9 bị dọn mất khi chạy
+     test); chỉ giữ hôm nay và các ngày nhập trước. **Trang tự nạp lại** mỗi `NHIP_MS` (15 giây) nhưng
+     chỉ dựng lại bảng khi `moc_cap_nhat()` đổi, để không cắt ngang ô người khác đang gõ.
+     **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
      file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi
      là người đọc tưởng số đã có thật.

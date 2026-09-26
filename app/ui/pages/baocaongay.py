@@ -24,6 +24,7 @@ AN = {"display": "none"}
 TOI_LA = "Chọn tên mình (để ghi tên)"
 GHI_TEN = "Chọn tên mình ở ô \"Tôi là\" để phần \"cập nhật bởi\" ghi đúng tên."
 SUA = "params.data.sua_duoc"
+NHIP_MS = 15_000                   # nhịp hỏi lại xem có ai vừa sửa không (chốt 26/09/2026)
 # tô cam theo NGƯỜI chưa nhập báo cáo hôm nay, không theo ô bằng 0: KHTN 0 hay ONL sáng 0 là số thật
 THIEU = {"o-thieu": "!params.data.da_nhap && !params.data.la_tong"}
 # chưa nhập thì để ô trống chứ không hiện 0, nhìn là biết ngay ai còn thiếu
@@ -103,7 +104,10 @@ def _cot() -> list[dict]:
         {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **sua_doc,
          "headerTooltip": "Số đã online hôm nay của người này.\nSale gõ tay trong ngày; khi file Internet "
                           "về thì app lấy số lớn hơn giữa hai bên."},
-        {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON},
+        {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
+         "headerTooltip": "Dự kiến ONL trừ đã online, người nào online vượt dự kiến thì để 0.\n"
+                          "Dòng TỔNG lấy tổng dự kiến trừ tổng đã online nên có thể nhỏ hơn "
+                          "khi cộng cột."},
     ]
     net = [
         {"field": "pttb_thang", "headerName": "PTTB tháng", **doc, "cellStyle": {"fontWeight": "700"},
@@ -138,6 +142,7 @@ def layout():
     if not ds:
         return alert("Tài khoản này không dùng mục Báo cáo ngày.", "bad")
     bc.dam_bao_bang()
+    bc.don_ngay_cu()                          # xoá báo cáo của các ngày đã qua cho nhẹ bảng
     ten = {p["code"]: p["ten"] for p in phong_order()}
     hom = bc.hom_nay()
     return html.Div([
@@ -159,6 +164,9 @@ def layout():
         ], className="toolbar loc-trang"),
         dcc.Download(id="bn-tai"),
         dcc.Store(id="bn-da-luu"),
+        # cả phòng cùng gõ một bảng nên phải tự nạp lại khi người khác vừa sửa
+        dcc.Store(id="bn-moc"),
+        dcc.Interval(id="bn-nhip", interval=NHIP_MS),
         html.Div(id="bn-msg"),
         html.Div(id="bn-tom-tat", className="kpi-row kpi-3"),
 
@@ -270,9 +278,14 @@ def _ghim(df: pd.DataFrame) -> list[dict]:
     người: "chưa nhập thì để ô trống" (nếu không cả dòng tổng sẽ trắng) và tô cam ô còn thiếu."""
     if df.empty:
         return []
-    c = ["muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl",
+    c = ["muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu", "dk_onl", "thuc_hien",
          "pttb_thang", "mt_thang", "vvip_thang"]
-    return [{"ho_ten": "TỔNG", "da_nhap": True, "la_tong": True, **{k: int(df[k].sum()) for k in c}}]
+    tong = {k: int(df[k].sum()) for k in c}
+    # "Còn phải ONL" của phòng = tổng dự kiến - tổng đã online, KHÔNG cộng cột. Từng người đã kẹp ở 0
+    # nên ai online vượt dự kiến sẽ không bù cho người thiếu, cộng cột lên sẽ ra số lớn hơn thực tế và
+    # lệch với ô tóm tắt cùng ảnh báo cáo (cùng ngày mà hai chỗ ra hai số).
+    tong["con_phai_onl"] = max(tong["dk_onl"] - tong["thuc_hien"], 0)
+    return [{"ho_ten": "TỔNG", "da_nhap": True, "la_tong": True, **tong}]
 
 
 def _the(df: pd.DataFrame) -> list:
@@ -301,16 +314,22 @@ def register(app):
     @app.callback(Output("bn-toi-la", "options"), Output("bn-tom-tat", "children"),
                   Output("bn-luoi", "rowData"), Output("bn-luoi", "dashGridOptions"),
                   Output("bn-the", "children"), Output("bn-tieu-de", "children"), Output("bn-mo-ta", "children"),
+                  Output("bn-moc", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-toi-la", "value"),
-                  Input("bn-da-luu", "data"), State("ui-vw", "data"), State("bn-luoi", "dashGridOptions"))
-    def _nap(code, ngay, toi_la, _luu, vw, opts):
+                  Input("bn-da-luu", "data"), Input("bn-nhip", "n_intervals"),
+                  State("ui-vw", "data"), State("bn-luoi", "dashGridOptions"), State("bn-moc", "data"))
+    def _nap(code, ngay, toi_la, _luu, _nhip, vw, opts, moc_cu):
         phong = _phong_hop_le(code)
         d = _ngay_hop_le(ngay)
+        # nhịp tự động: chỉ dựng lại bảng khi có người khác vừa sửa, để không cắt ngang ô đang gõ
+        moc = bc.moc_cap_nhat(phong, d)
+        if ctx.triggered_id == "bn-nhip" and moc == moc_cu:
+            raise PreventUpdate
         df = bc.bang(phong, d)
         t = bc.tom_tat(phong, d)
         if df.empty:
             return [], _tom_tat(t), [], no_update, [], "Bảng chỉ số toàn bộ nhân sự", \
-                "Phòng chưa có số liệu (chưa nạp file Internet của tháng này)."
+                "Phòng chưa có số liệu (chưa nạp file Internet của tháng này).", moc
         chon = [{"label": r.ho_ten, "value": r.acc_norm} for r in df.itertuples()]
         df = df.assign(sua_duoc=True)             # sale sửa được mọi dòng (chốt 24/09/2026)
         dien_thoai = (vw or {}).get("w", 1440) < 768
@@ -326,7 +345,7 @@ def register(app):
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
         return (chon, _tom_tat(t), [] if dien_thoai else _dong_luoi(df),
                 {**(opts or {}), "pinnedBottomRowData": _ghim(df)},
-                _the(df) if dien_thoai else [], tieu_de, mo_ta)
+                _the(df) if dien_thoai else [], tieu_de, mo_ta, moc)
 
     @app.callback(Output("bn-da-luu", "data"), Output("bn-msg", "children"),
                   Input("bn-luoi", "cellValueChanged"), State("bn-phong", "value"), State("bn-ngay", "date"),
