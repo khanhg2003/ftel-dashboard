@@ -39,6 +39,14 @@ MAU_CON = {"styleConditions": [{"condition": "params.value > 0",
                                 "style": {"color": "#8A5A00", "fontWeight": "650"}},
                                {"condition": "params.value < 0",        # đã online vượt dự kiến
                                 "style": {"color": "#1B7A4B", "fontWeight": "650"}}]}
+# Hai cột này là cộng trừ thuần tuý nên để trình duyệt tự tính: gõ ONL sáng / chiều là đổi NGAY,
+# không phải chờ máy chủ trả về (chủ app chốt 27/09/2026). Công thức phải giống hệt `bao_cao_ngay.bang`
+# và `tom_tat` - sửa một bên thì sửa cả ba, có test đối chiếu.
+# "Còn phải ONL" KHÔNG kẹp ở 0: online vượt dự kiến thì để số âm, nhờ vậy cộng dọc cột mới ra dòng TỔNG.
+# Phải bọc Number(): ô vừa gõ trả về CHUỖI, để nguyên thì "5" + 0 ra "50" chứ không phải 5.
+_SO_O = "Number(params.data.%s || 0)"
+DK_ONL = {"function": f"{_SO_O % 'onl_sang'} + {_SO_O % 'onl_chieu'}"}
+CON_PHAI_ONL = {"function": f"{_SO_O % 'onl_sang'} + {_SO_O % 'onl_chieu'} - {_SO_O % 'thuc_hien'}"}
 
 
 def topbar():
@@ -101,6 +109,7 @@ def _cot() -> list[dict]:
     ]
     onl = [
         {"field": "dk_onl", "headerName": "DK ONL", **doc, "cellStyle": {"fontWeight": "700"},
+         "valueGetter": DK_ONL,
          "headerTooltip": "Dự kiến online cả ngày = sáng + chiều. App tự cộng."},
         {"field": "onl_sang", "headerName": "ONL sáng *", "headerTooltip": "Dự kiến online buổi sáng.", **sua},
         {"field": "onl_chieu", "headerName": "ONL chiều *", "headerTooltip": "Dự kiến online buổi chiều.",
@@ -111,6 +120,7 @@ def _cot() -> list[dict]:
          "headerTooltip": "Số đã online hôm nay của người này.\nSale gõ tay trong ngày; khi file Internet "
                           "về thì app lấy số lớn hơn giữa hai bên."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
+         "valueGetter": CON_PHAI_ONL,
          "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "
                           "vượt dự kiến; nhờ để số âm nên cộng dọc cột ra đúng dòng TỔNG."},
     ]
@@ -173,6 +183,11 @@ def layout():
         dcc.Store(id="bn-moc"),
         dcc.Interval(id="bn-nhip", interval=NHIP_MS),
         dcc.Store(id="bn-da-va"),                 # lần sửa gần nhất đã được vá lại lên bảng
+        # Dòng TỔNG đi đường riêng: máy chủ gửi số vào Store này, trình duyệt tự đặt vào bảng.
+        # Gửi thẳng qua `dashGridOptions` thì Dash nạp lại trọn gói tuỳ chọn và ag-grid XOÁ undo
+        # stack - đo 27/09/2026: đổi riêng dòng ghim bằng setGridOption thì undo còn nguyên.
+        dcc.Store(id="bn-ghim"),
+        dcc.Store(id="bn-ghim-xong"),
         # chỉ chạy vài giây sau khi mình vừa sửa, bình thường tắt hẳn để không bắn request rỗng
         dcc.Interval(id="bn-nhip-va", interval=NHIP_VA_MS, disabled=True),
         html.Div(id="bn-msg"),
@@ -320,15 +335,24 @@ def _the(df: pd.DataFrame) -> list:
 
 # ------------------------------------------------------------------ callbacks
 def register(app):
+    # Đặt dòng TỔNG vào bảng ngay tại trình duyệt, không qua `dashGridOptions` (xem ghi chú ở layout).
+    app.clientside_callback(
+        """function (ghim) {
+            const api = window.dash_ag_grid && window.dash_ag_grid.getApi('bn-luoi');
+            if (api && ghim) { api.setGridOption('pinnedBottomRowData', ghim); }
+            return window.dash_clientside.no_update;
+        }""",
+        Output("bn-ghim-xong", "data"), Input("bn-ghim", "data"), prevent_initial_call=True)
+
     @app.callback(Output("bn-toi-la", "options"), Output("bn-tom-tat", "children"),
                   Output("bn-luoi", "rowData"), Output("bn-luoi", "rowTransaction"),
-                  Output("bn-luoi", "dashGridOptions"),
+                  Output("bn-ghim", "data"),
                   Output("bn-the", "children"), Output("bn-tieu-de", "children"), Output("bn-mo-ta", "children"),
                   Output("bn-moc", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-toi-la", "value"),
                   Input("bn-da-luu", "data"), Input("bn-nhip", "n_intervals"),
-                  State("ui-vw", "data"), State("bn-luoi", "dashGridOptions"), State("bn-moc", "data"))
-    def _nap(code, ngay, toi_la, luu, _nhip, vw, opts, moc_cu):
+                  State("ui-vw", "data"), State("bn-moc", "data"))
+    def _nap(code, ngay, toi_la, luu, _nhip, vw, moc_cu):
         phong = _phong_hop_le(code)
         d = _ngay_hop_le(ngay)
         # nhịp tự động: chỉ dựng lại bảng khi có người khác vừa sửa, để không cắt ngang ô đang gõ
@@ -348,10 +372,10 @@ def register(app):
         chon = [{"label": r.ho_ten, "value": r.acc_norm} for r in df.itertuples()]
         df = df.assign(sua_duoc=True)             # sale sửa được mọi dòng (chốt 24/09/2026)
         if vua_sua:
-            # Không đụng gì vào bảng lúc này - `_va_dong` làm mới sau, khi sale ngừng gõ. Vá ngay
-            # thì ag-grid xoá undo stack, Ctrl+Z hết tác dụng. Dòng TỔNG và khối tóm tắt cũng phải
-            # chờ cùng lúc: cập nhật sớm hơn thì cộng dọc cột không ra dòng TỔNG trong mấy giây đó.
-            return (chon, no_update, no_update, no_update, no_update,
+            # Dòng TỔNG và khối tóm tắt cập nhật NGAY, cùng nhịp với DK ONL / Còn phải ONL mà trình
+            # duyệt tự tính - nhờ vậy cộng dọc cột luôn ra đúng dòng TỔNG. Riêng dòng vừa sửa để
+            # `_va_dong` vá sau: vá ngay là ag-grid xoá undo stack, Ctrl+Z hết tác dụng.
+            return (chon, _tom_tat(t), no_update, no_update, _ghim(df),
                     no_update, no_update, no_update, moc)
         dien_thoai = (vw or {}).get("w", 1440) < 768
         tieu_de = [f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"]
@@ -364,35 +388,29 @@ def register(app):
                      + mo_ta)
         if _dung_chung() and not toi_la:
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
-        return (chon, _tom_tat(t), [] if dien_thoai else _dong_luoi(df), no_update,
-                {**(opts or {}), "pinnedBottomRowData": _ghim(df)},
+        return (chon, _tom_tat(t), [] if dien_thoai else _dong_luoi(df), no_update, _ghim(df),
                 _the(df) if dien_thoai else [], tieu_de, mo_ta, moc)
 
     @app.callback(Output("bn-luoi", "rowTransaction", allow_duplicate=True),
-                  Output("bn-luoi", "dashGridOptions", allow_duplicate=True),
-                  Output("bn-tom-tat", "children", allow_duplicate=True),
                   Output("bn-da-va", "data"), Output("bn-nhip-va", "disabled", allow_duplicate=True),
                   Input("bn-nhip-va", "n_intervals"), State("bn-da-luu", "data"), State("bn-da-va", "data"),
-                  State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-luoi", "dashGridOptions"),
-                  prevent_initial_call=True)
-    def _va_dong(_n, luu, da_va, code, ngay, opts):
-        """Làm mới dòng mình vừa sửa, dòng TỔNG và khối tóm tắt - sau khi ngừng gõ CHO_VA giây.
+                  State("bn-phong", "value"), State("bn-ngay", "date"), prevent_initial_call=True)
+    def _va_dong(_n, luu, da_va, code, ngay):
+        """Làm mới dòng mình vừa sửa sau khi ngừng gõ CHO_VA giây.
 
-        Ba thứ này phải cập nhật CÙNG LÚC: cộng dọc cột luôn phải ra đúng dòng TỔNG, nên không
-        được để cái nào chạy trước cái nào."""
+        Chỉ còn phải hoãn mấy cột app tự lấy từ file (đã online theo file, PTTB tháng) và cờ
+        "đã nhập": DK ONL với Còn phải ONL nay trình duyệt tự tính nên đổi ngay lúc gõ, còn dòng
+        TỔNG đi đường riêng qua `bn-ghim` nên cũng không phải chờ."""
         acc = (luu or {}).get("acc") if isinstance(luu, dict) else None
         if not acc or luu.get("luc") == da_va:
-            return no_update, no_update, no_update, no_update, True
+            return no_update, no_update, True
         if (gio_viet_nam() - datetime.fromisoformat(luu["luc"])).total_seconds() < CHO_VA:
             raise PreventUpdate                    # còn đang gõ tiếp, để lượt sau
-        phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
-        df = bc.bang(phong, d)
+        df = bc.bang(_phong_hop_le(code), _ngay_hop_le(ngay))
         if df.empty:
-            return no_update, no_update, no_update, luu["luc"], True
+            return no_update, luu["luc"], True
         dong = df[df.acc_norm.isin(acc)].assign(sua_duoc=True)
-        va = {"update": _dong_luoi(dong)} if not dong.empty else no_update
-        return (va, {**(opts or {}), "pinnedBottomRowData": _ghim(df)},
-                _tom_tat(bc.tom_tat(phong, d)), luu["luc"], True)
+        return ({"update": _dong_luoi(dong)} if not dong.empty else no_update), luu["luc"], True
 
     @app.callback(Output("bn-da-luu", "data"), Output("bn-msg", "children"),
                   Output("bn-nhip-va", "disabled"),

@@ -323,11 +323,36 @@ def test_va_dong_phai_hoan_de_giu_duoc_ctrl_z():
     assert "redoCellEditing" in js, "Ctrl+Shift+Z do file này gắn, ag-grid chỉ tự nhận Ctrl+Y"
 
 
-def test_dong_tong_va_dong_nguoi_phai_lam_moi_cung_luc():
-    """Cộng dọc cột luôn phải ra đúng dòng TỔNG (chủ app chốt 26/09/2026), nên dòng TỔNG và
-    khối tóm tắt không được cập nhật sớm hơn dòng vừa sửa - cả ba cùng nằm trong `_va_dong`."""
+def test_cong_thuc_trinh_duyet_tu_tinh_khop_voi_cong_thuc_python():
+    """DK ONL và Còn phải ONL được tính Ở TRÌNH DUYỆT để đổi ngay lúc gõ (chốt 27/09/2026),
+    nhưng ảnh PNG và dòng TỔNG vẫn tính bằng Python. Hai bên PHẢI ra cùng một số.
+
+    Ở đây kiểm số Python thoả đúng công thức mà JavaScript đang dùng - lệch là ảnh gửi nhóm Zalo
+    khác với số trên màn hình."""
+    from app.ui.pages.baocaongay import CON_PHAI_ONL, DK_ONL
+    df = bc.bang(PHONG, NGAY)
+    assert not df.empty, "phòng IBB7 phải có số trong kỳ kiểm thử"
+    # nhập số thật cho một người, kể cả ca online vượt dự kiến (còn phải ONL âm)
+    bc.luu(df.iloc[0].acc_norm, {"onl_sang": 4, "onl_chieu": 3, "da_online": 9},
+           PHONG, "kiemthu.tp", NGAY)
+    df = bc.bang(PHONG, NGAY)
+    for r in df.itertuples():
+        assert r.dk_onl == r.onl_sang + r.onl_chieu, f"{r.acc_norm}: DK ONL không bằng sáng + chiều"
+        assert r.con_phai_onl == r.dk_onl - r.thuc_hien, f"{r.acc_norm}: còn phải ONL sai"
+    # và công thức JS phải đúng ba cột đó, có bọc Number (ô vừa gõ trả về chuỗi: "5" + 0 = "50")
+    for js in (DK_ONL["function"], CON_PHAI_ONL["function"]):
+        assert js.count("Number(") == js.count("params.data.")
+    assert "onl_sang" in DK_ONL["function"] and "onl_chieu" in DK_ONL["function"]
+    assert "thuc_hien" in CON_PHAI_ONL["function"] and " - " in CON_PHAI_ONL["function"]
+
+
+def test_dong_tong_khong_di_qua_dashgridoptions():
+    """Dòng TỔNG phải đặt qua `bn-ghim` (trình duyệt gọi setGridOption), KHÔNG qua `dashGridOptions`.
+
+    Gửi qua `dashGridOptions` thì Dash nạp lại trọn gói tuỳ chọn và ag-grid xoá sạch undo stack,
+    Ctrl+Z hết tác dụng (đo 27/09/2026). Đổi riêng dòng ghim thì undo còn nguyên."""
     import inspect
     from app.ui.pages import baocaongay as bn
     ma = inspect.getsource(bn.register)
-    khoi = ma[ma.index('Output("bn-luoi", "rowTransaction"'):ma.index("def _luu_o")]
-    assert "rowTransaction" in khoi and "pinnedBottomRowData" in khoi and "_tom_tat" in khoi
+    assert "setGridOption('pinnedBottomRowData'" in ma, "dòng TỔNG phải đặt thẳng ở trình duyệt"
+    assert '"dashGridOptions"' not in ma, "đừng gửi dashGridOptions từ máy chủ, sẽ mất Ctrl+Z"

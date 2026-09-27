@@ -230,8 +230,15 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
     giây (`_va_dong` ở `pages/nhapton.py` và `pages/baocaongay.py`). Nhịp hoãn dùng `dcc.Interval` **có
     `disabled=True` sẵn**, chỉ bật sau khi có người vừa sửa - để trống là mỗi người mở trang bắn một request
     rỗng mỗi 2 giây;
-  - dòng TỔNG (`pinnedBottomRowData`) và các ô tổng khác phải làm mới **cùng lúc** với dòng vừa sửa, không
-    được sớm hơn: cộng dọc cột luôn phải ra đúng dòng TỔNG (có test chặn);
+  - **gửi `dashGridOptions` từ máy chủ cũng xoá undo stack** (Dash nạp lại trọn gói tuỳ chọn), nhưng đổi
+    riêng một tuỳ chọn bằng `api.setGridOption(...)` thì KHÔNG. Nên dòng TỔNG của Báo cáo ngày đi qua
+    `dcc.Store` `bn-ghim` + một `clientside_callback` gọi `setGridOption("pinnedBottomRowData", ...)`,
+    nhờ vậy dòng TỔNG cập nhật ngay mà Ctrl+Z vẫn sống (có test chặn). `refreshCells()` cũng an toàn;
+  - **cột chỉ là cộng trừ của các cột khác thì để trình duyệt tự tính** bằng `valueGetter`, đừng chờ máy
+    chủ: DK ONL và Còn phải ONL ở Báo cáo ngày đổi NGAY lúc gõ (chủ app chốt 27/09/2026). Hai lưu ý:
+    (a) ô vừa gõ trả về **chuỗi**, không bọc `Number(...)` thì `"5" + 0` ra `"50"`;
+    (b) cột **đang cho sửa** thì đừng gắn `valueGetter` - ag-grid sẽ đòi thêm `valueSetter`, dễ mất dữ liệu.
+    Công thức JS phải khớp đúng công thức Python (`bao_cao_ngay.bang`, `tom_tat`, ảnh PNG) - có test đối chiếu;
   - ag-grid chỉ tự nhận **Ctrl+Z** và **Ctrl+Y**. Ctrl+Shift+Z (người dùng quen từ Word/Excel) do
     `assets/lam_lai_o.js` gắn thêm, chạy cho mọi bảng có bật undo - đừng gắn riêng từng trang;
   - bảng có chèn dòng tiêu đề nhóm (Nhập tồn) thì **không bật `sortable` / bộ lọc cột của ag-grid**: dòng
