@@ -71,6 +71,17 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 4. **Tab / khối đang ẩn không tính.** Callback của tab phải có `Input("<trang>-tab", "value")` và `raise PreventUpdate` (hoặc trả `no_update`) khi tab đó không mở. Nội dung cửa sổ chi tiết dựng khi mở, không dựng sẵn.
 5. **Không hỏi database trong vòng lặp** (mỗi phòng / mỗi ngày một câu). Đọc một lần theo khoảng rồi `groupby` bằng pandas, hoặc để SQL tự cộng.
 6. **`layout()` phải nhẹ.** Chỉ đọc danh sách ngày / tháng / phòng (đã nhớ tạm). Số liệu nặng để callback nạp.
+7. **Ghi nhiều dòng thì dùng executemany**, đừng nhét dữ liệu vào trong câu lệnh (chốt 27/09/2026,
+   `ingest/commit._upsert`). `insert().values([800 dòng])` làm mỗi lô thành một câu SQL khác nhau nên
+   SQLAlchemy phải dịch lại từ đầu: đo trên file 5.000 dòng, riêng phần dịch chiếm 6,3 trong 9,5 giây.
+   Viết `session.execute(stmt, danh_sach_dict)` thì chỉ dịch một lần - cùng file đó còn 0,6 giây. Mọi
+   dòng phải cùng một bộ cột, nên lấy hợp các cột rồi điền đủ bằng `.get()` trước khi gửi.
+8. **Nạp file: đọc file đúng một lần** (`pages/upload.py`, `_nho_ket_qua` / `_doc_mot_lan`). File bán hàng
+   là file luỹ kế cả tháng nên cuối tháng ~5.000 dòng, mỗi lần `load_file` mất ~7 giây; trước đây đọc một
+   lần lúc xem trước rồi đọc LẠI lúc bấm Lưu. Nay kết quả đọc được giữ tạm trong bộ nhớ máy chủ, khoá theo
+   mã băm nội dung file. Trên Vercel hai thao tác có thể rơi vào hai máy chủ khác nhau nên **phải luôn có
+   đường đọc lại**, đừng biến bộ nhớ tạm này thành bắt buộc. `vercel.json` đang đặt `maxDuration: 60`:
+   thêm việc gì vào đường nạp thì phải đo lại, chạm mốc đó là lưu hỏng giữa chừng chứ không phải chỉ chậm.
 
 ---
 

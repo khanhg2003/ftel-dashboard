@@ -6,7 +6,8 @@ một bảng kết quả, thay cho bốn lượt thao tác giống hệt nhau.
 from __future__ import annotations
 
 import base64
-from datetime import date, datetime
+import hashlib
+from datetime import date
 from pathlib import Path
 
 import dash_ag_grid as dag
@@ -166,10 +167,42 @@ def _thang_options() -> list[dict]:
 
 
 def _luu_tam(filename: str, content: str) -> Path:
-    head, b64 = content.split(",", 1)
-    path = UPLOAD_DIR / f"{datetime.now():%Y%m%d_%H%M%S}_{Path(filename).name}"
-    path.write_bytes(base64.b64decode(b64))
+    """Ghi nội dung ra file tạm, đặt tên theo chính nội dung.
+
+    Cùng một file thì ra cùng một đường dẫn, nên lúc lưu không phải ghi lại bản thứ hai.
+    """
+    b64 = content.split(",", 1)[1]
+    raw = base64.b64decode(b64)
+    ma = hashlib.sha1(raw).hexdigest()[:16]
+    path = UPLOAD_DIR / f"{ma}_{Path(filename).name}"
+    if not path.exists():
+        path.write_bytes(raw)
     return path
+
+
+# Kết quả đọc file, giữ tạm giữa lúc xem trước và lúc bấm Lưu để khỏi đọc lại file lần hai
+# (file 5.000 dòng mất ~7 giây mỗi lần đọc). Trên Vercel hai thao tác có thể rơi vào hai máy
+# chủ khác nhau, lúc đó không có sẵn thì đọc lại như cũ - đây chỉ là đường tắt, không bắt buộc.
+_DA_DOC: dict[str, tuple[str, list]] = {}
+_GIU_TOI_DA = 3
+
+
+def _nho_ket_qua(path: Path, results: list) -> None:
+    if len(_DA_DOC) >= _GIU_TOI_DA:                  # bỏ mục cũ nhất, tránh phình bộ nhớ máy chủ
+        _DA_DOC.pop(next(iter(_DA_DOC)), None)
+    _DA_DOC[path.name] = (file_hash(path), results)
+
+
+def _doc_mot_lan(path: Path) -> tuple[str, list]:
+    """(mã file, các bảng đọc được) - lấy lại kết quả lúc xem trước nếu còn, không thì đọc lại."""
+    cu = _DA_DOC.pop(path.name, None)
+    if cu is not None:
+        return cu
+    return file_hash(path), load_file(path)
+
+
+def _so_dong(results: list) -> int:
+    return sum(len(r.df) for r in results if r.ok)
 
 
 def thang_nsld(res, ten_file: str, thang_chon: str | None = None) -> tuple[str | None, str]:
@@ -312,12 +345,14 @@ def register(app):
         if not hang_doi:                     # vừa lưu xong (hàng đợi được xoá) - giữ kết quả đang hiện
             return no_update, True, no_update, no_update
 
-        ui, kho, so_ok = [], [], 0
+        ui, kho, so_ok, so_dong = [], [], 0, 0
         for muc_file in hang_doi:
             noi_dung, ten_file = muc_file["content"], muc_file["name"]
             try:
                 path = _luu_tam(ten_file, noi_dung)
                 results = load_file(path)
+                _nho_ket_qua(path, results)      # để lúc bấm Lưu khỏi đọc lại file
+                so_dong += _so_dong(results)
             except Exception as e:  # noqa: BLE001
                 ui.append(card([alert([html.B("Không đọc được file: "), str(e)], "bad")],
                                title=ten_file))
@@ -340,13 +375,17 @@ def register(app):
                     so_ok += 1
             kho.append(ten_file)
 
+        # số dòng nói lên thời gian lưu rõ hơn dung lượng file: file bán hàng luỹ kế cả tháng
+        # nên cuối tháng nhiều dòng gấp nhiều lần đầu tháng dù vẫn chỉ vài trăm KB
         tom_tat = html.Div([badge(f"{len(kho)} file đã đọc"),
-                            badge(f"{so_ok} bảng sẵn sàng lưu", "ok" if so_ok else "muted")],
+                            badge(f"{so_ok} bảng sẵn sàng lưu", "ok" if so_ok else "muted")]
+                           + ([badge(f"{so_dong:,} dòng".replace(",", "."))] if so_dong else []),
                            style={"display": "flex", "gap": "8px", "marginBottom": "14px"})
         badge_top = html.Span(f"{so_ok} bảng chờ lưu", className="badge warn" if so_ok else "badge muted")
-        huong_dan = alert([html.B(f"Đã đọc {len(kho)} file. "),
+        huong_dan = alert([html.B(f"Đã đọc {len(kho)} file, {so_dong:,} dòng. ".replace(",", ".")),
                            "Kiểm tra nhanh các bảng bên dưới rồi bấm ", html.B("Lưu tất cả vào hệ thống"),
-                           " ở trên - dữ liệu chỉ vào báo cáo sau khi lưu."], "info") if so_ok else ""
+                           " ở trên - dữ liệu chỉ vào báo cáo sau khi lưu. Bảng càng nhiều dòng thì "
+                           "lưu càng lâu, bấm một lần rồi chờ."], "info") if so_ok else ""
         return [tom_tat, huong_dan] + ui, not so_ok, no_update, badge_top
 
     @app.callback(Output("up-commit-ketqua", "children"),
@@ -370,8 +409,7 @@ def register(app):
             ten_file = muc_file["name"]
             try:
                 path = _luu_tam(ten_file, muc_file["content"])
-                results = load_file(path)
-                h = file_hash(path)
+                h, results = _doc_mot_lan(path)      # dùng lại kết quả lúc xem trước nếu còn
                 if not any(r.ok for r in results):
                     so_bo += 1
                     dong.append(("bad", ten_file, "Không đọc được dữ liệu hợp lệ - đã bỏ qua."))
