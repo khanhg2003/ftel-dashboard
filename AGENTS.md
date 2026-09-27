@@ -106,7 +106,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      tường cam. Xem đúng một người thì bỏ dòng tiêu đề cụm. 4 ô số đếm theo ô Nhân viên đang tick, nên PHẢI có
      dòng phạm vi `#nt-pham-vi` ngay trên (chủ app đọc "Tổng tồn 16" tưởng là cả phòng). Chữ cảnh báo giữ dưới
      ~34 ký tự, cột hẹp nên dài hơn là dòng cao 5 hàng (có test chặn). Laptop nhập bằng Tab: ghi chú → mốc →
-     ngày → phương án, mỗi ô tự lưu.
+     ngày → phương án, mỗi ô tự lưu. **Rà soát UX 27/09/2026:** cột gọi "Ngày tồn" (đừng đổi về "Chờ", có
+     test chặn), lọc theo số ngày tồn bằng ô `nt-ton` trên thanh lọc chứ không bằng bộ lọc cột của ag-grid -
+     bảng có chèn dòng tiêu đề cụm nhân viên nên để ag-grid tự lọc / tự xếp là dòng tiêu đề trôi lẫn vào
+     dữ liệu. Hai phương án đã chốt hướng xử lý được tô cả dòng, HAI MÀU KHÁC NHAU: Huỷ xám, KH đang suy
+     nghĩ tím (không dùng vàng - vàng đang là "đến hạn hôm nay"). Thứ tự CSS: `dong-suy-nghi` → `dong-do` /
+     `dong-vang` → `dong-huy`, vì ca huỷ không còn việc nên đè lên cảnh báo, còn ca suy nghĩ vẫn phải
+     quay lại chốt nên cảnh báo đè lên nó (có test chặn thứ tự).
    - *Báo cáo đầu ngày* (`app/bao_cao_ngay.py`, chốt 24/09/2026, bật theo phòng ở `config/rules.yml` →
      `bao_cao_ngay`, hiện chỉ IBB7): sale nhập 7 ô (mục tiêu bán hôm nay, KHTN đang có, số bán thực
      hiện, dự kiến online
@@ -214,7 +220,22 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
     `"cellClass": "ag-right-aligned-cell <lớp của mình>"`;
   - `cellValueChanged` **chỉ bắn khi giá trị đổi**. Ô nhập mà để sẵn số 0 thì người dùng gõ 0 vào sẽ
     không lưu được (phải gõ 1 rồi sửa lại 0 mới ăn - chủ app báo 26/09/2026). Ô "chưa nhập" phải đưa
-    `None` vào `rowData`, đừng đưa 0.
+    `None` vào `rowData`, đừng đưa 0;
+  - **bảng nhập liệu: sau khi tự mình sửa một ô thì ĐỪNG dựng lại `rowData`** (chốt 27/09/2026). Dựng lại
+    là dòng nhảy chỗ khi thứ tự xếp đổi theo giá trị vừa nhập - chủ app báo "nhập ngày xong, click sang chỗ
+    khác thì hàng bị nhảy". Vá đúng dòng đó bằng `rowTransaction = {"update": [...]}`, dòng sẽ đứng yên;
+  - **ag-grid XOÁ SẠCH undo stack mỗi lần nhận transaction** (đo 27/09/2026: undo tụt từ 2 về 0 đúng lúc
+    transaction về; `applyTransaction` gọi thẳng cũng vậy, không phải lỗi dash-ag-grid). Nên `undoRedoCellEditing`
+    và việc vá dòng XUNG KHẮC tại cùng một thời điểm: phải HOÃN bản vá tới khi người dùng ngừng gõ `CHO_VA`
+    giây (`_va_dong` ở `pages/nhapton.py` và `pages/baocaongay.py`). Nhịp hoãn dùng `dcc.Interval` **có
+    `disabled=True` sẵn**, chỉ bật sau khi có người vừa sửa - để trống là mỗi người mở trang bắn một request
+    rỗng mỗi 2 giây;
+  - dòng TỔNG (`pinnedBottomRowData`) và các ô tổng khác phải làm mới **cùng lúc** với dòng vừa sửa, không
+    được sớm hơn: cộng dọc cột luôn phải ra đúng dòng TỔNG (có test chặn);
+  - ag-grid chỉ tự nhận **Ctrl+Z** và **Ctrl+Y**. Ctrl+Shift+Z (người dùng quen từ Word/Excel) do
+    `assets/lam_lai_o.js` gắn thêm, chạy cho mọi bảng có bật undo - đừng gắn riêng từng trang;
+  - bảng có chèn dòng tiêu đề nhóm (Nhập tồn) thì **không bật `sortable` / bộ lọc cột của ag-grid**: dòng
+    tiêu đề sẽ trôi lẫn vào dữ liệu. Lọc bằng ô riêng trên thanh lọc rồi lọc ở Python.
 - **Component Dash** là falsy (có `__len__`): kiểm bằng `is not None`, không dùng `if comp`.
 - **Mọi trang phải dùng được ở màn laptop hẹp** (khoảng 800 px): lưới 2-3 cột phải tự xuống 1 cột.
 

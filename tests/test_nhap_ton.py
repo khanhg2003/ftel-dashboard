@@ -258,3 +258,65 @@ def test_o_so_cung_la_nut_loc_va_danh_dau_o_dang_chon():
     assert [x.id["v"] for x in o] == ["all", "gap", "den_han", "thieu"]      # gấp đứng ngay sau tổng
     assert ["dang-chon" in x.className for x in o] == [False, True, False, False]
     assert "bad" in o[1].className                                          # còn ca gấp thì đỏ
+
+
+# ------------------------------------------------- rà soát UX 27/09/2026
+def test_loc_theo_so_ngay_ton():
+    """Ô "Ngày tồn" lọc ra các ca tồn lâu - ca tồn lâu là ca dễ tự huỷ nhất."""
+    import pandas as pd
+    df = pd.DataFrame({"acc_norm": ["a"] * 4, "hop_dong": list("ABCD"), "ten_khach_hang": [""] * 4,
+                       "so_ngay_cho": [3, 8, 20, 45], "thu_tu": [5] * 4, "thieu": [False] * 4,
+                       "muc": [""] * 4})
+    assert len(nt.loc(df, None, None, None, "all")) == 4
+    assert list(nt.loc(df, None, None, None, "7").hop_dong) == ["B", "C", "D"]
+    assert list(nt.loc(df, None, None, None, "14").hop_dong) == ["C", "D"]
+    assert list(nt.loc(df, None, None, None, "30").hop_dong) == ["D"]
+    assert len(nt.loc(df, None, None, None, None)) == 4      # chưa chọn thì không lọc
+
+
+def test_cot_so_ngay_ton_khong_con_ten_cho():
+    """Chủ app chốt 27/09/2026: gọi "Ngày tồn", không gọi "Chờ" (có test chặn để khỏi đổi ngược)."""
+    import pandas as pd
+
+    from app.ui.pages.nhapton import _cot
+    cot = {c["field"]: c for c in _cot(3, ["Huỷ"]) if "field" in c}
+    assert cot["so_ngay_cho"]["headerName"] == "Ngày tồn"
+    assert cot["so_ngay_cho"]["width"] >= 66                 # "Ngày tồn" dài hơn "Chờ", đừng bóp lại
+    df = pd.DataFrame({"ho_ten": ["A"], "acc": ["a"], "hop_dong": ["H1"], "ten_khach_hang": [""],
+                       "ngay_tao_hd": ["2026-09-01"], "so_ngay_cho": [12], "ghi_chu": [""],
+                       "loai_moc": [""], "ngay_moc": [""], "phuong_an": [""], "canh_bao": [""],
+                       "cap_nhat": [""]})
+    assert "Số ngày tồn" in nt.file_excel(df).columns      # file Excel gọi giống hệt trên bảng
+
+
+def test_hai_phuong_an_da_chot_co_hai_mau_dong_khac_nhau():
+    """Huỷ và "KH đang suy nghĩ - Chốt lại" phải nhìn ra ngay là hai trạng thái khác nhau."""
+    from app.ui.pages.nhapton import DONG_HUY, DONG_SUY_NGHI, LOP_PA
+    assert LOP_PA[nt.PA_HUY] != LOP_PA[nt.PA_SUY_NGHI]
+    assert nt.PA_HUY in DONG_HUY and nt.PA_SUY_NGHI in DONG_SUY_NGHI
+    assert DONG_HUY != DONG_SUY_NGHI
+
+
+def test_bang_bat_lui_lai_lam_lai():
+    """Ctrl+Z phải được bật ở chính bảng, và Ctrl+Shift+Z do assets/lam_lai_o.js gắn thêm
+    (ag-grid chỉ tự nhận Ctrl+Y). Vá dòng phải HOÃN vì ag-grid xoá undo stack mỗi lần vá."""
+    from pathlib import Path
+    from app.ui.pages import nhapton
+    from app.ui.pages.nhapton import _cot
+
+    luoi = nhapton.bang("nt-luoi", _cot(3, ["Huỷ"]), cao=640,
+                        tuy_chon={"undoRedoCellEditing": True, "undoRedoCellEditingLimit": 25})
+    assert luoi.dashGridOptions["undoRedoCellEditing"] is True
+    js = (Path(__file__).resolve().parent.parent / "assets" / "lam_lai_o.js").read_text(encoding="utf-8")
+    assert "redoCellEditing" in js and "shiftKey" in js
+    assert nhapton.CHO_VA >= 3, "hoãn quá ngắn thì gõ chưa xong đã mất Ctrl+Z"
+    assert nhapton.NHIP_MS <= nhapton.CHO_VA * 1000, "nhịp phải dày hơn thời gian chờ mới vá đúng lúc"
+
+
+def test_mau_dong_huy_phai_dung_sau_mau_canh_bao():
+    """Ca đã huỷ thì không còn việc phải làm, nên màu xám phải đè lên đỏ/vàng.
+    CSS cùng độ đặc hiệu nên luật đứng sau thắng - đừng đảo thứ tự hai khối này."""
+    from pathlib import Path
+    css = (Path(__file__).resolve().parent.parent / "assets" / "style.css").read_text(encoding="utf-8")
+    assert css.index(".ag-row.dong-suy-nghi") < css.index(".ag-row.dong-do")
+    assert css.index(".ag-row.dong-do") < css.index(".ag-row.dong-huy,")

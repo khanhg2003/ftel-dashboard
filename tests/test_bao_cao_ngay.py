@@ -311,3 +311,23 @@ def test_ve_duoc_anh_bao_cao():
     png = anh_bao_cao_ngay("IBB7", NGAY)
     assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 20_000
     assert bc.chu("IBB7", NGAY)["thong_diep"] == "Cả team cố lên."
+
+
+def test_va_dong_phai_hoan_de_giu_duoc_ctrl_z():
+    """ag-grid XOÁ SẠCH undo stack mỗi lần nhận transaction (đo 27/09/2026), nên sau khi sale
+    sửa một ô thì bảng phải chờ rồi mới làm mới - vá ngay là Ctrl+Z hết tác dụng."""
+    from pathlib import Path
+    from app.ui.pages import baocaongay as bn
+    assert bn.CHO_VA >= 3 and bn.NHIP_VA_MS <= bn.CHO_VA * 1000
+    js = (Path(__file__).resolve().parent.parent / "assets" / "lam_lai_o.js").read_text(encoding="utf-8")
+    assert "redoCellEditing" in js, "Ctrl+Shift+Z do file này gắn, ag-grid chỉ tự nhận Ctrl+Y"
+
+
+def test_dong_tong_va_dong_nguoi_phai_lam_moi_cung_luc():
+    """Cộng dọc cột luôn phải ra đúng dòng TỔNG (chủ app chốt 26/09/2026), nên dòng TỔNG và
+    khối tóm tắt không được cập nhật sớm hơn dòng vừa sửa - cả ba cùng nằm trong `_va_dong`."""
+    import inspect
+    from app.ui.pages import baocaongay as bn
+    ma = inspect.getsource(bn.register)
+    khoi = ma[ma.index('Output("bn-luoi", "rowTransaction"'):ma.index("def _luu_o")]
+    assert "rowTransaction" in khoi and "pinnedBottomRowData" in khoi and "_tom_tat" in khoi

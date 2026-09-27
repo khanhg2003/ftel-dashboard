@@ -6,6 +6,7 @@ form 3 mục bắt buộc. Danh sách xếp theo từng cụm nhân viên. Mọi
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 
 import pandas as pd
 from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
@@ -39,8 +40,14 @@ MAU_XONG = {"styleConditions": [{"condition": "params.value >= 100", "style": {"
                                                                               "fontWeight": "700"}}]}
 OPTS_NV = {"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableClickSelection": True},
            "suppressCellFocus": True}
-MAU_PA = {"pa-cho": "params.value == 'Đang chờ triển khai'", "pa-huy": "params.value == 'Huỷ'",
-          "pa-suy-nghi": "params.value == 'KH đang suy nghĩ - Chốt lại'", "pa-xong": "params.value == 'Đã triển khai'"}
+LOP_PA = {"Đang chờ triển khai": "pa-cho", nt.PA_HUY: "pa-huy", nt.PA_SUY_NGHI: "pa-suy-nghi",
+          nt.PA_DA_TRIEN_KHAI: "pa-xong"}
+MAU_PA = {lop: f"params.value == '{pa}'" for pa, lop in LOP_PA.items()}
+# Tô cả dòng cho hai phương án "đã chốt hướng xử lý", để lướt mắt là tách được với ca còn phải làm.
+# Huỷ xám (khép lại), KH đang suy nghĩ tím (còn phải quay lại) - hai màu này KHÔNG phải mức đánh giá
+# nên không đụng thang xanh / vàng / đỏ của cảnh báo, và cảnh báo vẫn đè lên khi ca đó gấp.
+DONG_HUY = f"{LA_CA} && params.data.phuong_an == '{nt.PA_HUY}'"
+DONG_SUY_NGHI = f"{LA_CA} && params.data.phuong_an == '{nt.PA_SUY_NGHI}'"
 GOI_Y_GHI_CHU = "Nguyên nhân tồn + thời gian hẹn thực tế. Treo, CPTC... cũng ghi ở đây."
 GHI_TEN = "Tick tên mình ở ô Nhân viên để phần \"cập nhật bởi\" ghi đúng tên."
 NHAN_O_NV = {"select_all": "Chọn tất cả", "deselect_all": "Bỏ chọn tất cả", "search": "Tìm tên...",
@@ -48,6 +55,12 @@ NHAN_O_NV = {"select_all": "Chọn tất cả", "deselect_all": "Bỏ chọn t�
              "no_options_found": "Không có tên nào khớp"}
 GOI_Y_MOC = ("Mốc đang hiển thị trên PTC.\nHẹn thi công: quá ngày mà chưa online thì báo đỏ, đúng hôm nay báo vàng.\n"
              "Trả về: điền ngày bị trả về. Quá {han} ngày không xử lý thì HĐ tự huỷ nên luôn báo đỏ.")
+# Vá lại dòng vừa sửa (cảnh báo, màu, giờ cập nhật) sau khi sale ngừng gõ CHO_VA giây.
+# Phải hoãn chứ không vá ngay: ag-grid XOÁ SẠCH undo stack mỗi lần nhận transaction, nên vá ngay
+# là Ctrl+Z mất tác dụng (đo 27/09/2026: undo stack tụt từ 2 về 0 đúng lúc transaction về).
+# Hoãn thì cả lượt gõ liên tục vẫn undo được, ngừng tay mới làm mới dòng.
+NHIP_MS = 2_000
+CHO_VA = 5
 
 
 def topbar():
@@ -93,9 +106,10 @@ def _cot(han: int, pa: list[str]) -> list[dict]:
          "tooltipField": "ten_khach_hang", "colSpan": {"function": f"{NHOM} ? 20 : 1"}},
         {"field": "ngay_tao_hd", "headerName": "Ngày tạo", "width": 74, "minWidth": 74, "maxWidth": 82,
          "valueFormatter": NGAY_DM, "headerTooltip": "Ngày tạo hợp đồng."},
-        {"field": "so_ngay_cho", "headerName": "Chờ", "width": 54, "minWidth": 54, "maxWidth": 62,
+        {"field": "so_ngay_cho", "headerName": "Ngày tồn", "width": 70, "minWidth": 66, "maxWidth": 84,
          "type": "numericColumn", "valueFormatter": SO,
-         "headerTooltip": "Số ngày từ ngày tạo HĐ đến ngày có số mới nhất."},
+         "headerTooltip": "Hợp đồng đã tồn bao nhiêu ngày: từ ngày tạo HĐ đến ngày có số mới nhất.\n"
+                          "Lọc theo số ngày ở ô Ngày tồn trên thanh lọc."},
         {"field": "canh_bao", "headerName": "Cảnh báo", "minWidth": 96, "flex": .7, "wrapText": True,
          "autoHeight": True, "cellStyle": MAU_CANH_BAO},
         {"field": "ghi_chu", "headerName": "Ghi chú tình trạng * ⓘ", "headerClass": "co-chu-thich vung-sale",
@@ -153,6 +167,10 @@ def layout():
         ], className="toolbar loc-trang", style={} if len(ds) > 1 else AN),
         dcc.Download(id="nt-tai"),
         dcc.Store(id="nt-da-luu"),
+        dcc.Store(id="nt-da-va"),                 # lần sửa gần nhất đã được vá lại lên bảng
+        # chỉ chạy trong vài giây sau khi có người vừa sửa, bình thường tắt hẳn để không
+        # bắn request rỗng lên máy chủ mỗi 2 giây cho từng người đang mở trang
+        dcc.Interval(id="nt-nhip", interval=NHIP_MS, disabled=True),
         dcc.Store(id="nt-nhanh", data="all"),
         html.Div(id="nt-msg"),
         html.Div(id="nt-pham-vi", className="nt-pham-vi"),
@@ -179,6 +197,9 @@ def layout():
                     id="nt-nv", value=[], multi=True, closeOnSelect=False, debounce=True, search_order="original",
                     maxHeight=380, placeholder=TAT_CA, labels=NHAN_O_NV, persistence=True,
                     persistence_type="local", className="nt-o-nv")),
+                field("Ngày tồn", dcc.Dropdown(
+                    id="nt-ton", options=[{"label": n, "value": v} for v, n in nt.NGUONG_TON],
+                    value="all", clearable=False, searchable=False, style={"width": "150px"})),
                 field("Tìm", dcc.Input(id="nt-tim", type="search", placeholder="Mã HĐ hoặc tên KH",
                                        className="o-tim", debounce=True)),
                 html.Button([icon("download", 14), html.Span("Excel")], id="nt-xls", className="btn nt-nut",
@@ -193,14 +214,21 @@ def layout():
                           getRowId="params.data.id",
                           tuy_chon={"suppressCellFocus": False, "singleClickEdit": True,
                                     "stopEditingWhenCellsLoseFocus": True, "enableCellTextSelection": True,
-                                    "rowClassRules": {"dong-nhom": NHOM, "dong-huy": "params.data.muc == 'huy'",
+                                    # gõ nhầm thì Ctrl+Z lùi lại, Ctrl+Shift+Z làm lại - mỗi bước lùi
+                                    # cũng tự lưu như một lần sửa bình thường
+                                    "undoRedoCellEditing": True, "undoRedoCellEditingLimit": 25,
+                                    "rowClassRules": {"dong-nhom": NHOM, "dong-huy": DONG_HUY,
+                                                      "dong-suy-nghi": DONG_SUY_NGHI,
                                                       "dong-do": f"{LA_CA} && params.data.muc == 'do'",
                                                       "dong-vang": f"{LA_CA} && params.data.muc == 'vang'"}}),
                      className="nt-laptop"),
             html.Div(id="nt-the", className="nt-dien-thoai"),
             html.Div("Bấm vào ô để sửa, sửa xong tự lưu. Nhấn Tab để nhảy sang ô kế tiếp: "
                      "ghi chú → mốc → ngày → phương án, không cần dùng chuột. "
-                     "Ô viền cam là mục bắt buộc chưa điền.",
+                     "Gõ nhầm thì Ctrl+Z lùi lại, Ctrl+Shift+Z làm lại. "
+                     "Ô viền cam là mục bắt buộc chưa điền. "
+                     "Trong lúc nhập, danh sách giữ nguyên thứ tự - đổi bộ lọc hoặc bấm ô số ở trên "
+                     "để xếp lại theo mức ưu tiên mới.",
                      className="goi-y-bam nt-laptop"),
         ], className="card"),
 
@@ -294,8 +322,7 @@ def _the(df: pd.DataFrame) -> list:
 
 
 def _lop_pa(pa) -> str:
-    return {"Đang chờ triển khai": "pa-cho", "Huỷ": "pa-huy", "KH đang suy nghĩ - Chốt lại": "pa-suy-nghi",
-            "Đã triển khai": "pa-xong"}.get(pa or "", "pa-trong")
+    return LOP_PA.get(pa or "", "pa-trong")
 
 
 def _moc_chu(r) -> str:
@@ -363,37 +390,72 @@ def _tieu_de(tong: pd.DataFrame, chon: list[str]) -> str:
     return ", ".join(ten[a] for a in chon) if len(chon) <= 3 else f"{len(chon)} nhân viên"
 
 
+def _ten_nguong(ton_tu) -> str:
+    """Tên mức lọc số ngày tồn để ghép vào tiêu đề danh sách ("all" thì không ghi gì)."""
+    return dict(nt.NGUONG_TON).get(str(ton_tu or "all"), "") if str(ton_tu or "all") != "all" else ""
+
+
 # ------------------------------------------------------------------ callbacks
 def register(app):
     @app.callback(Output("nt-nv", "options"), Output("nt-pham-vi", "children"), Output("nt-kpi", "children"),
                   Output("nt-nv-luoi", "rowData"), Output("nt-nv-luoi", "dashGridOptions"),
-                  Output("nt-luoi", "rowData"), Output("nt-the", "children"), Output("nt-tieu-de-ds", "children"),
+                  Output("nt-luoi", "rowData"), Output("nt-luoi", "rowTransaction"),
+                  Output("nt-the", "children"), Output("nt-tieu-de-ds", "children"),
                   Output("nt-mo-ta", "children"),
                   Input("nt-phong", "value"), Input("nt-nv", "value"), Input("nt-nhanh", "data"),
-                  Input("nt-tim", "value"), Input("nt-da-luu", "data"), State("ui-vw", "data"),
-                  State("nt-nv-luoi", "dashGridOptions"))
-    def _nap(code, acc, nhanh, tim, _luu, vw, opts_nv):
+                  Input("nt-tim", "value"), Input("nt-ton", "value"), Input("nt-da-luu", "data"),
+                  State("ui-vw", "data"), State("nt-nv-luoi", "dashGridOptions"))
+    def _nap(code, acc, nhanh, tim, ton_tu, luu, vw, opts_nv):
         nhanh = nhanh if nhanh in TEN_LOC else "all"
+        # Vừa sửa một ô trong bảng: chỉ vá lại đúng dòng đó, KHÔNG dựng lại cả bảng. Dựng lại thì
+        # dòng nhảy chỗ (thứ tự xếp đổi theo mốc vừa nhập) và Ctrl+Z mất tác dụng - chủ app báo 27/09/2026.
+        # chỉ tính khi chính lần lưu đó kích hoạt callback: giá trị cũ còn nằm trong Store nên nếu
+        # không xét nguồn kích hoạt thì mọi lần đổi bộ lọc sau đó đều bị bỏ qua
+        vua_sua = (luu or {}).get("hd") if ctx.triggered_id == "nt-da-luu" and isinstance(luu, dict) else None
         df = nt.danh_sach(_phong_hop_le(code))
         if df.empty:
-            return [], [], _kpi(nt.dem(df), nhanh), [], no_update, [], [], "Danh sách hợp đồng tồn", \
-                "Phòng chưa có hợp đồng tồn (hoặc chưa nạp file Internet)."
+            return [], [], _kpi(nt.dem(df), nhanh), [], no_update, [], no_update, [], \
+                "Danh sách hợp đồng tồn", "Phòng chưa có hợp đồng tồn (hoặc chưa nạp file Internet)."
         tong = nt.tong_hop_nv(df)
         dong_nv, ghim_nv = _dong_nv(tong)
         ds_nv = [{"label": _nhan_nv(r), "value": r.acc_norm} for r in tong.itertuples()]
         chon = [a for a in _ds_acc(acc) if a in set(tong.acc_norm)]
-        xem = nt.loc(df, chon, nhanh, tim)
+        kpi = _kpi(nt.dem(nt.loc(df, chon)), nhanh, _tieu_de(tong, chon) if chon else "cả phòng")
+        opts_nv = {**(opts_nv or {}), "pinnedBottomRowData": ghim_nv}
+        if vua_sua:
+            # các con số tổng cập nhật ngay; riêng dòng vừa sửa để `_va_dong` vá sau, khi sale ngừng gõ
+            return (ds_nv, _pham_vi(tong, chon), kpi, dong_nv, opts_nv,
+                    no_update, no_update, no_update, no_update, no_update)
+        xem = nt.loc(df, chon, nhanh, tim, ton_tu)
         xem = xem.assign(sua_duoc=True)           # sale sửa được mọi ca
         dien_thoai = (vw or {}).get("w", 1440) < 768
-        tieu_de = " · ".join(x for x in (_tieu_de(tong, chon), TEN_LOC[nhanh], f"{len(xem)} ca") if x)
+        loc_ten = " · ".join(x for x in (TEN_LOC[nhanh], _ten_nguong(ton_tu)) if x)
+        tieu_de = " · ".join(x for x in (_tieu_de(tong, chon), loc_ten, f"{len(xem)} ca") if x)
         mo_ta = f"{len(xem)} / {len(df)} hợp đồng của phòng. Số tồn tính theo file Internet mới nhất đã nạp."
         if _dung_chung() and len(chon) != 1:
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
-        return (ds_nv, _pham_vi(tong, chon),
-                _kpi(nt.dem(nt.loc(df, chon)), nhanh, _tieu_de(tong, chon) if chon else "cả phòng"),
-                dong_nv, {**(opts_nv or {}), "pinnedBottomRowData": ghim_nv},
-                [] if dien_thoai else _dong_luoi(xem, len(chon) != 1),
+        return (ds_nv, _pham_vi(tong, chon), kpi, dong_nv, opts_nv,
+                [] if dien_thoai else _dong_luoi(xem, len(chon) != 1), no_update,
                 _the(xem) if dien_thoai else [], tieu_de, mo_ta)
+
+    @app.callback(Output("nt-luoi", "rowTransaction", allow_duplicate=True),
+                  Output("nt-da-va", "data"), Output("nt-nhip", "disabled", allow_duplicate=True),
+                  Input("nt-nhip", "n_intervals"),
+                  State("nt-da-luu", "data"), State("nt-da-va", "data"), State("nt-phong", "value"),
+                  prevent_initial_call=True)
+    def _va_dong(_n, luu, da_va, code):
+        """Làm mới cảnh báo / màu / giờ cập nhật của các dòng vừa sửa, sau khi sale ngừng gõ CHO_VA giây.
+
+        Hoãn lại chứ không vá ngay lúc lưu, vì ag-grid xoá undo stack mỗi lần nhận transaction."""
+        hd = (luu or {}).get("hd") if isinstance(luu, dict) else None
+        if not hd or luu.get("luc") == da_va:
+            return no_update, no_update, True
+        if (gio_viet_nam() - datetime.fromisoformat(luu["luc"])).total_seconds() < CHO_VA:
+            raise PreventUpdate                    # còn đang gõ tiếp, để lượt sau
+        df = nt.danh_sach(_phong_hop_le(code))
+        dong = df[df.hop_dong.isin(hd)].assign(sua_duoc=True)
+        va = {"update": _dong_luoi(dong, nhom=False)} if not dong.empty else no_update
+        return va, luu["luc"], True
 
     @app.callback(Output("nt-nv", "value"), Input("nt-nv-luoi", "selectedRows"), prevent_initial_call=True)
     def _bam_dong_nv(rows):
@@ -411,21 +473,25 @@ def register(app):
         return ctx.triggered_id["v"]
 
     @app.callback(Output("nt-da-luu", "data"), Output("nt-msg", "children"),
+                  Output("nt-nhip", "disabled"),
                   Input("nt-luoi", "cellValueChanged"), State("nt-phong", "value"), State("nt-nv", "value"),
                   prevent_initial_call=True)
     def _luu_o(doi, code, acc):
         phong = _phong_hop_le(code)
         doi = doi if isinstance(doi, list) else [doi] if doi else []
-        loi = []
+        loi, da_sua = [], []
         for d in doi:
             r, cot = d.get("data") or {}, d.get("colId")
             if r.get("loai_dong") == "nhom" or cot not in ("ghi_chu", "loai_moc", "ngay_moc", "phuong_an"):
                 continue
             try:
                 nt.luu(r.get("hop_dong"), {cot: d.get("value")}, phong, current_user.username, *_nguoi_ghi(acc))
+                da_sua.append(r.get("hop_dong"))
             except nt.LoiNhapTon as e:
                 loi.append(str(e))
-        return gio_viet_nam().isoformat(), alert(" ".join(loi), "bad") if loi else None
+        # kèm danh sách HĐ vừa sửa, và bật nhịp để `_va_dong` làm mới các dòng đó khi sale ngừng gõ
+        return ({"luc": gio_viet_nam().isoformat(), "hd": da_sua},
+                alert(" ".join(loi), "bad") if loi else None, not da_sua)
 
     @app.callback(Output("nt-md", "className"), Output("nt-md-tieu-de", "children"), Output("nt-md-hd", "data"),
                   Output("nt-md-dau", "children"), Output("nt-f-ghi-chu", "value"), Output("nt-f-loai", "value"),
@@ -469,12 +535,14 @@ def register(app):
         return "", gio_viet_nam().isoformat()
 
     @app.callback(Output("nt-tai", "data"), Input("nt-xls", "n_clicks"), State("nt-phong", "value"),
-                  State("nt-nv", "value"), State("nt-nhanh", "value"), State("nt-tim", "value"),
-                  prevent_initial_call=True)
-    def _excel(_n, code, acc, nhanh, tim):
+                  State("nt-nv", "value"), State("nt-nhanh", "data"), State("nt-tim", "value"),
+                  State("nt-ton", "value"), prevent_initial_call=True)
+    def _excel(_n, code, acc, nhanh, tim, ton_tu):
+        # `nt-nhanh` là dcc.Store nên prop là "data": lấy "value" thì luôn rỗng và file xuất ra
+        # không theo bộ lọc nhanh đang chọn, dù nút ghi là "Xuất đúng danh sách đang lọc".
         if current_user.role == "nvkd":
             raise PreventUpdate
-        xem = nt.loc(nt.danh_sach(_phong_hop_le(code)), acc, nhanh, tim)
+        xem = nt.loc(nt.danh_sach(_phong_hop_le(code)), acc, nhanh, tim, ton_tu)
         ghi_log("xuat_excel_nhap_ton", f"{code}: {len(xem)} dòng")
         ten = f"NhapTon_{code}_{gio_viet_nam():%Y%m%d_%H%M}.xlsx"
         return dcc.send_data_frame(nt.file_excel(xem).to_excel, ten, index=False, sheet_name="Nhap ton")

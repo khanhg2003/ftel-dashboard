@@ -1040,12 +1040,20 @@ table.simple tr:last-child td { border-bottom: none; }
 @media (max-width: 767px) { .kpi-row.kpi-4 { grid-template-columns: 1fr 1fr; } }
 #nt-luoi .ag-row.dong-nhom { background: var(--row-total); }
 #nt-luoi .ag-row.dong-nhom .ag-cell { font-weight: 700; color: var(--fpt-blue-900); }
-#nt-luoi .ag-row.dong-huy .ag-cell { color: var(--text-soft); background: #F4F6F9; }
+/* Màu dòng theo thứ tự ưu tiên tăng dần (luật sau đè luật trước, cùng độ đặc hiệu):
+   1. KH đang suy nghĩ - tím: đã có hướng nhưng CÒN PHẢI quay lại chốt, nên cảnh báo gấp vẫn đè lên.
+   2. Đỏ / vàng - cảnh báo cần xử lý.
+   3. Huỷ - xám: ca đã khép lại, không còn việc gì nên đè lên cả cảnh báo.
+   Tím và xám không nằm trong thang đánh giá xanh/vàng/đỏ, chúng chỉ nói ca đang ở trạng thái nào. */
+#nt-luoi .ag-row.dong-suy-nghi { background: #F7F5FD; }
+#nt-luoi .ag-row.dong-suy-nghi .ag-cell[col-id="hop_dong"] { box-shadow: inset 3px 0 0 #7E63C8; }
 /* dòng cần xử lý: tô cả dòng + vạch màu ở cột Hợp đồng để TP lướt là thấy */
 #nt-luoi .ag-row.dong-do { background: #FFF6F5; }
 #nt-luoi .ag-row.dong-vang { background: #FFFBEF; }
 #nt-luoi .ag-row.dong-do .ag-cell[col-id="hop_dong"] { box-shadow: inset 3px 0 0 var(--bad); }
 #nt-luoi .ag-row.dong-vang .ag-cell[col-id="hop_dong"] { box-shadow: inset 3px 0 0 var(--warn); }
+#nt-luoi .ag-row.dong-huy, #nt-luoi .ag-row.dong-huy .ag-cell { color: var(--text-soft); background: #F4F6F9; }
+#nt-luoi .ag-row.dong-huy .ag-cell[col-id="hop_dong"] { box-shadow: inset 3px 0 0 #B6BFCB; }
 /* 4 ô số cũng là nút lọc */
 .kpi.kpi-bam { text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; }
 .kpi.kpi-bam.dang-chon { border-color: var(--fpt-blue); box-shadow: 0 0 0 2px var(--fpt-blue) inset, var(--shadow-md); }
@@ -1077,7 +1085,9 @@ table.simple tr:last-child td { border-bottom: none; }
 /* Phương án: nhãn màu như sheet cũ */
 #nt-luoi .ag-cell.pa-cho .ag-cell-value, .pa.pa-cho { background: #E8EAED; color: #3C4043; }
 #nt-luoi .ag-cell.pa-huy .ag-cell-value, .pa.pa-huy { background: #FAD2CF; color: #A50E0E; }
-#nt-luoi .ag-cell.pa-suy-nghi .ag-cell-value, .pa.pa-suy-nghi { background: #FEEFC3; color: #7A4F01; }
+/* tím chứ không vàng: vàng đang là màu của "đến hạn hôm nay", để vàng thì hai ý khác nhau
+   lại cùng một màu và mất tác dụng cảnh báo */
+#nt-luoi .ag-cell.pa-suy-nghi .ag-cell-value, .pa.pa-suy-nghi { background: #E7E0FA; color: #4A32A0; }
 #nt-luoi .ag-cell.pa-xong .ag-cell-value, .pa.pa-xong { background: #473822; color: #FFFFFF; }
 #nt-luoi .ag-cell[class*="pa-"] .ag-cell-value, .pa { border-radius: 999px; padding: 2px 10px; font-size: 12.5px;
     white-space: nowrap; }

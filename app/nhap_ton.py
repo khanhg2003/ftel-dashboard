@@ -29,6 +29,11 @@ from app.thoi_gian import chu_gio_vn, gio_viet_nam, utc_bay_gio
 
 LOAI_MOC = {"hen": "Hẹn thi công", "tra_ve": "Trả về"}
 PA_HUY, PA_DA_TRIEN_KHAI = "Huỷ", "Đã triển khai"
+PA_SUY_NGHI = "KH đang suy nghĩ - Chốt lại"
+# Mức lọc theo số ngày tồn (ô "Ngày tồn" trên thanh lọc). Ca tồn lâu là ca dễ tự huỷ nhất nên
+# Trưởng phòng cần tách ra xem riêng - chủ app chốt 27/09/2026.
+NGUONG_TON = [("all", "Mọi số ngày"), ("7", "Tồn từ 7 ngày"), ("14", "Tồn từ 14 ngày"),
+              ("30", "Tồn từ 30 ngày")]
 GHI_CHU_TOI_DA = 500
 _da_tao = False
 
@@ -169,13 +174,17 @@ def dem(df: pd.DataFrame) -> dict:
 
 
 def loc(df: pd.DataFrame, acc: str | list | None = None, nhanh: str | None = None,
-        tim: str | None = None) -> pd.DataFrame:
-    """`acc`: một acc, danh sách acc (chọn nhiều người), hoặc rỗng / "all" = mọi người."""
+        tim: str | None = None, ton_tu: str | None = None) -> pd.DataFrame:
+    """`acc`: một acc, danh sách acc (chọn nhiều người), hoặc rỗng / "all" = mọi người.
+
+    `ton_tu`: số ngày tồn tối thiểu (khoá trong `NGUONG_TON`), "all" hoặc rỗng = không lọc."""
     if df.empty:
         return df
     ds = [a for a in ([acc] if isinstance(acc, str) else acc or []) if a and a != "all"]
     if ds:
         df = df[df.acc_norm.isin(ds)]
+    if ton_tu and str(ton_tu).isdigit():
+        df = df[df.so_ngay_cho >= int(ton_tu)]
     if nhanh == "gap":
         df = df[df.thu_tu.isin([0, 1, 2])]
     elif nhanh == "den_han":
@@ -332,7 +341,7 @@ def file_excel(df: pd.DataFrame) -> pd.DataFrame:
     """Bảng xuất Excel đúng thứ tự cột như sheet cũ."""
     return pd.DataFrame({
         "Nhân viên": df.ho_ten, "Acc": df.acc, "Hợp đồng": df.hop_dong, "Tên khách hàng": df.ten_khach_hang,
-        "Ngày tạo HĐ": pd.to_datetime(df.ngay_tao_hd).dt.strftime("%d/%m/%Y"), "Số ngày chờ": df.so_ngay_cho,
+        "Ngày tạo HĐ": pd.to_datetime(df.ngay_tao_hd).dt.strftime("%d/%m/%Y"), "Số ngày tồn": df.so_ngay_cho,
         "Ghi chú tình trạng": df.ghi_chu, "Loại mốc": df.loai_moc.map(LOAI_MOC).fillna(""),
         "Ngày mốc": pd.to_datetime(df.ngay_moc, errors="coerce").dt.strftime("%d/%m/%Y").fillna(""),
         "Phương án": df.phuong_an, "Cảnh báo": df.canh_bao, "Cập nhật": df.cap_nhat})
