@@ -92,17 +92,15 @@ class SessionUser(UserMixin):
         """Phòng bật một mục trong rules.yml, giao với phạm vi nhân sự của tài khoản.
 
         Nhập tồn và Báo cáo ngày là chỗ NHẬP LIỆU hằng ngày của đúng một phòng, không phải chỗ
-        xem báo cáo. Nên ngoài Quản trị (BGĐ), chỉ người phụ trách đúng phòng đó mới vào: phạm vi
-        của tài khoản phải nằm TRỌN trong các phòng đã bật. Tài khoản được mở rộng xem nhiều phòng
-        (cấp trên, giám sát) tuy có IBB7 trong phạm vi nhưng không phải người vận hành phòng đó
-        nên không vào - chủ app chốt 26/09/2026.
+        xem báo cáo. Chỉ admin (hệ thống) và nvkd của đúng phòng đó mới vào. BGĐ và các tài
+        khoản xem nhiều phòng KHÔNG vào - chủ app chốt 28/09/2026.
         """
         from app.config import rules_config
         bat = list((rules_config().get(muc) or {}).get("phong") or [])
-        pham_vi = self.phong_nhan_su()
-        if pham_vi is None:                            # Quản trị (BGĐ): mọi phòng
+        if self.role == "admin":                       # superadmin: bypass mọi kiểm tra
             return bat
-        if not set(pham_vi) <= set(bat):
+        pham_vi = self.phong_nhan_su()
+        if pham_vi is None or not set(pham_vi) <= set(bat):
             return []
         return [c for c in bat if c in set(pham_vi)]
 
