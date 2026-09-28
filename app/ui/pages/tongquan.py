@@ -341,7 +341,12 @@ def _cols(thang: str, ngay: int, gon: bool = False, tu: str | None = None):
              "valueFormatter": PCT, "cellStyle": _heat("htkh")},
         ]},
         {"headerName": f"KẾT QUẢ NGÀY {ngay:02d}/{thang_so:02d}", "children": [
-            {"headerName": "Mục tiêu", "field": "mt_ngay", "width": w, "valueFormatter": SO},
+            {"headerName": "Mục tiêu ⓘ", "field": "mt_ngay", "width": w, "valueFormatter": SO,
+             "headerClass": "co-chu-thich",
+             "headerTooltip": "Bình quân mỗi ngày còn lại (từ ngày mai) phải online bao nhiêu để về đích mục tiêu tháng.\n"
+                              "= (mục tiêu tháng − đã online từ đầu tháng đến hết ngày này) "
+                              "chia số ngày còn lại của tháng (không tính ngày này), làm tròn lên.\n"
+                              "Hụt càng nhiều thì mục tiêu ngày mai càng nặng; đủ mục tiêu tháng rồi thì về 0."},
             {"headerName": "Bán mới", "field": "ngay_ban_moi", "width": w, "valueFormatter": SO},
             {"headerName": "Online", "field": "ngay_online", "width": w, "valueFormatter": SO,
              "cellStyle": {"textAlign": "center", "fontWeight": "700"}},

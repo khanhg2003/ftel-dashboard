@@ -38,6 +38,22 @@ def _dem(dk: str) -> str:
     return f"SUM(CASE WHEN {dk} THEN 1 ELSE 0 END)"
 
 
+def _mt_ngay_can(mt_thang: pd.Series, luy_ke_den: pd.Series, d: date) -> pd.Series:
+    """Bình quân online mỗi ngày còn lại (từ ngày mai) để về mục tiêu tháng.
+
+    `luy_ke_den` là online từ đầu tháng đến HẾT ngày `d` (đã bao gồm cả ngày đó).
+    Số ngày còn lại = số ngày trong tháng trừ ngày `d` (không tính ngày `d`).
+    Ngày cuối tháng (không còn ngày nào sau đó) trả về 0.
+    Làm tròn LÊN: thiếu 101 chia 3 ngày là 33,67 nên phải online 34 mỗi ngày mới đủ.
+    Đã đủ mục tiêu tháng thì mục tiêu ngày = 0.
+    """
+    con_thieu = (mt_thang - luy_ke_den).clip(lower=0)
+    so_ngay_con = month_range(f"{d:%Y-%m}")[2] - d.day
+    if so_ngay_con <= 0:
+        return pd.Series(0, index=mt_thang.index)
+    return np.ceil(con_thieu / so_ngay_con).astype(int)
+
+
 def _so_lieu_phong(d_tu: date, d_den: date) -> pd.DataFrame:
     """Mọi cột đếm của Báo cáo Tổng theo phòng, trong 3 câu hỏi database (trước đây ~14 câu lẻ):
     - Internet: online trong kỳ, cùng kỳ tháng trước, PTTB CNQL, số tồn, online / bán mới trong ngày cuối;
@@ -46,15 +62,18 @@ def _so_lieu_phong(d_tu: date, d_den: date) -> pd.DataFrame:
     Cách đếm giữ nguyên như từng hàm cũ (đã đối chiếu khớp sheet)."""
     from app.metrics import dieu_kien_ton
     ck_tu, ck_den = lui_mot_thang(d_tu), lui_mot_thang(d_den)
+    dau_thang = d_den.replace(day=1)          # để tính mục tiêu ngày: luỹ kế tháng, không theo kỳ đang xem
     dk_ton, p = dieu_kien_ton()
     p.update({"tu": d_tu.isoformat(), "den": d_den.isoformat(), "ck_tu": ck_tu.isoformat(),
-              "ck_den": ck_den.isoformat(), "d": d_den.isoformat(), "lo": min(d_tu, ck_tu).isoformat(),
+              "ck_den": ck_den.isoformat(), "d": d_den.isoformat(), "thang_tu": dau_thang.isoformat(),
+              "lo": min(d_tu, ck_tu, dau_thang).isoformat(),
               "hi": max(d_den, ck_den).isoformat(), **{f"cnql_{i}": c for i, c in enumerate(CN_NOI_BO)}})
     trong_ky = "ngay_online >= :tu AND ngay_online <= :den"
     cnql = ", ".join(f":cnql_{i}" for i in range(len(CN_NOI_BO)))
     net = _sql_bang(f"""
         SELECT phong_code, {_dem(trong_ky)} AS online,
                {_dem("ngay_online >= :ck_tu AND ngay_online <= :ck_den")} AS ck_online,
+               {_dem("ngay_online >= :thang_tu AND ngay_online <= :den")} AS luy_ke_thang,
                {_dem(f"{trong_ky} AND cn_quan_ly IN ({cnql})")} AS cnql,
                {_dem(dk_ton)} AS so_ton,
                {_dem("ngay_online = :d")} AS ngay_online,
@@ -177,7 +196,8 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         "vvip": cot("vvip"),
         "mt_camera": target("camera"),
         "camera": cot("camera"),
-        "mt_ngay": target("ngay", tgt_thang),
+        "mt_ngay": _mt_ngay_can(target("internet", tgt_thang),
+                                cot("luy_ke_thang"), d_den),
         "ngay_ban_moi": cot("ngay_ban_moi"),
         "ngay_online": cot("ngay_online"),
         "ngay_vvip": cot("ngay_vvip"),
@@ -237,11 +257,13 @@ def _them_ty_le(out: pd.DataFrame, tam_tinh: bool = False) -> pd.DataFrame:
     out["cnql_ty_le"] = _ty_le(out.cnql, out.online)
     out["vvip_ty_le"] = _ty_le(out.vvip, out.online)
     out["htkh_camera"] = _ty_le(out.camera, out.mt_camera)
-    # Đạt khi online trong ngày >= mục tiêu ngày (BGĐ chốt 14/09/2026). Phòng mục tiêu 0 thì đạt;
-    # chỉ ghi "—" khi cả tháng chưa nhập mục tiêu ngày cho phòng nào.
+    # Đạt khi online trong ngày >= mục tiêu ngày (BGĐ chốt 14/09/2026). Phòng đã đủ mục tiêu tháng
+    # thì mục tiêu ngày = 0 nên luôn Đạt. Chỉ ghi "—" khi CHƯA NHẬP MỤC TIÊU THÁNG cho phòng nào -
+    # bám mt_internet chứ không bám mt_ngay: cuối tháng cả chi nhánh đủ chỉ tiêu thì mt_ngay về 0
+    # hết, bám mt_ngay là cột Kết luận biến thành "—" đúng lúc đang làm tốt nhất.
     out["ket_luan"] = np.where(out.ngay_online >= out.mt_ngay, "Đạt",
                                "Chưa đạt" if tam_tinh else "Không đạt")
-    if not (out[out.loai_dong == "data"].mt_ngay > 0).any():
+    if not (out[out.loai_dong == "data"].mt_internet > 0).any():
         out["ket_luan"] = "—"
     return out.replace({np.nan: None})
 
