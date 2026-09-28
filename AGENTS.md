@@ -146,8 +146,8 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
      file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi
      là người đọc tưởng số đã có thật.
-     Ảnh PNG ở `app/export_png_ngay.py`, ba khối chữ do Fox viết (`bao_cao_ngay_ai.py`) và Trưởng phòng sửa
-     lại trước khi tạo ảnh. Dòng TỔNG trong ảnh lấy mục tiêu tháng CỦA PHÒNG, không cộng mục tiêu từng người.
+     Ảnh PNG ở `app/export_png_ngay.py`. **Ba khối chữ do người dùng TỰ NHẬP rồi bấm Lưu** - nút
+     "Fox viết giúp" đã bỏ hẳn cùng module `bao_cao_ngay_ai.py` (chủ app chốt 28/09/2026). Dòng TỔNG trong ảnh lấy mục tiêu tháng CỦA PHÒNG, không cộng mục tiêu từng người.
      Ảnh phải giữ đúng mẫu chủ app đưa (nền xanh chuyển màu + vệt chéo + góc cam + tia sét, ba khối số có
      biểu tượng tròn, dòng TỔNG nền cam, ba khối chữ, dải nguồn cuối ảnh) và đúng 8 cột: Nhân sự · MT ngày ·
      KHTN · ONL sáng · ONL chiều · DK ONL · PTTB tháng · Pay (Pay = số V.VIP). Font đi kèm app không có bản
@@ -186,11 +186,11 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 5. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
    Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
    Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel.
-   **AI (đổi 25/09/2026):** bấm được đúng nút "Fox viết giúp" ở Báo cáo ngày (`tro_ly.VAI_TRO_VIET_BAO_CAO`
-   + tham số `chi_viet=True` của `duoc_dung` / `kiem_tra` / `tao_nhan_xet`), KHÔNG có khung chat Hỏi Fox và
-   không bấm được nút nhận xét ở trang khác. Tài khoản dùng chung nên hạn mức "Số câu mỗi người / ngày" là
-   của CẢ PHÒNG - Quản trị nâng ô đó lên cho đủ. Thêm nơi gọi AI cho nvkd thì phải truyền `chi_viet=True`,
-   đừng nới `ch["vai_tro"]` (nới là mở luôn cả chat).
+   **AI (đổi 28/09/2026):** KHÔNG còn quyền AI nào. Trước đây có một đường mở riêng để bấm nút
+   "Fox viết giúp" ở Báo cáo ngày (`VAI_TRO_VIET_BAO_CAO` + tham số `chi_viet`); nút đó đã bỏ nên
+   đường này xoá hẳn - đừng dựng lại. Muốn cho nvkd dùng AI thì Quản trị mở thẳng theo vai trò
+   hoặc theo tài khoản ở Quản trị → Trợ lý AI, và nhớ tài khoản dùng chung cả phòng nên hạn mức
+   "Số câu mỗi người / ngày" là của CẢ PHÒNG.
    Ở Nhập tồn phải chọn tên mình ở bộ lọc mới sửa được, chỉ sửa ca của người đó, và "cập nhật bởi" ghi tên
    người đó (nhật ký ghi tài khoản thật). **Đổi 24/09/2026:** tài khoản sale có FULL quyền sửa ở Nhập tồn và
    Báo cáo ngày - sửa được mọi dòng, không còn phải tick tên mình trước. Ô "Nhân viên" / "Tôi là" giờ chỉ để
@@ -233,7 +233,11 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
   - **gửi `dashGridOptions` từ máy chủ cũng xoá undo stack** (Dash nạp lại trọn gói tuỳ chọn), nhưng đổi
     riêng một tuỳ chọn bằng `api.setGridOption(...)` thì KHÔNG. Nên dòng TỔNG của Báo cáo ngày đi qua
     `dcc.Store` `bn-ghim` + một `clientside_callback` gọi `setGridOption("pinnedBottomRowData", ...)`,
-    nhờ vậy dòng TỔNG cập nhật ngay mà Ctrl+Z vẫn sống (có test chặn). `refreshCells()` cũng an toàn;
+    nhờ vậy dòng TỔNG cập nhật ngay mà Ctrl+Z vẫn sống (có test chặn). `refreshCells()` cũng an toàn.
+    **`dash_ag_grid.getApi(id)` NÉM LỖI khi bảng chưa dựng xong**, không trả rỗng. Lúc mở trang, số về
+    trước khi bảng kịp dựng, nên callback này phải bắt lỗi **và thử lại** (`setTimeout`, tối đa ~4 giây):
+    chỉ bọc try/catch rồi bỏ qua là dòng TỔNG mất hẳn, vì số chỉ được gửi đúng một lần (lỗi thật
+    28/09/2026, có test chặn);
   - **cột chỉ là cộng trừ của các cột khác thì để trình duyệt tự tính** bằng `valueGetter`, đừng chờ máy
     chủ: DK ONL và Còn phải ONL ở Báo cáo ngày đổi NGAY lúc gõ (chủ app chốt 27/09/2026). Hai lưu ý:
     (a) ô vừa gõ trả về **chuỗi**, không bọc `Number(...)` thì `"5" + 0` ra `"50"`;

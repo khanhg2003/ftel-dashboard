@@ -31,10 +31,6 @@ MAC_DINH = {"bat": False, "ten": "Mây", "model_chat": "gpt-5-mini", "model_nhan
             # ai được dùng: theo vai trò HOẶC từng tài khoản (Quản trị → Trợ lý AI). Chưa lưu = mọi vai trò.
             "vai_tro": ["admin", "operator", "phong"], "tai_khoan": []}
 DS_CAU_HINH = ("vai_tro", "tai_khoan")
-# Vai trò chỉ được bấm nút "Fox viết giúp" ở Báo cáo ngày, không được chat và không bấm được nhận xét
-# ở trang khác (chủ app chốt 25/09/2026). Tài khoản Nhân viên KD dùng chung cả phòng nên hạn mức
-# "Số câu mỗi người / ngày" là của CẢ PHÒNG - Quản trị nâng ô đó lên cho đủ.
-VAI_TRO_VIET_BAO_CAO = ("nvkd",)
 # USD / 1 triệu token (vào, ra). Model lạ tính theo giá cao để không vượt trần.
 GIA = {"gpt-5-nano": (0.05, 0.4), "gpt-5-mini": (0.25, 2.0), "gpt-5": (1.25, 10.0),
        "gpt-4.1-nano": (0.1, 0.4), "gpt-4.1-mini": (0.4, 1.6), "gpt-4.1": (2.0, 8.0),
@@ -161,27 +157,20 @@ def luot_hom_nay(username: str) -> int:
             AiSuDung.loai.in_(["chat", "nhan_xet"]))).scalar() or 0)
 
 
-def duoc_dung(user, ch: dict, chi_viet: bool = False) -> bool:
-    """AI đang bật và tài khoản này được mở quyền (theo vai trò hoặc chọn riêng từng tài khoản).
-
-    `chi_viet=True` là đang xin quyền cho nút "Fox viết giúp" ở Báo cáo ngày: mở thêm cho các vai
-    trò ở `VAI_TRO_VIET_BAO_CAO`, những vai trò này KHÔNG được dùng khung chat Hỏi Fox và không
-    bấm được nút nhận xét ở các trang khác.
-    """
+def duoc_dung(user, ch: dict) -> bool:
+    """AI đang bật và tài khoản này được mở quyền (theo vai trò hoặc chọn riêng từng tài khoản)."""
     if not ch["bat"]:
         return False
-    if (getattr(user, "role", None) in ch["vai_tro"]
-            or getattr(user, "username", None) in ch["tai_khoan"]):
-        return True
-    return chi_viet and getattr(user, "role", None) in VAI_TRO_VIET_BAO_CAO
+    return (getattr(user, "role", None) in ch["vai_tro"]
+            or getattr(user, "username", None) in ch["tai_khoan"])
 
 
-def kiem_tra(user, ch: dict | None = None, chi_viet: bool = False) -> dict:
+def kiem_tra(user, ch: dict | None = None) -> dict:
     """Trả về cấu hình nếu người này được dùng AI ngay bây giờ, ngược lại ném LoiAI."""
     ch = ch or cau_hinh()
     if not ch["bat"]:
         raise LoiAI("Trợ lý AI đang tắt. Quản trị bật ở Quản trị → Trợ lý AI.")
-    if not duoc_dung(user, ch, chi_viet):
+    if not duoc_dung(user, ch):
         raise LoiAI("Tài khoản của bạn chưa được mở quyền dùng trợ lý AI.")
     if not ch["key"]:
         raise LoiAI("Chưa có mã API ChatGPT (hoặc mã đã lưu không còn dùng được). "
@@ -482,11 +471,9 @@ def nhan_xet_da_luu(loai: str, khoa: str) -> dict | None:
         return {"noi_dung": r.noi_dung, "username": r.username, "luc": r.created_at} if r else None
 
 
-def tao_nhan_xet(user, loai: str, khoa: str, du_lieu: str, yeu_cau: str, chi_viet: bool = False) -> dict:
-    """Gọi AI tạo nhận xét cho `du_lieu` rồi lưu lại (ghi đè bản cũ cùng khoá).
-
-    `chi_viet=True`: chỗ gọi là nút "Fox viết giúp" của Báo cáo ngày - xem `duoc_dung`."""
-    ch = kiem_tra(user, chi_viet=chi_viet)
+def tao_nhan_xet(user, loai: str, khoa: str, du_lieu: str, yeu_cau: str) -> dict:
+    """Gọi AI tạo nhận xét cho `du_lieu` rồi lưu lại (ghi đè bản cũ cùng khoá)."""
+    ch = kiem_tra(user)
     msg = hoi([{"role": "system", "content": loi_dan(ch["ten"])},
                {"role": "user", "content": f"{yeu_cau}\n\nSỐ LIỆU:\n{du_lieu}"}],
               ch["model_nhan_xet"], ch["key"], user.username, "nhan_xet", toi_da=8000, suy_nghi="low")

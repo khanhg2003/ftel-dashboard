@@ -239,22 +239,20 @@ def _o_so(id_: str, nhan: str):
 
 
 def _khoi_chu():
-    """Ba khối chữ của ảnh báo cáo: Fox viết từ số liệu, người dùng sửa lại rồi lưu.
+    """Ba khối chữ của ảnh báo cáo: người dùng tự viết rồi lưu.
 
     Tài khoản Nhân viên KD cũng thấy khối này (chủ app chốt 25/09/2026): họ vốn đã bấm được
     "Tạo ảnh báo cáo", mà ảnh lấy đúng ba khối chữ này - không cho sửa thì ảnh ra trống chữ.
-    Riêng nút Fox chỉ gọi được đúng lượt viết báo cáo, không mở khung chat (`tro_ly.duoc_dung`).
+    Nút "Fox viết giúp" đã bỏ (chủ app chốt 28/09/2026): phần này sale tự nhập.
     """
     o = [("bn-c-trong-tam", "Trọng tâm hôm nay", "Việc cả team phải bám trong ngày."),
          ("bn-c-nhan-dinh", "Đánh giá & nhận định", "Đọc số hôm qua, sáng nay và luỹ kế tháng."),
          ("bn-c-thong-diep", "Thông điệp ngày mới", "Một đoạn ngắn động viên cả team.")]
     return html.Div([
         html.Div([html.H3("Chữ trong ảnh báo cáo", style={"margin": 0}),
-                  html.Div("Fox viết sẵn từ số liệu, anh/chị sửa lại rồi bấm Lưu. Ảnh lấy đúng phần này.",
+                  html.Div("Anh/chị tự viết ba phần dưới đây rồi bấm Lưu. Ảnh lấy đúng phần này.",
                            className="desc", style={"margin": "2px 0 0"}),
                   html.Div(className="grow"),
-                  html.Button([icon("refresh", 14), html.Span("Fox viết giúp", id="bn-fox-chu")],
-                              id="bn-fox", className="btn", n_clicks=0),
                   html.Button("Lưu", id="bn-luu-chu", className="btn primary", n_clicks=0)],
                  className="the-thanh"),
         html.Div([html.Div([html.Label([nhan, tip(mo_ta)]),
@@ -338,8 +336,17 @@ def register(app):
     # Đặt dòng TỔNG vào bảng ngay tại trình duyệt, không qua `dashGridOptions` (xem ghi chú ở layout).
     app.clientside_callback(
         """function (ghim) {
-            const api = window.dash_ag_grid && window.dash_ag_grid.getApi('bn-luoi');
-            if (api && ghim) { api.setGridOption('pinnedBottomRowData', ghim); }
+            // Lúc mở trang, số về TRƯỚC khi ag-grid kịp dựng, mà getApi thì NÉM LỖI chứ không trả
+            // rỗng - bỏ qua lần đó là dòng TỔNG mất hẳn (số chỉ gửi một lần). Nên phải thử lại.
+            if (!ghim) { return window.dash_clientside.no_update; }
+            let con = 40;                                  // thử lại tối đa ~4 giây rồi thôi
+            const dat = function () {
+                let api = null;
+                try { api = window.dash_ag_grid.getApi('bn-luoi'); } catch (e) { api = null; }
+                if (api) { api.setGridOption('pinnedBottomRowData', ghim); return; }
+                if (con-- > 0) { setTimeout(dat, 100); }   // hết lượt = đã rời trang, bỏ qua
+            };
+            dat();
             return window.dash_clientside.no_update;
         }""",
         Output("bn-ghim-xong", "data"), Input("bn-ghim", "data"), prevent_initial_call=True)
@@ -499,7 +506,7 @@ def register(app):
 
 
 def _dang_ky_chu(app):
-    """Ba khối chữ: nạp khi đổi ngày, Fox viết giúp, Trưởng phòng sửa rồi lưu."""
+    """Ba khối chữ: nạp khi đổi ngày, người dùng tự viết rồi lưu."""
     o = ("bn-c-trong-tam", "bn-c-nhan-dinh", "bn-c-thong-diep")
 
     @app.callback([Output(i, "value") for i in o],
@@ -508,26 +515,7 @@ def _dang_ky_chu(app):
         c = bc.chu(_phong_hop_le(code)[0], _ngay_hop_le(ngay))
         return c["trong_tam"], c["nhan_dinh"], c["thong_diep"]
 
-    # `running`: khoá nút và đổi chữ trong lúc AI viết - không thì người dùng bấm lại nhiều lần,
-    # mỗi lần là một lượt gọi AI tốn tiền
-    @app.callback([Output(i, "value", allow_duplicate=True) for i in o], Output("bn-chu-msg", "children"),
-                  Input("bn-fox", "n_clicks"), State("bn-phong", "value"), State("bn-ngay", "date"),
-                  running=[(Output("bn-fox", "disabled"), True, False),
-                           (Output("bn-fox", "className"), "btn dang-chay", "btn"),
-                           (Output("bn-fox-chu", "children"), "Fox đang viết...", "Fox viết giúp"),
-                           (Output("bn-luu-chu", "disabled"), True, False)],
-                  prevent_initial_call=True)
-    def _fox(_n, code, ngay):
-        from app.bao_cao_ngay_ai import fox_viet
-        phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
-        try:
-            c = fox_viet(current_user, phong, d)
-        except Exception as e:                     # lỗi AI đã viết sẵn bằng tiếng Việt
-            return no_update, no_update, no_update, alert(str(e), "bad")
-        return c["trong_tam"], c["nhan_dinh"], c["thong_diep"], alert(
-            "Fox đã viết xong - anh/chị đọc lại, sửa nếu cần rồi bấm Lưu.", "ok")
-
-    @app.callback(Output("bn-chu-msg", "children", allow_duplicate=True), Input("bn-luu-chu", "n_clicks"),
+    @app.callback(Output("bn-chu-msg", "children"), Input("bn-luu-chu", "n_clicks"),
                   [State(i, "value") for i in o], State("bn-phong", "value"), State("bn-ngay", "date"),
                   prevent_initial_call=True)
     def _luu_chu(_n, tt, nd, td, code, ngay):

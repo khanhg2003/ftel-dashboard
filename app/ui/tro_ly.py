@@ -559,14 +559,12 @@ def register(app):
         duoc = [] if users.empty else [
             r.username for r in users.itertuples()
             if r.active and ai.duoc_dung(SimpleNamespace(role=r.role, username=r.username), {**ch, "bat": True})]
-        vt_viet = ", ".join(ten_vt.get(v, v) for v in ai.VAI_TRO_VIET_BAO_CAO)
         quyen = [html.B(f"Đang mở cho {len(duoc)} tài khoản: "),
                  ", ".join(duoc) if duoc else "chưa có ai",
                  f" · vai trò: {', '.join(ten_vt.get(v, v) for v in ch['vai_tro']) or 'không'}.",
                  html.Br(),
-                 f"Riêng {vt_viet} luôn bấm được nút “Fox viết giúp” ở Báo cáo ngày, nhưng không dùng "
-                 "được khung chat. Tài khoản này dùng chung cả phòng nên hạn mức lượt/ngày ở trên là "
-                 "của cả phòng."]
+                 "Tài khoản Nhân viên KD dùng chung cả phòng, nên nếu mở quyền cho vai trò đó thì "
+                 "hạn mức lượt/ngày ở trên là của cả phòng."]
         if ch["key_loi"]:
             key = alert("Mã API đã lưu không giải mã được (APP_SECRET_KEY đã đổi) - dán lại mã rồi Lưu.", "warn")
         elif ch["key"]:

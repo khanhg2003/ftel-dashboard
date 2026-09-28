@@ -274,34 +274,31 @@ def test_tai_khoan_xem_nhieu_phong_khong_vao_bao_cao_ngay():
 
 
 # ------------------------------------------------------------------ chữ + ảnh
-def test_nvkd_bam_duoc_fox_nhung_khong_chat():
-    """Chủ app chốt 25/09/2026: tài khoản Nhân viên KD bấm được nút "Fox viết giúp" ở Báo cáo ngày,
-    nhưng KHÔNG mở khung chat Hỏi Fox và không bấm được nút nhận xét ở các trang khác."""
+def test_nvkd_khong_dung_duoc_ai():
+    """Nút "Fox viết giúp" đã bỏ (chủ app chốt 28/09/2026), ba khối chữ sale tự nhập.
+
+    Nhân viên KD trước đây được mở riêng một đường để bấm đúng nút đó; nay đường đó xoá hẳn,
+    nên tài khoản này không còn quyền AI nào trừ khi Quản trị tự mở ở Quản trị → Trợ lý AI."""
     from app import tro_ly as ai
     ch = {**ai.MAC_DINH, "bat": True, "tai_khoan": []}
     sale = SimpleNamespace(role="nvkd", username="ibb7.sale")
 
-    assert ai.duoc_dung(sale, ch, chi_viet=True)                        # nút Fox viết giúp
-    assert not ai.duoc_dung(sale, ch)                                   # chat / nhận xét trang khác
-    assert not ai.duoc_dung(sale, {**ch, "bat": False}, chi_viet=True)  # AI tắt thì không ai bấm được
+    assert not ai.duoc_dung(sale, ch)
+    assert not hasattr(ai, "VAI_TRO_VIET_BAO_CAO"), "đường mở riêng cho nút Fox phải xoá hẳn"
     for vt in ("admin", "operator", "phong"):
         assert ai.duoc_dung(SimpleNamespace(role=vt, username=f"kiemthu.{vt}"), ch)
 
-    # qua được cửa quyền thì lỗi tiếp theo phải là thiếu mã API, không phải lỗi quyền
-    with pytest.raises(ai.LoiAI, match="mã API"):
-        ai.kiem_tra(sale, {**ch, "key": None}, chi_viet=True)
+    # Quản trị vẫn mở được cho riêng tài khoản này nếu sau muốn dùng lại
+    assert ai.duoc_dung(sale, {**ch, "tai_khoan": ["ibb7.sale"]})
 
 
-def test_tach_ba_khoi_chu_cua_fox():
-    from app.bao_cao_ngay_ai import _tach
-    chu = ("TRỌNG TÂM HÔM NAY\n- Bám 18 ca online\n- Chăm 6 KHTN\n"
-           "ĐÁNH GIÁ & NHẬN ĐỊNH\n1. Hôm qua 15/25\n2. Luỹ kế 497/700\n"
-           "THÔNG ĐIỆP NGÀY MỚI\nCả team cố lên.")
-    r = _tach(chu)
-    assert r["trong_tam"].splitlines() == ["Bám 18 ca online", "Chăm 6 KHTN"]
-    assert r["nhan_dinh"].splitlines() == ["1. Hôm qua 15/25", "2. Luỹ kế 497/700"]
-    assert r["thong_diep"] == "Cả team cố lên."
-    assert _tach("chỉ một đoạn")["trong_tam"] == "chỉ một đoạn"      # AI quên tiêu đề vẫn không mất chữ
+def test_khoi_chu_chi_con_nut_luu():
+    """Ba khối chữ chỉ còn nút Lưu - đừng vô tình gắn lại nút gọi AI vào đây."""
+    from dash import html
+    from app.ui.pages.baocaongay import _khoi_chu
+    nut = [c for c in _khoi_chu().children[0].children if isinstance(c, html.Button)]
+    assert [c.id for c in nut] == ["bn-luu-chu"]
+
 
 
 def test_ve_duoc_anh_bao_cao():
@@ -344,6 +341,19 @@ def test_cong_thuc_trinh_duyet_tu_tinh_khop_voi_cong_thuc_python():
         assert js.count("Number(") == js.count("params.data.")
     assert "onl_sang" in DK_ONL["function"] and "onl_chieu" in DK_ONL["function"]
     assert "thuc_hien" in CON_PHAI_ONL["function"] and " - " in CON_PHAI_ONL["function"]
+
+
+def test_dat_dong_tong_phai_thu_lai_cho_bang_dung_xong():
+    """Lúc mở trang, số về TRƯỚC khi ag-grid kịp dựng và `getApi` NÉM LỖI chứ không trả rỗng.
+
+    Bỏ qua lần đó là dòng TỔNG mất hẳn, vì số chỉ được gửi một lần (lỗi thật đã gặp 28/09/2026).
+    Nên hàm đặt dòng TỔNG phải bắt lỗi VÀ thử lại, đừng chỉ bọc try/catch rồi thôi."""
+    import inspect
+    from app.ui.pages import baocaongay as bn
+    ma = inspect.getsource(bn.register)
+    js = ma[ma.index("function (ghim)"):ma.index("Output(\"bn-ghim-xong\"")]
+    assert "catch" in js, "getApi ném lỗi khi chưa có bảng"
+    assert "setTimeout" in js, "phải thử lại, không thì dòng TỔNG mất khi bảng dựng chậm"
 
 
 def test_dong_tong_khong_di_qua_dashgridoptions():
