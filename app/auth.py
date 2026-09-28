@@ -20,6 +20,10 @@ login_manager.login_view = "login"
 
 KHOA_SAU = 5            # sai 5 lần thì khoá
 KHOA_PHUT = 15
+# Tài khoản kỹ thuật (superadmin): bypass mọi kiểm tra trang nhập liệu hằng ngày.
+# BGĐ dùng role "admin" nhưng không phải tài khoản này - chủ app chốt 28/09/2026.
+import os as _os
+ADMIN_USERNAME: str = _os.getenv("ADMIN_USERNAME", "admin").strip().lower()
 
 ROLE_LABEL = {"admin": "Quản trị (BGD)", "operator": "Nhập liệu",
               "phong": "Trưởng phòng", "nvkd": "Nhân viên KD", "nhanvien": "Nhân viên"}
@@ -72,6 +76,15 @@ class SessionUser(UserMixin):
         return dataset in self.loai_duoc_nap()
 
     @property
+    def la_superadmin(self) -> bool:
+        """Tài khoản kỹ thuật (username=ADMIN_USERNAME): bypass kiểm tra trang nhập liệu hằng ngày.
+
+        BGĐ dùng role "admin" nhưng KHÔNG phải superadmin - không vào Báo cáo ngày / Nhập tồn /
+        Ads IBB7 (chủ app chốt 28/09/2026).
+        """
+        return self.username.strip().lower() == ADMIN_USERNAME
+
+    @property
     def duoc_chat(self) -> bool:
         return self.role in ROLE_CHAT
 
@@ -85,8 +98,12 @@ class SessionUser(UserMixin):
 
     @property
     def duoc_xem_ads(self) -> bool:
-        """Xem Ads IBB7 (chỉ xem). Sửa cấu hình Ads vẫn là duoc_cau_hinh."""
-        return self.duoc_cau_hinh or (self.role == "nvkd" and PHONG_ADS in self.scope)
+        """Xem Ads IBB7 (chỉ xem). Sửa cấu hình Ads vẫn là duoc_cau_hinh.
+
+        BGĐ (role=admin) KHÔNG xem được: Ads IBB7 là trang nhập liệu hằng ngày của phòng.
+        Chỉ superadmin (username=ADMIN_USERNAME) và nvkd IBB7 mới vào.
+        """
+        return self.la_superadmin or (self.role == "nvkd" and PHONG_ADS in self.scope)
 
     def _phong_bat(self, muc: str) -> list[str]:
         """Phòng bật một mục trong rules.yml, giao với phạm vi nhân sự của tài khoản.
@@ -97,7 +114,7 @@ class SessionUser(UserMixin):
         """
         from app.config import rules_config
         bat = list((rules_config().get(muc) or {}).get("phong") or [])
-        if self.role == "admin":                       # superadmin: bypass mọi kiểm tra
+        if self.la_superadmin:                          # superadmin: bypass mọi kiểm tra
             return bat
         pham_vi = self.phong_nhan_su()
         if pham_vi is None or not set(pham_vi) <= set(bat):
