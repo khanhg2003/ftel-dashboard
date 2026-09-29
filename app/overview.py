@@ -38,17 +38,17 @@ def _dem(dk: str) -> str:
     return f"SUM(CASE WHEN {dk} THEN 1 ELSE 0 END)"
 
 
-def _mt_ngay_can(mt_thang: pd.Series, luy_ke_den: pd.Series, d: date) -> pd.Series:
-    """Bình quân online mỗi ngày còn lại (từ ngày mai) để về mục tiêu tháng.
+def _mt_ngay_can(mt_thang: pd.Series, luy_ke_den_hom_qua: pd.Series, d: date) -> pd.Series:
+    """Bình quân online mỗi ngày còn lại (tính cả hôm nay) để về mục tiêu tháng.
 
-    `luy_ke_den` là online từ đầu tháng đến HẾT ngày `d` (đã bao gồm cả ngày đó).
-    Số ngày còn lại = số ngày trong tháng trừ ngày `d` (không tính ngày `d`).
-    Ngày cuối tháng (không còn ngày nào sau đó) trả về 0.
+    `luy_ke_den_hom_qua` là online từ đầu tháng đến TRƯỚC ngày `d` (chưa bao gồm ngày `d`).
+    Số ngày còn lại = số ngày trong tháng trừ ngày `d` + 1 (tính cả ngày `d`).
+    Ngày cuối tháng = 1 ngày.
     Làm tròn LÊN: thiếu 101 chia 3 ngày là 33,67 nên phải online 34 mỗi ngày mới đủ.
     Đã đủ mục tiêu tháng thì mục tiêu ngày = 0.
     """
-    con_thieu = (mt_thang - luy_ke_den).clip(lower=0)
-    so_ngay_con = month_range(f"{d:%Y-%m}")[2] - d.day
+    con_thieu = (mt_thang - luy_ke_den_hom_qua).clip(lower=0)
+    so_ngay_con = month_range(f"{d:%Y-%m}")[2] - d.day + 1
     if so_ngay_con <= 0:
         return pd.Series(0, index=mt_thang.index)
     return np.ceil(con_thieu / so_ngay_con).astype(int)
@@ -197,7 +197,7 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         "mt_camera": target("camera"),
         "camera": cot("camera"),
         "mt_ngay": _mt_ngay_can(target("internet", tgt_thang),
-                                cot("luy_ke_thang"), d_den),
+                                cot("luy_ke_thang") - cot("ngay_online"), d_den),
         "ngay_ban_moi": cot("ngay_ban_moi"),
         "ngay_online": cot("ngay_online"),
         "ngay_vvip": cot("ngay_vvip"),
