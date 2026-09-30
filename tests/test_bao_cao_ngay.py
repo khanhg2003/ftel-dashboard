@@ -127,6 +127,27 @@ def test_vvip_dem_giong_bao_cao_phong():
     assert (chung.a == chung.b).all()                             # từng người cũng khớp
 
 
+def test_dau_thang_moi_chua_nap_file_dung_roster_thang_truoc():
+    """Chốt với chủ app 01/10/2026: đầu tháng mới khi chưa ai nạp file Internet/FPT Play của
+    tháng đó thì vẫn phải có bảng để sale nhập các ô tự khai, roster tạm lấy từ nhân sự có bán
+    tháng liền trước (kỳ kiểm thử chỉ có dữ liệu 01-11/09/2026 nên 01/10 chắc chắn chưa có file).
+    PTTB / online / V.VIP của tháng mới phải đúng là 0, không lấy số tháng trước bù vào."""
+    ngay_thang_moi = date(2026, 10, 1)
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import BaoCaoNgay, BaoCaoNgayChu
+    with session_scope() as s:
+        s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == ngay_thang_moi))
+        s.execute(delete(BaoCaoNgayChu).where(BaoCaoNgayChu.ngay == ngay_thang_moi))
+
+    df = bc.bang(PHONG, ngay_thang_moi)
+    assert not df.empty, "đầu tháng mới vẫn phải có roster tạm, không được trống"
+    assert (df.pttb_thang == 0).all()
+    assert (df.thuc_hien == 0).all()
+    assert (df.vvip_thang == 0).all()
+    assert not df.da_nhap.any()
+
+
 def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
     """Sale hay điền trước cho hôm sau (chốt 26/09/2026): mở và lưu được báo cáo của ngày chưa tới,
     nhưng chỉ trong TRUOC_TOI_DA ngày để không ai gõ nhầm sang tháng khác."""

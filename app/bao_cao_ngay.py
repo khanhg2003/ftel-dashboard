@@ -135,10 +135,26 @@ def _vvip_theo_acc(phong: list[str], tu: str, den: str) -> pd.Series:
     return df.set_index("acc_norm")["n"] if not df.empty else pd.Series(dtype=int)
 
 
+def _roster_thang_truoc(phong: list[str], dau_thang_nay: date) -> pd.DataFrame:
+    """Nhân sự có bán tháng liền trước - roster tạm khi tháng đang xem chưa có dữ liệu nào (đầu
+    tháng, chưa ai nạp file Internet/FPT Play của tháng mới). Chốt với chủ app 01/10/2026: vẫn cho
+    sale nhập các ô tự khai, không bắt chờ có file mới có bảng."""
+    thang_truoc = (dau_thang_nay - timedelta(days=1)).strftime("%Y-%m")
+    dau_tr, cuoi_tr, _ = month_range(thang_truoc)
+    hd_tr = pt.hop_dong_online(dau_tr.isoformat(), cuoi_tr.isoformat(), list(phong))
+    if hd_tr.empty:
+        return pd.DataFrame(columns=["acc_norm", "acc", "phong_code"])
+    return (hd_tr.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"))
+            .reset_index())
+
+
 def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     """Mỗi dòng một nhân sự của phòng: 6 ô sale nhập + các số app tự lấy.
 
-    Danh sách người = người có bán trong tháng, cộng người đã nhập báo cáo hôm nay (người mới chưa có số)."""
+    Danh sách người = người có bán trong tháng, cộng người đã nhập báo cáo hôm nay (người mới chưa
+    có số). Đầu tháng mới khi chưa ai nạp file Internet/FPT Play của tháng đó thì dùng tạm roster
+    của tháng trước (`_roster_thang_truoc`) - PTTB/online tháng này vẫn đúng là 0, không lấy số
+    tháng trước bù vào."""
     dam_bao_bang()
     ngay = ngay or hom_nay()
     thang = f"{ngay:%Y-%m}"
@@ -146,13 +162,19 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
     vvip = _vvip_theo_acc(phong, dau.isoformat(), ngay.isoformat())
     nhap = _da_nhap(ngay, phong)
+    roster_du_phong = pd.DataFrame()
     if hd.empty and nhap.empty and vvip.empty:
-        return pd.DataFrame()
+        roster_du_phong = _roster_thang_truoc(phong, dau)
+        if roster_du_phong.empty:
+            return pd.DataFrame()
 
-    g = (hd.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"),
-                                    pttb_thang=("hop_dong", "size"))
-         if len(hd) else pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"],
-                                      index=pd.Index([], name="acc_norm")))
+    if len(hd):
+        g = hd.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"),
+                                       pttb_thang=("hop_dong", "size"))
+    elif len(roster_du_phong):
+        g = roster_du_phong.set_index("acc_norm").assign(pttb_thang=0)
+    else:
+        g = pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"], index=pd.Index([], name="acc_norm"))
     hom = hd[hd.ngay_online.dt.date == ngay] if len(hd) else hd
     g["onl_file"] = (hom.groupby("acc_norm").size().reindex(g.index).fillna(0).astype(int)
                      if len(g) else pd.Series(dtype=int))
