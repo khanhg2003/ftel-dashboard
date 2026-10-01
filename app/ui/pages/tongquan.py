@@ -56,17 +56,26 @@ PCT_CNQL_MTTN = {"function": (
     "? ' (' + Math.round(params.data.mttn_ty_le) + '%)' : '')")}
 
 
-def _heat(kind: str) -> dict:
-    """Sinh điều kiện tô màu theo ngưỡng trong config/rules.yml."""
+def _heat(kind: str, gia_tri: str = "params.value") -> dict:
+    """Sinh điều kiện tô màu theo ngưỡng trong config/rules.yml.
+
+    `gia_tri`: biểu thức JS lấy số để so ngưỡng, mặc định là chính giá trị ô."""
     t = rules_config()["heatmap"][kind]
     moc = [t["rat_kem"], t["kem"], t["trung_binh"], t["kha"]]
     dk = []
     for i, (bg, fg) in enumerate(MAU_HEAT):
-        cond = (f"params.value != null && params.value < {moc[i]}" if i < len(moc)
-                else "params.value != null")
+        cond = (f"{gia_tri} != null && {gia_tri} < {moc[i]}" if i < len(moc)
+                else f"{gia_tri} != null")
         dk.append({"condition": cond,
                    "style": {"backgroundColor": bg, "color": fg, "fontWeight": "600"}})
     return {"styleConditions": dk}
+
+
+# Dòng có hiện MTTN trong ngoặc thì màu cột Tỷ lệ PTTB CNQL cũng phải tô theo đúng số MTTN đó, không
+# phải số CNQL đứng trước - chốt với chủ app 01/10/2026 (nhìn đỏ theo CNQL dễ hiểu lầm trong khi MTTN
+# đang ổn hơn hẳn). Các dòng không có MTTN thì vẫn tô theo params.value (= cnql_ty_le) như cũ.
+_GIA_TRI_HEAT_CNQL = ("(params.data && params.data.mttn_hien && params.data.mttn_ty_le != null "
+                     "? params.data.mttn_ty_le : params.value)")
 
 
 KET_LUAN_STYLE = {"styleConditions": [
@@ -342,8 +351,9 @@ def _cols(thang: str, ngay: int, gon: bool = False, tu: str | None = None):
              "headerClass": "co-chu-thich",
              "headerTooltip": "Số trong ngoặc là số MTTN (Miền Trung - Tây Nguyên) của phòng/bầy có bật MTTN."},
             {"headerName": "Tỷ lệ ⓘ", "field": "cnql_ty_le", "width": 110, "valueFormatter": PCT_CNQL_MTTN,
-             "cellStyle": _heat("ty_le"), "headerClass": "co-chu-thich",
-             "headerTooltip": "Tỷ lệ trong ngoặc là tỷ lệ MTTN / tổng online của phòng/bầy có bật MTTN."},
+             "cellStyle": _heat("ty_le", _GIA_TRI_HEAT_CNQL), "headerClass": "co-chu-thich",
+             "headerTooltip": "Tỷ lệ trong ngoặc là tỷ lệ MTTN / tổng online của phòng/bầy có bật MTTN. "
+                              "Màu ô tô theo số MTTN khi dòng có hiện số này."},
         ]},
         {"headerName": "COMBO VVIP", "children": [
             {"headerName": "Số VVIP", "field": "vvip", "width": w, "valueFormatter": SO},
