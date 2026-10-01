@@ -220,6 +220,28 @@ def test_nhan_su_da_nghi_khong_hien():
             s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_nghi))
 
 
+def test_ten_hien_thi_tam_khi_chua_co_nsld():
+    """Acc tạm (chưa cấp acc inside chính thức, chưa có trong NSLĐ/dim_employee) vẫn phải hiện tên
+    người dùng tự đặt ở danh mục (`staff_map.ten_hien_thi`), không rơi về chuỗi acc thô - tránh Báo
+    cáo ngày hiện "DNG.Tu_tam" thay vì "Anh Tú" (chủ app hỏi 01/10/2026)."""
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import StaffMap
+
+    acc_tam = "dng.tu_tam.kiemthu"
+    with session_scope() as s:
+        s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_tam))
+        s.add(StaffMap(acc="DNG.Tu_tam.KiemThu", acc_norm=acc_tam, phong_code="IBB7",
+                      hieu_luc_tu=date(2026, 9, 1), hieu_luc_den=None, ten_hien_thi="Anh Tú (test)"))
+    try:
+        df = bc.bang(PHONG, NGAY)
+        r = df.set_index("acc_norm").loc[acc_tam]
+        assert r.ho_ten == "Anh Tú (test)"
+    finally:
+        with session_scope() as s:
+            s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_tam))
+
+
 def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
     """Sale hay điền trước cho hôm sau (chốt 26/09/2026): mở và lưu được báo cáo của ngày chưa tới,
     nhưng chỉ trong TRUOC_TOI_DA ngày để không ai gõ nhầm sang tháng khác."""

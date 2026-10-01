@@ -90,3 +90,20 @@ def _migrate_session_version() -> None:
     if "session_version" not in cot:
         with engine.begin() as c:
             c.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0"))
+
+
+def _migrate_staff_map() -> None:
+    """Thêm cột ten_hien_thi vào staff_map nếu chưa tồn tại (migration nhẹ)."""
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    if "staff_map" not in insp.get_table_names():
+        return
+    cot = {c["name"] for c in insp.get_columns("staff_map")}
+    if "ten_hien_thi" not in cot:
+        with engine.begin() as c:
+            c.execute(text("ALTER TABLE staff_map ADD COLUMN ten_hien_thi VARCHAR(120)"))
+
+
+# Chạy ngay lúc nạp module: staff_map đã tồn tại từ trước (không qua init_db() khi chạy script /
+# kiểm thử riêng lẻ), nên không thể chỉ trông chờ init_db() hay app/ui/app.py gọi.
+_migrate_staff_map()

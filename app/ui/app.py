@@ -20,7 +20,8 @@ server = Flask(__name__)
 server.secret_key = SECRET_KEY
 server.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 
-# Đảm bảo cột session_version tồn tại (migration nhẹ, cần trước login_manager)
+# Đảm bảo cột session_version tồn tại (migration nhẹ, cần trước login_manager). staff_map.ten_hien_thi
+# tự vá ngay lúc nạp app.db (app.db._migrate_staff_map), không cần gọi lại ở đây.
 from app.db import _migrate_session_version
 _migrate_session_version()
 

@@ -72,6 +72,29 @@ def test_so_sanh_phong_co_hang_trong_nhom():
     assert not ss.set_index("khoa").loc["ton_qua_7"].cao_la_tot
 
 
+def test_ten_hien_thi_tam_khi_chua_co_nsld():
+    """Acc tạm chưa cấp acc inside chính thức (chưa có trong NSLĐ/dim_employee) vẫn phải hiện tên
+    người dùng tự đặt ở danh mục (`staff_map.ten_hien_thi`), không rơi về chuỗi acc thô (chủ app hỏi
+    01/10/2026, lúc thêm acc tạm cho nhân sự mới)."""
+    from datetime import date
+
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import StaffMap
+
+    acc_tam = "ibb2.tu_tam.kiemthu"
+    with session_scope() as s:
+        s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_tam))
+        s.add(StaffMap(acc="IBB2.Tu_tam.KiemThu", acc_norm=acc_tam, phong_code="IBB2",
+                      hieu_luc_tu=date(2026, 9, 1), hieu_luc_den=None, ten_hien_thi="Anh Tú (test)"))
+    try:
+        df = bp.bang_nhan_su(THANG, NGAY, "IBB2")
+        assert df.set_index("acc_norm").loc[acc_tam].ho_ten == "Anh Tú (test)"
+    finally:
+        with session_scope() as s:
+            s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_tam))
+
+
 def test_chi_tiet_nhan_su(ibb2):
     nguoi = ibb2[ibb2.loai_dong == "data"].iloc[0]
     ds = bp.dien_bien_nhan_su(THANG, NGAY, nguoi.acc_norm)

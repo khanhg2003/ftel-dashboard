@@ -52,6 +52,10 @@ class StaffMap(Base):
     hieu_luc_den: Mapped[date | None] = mapped_column(Date, nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(200), nullable=True)
     nguon: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Tên hiển thị khi acc chưa có trong NSLĐ / dim_employee (vd acc tạm cấp trước khi có acc inside
+    # chính thức) - các báo cáo ưu tiên tên NSLĐ trước, cột này chỉ là tầng dự phòng cuối trước khi
+    # phải hiện acc thô. Chốt 01/10/2026.
+    ten_hien_thi: Mapped[str | None] = mapped_column(String(120), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

@@ -96,9 +96,14 @@ def _hop_thoai_staff():
         ], className="form-grid"),
         html.Div(_o("Ghi chú", dcc.Input(id="qt-s-ghichu", type="text", className="inp")),
                  style={"marginTop": "14px"}),
+        html.Div(_o("Tên hiển thị", dcc.Input(id="qt-s-ten", type="text", className="inp",
+                                              placeholder="vd: Anh Tú")),
+                 style={"marginTop": "14px"}),
         ghi_chu("Acc inside quyết định hợp đồng thuộc phòng nào - gõ đúng như trên hệ thống. Ngày hiệu lực "
                 "chỉ cần khi nhân sự chuyển phòng giữa kỳ (mỗi phòng một dòng). Lưu xong app tự tính lại "
-                "việc gán phòng cho dữ liệu đã nạp.", style={"marginTop": "12px"}),
+                "việc gán phòng cho dữ liệu đã nạp. Tên hiển thị chỉ cần khi chưa có trong NSLĐ (vd acc "
+                "tạm chưa cấp acc inside chính thức) - có NSLĐ rồi thì bỏ trống, app tự lấy tên chính thức.",
+                style={"marginTop": "12px"}),
         html.Div(id="qt-modal-staff-msg"),
     ], nut_chinh="Thêm vào danh mục")
 
@@ -206,6 +211,10 @@ def _staff_cols():
         {"field": "acc", "headerName": "Acc inside", "minWidth": 150, "flex": 1.4, "pinned": "left"},
         {"field": "phong", "headerName": "Phòng", "minWidth": 150, "flex": 1.4},
         {"field": "ma_nv", "headerName": "Mã NV", "minWidth": 110, "flex": .9, "valueFormatter": MA_NV},
+        {"field": "ten_hien_thi", "headerName": "Tên hiển thị ⓘ", "minWidth": 140, "flex": 1.2,
+         "headerClass": "co-chu-thich",
+         "headerTooltip": "Chỉ dùng khi acc chưa có trong NSLĐ.\nCó NSLĐ rồi thì app tự lấy tên chính thức, "
+                          "bỏ qua cột này."},
         {"field": "hieu_luc_tu", "headerName": "Hiệu lực từ", "minWidth": 110, "flex": .9},
         {"field": "hieu_luc_den", "headerName": "Hiệu lực đến", "minWidth": 110, "flex": .9},
         {"field": "ghi_chu", "headerName": "Ghi chú", "minWidth": 160, "flex": 1.8, "tooltipField": "ghi_chu",
@@ -387,17 +396,18 @@ def register(app):
         Output("qt-modal-staff-ok", "children"), Output("qt-staff-dang-sua", "data"),
         Output("qt-s-acc", "value"), Output("qt-s-phong", "value"), Output("qt-s-manv", "value"),
         Output("qt-s-nghi", "value"), Output("qt-s-tu", "date"), Output("qt-s-den", "date"),
-        Output("qt-s-ghichu", "value"), Output("qt-modal-staff-msg", "children", allow_duplicate=True),
+        Output("qt-s-ghichu", "value"), Output("qt-s-ten", "value"),
+        Output("qt-modal-staff-msg", "children", allow_duplicate=True),
         Input("qt-staff-them", "n_clicks"), Input("qt-staff-grid", "cellClicked"),
         Input("qt-staff-grid", "cellDoubleClicked"), Input("qt-modal-staff-dong", "n_clicks"),
         Input("qt-modal-staff-huy", "n_clicks"), Input("qt-staff-msg", "children"),
         prevent_initial_call=True)
     def _mo_dong_staff(_them, bam, bam_dup, *_):
-        giu = (no_update,) * 11
+        giu = (no_update,) * 12
         trig = ctx.triggered_id
         if trig == "qt-staff-them":
             return ("modal mo", "Thêm nhân sự vào danh mục", "Thêm vào danh mục", None, "", None, "", "lam",
-                    None, None, "", "")
+                    None, None, "", "", "")
         if trig == "qt-staff-grid":
             id_ = dong_can_sua(bam, bam_dup)
             r = lay_staff(int(id_)) if str(id_ or "").isdigit() else None
@@ -407,7 +417,7 @@ def register(app):
                                  if x.strip() and "nghỉ" not in x.lower())
             return ("modal mo", f"Sửa danh mục · {r['acc']}", "Lưu thay đổi", r["id"], r["acc"], r["phong_code"],
                     r["ma_nv"], "nghi" if r["da_nghi"] else "lam", r["hieu_luc_tu"], r["hieu_luc_den"],
-                    ghi_chu, "")
+                    ghi_chu, r["ten_hien_thi"], "")
         return ("modal",) + giu
 
     @cb(Output("qt-staff-xacnhan", "displayed"), Output("qt-staff-xacnhan", "message"),
@@ -425,13 +435,14 @@ def register(app):
         State("qt-staff-grid", "selectedRows"), State("qt-staff-dang-sua", "data"),
         State("qt-s-acc", "value"), State("qt-s-phong", "value"), State("qt-s-manv", "value"),
         State("qt-s-nghi", "value"), State("qt-s-tu", "date"), State("qt-s-den", "date"),
-        State("qt-s-ghichu", "value"), prevent_initial_call=True)
-    def _thao_tac_staff(_ok, _xoa, _tinh, chon, dang_sua, acc, phong, manv, nghi, tu, den, ghi_chu):
+        State("qt-s-ghichu", "value"), State("qt-s-ten", "value"), prevent_initial_call=True)
+    def _thao_tac_staff(_ok, _xoa, _tinh, chon, dang_sua, acc, phong, manv, nghi, tu, den, ghi_chu, ten):
         trig = ctx.triggered_id
         if trig == "qt-modal-staff-ok":
             ok, msg, tinh_lai = luu_mot_staff(dang_sua, {"acc": acc, "phong_code": phong, "ma_nv": manv,
                                                          "hieu_luc_tu": tu, "hieu_luc_den": den,
-                                                         "ghi_chu": ghi_chu, "da_nghi": nghi == "nghi"},
+                                                         "ghi_chu": ghi_chu, "da_nghi": nghi == "nghi",
+                                                         "ten_hien_thi": ten},
                                               current_user.username)
             if not ok:
                 return no_update, alert(msg, "bad")

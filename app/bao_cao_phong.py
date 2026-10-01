@@ -55,7 +55,7 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     ton = pt.hop_dong_ton([code])
 
     # chỉ dòng danh mục có hiệu lực trong kỳ (người đã chuyển phòng không còn hiện ở phòng cũ)
-    staff = _q("""SELECT acc, acc_norm, ghi_chu FROM staff_map WHERE phong_code = :c
+    staff = _q("""SELECT acc, acc_norm, ghi_chu, ten_hien_thi FROM staff_map WHERE phong_code = :c
                   AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu) AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)""",
                c=code, tu=tu, den=den)
     vvip = _dem_theo_acc("fact_fptplay", "ngay_online", tu, den, code, " AND la_vvip = TRUE")
@@ -142,6 +142,9 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     if not ten_emp.empty:
         ten_emp = ten_emp.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten
         out["ho_ten"] = out.ho_ten.fillna(ten_emp.reindex(out.index))
+    # chưa có trong NSLĐ thì dùng tên hiển thị tạm đặt trong danh mục, cuối cùng mới acc
+    ten_tam = staff.set_index("acc_norm").ten_hien_thi.replace("", None)
+    out["ho_ten"] = out.ho_ten.fillna(ten_tam.reindex(out.index))
     out["ho_ten"] = out.ho_ten.fillna(out.acc)
 
     # người đã nghỉ và không còn số, không còn tồn thì bỏ khỏi danh sách

@@ -277,13 +277,13 @@ def dat_lai_mat_khau(username: str, nguoi_thuc_hien: str) -> str:
 # ------------------------------------------------------- danh mục nhân sự
 def danh_sach_staff() -> pd.DataFrame:
     df = pd.read_sql_query(text("""SELECT s.id, s.acc, s.ma_nv, s.phong_code, p.ten AS phong,
-                                    s.hieu_luc_tu, s.hieu_luc_den, s.ghi_chu
+                                    s.hieu_luc_tu, s.hieu_luc_den, s.ghi_chu, s.ten_hien_thi
                              FROM staff_map s LEFT JOIN dim_phong p ON p.code = s.phong_code
                              ORDER BY p.thu_tu, s.acc"""), engine)
     # Giữ nguyên mã NV dạng chuỗi (kể cả số 0 ở đầu) trước khi astype(object).
     if "ma_nv" in df.columns:
         df["ma_nv"] = df["ma_nv"].apply(lambda v: str(v).split(".")[0] if pd.notna(v) and v != "" else "")
-    for c in ("hieu_luc_tu", "hieu_luc_den", "ghi_chu", "phong"):
+    for c in ("hieu_luc_tu", "hieu_luc_den", "ghi_chu", "phong", "ten_hien_thi"):
         if c in df.columns:
             df[c] = df[c].astype(object).where(df[c].notna(), "")
     return df
@@ -326,7 +326,8 @@ def lay_staff(id_: int) -> dict | None:
         return {"id": r.id, "acc": r.acc, "phong_code": r.phong_code, "ma_nv": r.ma_nv or "",
                 "hieu_luc_tu": r.hieu_luc_tu.isoformat() if r.hieu_luc_tu else None,
                 "hieu_luc_den": r.hieu_luc_den.isoformat() if r.hieu_luc_den else None,
-                "ghi_chu": r.ghi_chu or "", "da_nghi": "nghỉ" in (r.ghi_chu or "").lower()}
+                "ghi_chu": r.ghi_chu or "", "da_nghi": "nghỉ" in (r.ghi_chu or "").lower(),
+                "ten_hien_thi": r.ten_hien_thi or ""}
 
 
 def _ghi_chu_nghi(ghi_chu: str, da_nghi: bool) -> str | None:
@@ -376,6 +377,7 @@ def luu_mot_staff(id_: int | None, d: dict, nguoi_thuc_hien: str) -> tuple[bool,
         row.ma_nv = ma_nv_nhu_nhap(d.get("ma_nv")) or None
         row.hieu_luc_tu, row.hieu_luc_den = tu, den
         row.ghi_chu = _ghi_chu_nghi(norm_text(d.get("ghi_chu")), bool(d.get("da_nghi")))
+        row.ten_hien_thi = norm_text(d.get("ten_hien_thi")) or None
         row.nguon = "giao diện"
         chi_tiet = acc + (f": {cu} → {ten[code]}" if not moi and cu != ten[code] else f" ({ten[code]})")
         s.add(AuditLog(username=nguoi_thuc_hien, action="them_danh_muc_nv" if moi else "sua_danh_muc_nv",

@@ -146,11 +146,11 @@ def _nhan_su_dang_lam(phong: list[str], dau: date, den: date) -> pd.DataFrame:
     dù đã nghỉ, vì ngày nghỉ không phải lúc nào cũng điền vào hiệu_luc_den) và trưởng phòng - cùng
     quy tắc "không vào bảng nhân viên" đang dùng ở Báo cáo Tổng (`overview._nhan_su`)."""
     if not phong:
-        return pd.DataFrame(columns=["acc", "acc_norm"])
+        return pd.DataFrame(columns=["acc", "acc_norm", "ten_hien_thi"])
     from app.canh_bao import acc_truong_phong
     ma = {f"p{i}": c for i, c in enumerate(phong)}
     cho = ", ".join(f":{k}" for k in ma)
-    sql = text(f"""SELECT acc, acc_norm FROM staff_map WHERE phong_code IN ({cho})
+    sql = text(f"""SELECT acc, acc_norm, ten_hien_thi FROM staff_map WHERE phong_code IN ({cho})
                    AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu)
                    AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)
                    AND COALESCE(ghi_chu, '') NOT LIKE '%Ngh%'""")
@@ -200,7 +200,10 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
 
     ten = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee WHERE acc_norm IS NOT NULL"), engine)
     ten = ten.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten
-    df["ho_ten"] = df.acc_norm.map(ten).fillna(df.acc)
+    # chưa có trong NSLĐ (dim_employee) thì dùng tên hiển thị tạm đặt trong danh mục, cuối cùng mới acc
+    ten_tam = (staff.set_index("acc_norm").ten_hien_thi.replace("", None)
+              if len(staff) else pd.Series(dtype=str))
+    df["ho_ten"] = df.acc_norm.map(ten).fillna(df.acc_norm.map(ten_tam)).fillna(df.acc)
     df["mt_thang"] = df.acc_norm.map(_mt_nhan_vien(thang)).fillna(0).astype(int)
     df = df.merge(nhap, on="acc_norm", how="left")
     for c in ("muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu"):

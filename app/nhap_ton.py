@@ -92,9 +92,17 @@ def _acc(ton: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
 
 
 def ten_cua(acc_norm: str) -> str | None:
-    """Họ tên của một acc (danh mục nhân viên) - máy chủ tự tra, không tin tên trình duyệt gửi lên."""
+    """Họ tên của một acc - máy chủ tự tra, không tin tên trình duyệt gửi lên.
+
+    Ưu tiên NSLĐ (dim_employee); chưa có thì lấy tên hiển thị tạm đặt trong danh mục nhân sự
+    (`staff_map.ten_hien_thi`, dùng cho acc tạm chưa có trong NSLĐ)."""
     with engine.connect() as c:
-        return c.execute(text("SELECT ho_ten FROM dim_employee WHERE acc_norm = :a AND ho_ten IS NOT NULL"),
+        ten = c.execute(text("SELECT ho_ten FROM dim_employee WHERE acc_norm = :a AND ho_ten IS NOT NULL"),
+                        {"a": acc_norm}).scalar()
+        if ten:
+            return ten
+        return c.execute(text("""SELECT ten_hien_thi FROM staff_map
+                                WHERE acc_norm = :a AND ten_hien_thi IS NOT NULL"""),
                          {"a": acc_norm}).scalar()
 
 
@@ -119,8 +127,12 @@ def danh_sach(phong: list[str]) -> pd.DataFrame:
     df = ton.merge(ghi, on="hop_dong", how="left")
     ten = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee WHERE acc_norm IS NOT NULL"), engine)
     ten = ten.drop_duplicates("acc_norm").set_index("acc_norm").ho_ten
+    ten_tam = pd.read_sql_query(text("""SELECT acc_norm, ten_hien_thi FROM staff_map
+                                       WHERE ten_hien_thi IS NOT NULL"""), engine)
+    ten_tam = ten_tam.drop_duplicates("acc_norm").set_index("acc_norm").ten_hien_thi
     df["acc"], df["acc_norm"] = _acc(df)
-    df["ho_ten"] = df.acc_norm.map(ten).fillna(df.acc)
+    # chưa có trong NSLĐ thì dùng tên hiển thị tạm đặt trong danh mục, cuối cùng mới acc
+    df["ho_ten"] = df.acc_norm.map(ten).fillna(df.acc_norm.map(ten_tam)).fillna(df.acc)
     ch, hom = cau_hinh(), hom_nay()
     df["ngay_moc_d"] = pd.to_datetime(df.ngay_moc, errors="coerce").dt.date
     tt = [trang_thai(lo if isinstance(lo, str) else None, None if pd.isna(n) else n,
