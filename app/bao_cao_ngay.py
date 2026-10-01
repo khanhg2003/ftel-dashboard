@@ -140,15 +140,22 @@ def _nhan_su_dang_lam(phong: list[str], dau: date, den: date) -> pd.DataFrame:
     Báo cáo phòng lấy roster (`bao_cao_phong.bang_nhan_su`). Đây phải là NGUỒN CHÍNH của danh sách,
     không phải suy ra từ "có bán hay chưa": lỗi thật 01/10/2026, nhân sự mới hoặc tháng này chưa bán
     gì (Mỹ Chi, Thanh Toàn, Gia Khánh, Trúc Duy) bị rớt hẳn khỏi bảng vì roster cũ chỉ lấy người có
-    hợp đồng/báo cáo/V.VIP trong tháng."""
+    hợp đồng/báo cáo/V.VIP trong tháng.
+
+    Loại người đã ghi "Nghỉ" trong danh mục (lỗi thật khác phát hiện ngay sau: Phan Tư Duy vẫn hiện
+    dù đã nghỉ, vì ngày nghỉ không phải lúc nào cũng điền vào hiệu_luc_den) và trưởng phòng - cùng
+    quy tắc "không vào bảng nhân viên" đang dùng ở Báo cáo Tổng (`overview._nhan_su`)."""
     if not phong:
         return pd.DataFrame(columns=["acc", "acc_norm"])
+    from app.canh_bao import acc_truong_phong
     ma = {f"p{i}": c for i, c in enumerate(phong)}
     cho = ", ".join(f":{k}" for k in ma)
     sql = text(f"""SELECT acc, acc_norm FROM staff_map WHERE phong_code IN ({cho})
                    AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu)
-                   AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)""")
-    return pd.read_sql_query(sql, engine, params={**ma, "tu": dau.isoformat(), "den": den.isoformat()})
+                   AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)
+                   AND COALESCE(ghi_chu, '') NOT LIKE '%Ngh%'""")
+    df = pd.read_sql_query(sql, engine, params={**ma, "tu": dau.isoformat(), "den": den.isoformat()})
+    return df[~df.acc_norm.isin(acc_truong_phong())]
 
 
 def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:

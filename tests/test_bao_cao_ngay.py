@@ -198,6 +198,28 @@ def test_nhan_su_moi_chua_ban_gi_van_co_dong():
             s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_moi))
 
 
+def test_nhan_su_da_nghi_khong_hien():
+    """Lỗi thật phát hiện ngay sau bản vá trên (01/10/2026): Phan Tư Duy đã ghi "Nghỉ" trong danh
+    mục nhưng `hieu_luc_den` chưa chắc đã điền (ngày nghỉ không phải lúc nào cũng cập nhật kịp), nên
+    chỉ lọc theo ngày hiệu lực là chưa đủ - phải loại thêm theo ghi_chu, giống cách Báo cáo Tổng
+    đang loại (`overview._nhan_su`)."""
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import StaffMap
+
+    acc_nghi = "ibb7.danghi.kiemthu"
+    with session_scope() as s:
+        s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_nghi))
+        s.add(StaffMap(acc="IBB7.DaNghi.KiemThu", acc_norm=acc_nghi, phong_code="IBB7",
+                      hieu_luc_tu=date(2026, 9, 1), hieu_luc_den=None, ghi_chu="Nghỉ 15/09"))
+    try:
+        df = bc.bang(PHONG, NGAY)
+        assert acc_nghi not in set(df.acc_norm), "người đã ghi Nghỉ không được hiện trong bảng"
+    finally:
+        with session_scope() as s:
+            s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_nghi))
+
+
 def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
     """Sale hay điền trước cho hôm sau (chốt 26/09/2026): mở và lưu được báo cáo của ngày chưa tới,
     nhưng chỉ trong TRUOC_TOI_DA ngày để không ai gõ nhầm sang tháng khác."""
