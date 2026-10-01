@@ -152,9 +152,10 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     """Mỗi dòng một nhân sự của phòng: 6 ô sale nhập + các số app tự lấy.
 
     Danh sách người = người có bán trong tháng, cộng người đã nhập báo cáo hôm nay (người mới chưa
-    có số). Đầu tháng mới khi chưa ai nạp file Internet/FPT Play của tháng đó thì dùng tạm roster
-    của tháng trước (`_roster_thang_truoc`) - PTTB/online tháng này vẫn đúng là 0, không lấy số
-    tháng trước bù vào."""
+    có số). Đầu tháng mới khi chưa ai nạp file Internet/FPT Play của tháng đó (`hd` rỗng) thì dùng
+    tạm roster của tháng trước (`_roster_thang_truoc`) - bất kể đã có vài người tự nhập báo cáo hay
+    chưa, nếu không bảng sẽ chỉ còn đúng những người đã nhập thay vì cả phòng (lỗi thật 01/10/2026).
+    PTTB/online tháng này vẫn đúng là 0, không lấy số tháng trước bù vào."""
     dam_bao_bang()
     ngay = ngay or hom_nay()
     thang = f"{ngay:%Y-%m}"
@@ -162,11 +163,9 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
     vvip = _vvip_theo_acc(phong, dau.isoformat(), ngay.isoformat())
     nhap = _da_nhap(ngay, phong)
-    roster_du_phong = pd.DataFrame()
-    if hd.empty and nhap.empty and vvip.empty:
-        roster_du_phong = _roster_thang_truoc(phong, dau)
-        if roster_du_phong.empty:
-            return pd.DataFrame()
+    roster_du_phong = _roster_thang_truoc(phong, dau) if hd.empty else pd.DataFrame()
+    if hd.empty and roster_du_phong.empty and nhap.empty and vvip.empty:
+        return pd.DataFrame()
 
     if len(hd):
         g = hd.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"),

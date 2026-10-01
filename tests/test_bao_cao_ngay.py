@@ -148,6 +148,29 @@ def test_dau_thang_moi_chua_nap_file_dung_roster_thang_truoc():
     assert not df.da_nhap.any()
 
 
+def test_dau_thang_moi_mot_nguoi_da_nhap_truoc_khong_lam_mat_ca_phong():
+    """Lỗi thật 01/10/2026: điều kiện dùng roster tháng trước lúc đầu chỉ xét khi CHƯA AI tự nhập -
+    nên hễ một sale nhập báo cáo trước khi có file thì bảng tụt về đúng mỗi người đó, mất hết phần
+    còn lại của phòng. Phải dùng roster tháng trước ngay khi tháng này chưa có hợp đồng nào (`hd`
+    rỗng), bất kể đã có ai tự nhập hay chưa."""
+    ngay_thang_moi = date(2026, 10, 1)
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import BaoCaoNgay, BaoCaoNgayChu
+    with session_scope() as s:
+        s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == ngay_thang_moi))
+        s.execute(delete(BaoCaoNgayChu).where(BaoCaoNgayChu.ngay == ngay_thang_moi))
+
+    roster_day_du = bc.bang(PHONG, ngay_thang_moi)
+    mot_nguoi = roster_day_du.iloc[0].acc_norm
+    bc.luu(mot_nguoi, {"muc_tieu": 1, "khtn": 1}, PHONG, "kiemthu.tp", ngay_thang_moi)
+
+    df = bc.bang(PHONG, ngay_thang_moi)
+    assert len(df) == len(roster_day_du), "một người tự nhập trước không được làm mất cả phòng"
+    assert df.set_index("acc_norm").loc[mot_nguoi, "da_nhap"]
+    assert int(df[df.acc_norm != mot_nguoi].da_nhap.sum()) == 0
+
+
 def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
     """Sale hay điền trước cho hôm sau (chốt 26/09/2026): mở và lưu được báo cáo của ngày chưa tới,
     nhưng chỉ trong TRUOC_TOI_DA ngày để không ai gõ nhầm sang tháng khác."""
