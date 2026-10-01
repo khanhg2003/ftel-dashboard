@@ -129,7 +129,12 @@ def test_mttn_hien_canh_cnql_chi_o_ibb7_va_bay_cua_ibb7():
     """Chốt với chủ app 01/10/2026: số/tỷ lệ MTTN hiện trong ngoặc cạnh PTTB CNQL - CHỈ ở phòng có
     bật MTTN (config/rules.yml -> mttn.phong, hiện là IBB7) và dòng tổng bầy chứa phòng đó, không ở
     phòng/bầy khác hay dòng tổng chi nhánh/toàn phòng. Tỷ lệ = mttn / tổng online (giống Báo cáo
-    phòng), không phải so với số CNQL."""
+    phòng), không phải so với số CNQL.
+
+    Ở dòng tổng bầy: CN_NOI_BO (DNG_01/DNG_02/QNM, dùng cho cột CNQL) là TẬP CON của danh sách tỉnh
+    MTTN, nên CNQL của các phòng KHÔNG tự bật MTTN trong cùng bầy vẫn chắc chắn nằm trong vùng MTTN -
+    phải cộng thêm vào, không chỉ lấy đúng số MTTN của riêng phòng đã bật (chốt 01/10/2026, phản hồi
+    sau khi thấy tỷ lệ bầy bị "pha loãng" xuống thấp hơn hẳn tỷ lệ của chính phòng)."""
     from app import mttn
     from app.org import bay_info, phong_order
 
@@ -149,8 +154,11 @@ def test_mttn_hien_canh_cnql_chi_o_ibb7_va_bay_cua_ibb7():
     for bcode in bay_cua_mttn:
         sub = df[df.phong_code == f"SUB_{bcode}"].iloc[0]
         assert sub.mttn_hien
-        phong_trong_bay = [c for c in phong_mttn if meta.get(c, {}).get("bay") == bcode]
-        assert sub.mttn == df[df.phong_code.isin(phong_trong_bay)].mttn.sum()
+        ca_bay = df[(df.loai_dong == "data") & (df.phong_code.map(lambda c: meta.get(c, {}).get("bay")) == bcode)]
+        mttn_rieng = ca_bay[ca_bay.phong_code.isin(phong_mttn)].mttn.sum()
+        cnql_phong_khac = ca_bay[~ca_bay.phong_code.isin(phong_mttn)].cnql.sum()
+        assert sub.mttn == mttn_rieng + cnql_phong_khac
+        assert sub.mttn >= mttn_rieng       # không bao giờ nhỏ hơn số MTTN riêng của phòng đã bật
 
     # phòng/bầy không bật MTTN thì không hiện, dù cộng ra 0
     phong_khac = [p["code"] for p in phong_order(THANG) if p["code"] not in phong_mttn][0]

@@ -237,6 +237,14 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
             rows.append({"phong_code": code, "loai_dong": "data", "mttn_hien": code in mttn_phong_bat,
                         **r.drop("bay").to_dict()})
         tong = sub.drop(columns=["phong", "bay"]).sum()
+        if bcode in mttn_bay_bat:
+            # CN_NOI_BO (DNG_01/DNG_02/QNM, dùng cho cột CNQL) là TẬP CON của danh sách tỉnh MTTN
+            # (config/rules.yml), nên CNQL của các phòng KHÔNG tự bật MTTN trong cùng bầy vẫn chắc
+            # chắn nằm trong vùng MTTN - phải cộng thêm vào, không chỉ lấy đúng số MTTN của riêng
+            # phòng đã bật (chốt với chủ app 01/10/2026). Chỉ cộng phòng NGOÀI mttn_phong_bat để
+            # không cộng trùng CNQL của chính phòng đã có số MTTN tính riêng theo tỉnh.
+            phong_khac = sub.index.difference(mttn_phong_bat)
+            tong["mttn"] = tong["mttn"] + sub.loc[phong_khac, "cnql"].sum()
         rows.append({"phong_code": f"SUB_{bcode}", "loai_dong": "subtotal", "mttn_hien": bcode in mttn_bay_bat,
                      "phong": binfo.get("ten_tong", f"TỔNG {binfo['ten']}"), **tong.to_dict()})
     # Xem toàn chi nhánh: thêm dòng tổng riêng Đà Nẵng / Quảng Nam ngay trên dòng tổng
