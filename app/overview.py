@@ -8,6 +8,12 @@ Cột: PKD | Nhân sự | INTERNET (Mục tiêu, Số tồn, Số online, Tỷ l
 
 PTTB CNQL = hợp đồng có CN Quản lý thuộc chi nhánh (DNG_01/DNG_02/QNM),
 đã đối chiếu khớp 20/20 phòng với file hiện tại.
+
+MTTN (chốt với chủ app 01/10/2026): hiện thêm trong ngoặc cạnh "Số online" và "Tỷ lệ" của PTTB
+CNQL, ví dụ "210 (65)" và "31% (62%)" - CHỈ ở đúng phòng có bật MTTN (`app.mttn`, hiện là IBB7) và
+dòng tổng bầy chứa phòng đó, không hiện ở phòng/bầy khác hay dòng tổng chi nhánh/toàn phòng. Cùng
+khoảng ngày với PTTB CNQL để so trực tiếp được. Công thức tỷ lệ giống hệt MTTN ở Báo cáo phòng:
+mttn / tổng online của phòng (không phải so với số CNQL).
 """
 from __future__ import annotations
 
@@ -17,6 +23,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import text
 
+from app import mttn
 from app.db import engine
 from app.metrics import month_range, ngay_co_du_lieu
 from app.org import bay_info, phong_order
@@ -64,17 +71,28 @@ def _so_lieu_phong(d_tu: date, d_den: date) -> pd.DataFrame:
     ck_tu, ck_den = lui_mot_thang(d_tu), lui_mot_thang(d_den)
     dau_thang = d_den.replace(day=1)          # để tính mục tiêu ngày: luỹ kế tháng, không theo kỳ đang xem
     dk_ton, p = dieu_kien_ton()
+    mttn_cfg = mttn.cau_hinh()
+    mttn_phong, mttn_cn = mttn_cfg["phong"], mttn_cfg["cn_quan_ly"]
     p.update({"tu": d_tu.isoformat(), "den": d_den.isoformat(), "ck_tu": ck_tu.isoformat(),
               "ck_den": ck_den.isoformat(), "d": d_den.isoformat(), "thang_tu": dau_thang.isoformat(),
               "lo": min(d_tu, ck_tu, dau_thang).isoformat(),
-              "hi": max(d_den, ck_den).isoformat(), **{f"cnql_{i}": c for i, c in enumerate(CN_NOI_BO)}})
+              "hi": max(d_den, ck_den).isoformat(), **{f"cnql_{i}": c for i, c in enumerate(CN_NOI_BO)},
+              **{f"mttnph_{i}": c for i, c in enumerate(mttn_phong)},
+              **{f"mttncn_{i}": c for i, c in enumerate(mttn_cn)}})
     trong_ky = "ngay_online >= :tu AND ngay_online <= :den"
     cnql = ", ".join(f":cnql_{i}" for i in range(len(CN_NOI_BO)))
+    # PTTB CNQL = CN Quản lý thuộc chi nhánh nội bộ; MTTN = CN Quản lý thuộc tỉnh Miền Trung - Tây
+    # Nguyên, VÀ chỉ tính cho phòng có bật MTTN (config/rules.yml -> mttn.phong, hiện chỉ IBB7) -
+    # chốt với chủ app 01/10/2026: hiện cạnh PTTB CNQL để so trực tiếp, không tính cho phòng khác.
+    dk_mttn = ("0=1" if not (mttn_phong and mttn_cn) else
+              f"{trong_ky} AND phong_code IN ({', '.join(f':mttnph_{i}' for i in range(len(mttn_phong)))}) "
+              f"AND cn_quan_ly IN ({', '.join(f':mttncn_{i}' for i in range(len(mttn_cn)))})")
     net = _sql_bang(f"""
         SELECT phong_code, {_dem(trong_ky)} AS online,
                {_dem("ngay_online >= :ck_tu AND ngay_online <= :ck_den")} AS ck_online,
                {_dem("ngay_online >= :thang_tu AND ngay_online <= :den")} AS luy_ke_thang,
                {_dem(f"{trong_ky} AND cn_quan_ly IN ({cnql})")} AS cnql,
+               {_dem(dk_mttn)} AS mttn,
                {_dem(dk_ton)} AS so_ton,
                {_dem("ngay_online = :d")} AS ngay_online,
                {_dem("ngay_tao_hd = :d")} AS ngay_ban_moi
@@ -193,6 +211,7 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         "ck_online": cot("ck_online"),
         "fpl_combo": cot("fpl_combo"),
         "cnql": cot("cnql"),
+        "mttn": cot("mttn"),
         "vvip": cot("vvip"),
         "mt_camera": target("camera"),
         "camera": cot("camera"),
@@ -203,6 +222,11 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         "ngay_vvip": cot("ngay_vvip"),
     }, index=codes)
 
+    # MTTN chỉ hiện (số) cạnh PTTB CNQL ở đúng phòng có bật MTTN và dòng tổng bầy chứa phòng đó -
+    # chốt với chủ app 01/10/2026, không hiện ở bầy khác (dù cộng ra 0) hay dòng tổng chi nhánh/toàn phòng.
+    mttn_phong_bat = set(mttn.cau_hinh()["phong"])
+    mttn_bay_bat = {meta[c]["bay"] for c in mttn_phong_bat if c in meta}
+
     rows = []
     bays = bay_info()
     for bcode, binfo in sorted(bays.items(), key=lambda kv: kv[1]["thu_tu"]):
@@ -210,9 +234,10 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
         if sub.empty:
             continue
         for code, r in sub.iterrows():
-            rows.append({"phong_code": code, "loai_dong": "data", **r.drop("bay").to_dict()})
+            rows.append({"phong_code": code, "loai_dong": "data", "mttn_hien": code in mttn_phong_bat,
+                        **r.drop("bay").to_dict()})
         tong = sub.drop(columns=["phong", "bay"]).sum()
-        rows.append({"phong_code": f"SUB_{bcode}", "loai_dong": "subtotal",
+        rows.append({"phong_code": f"SUB_{bcode}", "loai_dong": "subtotal", "mttn_hien": bcode in mttn_bay_bat,
                      "phong": binfo.get("ten_tong", f"TỔNG {binfo['ten']}"), **tong.to_dict()})
     # Xem toàn chi nhánh: thêm dòng tổng riêng Đà Nẵng / Quảng Nam ngay trên dòng tổng
     # (bầy trộn phòng của cả hai tỉnh nên không đọc được từ các dòng tổng bầy)
@@ -226,11 +251,11 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
             for cn in ("DNG", "QNM"):
                 sub = df_tong[cn_cua.reindex(df_tong.index) == cn]
                 if len(sub):
-                    rows.append({"phong_code": f"CN_{cn}", "loai_dong": "chinhanh",
+                    rows.append({"phong_code": f"CN_{cn}", "loai_dong": "chinhanh", "mttn_hien": False,
                                  "phong": f"TỔNG {cn}",
                                  **sub.drop(columns=["phong", "bay"]).sum().to_dict()})
     tong_all = df_tong.drop(columns=["phong", "bay"]).sum()
-    rows.append({"phong_code": "TOTAL", "loai_dong": "total",
+    rows.append({"phong_code": "TOTAL", "loai_dong": "total", "mttn_hien": False,
                  "phong": TEN_DONG_TONG.get(chi_nhanh, TEN_DONG_TONG["all"]),
                  **tong_all.to_dict()})
 
@@ -255,6 +280,7 @@ def _them_ty_le(out: pd.DataFrame, tam_tinh: bool = False) -> pd.DataFrame:
                           out.ck_online.replace(0, np.nan) * 100).round(0)
     out["fpl_ty_le"] = _ty_le(out.fpl_combo, out.online)
     out["cnql_ty_le"] = _ty_le(out.cnql, out.online)
+    out["mttn_ty_le"] = _ty_le(out.mttn, out.online)
     out["vvip_ty_le"] = _ty_le(out.vvip, out.online)
     out["htkh_camera"] = _ty_le(out.camera, out.mt_camera)
     # Đạt khi online trong ngày >= mục tiêu ngày (BGĐ chốt 14/09/2026). Phòng đã đủ mục tiêu tháng

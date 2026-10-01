@@ -106,6 +106,42 @@ def test_ibb2_dong_tong_hop():
     assert (int(r.ngay_ban_moi), int(r.ngay_online), int(r.ngay_vvip)) == (16, 9, 13)
 
 
+def test_mttn_hien_canh_cnql_chi_o_ibb7_va_bay_cua_ibb7():
+    """Chốt với chủ app 01/10/2026: số/tỷ lệ MTTN hiện trong ngoặc cạnh PTTB CNQL - CHỈ ở phòng có
+    bật MTTN (config/rules.yml -> mttn.phong, hiện là IBB7) và dòng tổng bầy chứa phòng đó, không ở
+    phòng/bầy khác hay dòng tổng chi nhánh/toàn phòng. Tỷ lệ = mttn / tổng online (giống Báo cáo
+    phòng), không phải so với số CNQL."""
+    from app import mttn
+    from app.org import bay_info, phong_order
+
+    df, _ = bang_tong_quan(THANG)
+    phong_mttn = mttn.cau_hinh()["phong"]
+    assert phong_mttn, "cần ít nhất một phòng bật MTTN để phép thử này có ý nghĩa"
+    meta = {p["code"]: p for p in phong_order(THANG)}
+    bay_cua_mttn = {meta[c]["bay"] for c in phong_mttn if c in meta}
+
+    for code in phong_mttn:
+        r = df[df.phong_code == code].iloc[0]
+        assert r.mttn_hien
+        assert 0 <= r.mttn <= r.online
+        if r.online:
+            assert round(r.mttn / r.online * 100) == r.mttn_ty_le
+
+    for bcode in bay_cua_mttn:
+        sub = df[df.phong_code == f"SUB_{bcode}"].iloc[0]
+        assert sub.mttn_hien
+        phong_trong_bay = [c for c in phong_mttn if meta.get(c, {}).get("bay") == bcode]
+        assert sub.mttn == df[df.phong_code.isin(phong_trong_bay)].mttn.sum()
+
+    # phòng/bầy không bật MTTN thì không hiện, dù cộng ra 0
+    phong_khac = [p["code"] for p in phong_order(THANG) if p["code"] not in phong_mttn][0]
+    assert not df[df.phong_code == phong_khac].iloc[0].mttn_hien
+    bay_khac = next(b for b in bay_info() if b not in bay_cua_mttn
+                    and not df[df.phong_code == f"SUB_{b}"].empty)
+    assert not df[df.phong_code == f"SUB_{bay_khac}"].iloc[0].mttn_hien
+    assert not df[df.loai_dong == "total"].iloc[0].mttn_hien
+
+
 def test_tin_minhlh1_chi_tinh_cho_cus_dng2():
     """BGD chốt: acc này chỉ thuộc Phòng CUS DNG2, không được tính thêm cho IBB6."""
     df, _ = bang_tong_quan(THANG)

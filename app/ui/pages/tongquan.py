@@ -43,6 +43,19 @@ TY_LE_TOI_THIEU_DT = 0.8       # điện thoại: không thu nhỏ hơn mức n�
 
 
 
+# PTTB CNQL kèm số MTTN trong ngoặc (chốt với chủ app 01/10/2026) - chỉ hiện ở dòng có cột `mttn_hien`
+# bật (IBB7 và dòng tổng bầy chứa IBB7, xem app/overview.py). Định dạng ở đây (không ở Python) vì giá
+# trị gốc "cnql"/"cnql_ty_le" phải giữ số thuần cho Excel export và trợ lý AI đọc.
+SO_CNQL_MTTN = {"function": (
+    "params.value == null ? '' : Number(params.value).toLocaleString('vi-VN') + "
+    "(params.data && params.data.mttn_hien && params.data.mttn != null "
+    "? ' (' + Number(params.data.mttn).toLocaleString('vi-VN') + ')' : '')")}
+PCT_CNQL_MTTN = {"function": (
+    "params.value == null ? '' : Math.round(params.value) + '%' + "
+    "(params.data && params.data.mttn_hien && params.data.mttn_ty_le != null "
+    "? ' (' + Math.round(params.data.mttn_ty_le) + '%)' : '')")}
+
+
 def _heat(kind: str) -> dict:
     """Sinh điều kiện tô màu theo ngưỡng trong config/rules.yml."""
     t = rules_config()["heatmap"][kind]
@@ -325,9 +338,12 @@ def _cols(thang: str, ngay: int, gon: bool = False, tu: str | None = None):
              "valueFormatter": PCT, "cellStyle": _heat("ty_le")},
         ]},
         {"headerName": "PTTB CNQL", "children": [
-            {"headerName": "Số online", "field": "cnql", "width": 78, "valueFormatter": SO},
-            {"headerName": "Tỷ lệ", "field": "cnql_ty_le", "width": w, "valueFormatter": PCT,
-             "cellStyle": _heat("ty_le")},
+            {"headerName": "Số online ⓘ", "field": "cnql", "width": 110, "valueFormatter": SO_CNQL_MTTN,
+             "headerClass": "co-chu-thich",
+             "headerTooltip": "Số trong ngoặc là số MTTN (Miền Trung - Tây Nguyên) của phòng/bầy có bật MTTN."},
+            {"headerName": "Tỷ lệ ⓘ", "field": "cnql_ty_le", "width": 110, "valueFormatter": PCT_CNQL_MTTN,
+             "cellStyle": _heat("ty_le"), "headerClass": "co-chu-thich",
+             "headerTooltip": "Tỷ lệ trong ngoặc là tỷ lệ MTTN / tổng online của phòng/bầy có bật MTTN."},
         ]},
         {"headerName": "COMBO VVIP", "children": [
             {"headerName": "Số VVIP", "field": "vvip", "width": w, "valueFormatter": SO},

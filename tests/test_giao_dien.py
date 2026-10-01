@@ -188,6 +188,17 @@ def test_chon_ky_khong_con_tab_thang_cung():
     assert ten_ky("2026-09") == "Tháng 09/2026"
 
 
+def test_ky_ap_dung_co_cau_luon_co_thang_hien_tai():
+    """Lỗi thật 01/10/2026: Quản trị → Cơ cấu tổ chức không cho chọn tháng mới vì danh sách kỳ chỉ
+    lấy từ tháng ĐÃ CÓ file Internet - đầu tháng cần sửa cơ cấu/chỉ tiêu trước khi có file."""
+    from app.thoi_gian import gio_viet_nam
+    from app.ui.pages.settings import chon_ky_ap_dung
+    thang_nay = gio_viet_nam().strftime("%Y-%m")
+    o = chon_ky_ap_dung("cocau")
+    dd = o.children.children[1].children[1]
+    assert thang_nay in [v["value"] for v in dd.options]
+
+
 def test_trang_huong_dan_dung_duoc():
     from app.ui.pages.huongdan import layout, topbar
     assert layout() is not None and topbar() is not None

@@ -22,7 +22,7 @@ from app.metrics import cac_thang_co_du_lieu, prev_month
 from app.models import Target
 from app.org import (LOAI_PHONG, bay_info, bay_options, co_cau_rieng, luu_bay, luu_co_cau_thang,
                      luu_phong, phong_order, xoa_bay, xoa_cache_org, xoa_co_cau_thang, xoa_phong)
-from app.thoi_gian import chu_gio_vn
+from app.thoi_gian import chu_gio_vn, gio_viet_nam
 from app.ui.components import (COT_SUA, MAU_LOAI_THAY_DOI, alert, callback_can_quyen, card, chon_ky,
                                dong_can_sua, field, gan_dieu_huong_ky, gan_import, modal, nut_import, tieu_de, ghi_chu)
 from app.ui.luoi import SO, bang
@@ -131,8 +131,11 @@ def hop_thoai() -> list:
 
 
 def chon_ky_ap_dung(tab: str):
-    """Ô Kỳ áp dụng - chỉ hiện ở tab Cơ cấu tổ chức và Chỉ tiêu."""
-    thangs = cac_thang_co_du_lieu() or ["2026-09"]
+    """Ô Kỳ áp dụng - chỉ hiện ở tab Cơ cấu tổ chức và Chỉ tiêu.
+
+    Luôn kèm tháng hiện tại (giờ Việt Nam) dù chưa có file Internet của tháng đó - đầu tháng mới
+    cần sửa cơ cấu/chỉ tiêu TRƯỚC khi có file (lỗi thật 01/10/2026, cùng gốc với ads._thang_co())."""
+    thangs = sorted({*cac_thang_co_du_lieu(), gio_viet_nam().strftime("%Y-%m")}, reverse=True)
     return html.Div(field("Kỳ áp dụng", chon_ky("st-thang", thangs)), id="st-ky-wrap",
                     style={} if tab in ("cocau", "chitieu") else AN)
 
