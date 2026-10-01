@@ -68,6 +68,25 @@ def test_gan_phong_theo_quy_tac():
     assert assign_phong("la.hoac", "Phòng nghiệp vụ", "DNG_01", "DNG_01", dm) == ("CHUA_GAN", False)
 
 
+def test_gan_phong_doi_tuong_kh_vip7_vuot_tren_ecom_va_danh_muc():
+    """Chốt với chủ app 01/10/2026: HĐ "Đối tượng KH" = VIP 7 luôn tính cho ANCS, kể cả khi tài
+    khoản bán là ECOM hoặc có trong danh mục nhân sự - nhóm khách công ty quản lý riêng, không phụ
+    thuộc ai đứng tên bán."""
+    dm = {"dng.abc": "IBB2"}
+    # vượt trên cả ECOM (lẽ ra là ECOM_QNM nếu không có VIP 7)
+    assert assign_phong("HCM.ECOM.x", "", "HCM_ECOM", "QNM", dm, doi_tuong_kh="VIP 7") == ("ANCS", False)
+    # vượt trên cả danh mục nhân sự (lẽ ra là IBB2 nếu không có VIP 7)
+    assert assign_phong("DNG.ABC", "Phòng kinh doanh 2", "DNG_01", "DNG_01", dm,
+                        doi_tuong_kh="VIP 7") == ("ANCS", False)
+    # không phân biệt hoa thường / khoảng trắng thừa
+    assert assign_phong("DNG.ABC", "Phòng kinh doanh 2", "DNG_01", "DNG_01", dm,
+                        doi_tuong_kh="  vip 7 ") == ("ANCS", False)
+    # Đối tượng KH khác (hoặc không có) thì không ảnh hưởng gì
+    assert assign_phong("DNG.ABC", "Phòng kinh doanh 2", "DNG_01", "DNG_01", dm,
+                        doi_tuong_kh="Đối tượng khác") == ("IBB2", False)
+    assert assign_phong("DNG.ABC", "Phòng kinh doanh 2", "DNG_01", "DNG_01", dm) == ("IBB2", False)
+
+
 def test_gan_phong_theo_hieu_luc_khi_chuyen_phong():
     from datetime import date
     dm = {"qnm.x": [(None, date(2026, 8, 31), "TAMKY"), (date(2026, 9, 1), None, "DAILOC")],

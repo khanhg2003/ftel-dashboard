@@ -342,10 +342,18 @@ def phong_theo_danh_muc(dong, ngay=None) -> str | None:
     return max(dong, key=lambda x: x[1])[2]
 
 
-def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=None):
+def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=None, doi_tuong_kh=None):
     """Trả về (mã phòng, có phải hợp đồng ECOM không). `ngay` = ngày online (hoặc ngày tạo) của hợp đồng,
-    dùng để chọn đúng phòng khi nhân sự chuyển phòng (cột Hiệu lực từ / đến của danh mục)."""
+    dùng để chọn đúng phòng khi nhân sự chuyển phòng (cột Hiệu lực từ / đến của danh mục).
+
+    `doi_tuong_kh` đặc biệt (config/org.yml -> fallback.doi_tuong_kh_dac_biet, vd VIP 7 -> ANCS) được
+    xét TRƯỚC TIÊN, vượt trên cả luật ECOM và danh mục nhân sự - nhóm khách này công ty quản lý
+    riêng, không phụ thuộc ai đứng tên bán (chốt với chủ app 01/10/2026)."""
     fb = org_config()["fallback"]
+    dac_biet = {k.upper(): v for k, v in (fb.get("doi_tuong_kh_dac_biet") or {}).items()}
+    phong_dac_biet = dac_biet.get(norm_text(doi_tuong_kh).upper())
+    if phong_dac_biet:
+        return phong_dac_biet, False
     cn_ban = norm_text(cn_ban).upper()
     cn_quan_ly = norm_text(cn_quan_ly).upper()
 

@@ -51,6 +51,12 @@ phong:
 
 # Quy tắc gán phòng cho HĐ của nhân sự KHÔNG có trong danh mục (đã kiểm chứng khớp báo cáo)
 fallback:
+  # Đối tượng KH đặc biệt -> gán thẳng một phòng cố định, ƯU TIÊN CAO NHẤT (vượt cả luật ECOM và
+  # danh mục nhân sự): nhóm khách công ty quản lý riêng, không phụ thuộc ai đứng tên bán. Chốt với
+  # chủ app 01/10/2026: HĐ "Đối tượng KH" = VIP 7 luôn tính cho ANCS. So khớp không phân biệt hoa
+  # thường (khoá viết hoa).
+  doi_tuong_kh_dac_biet:
+    "VIP 7": ANCS
   ecom_cn_ban_suffix: "_ECOM"      # CN Bán = HCM_ECOM / HNI_ECOM  -> ECOM
   ecom_theo_cn_quan_ly:            # tách ECOM DNG / ECOM QNM theo CN Quản lý
     QNM: ECOM_QNM
