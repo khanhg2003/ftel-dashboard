@@ -135,27 +135,30 @@ def _vvip_theo_acc(phong: list[str], tu: str, den: str) -> pd.Series:
     return df.set_index("acc_norm")["n"] if not df.empty else pd.Series(dtype=int)
 
 
-def _roster_thang_truoc(phong: list[str], dau_thang_nay: date) -> pd.DataFrame:
-    """Nhân sự có bán tháng liền trước - roster tạm khi tháng đang xem chưa có dữ liệu nào (đầu
-    tháng, chưa ai nạp file Internet/FPT Play của tháng mới). Chốt với chủ app 01/10/2026: vẫn cho
-    sale nhập các ô tự khai, không bắt chờ có file mới có bảng."""
-    thang_truoc = (dau_thang_nay - timedelta(days=1)).strftime("%Y-%m")
-    dau_tr, cuoi_tr, _ = month_range(thang_truoc)
-    hd_tr = pt.hop_dong_online(dau_tr.isoformat(), cuoi_tr.isoformat(), list(phong))
-    if hd_tr.empty:
-        return pd.DataFrame(columns=["acc_norm", "acc", "phong_code"])
-    return (hd_tr.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"))
-            .reset_index())
+def _nhan_su_dang_lam(phong: list[str], dau: date, den: date) -> pd.DataFrame:
+    """Nhân sự đang thuộc phòng theo danh mục (staff_map), lọc đúng hiệu lực trong kỳ - cùng cách
+    Báo cáo phòng lấy roster (`bao_cao_phong.bang_nhan_su`). Đây phải là NGUỒN CHÍNH của danh sách,
+    không phải suy ra từ "có bán hay chưa": lỗi thật 01/10/2026, nhân sự mới hoặc tháng này chưa bán
+    gì (Mỹ Chi, Thanh Toàn, Gia Khánh, Trúc Duy) bị rớt hẳn khỏi bảng vì roster cũ chỉ lấy người có
+    hợp đồng/báo cáo/V.VIP trong tháng."""
+    if not phong:
+        return pd.DataFrame(columns=["acc", "acc_norm"])
+    ma = {f"p{i}": c for i, c in enumerate(phong)}
+    cho = ", ".join(f":{k}" for k in ma)
+    sql = text(f"""SELECT acc, acc_norm FROM staff_map WHERE phong_code IN ({cho})
+                   AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu)
+                   AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)""")
+    return pd.read_sql_query(sql, engine, params={**ma, "tu": dau.isoformat(), "den": den.isoformat()})
 
 
 def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     """Mỗi dòng một nhân sự của phòng: 6 ô sale nhập + các số app tự lấy.
 
-    Danh sách người = người có bán trong tháng, cộng người đã nhập báo cáo hôm nay (người mới chưa
-    có số). Đầu tháng mới khi chưa ai nạp file Internet/FPT Play của tháng đó (`hd` rỗng) thì dùng
-    tạm roster của tháng trước (`_roster_thang_truoc`) - bất kể đã có vài người tự nhập báo cáo hay
-    chưa, nếu không bảng sẽ chỉ còn đúng những người đã nhập thay vì cả phòng (lỗi thật 01/10/2026).
-    PTTB/online tháng này vẫn đúng là 0, không lấy số tháng trước bù vào."""
+    Danh sách người = toàn bộ nhân sự đang thuộc phòng theo danh mục (`_nhan_su_dang_lam`, lọc hiệu
+    lực), cộng người có bán/báo cáo/V.VIP trong tháng nhưng không (còn) có trong danh mục - hiếm,
+    phòng khi danh mục chưa cập nhật kịp. Không suy roster từ "có bán hay chưa" nữa (xem
+    `_nhan_su_dang_lam`): nhờ vậy đầu tháng mới (chưa ai nạp file) hay nhân sự chưa bán gì trong
+    tháng vẫn có dòng để nhập."""
     dam_bao_bang()
     ngay = ngay or hom_nay()
     thang = f"{ngay:%Y-%m}"
@@ -163,27 +166,28 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
     vvip = _vvip_theo_acc(phong, dau.isoformat(), ngay.isoformat())
     nhap = _da_nhap(ngay, phong)
-    roster_du_phong = _roster_thang_truoc(phong, dau) if hd.empty else pd.DataFrame()
-    if hd.empty and roster_du_phong.empty and nhap.empty and vvip.empty:
+    staff = _nhan_su_dang_lam(phong, dau, ngay)
+    if hd.empty and staff.empty and nhap.empty and vvip.empty:
         return pd.DataFrame()
 
-    if len(hd):
-        g = hd.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"),
-                                       pttb_thang=("hop_dong", "size"))
-    elif len(roster_du_phong):
-        g = roster_du_phong.set_index("acc_norm").assign(pttb_thang=0)
-    else:
-        g = pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"], index=pd.Index([], name="acc_norm"))
+    g = (hd.groupby("acc_norm").agg(acc=("acc_nhan_vien", "first"), phong_code=("phong_code", "first"),
+                                    pttb_thang=("hop_dong", "size"))
+         if len(hd) else pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"],
+                                      index=pd.Index([], name="acc_norm")))
     hom = hd[hd.ngay_online.dt.date == ngay] if len(hd) else hd
     g["onl_file"] = (hom.groupby("acc_norm").size().reindex(g.index).fillna(0).astype(int)
                      if len(g) else pd.Series(dtype=int))
     df = g.reset_index()
-    # người chỉ bán V.VIP (chưa có hợp đồng Internet online) cũng phải có dòng, nếu không
-    # dòng TỔNG sẽ thiếu V.VIP so với Báo cáo phòng
-    thieu = (set(nhap.acc_norm) | set(vvip.index)) - set(df.acc_norm)
+    # Nhân sự trong danh mục chưa bán gì trong tháng, hoặc người chỉ bán V.VIP/đã tự nhập (chưa có
+    # hợp đồng Internet online), cũng phải có dòng - nếu không dòng TỔNG sẽ thiếu so với Báo cáo
+    # phòng, và nhân sự đó không nhập báo cáo được (lỗi thật 01/10/2026).
+    acc_cua_staff = staff.set_index("acc_norm").acc if len(staff) else pd.Series(dtype=str)
+    thieu = (set(staff.acc_norm) | set(nhap.acc_norm) | set(vvip.index)) - set(df.acc_norm)
     if thieu:
-        them = pd.DataFrame({"acc_norm": sorted(thieu), "acc": sorted(thieu), "phong_code": phong[0],
-                             "pttb_thang": 0, "onl_file": 0})
+        ds_thieu = sorted(thieu)
+        them = pd.DataFrame({"acc_norm": ds_thieu,
+                             "acc": [acc_cua_staff.get(a, a) for a in ds_thieu],
+                             "phong_code": phong[0], "pttb_thang": 0, "onl_file": 0})
         df = pd.concat([df, them], ignore_index=True)
     df["vvip_thang"] = df.acc_norm.map(vvip).fillna(0).astype(int)
 

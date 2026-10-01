@@ -129,9 +129,10 @@ def test_vvip_dem_giong_bao_cao_phong():
 
 def test_dau_thang_moi_chua_nap_file_dung_roster_thang_truoc():
     """Chốt với chủ app 01/10/2026: đầu tháng mới khi chưa ai nạp file Internet/FPT Play của
-    tháng đó thì vẫn phải có bảng để sale nhập các ô tự khai, roster tạm lấy từ nhân sự có bán
-    tháng liền trước (kỳ kiểm thử chỉ có dữ liệu 01-11/09/2026 nên 01/10 chắc chắn chưa có file).
-    PTTB / online / V.VIP của tháng mới phải đúng là 0, không lấy số tháng trước bù vào."""
+    tháng đó thì vẫn phải có bảng để sale nhập các ô tự khai - danh sách lấy từ danh mục nhân sự
+    (staff_map, `_nhan_su_dang_lam`) chứ không phụ thuộc file đã nạp hay chưa (kỳ kiểm thử chỉ có
+    dữ liệu 01-11/09/2026 nên 01/10 chắc chắn chưa có file). PTTB / online / V.VIP của tháng mới
+    phải đúng là 0, không lấy số tháng trước bù vào."""
     ngay_thang_moi = date(2026, 10, 1)
     from sqlalchemy import delete
     from app.db import session_scope
@@ -149,10 +150,10 @@ def test_dau_thang_moi_chua_nap_file_dung_roster_thang_truoc():
 
 
 def test_dau_thang_moi_mot_nguoi_da_nhap_truoc_khong_lam_mat_ca_phong():
-    """Lỗi thật 01/10/2026: điều kiện dùng roster tháng trước lúc đầu chỉ xét khi CHƯA AI tự nhập -
-    nên hễ một sale nhập báo cáo trước khi có file thì bảng tụt về đúng mỗi người đó, mất hết phần
-    còn lại của phòng. Phải dùng roster tháng trước ngay khi tháng này chưa có hợp đồng nào (`hd`
-    rỗng), bất kể đã có ai tự nhập hay chưa."""
+    """Lỗi thật 01/10/2026 (ở bản vá đầu tiên, trước khi chuyển hẳn sang lấy roster từ staff_map):
+    một sale nhập báo cáo trước khi có file làm bảng tụt về đúng mỗi người đó, mất hết phần còn lại
+    của phòng. Danh sách giờ lấy thẳng từ danh mục nhân sự nên không còn phụ thuộc việc có ai tự
+    nhập hay chưa - giữ lại phép thử này để chặn tái phát."""
     ngay_thang_moi = date(2026, 10, 1)
     from sqlalchemy import delete
     from app.db import session_scope
@@ -169,6 +170,32 @@ def test_dau_thang_moi_mot_nguoi_da_nhap_truoc_khong_lam_mat_ca_phong():
     assert len(df) == len(roster_day_du), "một người tự nhập trước không được làm mất cả phòng"
     assert df.set_index("acc_norm").loc[mot_nguoi, "da_nhap"]
     assert int(df[df.acc_norm != mot_nguoi].da_nhap.sum()) == 0
+
+
+def test_nhan_su_moi_chua_ban_gi_van_co_dong():
+    """Lỗi thật báo cáo đầu tháng 10/2026 (Mỹ Chi, Thanh Toàn, Gia Khánh, Trúc Duy bị rớt khỏi
+    bảng): roster trước đây suy từ "có bán/báo cáo/V.VIP trong tháng", nên nhân sự mới hoặc tháng
+    này chưa bán gì không có dòng để nhập. Roster giờ lấy thẳng từ danh mục nhân sự (staff_map) nên
+    một acc hoàn toàn chưa có hoạt động gì (không hợp đồng, không báo cáo, không V.VIP) trong SUỐT
+    kỳ kiểm thử vẫn phải có dòng, miễn đang thuộc phòng theo danh mục."""
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import StaffMap
+
+    acc_moi = "ibb7.nhansumoi.kiemthu"
+    with session_scope() as s:
+        s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_moi))
+        s.add(StaffMap(acc="IBB7.NhanSuMoi.KiemThu", acc_norm=acc_moi, phong_code="IBB7",
+                      hieu_luc_tu=date(2026, 9, 1), hieu_luc_den=None, ghi_chu="test"))
+    try:
+        df = bc.bang(PHONG, NGAY)
+        assert acc_moi in set(df.acc_norm), "nhân sự mới trong danh mục phải có dòng dù chưa bán gì"
+        r = df.set_index("acc_norm").loc[acc_moi]
+        assert (r.pttb_thang, r.thuc_hien, r.vvip_thang) == (0, 0, 0)
+        assert not r.da_nhap
+    finally:
+        with session_scope() as s:
+            s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_moi))
 
 
 def test_nhap_truoc_cho_ngay_tuong_lai(mot_nguoi):
