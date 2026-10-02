@@ -55,7 +55,7 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     ton = pt.hop_dong_ton([code])
 
     # chỉ dòng danh mục có hiệu lực trong kỳ (người đã chuyển phòng không còn hiện ở phòng cũ)
-    staff = _q("""SELECT acc, acc_norm, ghi_chu, ten_hien_thi FROM staff_map WHERE phong_code = :c
+    staff = _q("""SELECT acc, acc_norm, ghi_chu, ten_hien_thi, hieu_luc_den FROM staff_map WHERE phong_code = :c
                   AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu) AND (hieu_luc_tu IS NULL OR hieu_luc_tu <= :den)""",
                c=code, tu=tu, den=den)
     vvip = _dem_theo_acc("fact_fptplay", "ngay_online", tu, den, code, " AND la_vvip = TRUE")
@@ -147,9 +147,11 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     out["ho_ten"] = out.ho_ten.fillna(ten_tam.reindex(out.index))
     out["ho_ten"] = out.ho_ten.fillna(out.acc)
 
-    # người đã nghỉ và không còn số, không còn tồn thì bỏ khỏi danh sách
-    nghi = (out.trang_thai.fillna("").str.contains("Nghỉ việc")
-            | out.index.isin(staff[staff.ghi_chu.fillna("").str.contains("Nghỉ")].acc_norm))
+    # người đã nghỉ HẲN (không có hiệu_lực_đến - không rõ ngày quay lại) và không còn số, không còn tồn
+    # thì bỏ khỏi danh sách. Nghỉ TẠM có ngày dự kiến quay lại (vd thai sản, hieu_luc_den có giá trị) vẫn
+    # tính là nhân sự của phòng, chỉ không vào Báo cáo ngày trong lúc nghỉ (chủ app chốt 02/10/2026).
+    nghi_han = staff[staff.ghi_chu.fillna("").str.contains("Nghỉ") & staff.hieu_luc_den.isna()].acc_norm
+    nghi = (out.trang_thai.fillna("").str.contains("Nghỉ việc") | out.index.isin(nghi_han))
     out = out[~nghi | (out.online + out.ton + out.vvip + out.camera + out.ban_moi > 0)].copy()
 
     out["chenh_ck"] = out.online - out.ck_online

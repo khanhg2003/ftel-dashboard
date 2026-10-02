@@ -95,6 +95,33 @@ def test_ten_hien_thi_tam_khi_chua_co_nsld():
             s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_tam))
 
 
+def test_nghi_tam_co_ngay_quay_lai_van_tinh_la_nhan_su():
+    """Chủ app chốt 02/10/2026: nghỉ thai sản (hoặc nghỉ tạm khác có ngày dự kiến quay lại, tức có
+    hieu_luc_den) KHÔNG bị loại khỏi danh sách/nhân sự đang làm như người nghỉ hẳn (hieu_luc_den rỗng,
+    không rõ ngày quay lại) - vẫn là nhân sự của phòng, chỉ không vào Báo cáo ngày trong lúc nghỉ."""
+    from datetime import date
+
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import StaffMap
+    from app.overview import _nhan_su
+
+    acc_nghi_tam = "ibb2.nghitam.kiemthu"
+    truoc = _nhan_su().get("IBB2", 0)
+    with session_scope() as s:
+        s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_nghi_tam))
+        s.add(StaffMap(acc="IBB2.NghiTam.KiemThu", acc_norm=acc_nghi_tam, phong_code="IBB2",
+                      hieu_luc_tu=date(2026, 9, 1), hieu_luc_den=date(2027, 4, 1),
+                      ghi_chu="Nghỉ thai sản"))
+    try:
+        df = bp.bang_nhan_su(THANG, NGAY, "IBB2")
+        assert acc_nghi_tam in set(df.acc_norm), "nghỉ tạm có ngày quay lại vẫn phải còn trong danh sách"
+        assert _nhan_su()["IBB2"] == truoc + 1, "nghỉ tạm có ngày quay lại vẫn phải tính vào nhân sự đang làm"
+    finally:
+        with session_scope() as s:
+            s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_nghi_tam))
+
+
 def test_chi_tiet_nhan_su(ibb2):
     nguoi = ibb2[ibb2.loai_dong == "data"].iloc[0]
     ds = bp.dien_bien_nhan_su(THANG, NGAY, nguoi.acc_norm)

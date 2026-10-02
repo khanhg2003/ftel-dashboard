@@ -117,10 +117,13 @@ def _nhan_su() -> pd.Series:
     Nhận diện trưởng phòng qua hai lớp:
     1. SQL: ghi_chu chứa 'truong' (không phân biệt hoa thường, không dấu) — dùng cho TP không có role='phong'.
     2. Python: acc_truong_phong() — dùng cho TP có tài khoản riêng role='phong'.
-    """
+
+    "Nghỉ" có hiệu_lực_đến (nghỉ tạm có ngày dự kiến quay lại, vd thai sản) KHÔNG loại khỏi số này - vẫn
+    là nhân sự của phòng, chỉ không vào Báo cáo ngày trong lúc nghỉ (`bao_cao_ngay._nhan_su_dang_lam`).
+    "Nghỉ" không có hiệu_lực_đến (nghỉ hẳn, không rõ ngày quay lại) mới loại (chủ app chốt 02/10/2026)."""
     from app.canh_bao import acc_truong_phong
     df = pd.read_sql_query(text("""SELECT acc_norm, phong_code FROM staff_map
-                             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Ngh%'
+                             WHERE (COALESCE(ghi_chu, '') NOT LIKE '%Ngh%' OR hieu_luc_den IS NOT NULL)
                                AND COALESCE(ghi_chu, '') NOT LIKE '%Truong%'
                                AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE)"""), engine)
     df = df[~df.acc_norm.isin(acc_truong_phong())]
