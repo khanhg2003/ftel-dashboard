@@ -280,11 +280,15 @@ def _khoi_chu():
 
 # ------------------------------------------------------------------ dựng nội dung
 def _the_so(nhan: str, so, goi_y: str, mau: str = "", id_: str | None = None) -> html.Div:
-    kw = {"id": id_, "n_clicks": 0} if id_ else {}
-    loai = html.Button if id_ else html.Div
-    return loai([html.Div(nhan, className="label"), html.Div(so, className="value"),
-                 html.Div(goi_y, className="hint")],
-                className=f"kpi {mau}" + (" kpi-bam" if id_ else ""), **kw)
+    """Thẻ chỉ số. Có `id_` thì thẻ là nút bấm được, kèm nhãn "Sửa" ở góc cho dễ thấy."""
+    if not id_:
+        return html.Div([html.Div(nhan, className="label"), html.Div(so, className="value"),
+                         html.Div(goi_y, className="hint")], className=f"kpi {mau}")
+    return html.Button([html.Div(nhan, className="label"), html.Div(so, className="value"),
+                        html.Div(goi_y, className="hint"),
+                        html.Span([icon("edit", 13), html.Span("Sửa mục tiêu")], className="kpi-sua")],
+                       className=f"kpi {mau} kpi-bam", id=id_, n_clicks=0,
+                       title="Bấm để đặt mục tiêu PTTB cả tháng")
 
 
 def _sua_duoc_muc_tieu() -> bool:
@@ -304,7 +308,7 @@ def _tom_tat(t: dict) -> list:
                 "ok" if t["mt_ngay"] and t["dk_onl"] >= t["mt_ngay"] else "warn"),
         _the_so("Luỹ kế tháng", f"{t['luy_ke']} / {t['mt_thang']}",
                 f"Còn thiếu {t['con_thieu']} PTTB · đạt {t['ty_le_thang']:g}% · mục tiêu "
-                f"{t['mt_ngay']}/ngày" + (" · bấm để sửa" if _sua_duoc_muc_tieu() else ""),
+                f"{t['mt_ngay']}/ngày",
                 "ok" if t["ty_le_thang"] >= 90 else "warn" if t["ty_le_thang"] >= 70 else "bad",
                 id_="bn-mt-mo" if _sua_duoc_muc_tieu() else None),
     ]
