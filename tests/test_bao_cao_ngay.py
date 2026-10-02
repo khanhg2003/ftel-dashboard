@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -378,14 +379,22 @@ def test_quyen_theo_phong():
 def test_tai_khoan_xem_nhieu_phong_khong_vao_bao_cao_ngay():
     """Chủ app chốt 26/09/2026: Nhập tồn và Báo cáo ngày là chỗ NHẬP LIỆU của đúng một phòng.
     Tài khoản được mở rộng xem nhiều phòng (cấp trên, giám sát) tuy có IBB7 trong phạm vi nhưng
-    không phải người vận hành phòng đó nên không được vào. Quản trị (BGĐ) vẫn vào được."""
+    không phải người vận hành phòng đó nên không được vào.
+
+    Chốt 28/09/2026 (app/auth.py): BGĐ dùng role "admin" nhưng KHÔNG phải superadmin nên cũng không
+    vào; chỉ tài khoản kỹ thuật (username = ADMIN_USERNAME) mới bypass."""
     rong = _tk("phong", ["IBB1", "IBB2", "IBB7"])        # xem nhiều phòng, có cả IBB7
     assert rong.phong_bao_cao_ngay() == [] and not rong.duoc_bao_cao_ngay
     assert rong.phong_nhap_ton() == [] and not rong.duoc_nhap_ton
 
     tp = _tk("phong", ["IBB7"])                          # Trưởng phòng đúng phòng đó: vẫn vào
     assert tp.duoc_bao_cao_ngay and tp.duoc_nhap_ton
-    assert _tk("admin", []).duoc_bao_cao_ngay            # Quản trị (BGĐ) luôn vào được
+    from app.auth import ADMIN_USERNAME
+    bgd = _tk("admin", [])                               # BGĐ: xem báo cáo, không nhập liệu hằng ngày
+    assert not bgd.duoc_bao_cao_ngay and not bgd.duoc_nhap_ton
+    ky_thuat = _tk("admin", [])                          # tài khoản kỹ thuật: bypass
+    ky_thuat.username = ADMIN_USERNAME
+    assert ky_thuat.duoc_bao_cao_ngay and ky_thuat.duoc_nhap_ton
 
 
 # ------------------------------------------------------------------ chữ + ảnh
@@ -481,3 +490,69 @@ def test_dong_tong_khong_di_qua_dashgridoptions():
     ma = inspect.getsource(bn.register)
     assert "setGridOption('pinnedBottomRowData'" in ma, "dòng TỔNG phải đặt thẳng ở trình duyệt"
     assert '"dashGridOptions"' not in ma, "đừng gửi dashGridOptions từ máy chủ, sẽ mất Ctrl+Z"
+
+
+# ------------------------------------------------------------------ mục tiêu tháng (chốt 02/10/2026)
+@pytest.fixture
+def _xoa_muc_tieu_rieng():
+    """Mục tiêu riêng của Báo cáo ngày phải sạch trước và sau mỗi phép thử.
+
+    Trả lại nguyên trạng cả chỉ tiêu Internet của IBB7: database kiểm thử dùng chung, phép thử nào
+    ghi đè chỉ tiêu chung thì các phép thử đối chiếu Báo cáo Tổng với sheet gốc sẽ sai theo."""
+    from sqlalchemy import delete
+    from app.db import session_scope
+    from app.models import Target
+
+    thang = f"{NGAY:%Y-%m}"
+    cu = bc._muc_tieu(thang, "PHONG", "IBB7", "internet")
+
+    def don():
+        with session_scope() as s:
+            s.execute(delete(Target).where(Target.chi_tieu == bc.CHI_TIEU_THANG))
+    don()
+    yield
+    don()
+    with session_scope() as s:
+        s.execute(delete(Target).where(Target.thang == thang, Target.doi_tuong == "PHONG",
+                                       Target.ma_doi_tuong == "IBB7", Target.chi_tieu == "internet"))
+    if cu is not None:
+        bc.dat_muc_tieu(thang, "PHONG", "IBB7", "internet", cu, "kiemthu.hoan_tac")
+
+
+def test_muc_tieu_ngay_chia_deu_cho_so_ngay_cua_thang():
+    """Chia đều, làm tròn đến số gần nhất - ai cũng nhân chia lại được bằng tay."""
+    assert bc.muc_tieu_ngay(650, "2026-10") == 21        # 650 / 31 = 20,97
+    assert bc.muc_tieu_ngay(650, "2026-09") == 22        # 650 / 30 = 21,67
+    assert bc.muc_tieu_ngay(600, "2026-02") == 21        # 600 / 28 = 21,43
+    assert bc.muc_tieu_ngay(0, "2026-10") == 0
+
+
+def test_muc_tieu_thang_rieng_khong_dung_chi_tieu_cua_bao_cao_tong(_xoa_muc_tieu_rieng):
+    """Đặt mục tiêu ở Báo cáo ngày KHÔNG được đổi chỉ tiêu Internet mà Báo cáo Tổng đang dùng."""
+    from app.metrics import summary_phong
+    thang = f"{NGAY:%Y-%m}"
+    truoc = summary_phong(thang).set_index("phong_code").muc_tieu_internet.get("IBB7")
+
+    bc.dat_muc_tieu_thang(thang, "IBB7", 650, "kiemthu.admin")
+
+    sau = summary_phong(thang).set_index("phong_code").muc_tieu_internet.get("IBB7")
+    assert (sau == truoc) or (pd.isna(sau) and pd.isna(truoc))
+    t = bc.tom_tat(PHONG, NGAY)
+    assert t["mt_thang"] == 650 and t["mt_ngay"] == bc.muc_tieu_ngay(650, thang)
+
+
+def test_chua_dat_rieng_thi_tam_lay_chi_tieu_internet(_xoa_muc_tieu_rieng):
+    """Trước lần nhập đầu tiên, thẻ Luỹ kế tháng vẫn có số để nhìn."""
+    thang = f"{NGAY:%Y-%m}"
+    bc.dat_muc_tieu(thang, "PHONG", "IBB7", "internet", 500, "kiemthu.admin")
+    assert bc.muc_tieu_thang(thang, PHONG) == 500
+    bc.dat_muc_tieu_thang(thang, "IBB7", 650, "kiemthu.admin")
+    assert bc.muc_tieu_thang(thang, PHONG) == 650      # đặt riêng rồi thì ưu tiên số riêng
+
+
+def test_muc_tieu_ngay_cua_hom_qua_lay_theo_thang_cua_hom_qua(_xoa_muc_tieu_rieng):
+    """Ngày 1 tháng này: "Kết quả ngày" là của ngày cuối tháng trước nên phải so với mục tiêu tháng trước."""
+    bc.dat_muc_tieu_thang("2026-09", "IBB7", 300, "kiemthu.admin")     # 300 / 30 = 10
+    bc.dat_muc_tieu_thang("2026-10", "IBB7", 620, "kiemthu.admin")     # 620 / 31 = 20
+    t = bc.tom_tat(PHONG, date(2026, 10, 1))
+    assert t["hq_muc_tieu"] == 10 and t["mt_ngay"] == 20

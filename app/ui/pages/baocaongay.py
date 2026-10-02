@@ -227,9 +227,25 @@ def layout():
                       dcc.Textarea(id="bn-f-ghi-chu", className="inp", maxLength=bc.GHI_CHU_TOI_DA,
                                    placeholder="Công việc hôm nay, khó khăn đang gặp...",
                                    style={"width": "100%", "minHeight": "84px"})], className="field rong"),
-            html.Div(id="bn-md-msg"),
+                html.Div(id="bn-md-msg"),
         ]),
+        _modal_muc_tieu(),
     ])
+
+
+def _modal_muc_tieu():
+    """Đặt mục tiêu PTTB tháng của phòng - chỉ dùng cho trang Báo cáo ngày. Mục tiêu mỗi ngày
+    tự chia đều nên không có ô nhập riêng."""
+    return modal("bn-mt", html.Span(id="bn-mt-tieu-de"), [
+        html.Div([html.Label("Mục tiêu PTTB cả tháng"),
+                  dcc.Input(id="bn-f-mt-thang", type="number", min=0, max=100000, step=1,
+                            className="inp")], className="field rong"),
+        html.Div(id="bn-mt-chia", className="desc"),
+        html.Div("Số này chỉ dùng cho trang Báo cáo ngày, không ảnh hưởng chỉ tiêu ở Báo cáo Tổng "
+                 "hay Quản trị. Mỗi tháng đặt một lần, tháng sau nhập lại số mới.",
+                 className="desc"),
+        html.Div(id="bn-mt-msg"),
+    ], nut_chinh="Lưu mục tiêu")
 
 
 def _o_so(id_: str, nhan: str):
@@ -263,9 +279,17 @@ def _khoi_chu():
 
 
 # ------------------------------------------------------------------ dựng nội dung
-def _the_so(nhan: str, so, goi_y: str, mau: str = "") -> html.Div:
-    return html.Div([html.Div(nhan, className="label"), html.Div(so, className="value"),
-                     html.Div(goi_y, className="hint")], className=f"kpi {mau}")
+def _the_so(nhan: str, so, goi_y: str, mau: str = "", id_: str | None = None) -> html.Div:
+    kw = {"id": id_, "n_clicks": 0} if id_ else {}
+    loai = html.Button if id_ else html.Div
+    return loai([html.Div(nhan, className="label"), html.Div(so, className="value"),
+                 html.Div(goi_y, className="hint")],
+                className=f"kpi {mau}" + (" kpi-bam" if id_ else ""), **kw)
+
+
+def _sua_duoc_muc_tieu() -> bool:
+    """Chỉ Quản trị (BGĐ) đặt mục tiêu tháng - chủ app chốt 02/10/2026."""
+    return bool(getattr(current_user, "duoc_cau_hinh", False))
 
 
 def _tom_tat(t: dict) -> list:
@@ -279,8 +303,10 @@ def _tom_tat(t: dict) -> list:
                 f"chiều {t['onl_chieu']} · đã online {t['da_online']}",
                 "ok" if t["mt_ngay"] and t["dk_onl"] >= t["mt_ngay"] else "warn"),
         _the_so("Luỹ kế tháng", f"{t['luy_ke']} / {t['mt_thang']}",
-                f"Còn thiếu {t['con_thieu']} PTTB · đạt {t['ty_le_thang']:g}%",
-                "ok" if t["ty_le_thang"] >= 90 else "warn" if t["ty_le_thang"] >= 70 else "bad"),
+                f"Còn thiếu {t['con_thieu']} PTTB · đạt {t['ty_le_thang']:g}% · mục tiêu "
+                f"{t['mt_ngay']}/ngày" + (" · bấm để sửa" if _sua_duoc_muc_tieu() else ""),
+                "ok" if t["ty_le_thang"] >= 90 else "warn" if t["ty_le_thang"] >= 70 else "bad",
+                id_="bn-mt-mo" if _sua_duoc_muc_tieu() else None),
     ]
 
 
@@ -487,6 +513,48 @@ def register(app):
                    phong, current_user.username, d, ghi_ten=nt_ten(toi_la) if _dung_chung() else None)
         except bc.LoiBaoCao as e:
             return alert(str(e), "bad"), no_update
+        return "", gio_viet_nam().isoformat()
+
+    # ---------------------------------------------- mục tiêu tháng (chỉ Quản trị)
+    @app.callback(Output("bn-mt", "className"), Output("bn-mt-tieu-de", "children"),
+                  Output("bn-f-mt-thang", "value"), Output("bn-mt-msg", "children"),
+                  Input("bn-mt-mo", "n_clicks"), Input("bn-mt-dong", "n_clicks"),
+                  Input("bn-mt-huy", "n_clicks"), Input("bn-da-luu", "data"),
+                  State("bn-phong", "value"), State("bn-ngay", "date"), prevent_initial_call=True)
+    def _mo_muc_tieu(mo, _d, _h, _l, code, ngay):
+        # `mo` phải khác 0: thẻ Luỹ kế tháng được dựng lại mỗi lần nạp số, Dash coi component mới
+        # xuất hiện là một lần kích hoạt - không xét n_clicks thì hộp thoại tự bật khi mở trang.
+        if ctx.triggered_id != "bn-mt-mo" or not mo or not _sua_duoc_muc_tieu():
+            return "modal", no_update, no_update, ""
+        phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
+        thang = f"{d:%Y-%m}"
+        return ("modal mo", f"Mục tiêu tháng {d:%m/%Y} · {code}",
+                bc.muc_tieu_thang(thang, phong), "")
+
+    @app.callback(Output("bn-mt-chia", "children"), Input("bn-f-mt-thang", "value"),
+                  State("bn-ngay", "date"))
+    def _xem_chia(mt, ngay):
+        d = _ngay_hop_le(ngay)
+        thang = f"{d:%Y-%m}"
+        so_ngay = bc.month_range(thang)[2]
+        mt = int(mt or 0)
+        return (f"Mục tiêu mỗi ngày = {mt} ÷ {so_ngay} ngày = "
+                f"{bc.muc_tieu_ngay(mt, thang)} PTTB/ngày.")
+
+    @app.callback(Output("bn-mt-msg", "children", allow_duplicate=True),
+                  Output("bn-da-luu", "data", allow_duplicate=True),
+                  Input("bn-mt-ok", "n_clicks"), State("bn-f-mt-thang", "value"),
+                  State("bn-phong", "value"), State("bn-ngay", "date"), prevent_initial_call=True)
+    def _luu_muc_tieu(_n, mt, code, ngay):
+        if not _sua_duoc_muc_tieu():
+            raise PreventUpdate
+        phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
+        thang = f"{d:%Y-%m}"
+        try:
+            bc.dat_muc_tieu_thang(thang, phong[0], float(mt or 0), current_user.username)
+        except (bc.LoiBaoCao, TypeError, ValueError) as e:
+            return alert(str(e) or "Mục tiêu không hợp lệ.", "bad"), no_update
+        ghi_log("dat_muc_tieu_bao_cao_ngay", f"{thang} {phong[0]} = {int(mt or 0)}")
         return "", gio_viet_nam().isoformat()
 
     _dang_ky_chu(app)

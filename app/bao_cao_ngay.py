@@ -11,7 +11,10 @@ Chốt với chủ app 24/09/2026:
   số từ file: file chỉ có thể chậm chứ không đếm dư, nên cách này không bao giờ báo thiếu.
 - Mục tiêu tháng của từng người nhập ngay trong bảng này, lưu vào `target_monthly` với
   `doi_tuong = "NHAN_VIEN"` (mọi chỗ khác đều lọc `doi_tuong = 'PHONG'` nên không đụng nhau).
-  Mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có sẵn của Báo cáo Tổng.
+- Mục tiêu tháng của PHÒNG (chốt 02/10/2026) là ô RIÊNG của trang này: `doi_tuong = "PHONG"`,
+  `chi_tieu = "bcn_thang"`. Không dùng chung chỉ tiêu Internet của Báo cáo Tổng, để BGĐ sửa mục tiêu
+  ở đây không làm lệch số của các trang khác. Chưa đặt riêng thì tạm đọc chỉ tiêu Internet của phòng.
+  Mục tiêu mỗi ngày KHÔNG nhập tay nữa: chia đều mục tiêu tháng cho số ngày của tháng đó.
 - "Pay" trong ảnh báo cáo = số V.VIP luỹ kế tháng của người đó, đếm từ file FPT Play
   (`_vvip_theo_acc`) đúng như Báo cáo Tổng và Báo cáo phòng.
 - Dự kiến online tổng = sáng + chiều (không nhập riêng); còn phải online = tổng dự kiến - đã online.
@@ -97,6 +100,35 @@ def dat_muc_tieu(thang: str, doi_tuong: str, ma: str, chi_tieu: str, gia_tri: fl
         s.add(AuditLog(username=nguoi, action="sua_muc_tieu",
                        detail=f"{thang} {doi_tuong} {ma} {chi_tieu} = {gia_tri:g}"))
     xoa("so_lieu")
+
+
+CHI_TIEU_THANG = "bcn_thang"       # ô mục tiêu tháng riêng của Báo cáo ngày (không đụng chỉ tiêu chung)
+
+
+def muc_tieu_thang(thang: str, phong: list[str]) -> int:
+    """Mục tiêu PTTB tháng của phòng dùng cho Báo cáo ngày.
+
+    Chưa đặt riêng thì tạm lấy chỉ tiêu Internet của phòng (chỉ ĐỌC, không ghi đè) để thẻ Luỹ kế
+    tháng không trống trước khi BGĐ nhập lần đầu."""
+    tong = 0
+    for c in phong:
+        v = _muc_tieu(thang, "PHONG", c, CHI_TIEU_THANG)
+        if v is None:
+            v = _muc_tieu(thang, "PHONG", c, "internet")
+        tong += int(v or 0)
+    return tong
+
+
+def muc_tieu_ngay(mt_thang: int, thang: str) -> int:
+    """Mục tiêu mỗi ngày = mục tiêu tháng chia đều cho số ngày của tháng đó (chủ app chốt 02/10/2026).
+
+    Làm tròn đến số gần nhất: 650 / 31 = 20,97 -> 21. Ai cũng nhân chia lại được bằng tay."""
+    days = month_range(thang)[2]
+    return int(mt_thang / days + 0.5) if days else 0
+
+
+def dat_muc_tieu_thang(thang: str, phong_code: str, gia_tri: float, nguoi: str) -> None:
+    dat_muc_tieu(thang, "PHONG", phong_code, CHI_TIEU_THANG, gia_tri, nguoi)
 
 
 def _mt_nhan_vien(thang: str) -> pd.Series:
@@ -235,18 +267,22 @@ def tom_tat(phong: list[str], ngay: date | None = None) -> dict:
     hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
     hqua = ngay - timedelta(days=1)
     onl_hqua = int((hd.ngay_online.dt.date == hqua).sum()) if len(hd) else 0
-    mt_ngay = int(_muc_tieu(thang, "PHONG", phong[0], "ngay") or 0) if len(phong) == 1 else 0
-    mt_thang = sum(int(_muc_tieu(thang, "PHONG", c, "internet") or 0) for c in phong)
+    mt_thang = muc_tieu_thang(thang, phong)
+    mt_ngay = muc_tieu_ngay(mt_thang, thang)
+    # Hôm qua có thể thuộc tháng trước (ngày 1) nên mục tiêu ngày của nó phải lấy theo tháng của chính nó.
+    thang_hq = f"{hqua:%Y-%m}"
+    mt_hq = mt_ngay if thang_hq == thang else muc_tieu_ngay(muc_tieu_thang(thang_hq, phong), thang_hq)
     luy_ke = len(hd)
     s = (lambda c: int(df[c].sum())) if not df.empty else (lambda c: 0)
     return {
         "ngay": ngay, "hom_qua": hqua, "thang": thang,
-        "hq_thuc_te": onl_hqua, "hq_muc_tieu": mt_ngay,
-        "hq_thieu": max(mt_ngay - onl_hqua, 0), "hq_ty_le": round(onl_hqua / mt_ngay * 100) if mt_ngay else 0,
+        "hq_thuc_te": onl_hqua, "hq_muc_tieu": mt_hq,
+        "hq_thieu": max(mt_hq - onl_hqua, 0), "hq_ty_le": round(onl_hqua / mt_hq * 100) if mt_hq else 0,
         "khtn": s("khtn"), "mt_ngay": mt_ngay, "mt_ngay_nhap": s("muc_tieu"), "da_ban": s("da_ban"),
         "onl_sang": s("onl_sang"), "onl_chieu": s("onl_chieu"), "dk_onl": s("dk_onl"),
         "da_online": s("thuc_hien"), "con_phai_onl": s("dk_onl") - s("thuc_hien"),
         "luy_ke": luy_ke, "mt_thang": mt_thang, "con_thieu": max(mt_thang - luy_ke, 0),
+        "so_ngay_thang": month_range(thang)[2],
         "ty_le_thang": round(luy_ke / mt_thang * 100, 1) if mt_thang else 0.0,
         "vvip_thang": s("vvip_thang"),
         "so_nguoi": len(df), "chua_nhap": int((~df.da_nhap).sum()) if not df.empty else 0,
