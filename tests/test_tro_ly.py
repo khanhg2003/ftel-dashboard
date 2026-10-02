@@ -170,6 +170,13 @@ def test_chat_tra_loi_ngan_nhan_xet_moi_day_du():
     assert "NGẮN, ĐÚNG TRỌNG TÂM" in chat and "| IBB |" in chat and "| DIABAN |" in chat
 
 
+def test_chat_phai_dan_cach_doan_khong_dinh_mot_cuc():
+    """Chủ app báo 02/10/2026: trả lời chat dính liền một đoạn văn dài, khó đọc. Lời dặn phải buộc model
+    xuống dòng / gạch đầu dòng khi có từ 2 ý trở lên, không gộp hết vào một câu dài."""
+    assert "KHÔNG dồn các ý thành một" in dl.QUY_TAC_CHAT and "- '" in dl.QUY_TAC_CHAT
+    assert "VD SAI" in dl.QUY_TAC_CHAT
+
+
 def test_loi_dan_co_dinh_dung_dau_de_openai_luu_dem(ai_bat):
     a, b = _nguoi(), _nguoi("phong", "kiemthu.tp", ["IBB2"])
     ca, cb = dl.ngu_canh_chat(a, "/", {}), dl.ngu_canh_chat(b, "/phong", {"phong": "IBB2"})
