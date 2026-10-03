@@ -476,9 +476,12 @@ def cong_cu(user) -> list[dict]:
                  thang={"type": "string", "description": "YYYY-MM"},
                  chi_so={"type": "string", "enum": list(TEN_CHI_SO)},
                  phong={"type": "string", "description": "Mã phòng, bỏ trống = mọi phòng", "tuy_chon": True}),
-        _cong_cu("chan_doan_phong", "Tìm VÌ SAO một phòng (hoặc cả phạm vi) tăng/giảm: online từng ngày 14 ngày "
-                 "gần nhất, ngày thấp bất thường, 7 ngày gần so 7 ngày trước; nếu người hỏi được xem nhân sự thì "
-                 "kèm nhân sự tăng / giảm nhiều nhất so cùng kỳ và so 7 ngày trước.",
+        _cong_cu("phan_tich_nguyen_nhan", "Tìm VÌ SAO online của một phòng (hoặc cả phạm vi được xem) tăng / giảm so với "
+                 "cùng kỳ tháng trước. App đã TÁCH SẴN mức chênh thành các phần cộng lại đúng bằng mức chênh: theo "
+                 "người (giảm, hết số, tăng, mới - có tên nếu người hỏi được xem nhân sự), theo nguồn hợp đồng (ký "
+                 "trước tháng hay trong tháng), theo tuần, đầu vào - đầu ra (bán mới, tồn, tốc độ triển khai), chất "
+                 "lượng bán, và việc có thể làm ngay. DÙNG cho mọi câu 'vì sao / tại sao / do đâu / nguyên nhân / "
+                 "phân tích / có vấn đề gì'; gọi một lần là đủ.",
                  den=_ngay("Ngày luỹ kế đến"),
                  phong={"type": "string", "description": "Mã phòng; bỏ trống = cả phạm vi được xem", "tuy_chon": True}),
         _cong_cu("du_bao_cuoi_thang", "Dự báo online cuối tháng của từng phòng so với mục tiêu tháng "
@@ -502,42 +505,6 @@ def cong_cu(user) -> list[dict]:
                      phong={"type": "string", "description": "Mã phòng (tuỳ chọn)", "tuy_chon": True}),
         ]
     return ds
-
-
-def chan_doan(user, den: str | None, code: str | None) -> str:
-    """Số để trả lời 'vì sao': nhịp từng ngày, ngày thấp bất thường, nhân sự tăng / giảm nhiều nhất (nếu có quyền)."""
-    d = _ngay_hop_le(den)
-    thang = f"{d.year}-{d.month:02d}"
-    pv = user.phong_duoc_xem()
-    if code and pv is not None and code not in pv:
-        raise LoiAI("Bạn không được xem phòng này.")
-    bang = daily_counts(thang, "online")
-    giu = [code] if code else [c for c in bang.index if pv is None or c in pv]
-    ngay = bang.loc[giu, :d.day].sum()
-    tb = float(ngay.mean()) if len(ngay) else 0
-    tu14 = max(1, d.day - 13)
-    thap = [f"{n:02d}/{d.month:02d} ({int(ngay[n])})" for n in ngay.index if tb and ngay[n] < 0.5 * tb and n < d.day]
-    ten_pv = bp.ten_phong(code) if code else "cả phạm vi được xem"
-    kq = [f"CHẨN ĐOÁN {ten_pv} · luỹ kế 01-{d:%d/%m}. Bình quân {tb:.1f} online/ngày. {dong_thoi_gian(d)}",
-          "Online từng ngày (14 ngày gần nhất): " + ", ".join(f"{n:02d}/{d.month:02d}={int(ngay[n])}"
-                                                              for n in range(tu14, d.day + 1)),
-          "Ngày thấp bất thường (dưới 50% bình quân, trừ ngày cuối đang có thể tạm tính): "
-          + (", ".join(thap) if thap else "không có")]
-    if not code:
-        return "\n".join(kq)
-    if not user.duoc_xem_nhan_su or (user.phong_nhan_su() is not None and code not in user.phong_nhan_su()):
-        return "\n".join(kq + ["(Người hỏi không được xem chi tiết nhân sự nên không có phần nhân sự.)"])
-    nv = bp.bang_nhan_su(thang, d.day, code)
-    nv = nv[(nv.loai_dong == "data") & (nv.khong_xet != "Trưởng phòng")].copy()   # TP không xếp hạng
-    for c in ("online", "ck_online", "chenh_ck", "tuan_nay", "tuan_truoc"):
-        nv[c] = pd.to_numeric(nv[c]).fillna(0).astype(int)
-    nv["chenh_tuan"] = nv.tuan_nay - nv.tuan_truoc
-    cot = {"ho_ten": "Họ tên", "online": "Online", "ck_online": "Cùng kỳ", "chenh_ck": "Chênh cùng kỳ",
-           "tuan_nay": "7 ngày gần", "tuan_truoc": "7 ngày trước", "ngay_lien_chua_co_so": "Ngày liền chưa có số"}
-    kq += [f"Nhân sự tăng nhiều nhất so cùng kỳ:\n{csv(nv.nlargest(3, 'chenh_ck'), cot)}",
-           f"Nhân sự giảm nhiều nhất so cùng kỳ:\n{csv(nv.nsmallest(3, 'chenh_ck'), cot)}",
-           f"Nhân sự chậm lại nhiều nhất 7 ngày gần so 7 ngày trước:\n{csv(nv.nsmallest(3, 'chenh_tuan'), cot)}"]
-    return "\n\n".join(kq)
 
 
 def tim_nhan_su(user, nguoi: str, d: date) -> str:
@@ -597,9 +564,13 @@ def chay_cong_cu(user, ten: str, ts: dict) -> str:
         tu = str(ts.get("tu") or "")[:10]
         tu = tu if tu and tu <= d.isoformat() else d.replace(day=1).isoformat()
         chi = {_ma_phong(x) for x in str(ts.get("phong") or "").split(",") if x.strip()}
-        return _bang_tong(d, thang, cn, tu, loc_chi_nhanh(user.phong_duoc_xem(), cn, thang), chi or None)
-    if ten == "chan_doan_phong":
-        return chan_doan(user, ts.get("den"), _ma_phong(ts.get("phong")))
+        scope = loc_chi_nhanh(user.phong_duoc_xem(), cn, thang)
+        bang = _bang_tong(d, thang, cn, tu, scope, chi or None)
+        # hỏi chung (không chọn phòng) thì kèm các tín hiệu app đã tính sẵn để Fox nhận định thay vì chỉ đọc bảng
+        return bang if chi else f"{tin_hieu_tong(d, thang, cn, tu, scope)}\n\n{bang}"
+    if ten == "phan_tich_nguyen_nhan":
+        from app.fox_nguyen_nhan import nguyen_nhan
+        return nguyen_nhan(user, ts.get("den"), _ma_phong(ts.get("phong")))
     if ten == "chat_luong_ban":
         return ngu_canh_phan_tich(user, ts.get("den"), ts.get("chi_nhanh"))[1]()
     if ten == "du_bao_cuoi_thang":
@@ -670,11 +641,34 @@ QUY_TAC_CHAT = (
     "   - KHÔNG liệt kê thêm nhân sự, số tồn, V.VIP, Camera, FPT Play... nếu không giúp trả lời câu hỏi.\n"
     "   - Chỉ trả lời dài, liệt kê đủ số khi người dùng yêu cầu rõ ('chi tiết', 'liệt kê', 'đầy đủ', 'tất cả').\n"
     "   - Câu 'phòng nào/bầy nào/ai ... nhất': tối đa 3 đơn vị mỗi chiều, kèm số và ý nghĩa ngắn.\n"
-    "   - Câu 'vì sao/tại sao/do đâu': gọi công cụ chan_doan_phong rồi nêu 1-2 nguyên nhân có số.\n"
+    "   - Câu 'vì sao/tại sao/do đâu/nguyên nhân/phân tích' về phòng hay cả phạm vi: KHÔNG áp giới hạn 80 từ, "
+    "làm theo mục 1b.\n"
     "   - Câu về nhân sự ('ai cần quan tâm', 'nhân sự nào yếu'...): nêu tối đa 3 người đáng lo nhất, mỗi người 1 lý "
     "do ngắn và 1 việc nên làm; KHÔNG chia thành nhiều nhóm / nhiều danh sách.\n"
     "   - Dùng phần BỐI CẢNH THÁNG để giải thích ý nghĩa (VD tăng nhưng vẫn chậm hơn nhịp tháng trước), không chép "
     "lại bối cảnh nếu câu hỏi không cần.\n"
+    "1b. CÂU HỎI NGUYÊN NHÂN ('vì sao ... chậm / giảm / tụt / thấp hơn tháng trước', 'phân tích phòng X'...): gọi "
+    "ĐÚNG MỘT LẦN công cụ phan_tich_nguyen_nhan (truyền 'phong' nếu hỏi một phòng), không chỉ dựa bảng chung. Công cụ "
+    "đã tách mức chênh thành các phần cộng lại đúng bằng mức chênh (theo người, theo nguồn hợp đồng, theo tuần, đầu "
+    "vào - đầu ra); việc của bạn là xếp theo mức ảnh hưởng và diễn giải, không tự dò số. Trả lời khoảng 170 từ, đúng "
+    "3 phần, tiêu đề in đậm:\n"
+    "   **Kết luận:** 1-2 câu: số chính, hơn / kém cùng kỳ bao nhiêu, so mục tiêu và nhịp tháng trước ra sao.\n"
+    "   **Nguyên nhân (xếp theo mức ảnh hưởng):** 3-4 gạch, mỗi gạch MỘT nguyên nhân kèm số lấy từ công cụ (nhóm hoặc "
+    "tên người cụ thể, mất / thêm bao nhiêu online). Nói luôn yếu tố KHÔNG phải nguyên nhân khi số cho thấy vậy (VD "
+    "'không phải do khâu bán vì bán mới vẫn tăng') để người đọc loại trừ. Có người tăng thì nêu, đừng chỉ kể người giảm.\n"
+    "   **Việc nên làm:** 2-3 gạch, đúng người (trưởng phòng, sale, kỹ thuật khu vực, BGĐ), gắn với con số 'có thể "
+    "làm ngay' của công cụ.\n"
+    "   TUYỆT ĐỐI không nêu nguyên nhân mà công cụ không cho số, không suy từ cảm giác (VD 'tồn nhiều vì người ít số', "
+    "'thiếu người bù', 'cần thêm người'), không đoán lý do cá nhân (nghỉ phép, ốm); dữ liệu không cho biết thì nói "
+    "'dữ liệu chưa cho biết lý do'. Không nêu tên trưởng phòng và người đã nghỉ; công cụ không đưa tên thì nói theo "
+    "số người.\n"
+    "   VÍ DỤ ĐẠT (chỉ học cấu trúc, số trong ví dụ không có thật): '**Kết luận:** Phòng A đạt 31% mục tiêu, thấp hơn "
+    "cùng kỳ 18 online, và đang chậm hơn nhịp tháng trước.\n\n**Nguyên nhân (xếp theo mức ảnh hưởng):**\n- Hai "
+    "người nghỉ làm phòng mất 14 online so với cùng kỳ.\n- Bốn người còn lại giảm tổng cộng 11 online, lớn nhất là "
+    "B (từ 12 còn 6) và C (từ 9 còn 5).\n- Không phải do khâu bán: bán mới vẫn tăng 20 hợp đồng; nghẽn nằm ở chuyển "
+    "thành online (65% so với 89% cùng kỳ).\n\n**Việc nên làm:**\n- Trưởng phòng: kèm B và C, nếu họ về mức cùng kỳ "
+    "phòng thêm 11 online.\n- Kỹ thuật khu vực: xử lý 59 hợp đồng chờ từ 7 ngày, chuyển được một nửa thì thêm khoảng "
+    "30 online.'\n"
     "2. HỎI TIẾP NGẮN (VD 'các phòng IBB á', 'còn IBB5?', 'tháng trước thì sao?') là giữ nguyên câu hỏi trước "
     "và chỉ đổi điều kiện đó rồi trả lời lại theo đúng ý câu hỏi trước.\n"
     "3. NHÓM PHÒNG: dùng cột 'loại' trong danh sách phòng (IBB, DIABAN = địa bàn, KT, CUS, ECOM, KHAC). "

@@ -153,11 +153,40 @@ def test_cot_insight_tinh_san_dung():
     assert set(phong[phong.ck_online < 30].mau_nho) == {"có"} and "có" not in set(phong[phong.ck_online >= 30].mau_nho)
 
 
-def test_chan_doan_theo_quyen():
+def test_nguyen_nhan_tach_dung_muc_chenh_va_theo_quyen():
+    """Fox trả lời 'vì sao' bằng các phần app đã tách sẵn, cộng lại đúng mức chênh; tên người chỉ cho ai được xem
+    nhân sự (chủ app báo 03/10/2026: câu trả lời cũ chung chung vì công cụ chỉ đưa 14 ngày + 3 người tăng giảm)."""
+    from app import fox_nguyen_nhan as nn
     admin, nhap_lieu = _nguoi(), _nguoi("operator")
-    co = dl.chay_cong_cu(admin, "chan_doan_phong", {"den": "2026-09-11", "phong": "IBB5"})
-    khong = dl.chay_cong_cu(nhap_lieu, "chan_doan_phong", {"den": "2026-09-11", "phong": "IBB5"})
-    assert "giảm nhiều nhất" in co and "Online từng ngày" in khong and "Họ tên" not in khong
+    co = dl.chay_cong_cu(admin, "phan_tich_nguyen_nhan", {"den": "2026-09-11", "phong": "IBB7"})
+    khong = dl.chay_cong_cu(nhap_lieu, "phan_tich_nguyen_nhan", {"den": "2026-09-11", "phong": "IBB7"})
+    assert "233 online so với 210 cùng kỳ = +23" in co
+    # tách theo nguồn hợp đồng: 13 + 220 = 233 và 21 + 189 = 210 (cộng lại đúng tổng hai kỳ)
+    assert "13 so với 21 cùng kỳ (-8)" in co and "220 so với 189 cùng kỳ (+31)" in co
+    # tách theo người: các nhóm cộng lại bằng mức chênh, có tên người khi được xem nhân sự
+    assert "THEO NGƯỜI (cộng lại = +23" in co and "Bùi Ngô Anh Thắng (từ 14 còn 6)" in co
+    assert "→" not in co                                                       # Fox cấm ký hiệu mũi tên
+    assert "THEO NGƯỜI" in khong and "Bùi Ngô Anh Thắng" not in khong and "Họ tên" not in khong
+    nay, ck = nn._theo_acc("2026-09-01", "2026-09-11", ["IBB7"]), nn._theo_acc("2026-08-01", "2026-08-11", ["IBB7"])
+    assert int(nay.n.sum()) == 233 and int(ck.n.sum()) == 210
+    for muc in ("THEO TUẦN", "ĐẦU VÀO - ĐẦU RA", "VIỆC CÓ THỂ LÀM NGAY"):
+        assert muc in co
+
+
+def test_nguyen_nhan_ca_pham_vi_va_chan_phong_ngoai_quyen():
+    from app import fox_nguyen_nhan as nn
+    toan = dl.chay_cong_cu(_nguoi(), "phan_tich_nguyen_nhan", {"den": "2026-09-11"})
+    assert "cả phạm vi được xem" in toan and "THEO PHÒNG" in toan and "1.394 online so với 1.379" in toan
+    han_che = SimpleNamespace(**{**vars(_nguoi("phong", "kiemthu.tp", ["IBB2"])), "phong_duoc_xem": lambda: ["IBB2"]})
+    with pytest.raises(ai.LoiAI, match="không được xem"):
+        nn.nguyen_nhan(han_che, "2026-09-11", "IBB7")
+    assert "IBB2" in nn.nguyen_nhan(han_che, "2026-09-11", "IBB2")
+
+
+def test_chat_cau_hoi_vi_sao_dung_cong_cu_nguyen_nhan():
+    assert "phan_tich_nguyen_nhan" in dl.QUY_TAC_CHAT and "1b." in dl.QUY_TAC_CHAT
+    assert "chan_doan_phong" not in dl.QUY_TAC_CHAT and "chan_doan_phong" not in ai.QUY_TAC_INSIGHT
+    assert "thiếu người bù" in dl.QUY_TAC_CHAT                                  # cấm suy diễn nguyên nhân không có số
 
 
 def test_chat_tra_loi_ngan_nhan_xet_moi_day_du():
@@ -192,6 +221,7 @@ def test_bao_cao_tong_hoi_vai_phong_chi_tra_vai_dong():
     dong = gon.splitlines()
     assert len(dong) < len(ca.splitlines()) and any(x.startswith("IBB7,") for x in dong)
     assert dong[-1].startswith("TỔNG TOÀN CHI NHÁNH")
+    assert "TÍN HIỆU CHÍNH" in ca and "TÍN HIỆU CHÍNH" not in gon          # hỏi chung mới kèm tín hiệu tính sẵn
 
 
 def test_goi_y_cau_hoi_theo_trang():
@@ -246,7 +276,7 @@ def test_phan_quyen_cong_cu():
     nhap_lieu = _nguoi("operator")
     assert {c["function"]["name"] for c in dl.cong_cu(nhap_lieu)} == {"bao_cao_tong", "so_theo_ngay",
                                                                      "du_bao_cuoi_thang", "chat_luong_ban",
-                                                                     "chan_doan_phong"}
+                                                                     "phan_tich_nguyen_nhan"}
     with pytest.raises(ai.LoiAI):
         dl.chay_cong_cu(nhap_lieu, "nhan_su_phong", {"phong": "IBB2", "den": "2026-09-11"})
     tp = _nguoi("phong", "kiemthu.tp", ["IBB2"])

@@ -304,7 +304,7 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
 
 # ------------------------------------------------------------------ lời dặn chung
 # Đổi khi sửa lời dặn HOẶC quy tắc làm sạch: nhận xét / câu trả lời đã lưu theo bản cũ tự hết hiệu lực
-PHIEN_LOI_DAN = "9"
+PHIEN_LOI_DAN = "10"
 
 
 # Ngưỡng BGĐ chốt 17/09/2026
@@ -324,7 +324,7 @@ QUY_TAC_INSIGHT = (
     "'quy mô nhỏ'.\n"
     f"- Chỉ gọi là tăng/giảm 'đáng kể' khi chênh từ {DANG_KE_PCT}% VÀ từ {DANG_KE_SO} số trở lên; dưới "
     "ngưỡng thì nói 'tương đương'.\n"
-    "- Vì sao: chỉ truy nguyên trong dữ liệu (nhân sự, ngày, gói, số tồn; trong chat dùng công cụ chan_doan_phong); tuyệt "
+    "- Vì sao: chỉ truy nguyên trong dữ liệu (nhân sự, ngày, gói, số tồn; trong chat dùng công cụ phan_tich_nguyen_nhan); tuyệt "
     "đối không đoán nguyên nhân bên ngoài (thời tiết, chính sách, đối thủ...).\n"
     "- Số tồn là dư địa: tồn chờ từ 7 ngày nhiều thì nêu là cơ hội chuyển thành online.\n"
     "- Ngày đang cập nhật (số tạm tính): không kết luận giảm dựa trên riêng ngày đó.\n")
