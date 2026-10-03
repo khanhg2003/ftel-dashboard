@@ -10,6 +10,7 @@ from app.bo_nho import ghi
 from argon2 import PasswordHasher
 from sqlalchemy import delete, select, text
 
+from app.canh_bao import la_acc_tam
 from app.db import engine, session_scope
 from app.ingest.normalize import ma_nv_nhu_nhap, norm_acc, norm_text, parse_date
 from app.models import (AuditLog, FactCamera, FactFptPlay, FactInternet, HrMonthly, StaffMap,
@@ -327,16 +328,22 @@ def lay_staff(id_: int) -> dict | None:
                 "hieu_luc_tu": r.hieu_luc_tu.isoformat() if r.hieu_luc_tu else None,
                 "hieu_luc_den": r.hieu_luc_den.isoformat() if r.hieu_luc_den else None,
                 "ghi_chu": r.ghi_chu or "", "da_nghi": "nghỉ" in (r.ghi_chu or "").lower(),
+                "tinh_trang": ("nghi" if "nghỉ" in (r.ghi_chu or "").lower() else
+                               "nhap" if la_acc_tam(r.ghi_chu) else "lam"),
                 "ten_hien_thi": r.ten_hien_thi or ""}
 
 
-def _ghi_chu_nghi(ghi_chu: str, da_nghi: bool) -> str | None:
-    """Tình trạng nghỉ lưu trong ghi chú (chữ "Nghỉ", như import danh mục) - giữ phần ghi chú khác."""
+def _ghi_chu_tinh_trang(ghi_chu: str, tinh_trang: str) -> str | None:
+    """Tình trạng lưu trong ghi chú, như import danh mục: "Nghỉ" (đã nghỉ) hoặc "Acc tạm" (chỉ nhập liệu, không
+    tính vào nhân sự) - giữ phần ghi chú khác."""
     phan = [x.strip() for x in (ghi_chu or "").split("·") if x.strip()]
-    khac = [x for x in phan if "nghỉ" not in x.lower()]
-    cu_nghi = [x for x in phan if "nghỉ" in x.lower()]
-    if da_nghi:
-        khac = (cu_nghi[:1] or [f"Nghỉ ({gio_viet_nam():%d/%m/%Y})"]) + khac
+    nghi = [x for x in phan if "nghỉ" in x.lower()]
+    tam = [x for x in phan if la_acc_tam(x) and "nghỉ" not in x.lower()]
+    khac = [x for x in phan if x not in nghi and x not in tam]
+    if tinh_trang == "nghi":
+        khac = (nghi[:1] or [f"Nghỉ ({gio_viet_nam():%d/%m/%Y})"]) + khac
+    elif tinh_trang == "nhap":
+        khac = (tam[:1] or ["Acc tạm"]) + khac
     return " · ".join(khac) or None
 
 
@@ -376,7 +383,8 @@ def luu_mot_staff(id_: int | None, d: dict, nguoi_thuc_hien: str) -> tuple[bool,
         row.acc, row.acc_norm, row.phong_code = acc, norm_acc(acc), code
         row.ma_nv = ma_nv_nhu_nhap(d.get("ma_nv")) or None
         row.hieu_luc_tu, row.hieu_luc_den = tu, den
-        row.ghi_chu = _ghi_chu_nghi(norm_text(d.get("ghi_chu")), bool(d.get("da_nghi")))
+        row.ghi_chu = _ghi_chu_tinh_trang(norm_text(d.get("ghi_chu")),
+                                          d.get("tinh_trang") or ("nghi" if d.get("da_nghi") else "lam"))
         row.ten_hien_thi = norm_text(d.get("ten_hien_thi")) or None
         row.nguon = "giao diện"
         chi_tiet = acc + (f": {cu} → {ten[code]}" if not moi and cu != ten[code] else f" ({ten[code]})")

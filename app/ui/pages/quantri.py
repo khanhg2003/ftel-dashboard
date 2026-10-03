@@ -15,6 +15,7 @@ from flask_login import current_user
 from app.admin_service import (ROLE_CO_PHONG, ROLES, danh_sach_staff, danh_sach_user, dat_lai_mat_khau, lay_staff,
                                lay_user, luu_mot_staff, pham_vi_options, sua_user, them_user,
                                xoa_staff, xoa_user, xoa_truong_phong_khong_dang_nhap)
+from app.canh_bao import la_acc_tam
 from app.db import session_scope
 from app.ingest.commit import recompute_phong
 from app.mau_nhap import ap_dung_nhan_su, mau_nhan_su, xem_truoc_nhan_su
@@ -86,6 +87,7 @@ def _hop_thoai_staff():
             _o("Mã NV", dcc.Input(id="qt-s-manv", type="text", className="inp")),
             _o("Tình trạng", dcc.Dropdown(id="qt-s-nghi", clearable=False, searchable=False, value="lam",
                                           options=[{"label": "Đang làm", "value": "lam"},
+                                                   {"label": "Chỉ nhập liệu (không tính nhân sự)", "value": "nhap"},
                                                    {"label": "Đã nghỉ", "value": "nghi"}])),
             _o("Hiệu lực từ", dcc.DatePickerSingle(id="qt-s-tu", display_format="DD/MM/YYYY",
                                                    placeholder="Không giới hạn", clearable=True,
@@ -102,7 +104,9 @@ def _hop_thoai_staff():
         ghi_chu("Acc inside quyết định hợp đồng thuộc phòng nào - gõ đúng như trên hệ thống. Ngày hiệu lực "
                 "chỉ cần khi nhân sự chuyển phòng giữa kỳ (mỗi phòng một dòng). Lưu xong app tự tính lại "
                 "việc gán phòng cho dữ liệu đã nạp. Tên hiển thị chỉ cần khi chưa có trong NSLĐ (vd acc "
-                "tạm chưa cấp acc inside chính thức) - có NSLĐ rồi thì bỏ trống, app tự lấy tên chính thức.",
+                "tạm chưa cấp acc inside chính thức) - có NSLĐ rồi thì bỏ trống, app tự lấy tên chính thức. “Chỉ nhập "
+                "liệu” dành cho người chỉ cần có mặt ở Báo cáo ngày và Nhập tồn (vd acc tạm): không tính vào số "
+                "nhân sự, xếp hạng và cảnh báo. “Đã nghỉ” thì ẩn khỏi cả Báo cáo ngày.",
                 style={"marginTop": "12px"}),
         html.Div(id="qt-modal-staff-msg"),
     ], nut_chinh="Thêm vào danh mục")
@@ -414,9 +418,9 @@ def register(app):
             if not r:
                 return (no_update,) + giu
             ghi_chu = " · ".join(x.strip() for x in r["ghi_chu"].split("·")
-                                 if x.strip() and "nghỉ" not in x.lower())
+                                 if x.strip() and "nghỉ" not in x.lower() and not la_acc_tam(x))
             return ("modal mo", f"Sửa danh mục · {r['acc']}", "Lưu thay đổi", r["id"], r["acc"], r["phong_code"],
-                    r["ma_nv"], "nghi" if r["da_nghi"] else "lam", r["hieu_luc_tu"], r["hieu_luc_den"],
+                    r["ma_nv"], r["tinh_trang"], r["hieu_luc_tu"], r["hieu_luc_den"],
                     ghi_chu, r["ten_hien_thi"], "")
         return ("modal",) + giu
 
@@ -441,7 +445,7 @@ def register(app):
         if trig == "qt-modal-staff-ok":
             ok, msg, tinh_lai = luu_mot_staff(dang_sua, {"acc": acc, "phong_code": phong, "ma_nv": manv,
                                                          "hieu_luc_tu": tu, "hieu_luc_den": den,
-                                                         "ghi_chu": ghi_chu, "da_nghi": nghi == "nghi",
+                                                         "ghi_chu": ghi_chu, "tinh_trang": nghi,
                                                          "ten_hien_thi": ten},
                                               current_user.username)
             if not ok:

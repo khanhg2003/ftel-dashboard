@@ -112,21 +112,20 @@ def _so_lieu_phong(d_tu: date, d_den: date) -> pd.DataFrame:
 
 
 def _nhan_su() -> pd.Series:
-    """Số nhân sự đang làm của phòng: không ghi Nghỉ hoặc Trưởng, dòng danh mục còn hiệu lực, không đếm trưởng phòng.
+    """Số nhân sự đang làm của phòng: dòng danh mục còn hiệu lực, không ghi Nghỉ, không phải trưởng phòng, không
+    phải "Acc tạm" (chỉ nhập liệu).
 
+    Mọi dạng "Nghỉ" đều loại, kể cả nghỉ tạm có ngày quay lại như thai sản (chủ app chốt lại 03/10/2026 - trước
+    đó 02/10 từng giữ nghỉ tạm trong số này; người nghỉ tạm vẫn còn trong danh sách Báo cáo phòng).
     Nhận diện trưởng phòng qua hai lớp:
     1. SQL: ghi_chu chứa 'truong' (không phân biệt hoa thường, không dấu) — dùng cho TP không có role='phong'.
-    2. Python: acc_truong_phong() — dùng cho TP có tài khoản riêng role='phong'.
-
-    "Nghỉ" có hiệu_lực_đến (nghỉ tạm có ngày dự kiến quay lại, vd thai sản) KHÔNG loại khỏi số này - vẫn
-    là nhân sự của phòng, chỉ không vào Báo cáo ngày trong lúc nghỉ (`bao_cao_ngay._nhan_su_dang_lam`).
-    "Nghỉ" không có hiệu_lực_đến (nghỉ hẳn, không rõ ngày quay lại) mới loại (chủ app chốt 02/10/2026)."""
-    from app.canh_bao import acc_truong_phong
-    df = pd.read_sql_query(text("""SELECT acc_norm, phong_code FROM staff_map
-                             WHERE (COALESCE(ghi_chu, '') NOT LIKE '%Ngh%' OR hieu_luc_den IS NOT NULL)
+    2. Python: acc_truong_phong() — dùng cho TP có tài khoản riêng role='phong'."""
+    from app.canh_bao import acc_truong_phong, la_acc_tam
+    df = pd.read_sql_query(text("""SELECT acc_norm, phong_code, ghi_chu FROM staff_map
+                             WHERE COALESCE(ghi_chu, '') NOT LIKE '%Ngh%'
                                AND COALESCE(ghi_chu, '') NOT LIKE '%Truong%'
                                AND (hieu_luc_den IS NULL OR hieu_luc_den >= CURRENT_DATE)"""), engine)
-    df = df[~df.acc_norm.isin(acc_truong_phong())]
+    df = df[~df.acc_norm.isin(acc_truong_phong()) & ~df.ghi_chu.map(la_acc_tam)]
     return df.groupby("phong_code").size().astype(int)
 
 

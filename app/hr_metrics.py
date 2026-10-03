@@ -142,7 +142,7 @@ def hieu_suat_nhan_su(thang: str, chi_phong: list[str] | None = None,
     moi_khai = pd.to_datetime(base.hieu_luc_tu, errors="coerce") >= pd.Timestamp(tu_60)
     hoat_dong = base.co_nsld | base.index.isin(gan_day) | moi_khai
     nghi = (base.trang_thai.fillna("").str.contains("Nghỉ việc")
-            | base.ghi_chu.fillna("").str.contains("Nghỉ") | ~hoat_dong)
+            | base.ghi_chu.fillna("").str.contains("Nghỉ") | base.ghi_chu.map(canh_bao.la_acc_tam) | ~hoat_dong)
     base["dang_lam"] = ~nghi
     base = base[~nghi | (base.online > 0)]
     base = base[~base.index.isin(canh_bao.acc_truong_phong(base.index))]   # trưởng phòng không xếp hạng

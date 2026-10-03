@@ -150,7 +150,8 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     # người đã nghỉ HẲN (không có hiệu_lực_đến - không rõ ngày quay lại) và không còn số, không còn tồn
     # thì bỏ khỏi danh sách. Nghỉ TẠM có ngày dự kiến quay lại (vd thai sản, hieu_luc_den có giá trị) vẫn
     # tính là nhân sự của phòng, chỉ không vào Báo cáo ngày trong lúc nghỉ (chủ app chốt 02/10/2026).
-    nghi_han = staff[staff.ghi_chu.fillna("").str.contains("Nghỉ") & staff.hieu_luc_den.isna()].acc_norm
+    nghi_han = staff[(staff.ghi_chu.fillna("").str.contains("Nghỉ") & staff.hieu_luc_den.isna())
+                     | staff.ghi_chu.map(cb.la_acc_tam)].acc_norm      # "Acc tạm" cũng không phải nhân sự phòng
     nghi = (out.trang_thai.fillna("").str.contains("Nghỉ việc") | out.index.isin(nghi_han))
     out = out[~nghi | (out.online + out.ton + out.vvip + out.camera + out.ban_moi > 0)].copy()
 

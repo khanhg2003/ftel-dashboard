@@ -95,10 +95,9 @@ def test_ten_hien_thi_tam_khi_chua_co_nsld():
             s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_tam))
 
 
-def test_nghi_tam_co_ngay_quay_lai_van_tinh_la_nhan_su():
-    """Chủ app chốt 02/10/2026: nghỉ thai sản (hoặc nghỉ tạm khác có ngày dự kiến quay lại, tức có
-    hieu_luc_den) KHÔNG bị loại khỏi danh sách/nhân sự đang làm như người nghỉ hẳn (hieu_luc_den rỗng,
-    không rõ ngày quay lại) - vẫn là nhân sự của phòng, chỉ không vào Báo cáo ngày trong lúc nghỉ."""
+def test_nghi_tam_van_con_trong_danh_sach_nhung_khong_tinh_vao_so_nhan_su():
+    """Nghỉ thai sản (có hieu_luc_den) vẫn nằm trong danh sách Báo cáo phòng (không như người nghỉ hẳn), nhưng
+    KHÔNG tính vào số nhân sự đang làm - chủ app chốt lại 03/10/2026 (IBB7 phải 16 người, bỏ chị Mỹ Chi)."""
     from datetime import date
 
     from sqlalchemy import delete
@@ -116,10 +115,50 @@ def test_nghi_tam_co_ngay_quay_lai_van_tinh_la_nhan_su():
     try:
         df = bp.bang_nhan_su(THANG, NGAY, "IBB2")
         assert acc_nghi_tam in set(df.acc_norm), "nghỉ tạm có ngày quay lại vẫn phải còn trong danh sách"
-        assert _nhan_su()["IBB2"] == truoc + 1, "nghỉ tạm có ngày quay lại vẫn phải tính vào nhân sự đang làm"
+        assert _nhan_su()["IBB2"] == truoc, "nghỉ tạm không được tính vào số nhân sự đang làm"
     finally:
         with session_scope() as s:
             s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc_nghi_tam))
+
+
+def test_acc_tam_chi_nhap_lieu_khong_tinh_nhan_su_nhung_van_vao_bao_cao_ngay():
+    """Chủ app 03/10/2026: Anh Tú (acc tạm) chỉ hiện ở Báo cáo ngày + Nhập tồn, KHÔNG tính vào nhân sự/xếp hạng.
+    Chọn "Chỉ nhập liệu" trong Quản trị -> ghi chú "Acc tạm" (khác "Nghỉ" vì nghỉ thì ẩn cả Báo cáo ngày)."""
+    from datetime import date
+
+    from sqlalchemy import delete
+    from app import admin_service as ad
+    from app import bao_cao_ngay as bn
+    from app.db import session_scope
+    from app.models import StaffMap
+    from app.overview import _nhan_su
+
+    acc = "ibb2.tutam.kiemthu"
+    truoc = _nhan_su().get("IBB2", 0)
+    with session_scope() as s:
+        s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc))
+    try:
+        ok, _, _ = ad.luu_mot_staff(None, {"acc": "IBB2.TuTam.KiemThu", "phong_code": "IBB2", "tinh_trang": "nhap",
+                                           "ghi_chu": "chưa cấp acc inside", "ten_hien_thi": "Anh Tú"}, "pytest")
+        assert ok
+        with session_scope() as s:
+            id_ = s.query(StaffMap).filter(StaffMap.acc_norm == acc).one().id
+        r = ad.lay_staff(id_)
+        assert r["tinh_trang"] == "nhap" and "Acc tạm" in r["ghi_chu"] and "chưa cấp acc inside" in r["ghi_chu"]
+        assert _nhan_su()["IBB2"] == truoc, "acc tạm không tính vào số nhân sự"
+        assert acc not in set(bp.bang_nhan_su(THANG, NGAY, "IBB2").acc_norm), "chưa có số thì ẩn khỏi Báo cáo phòng"
+        assert acc in set(bn._nhan_su_dang_lam(["IBB2"], date(2026, 9, 1), date(2026, 9, 11)).acc_norm)
+        ad.luu_mot_staff(id_, {"acc": "IBB2.TuTam.KiemThu", "phong_code": "IBB2", "tinh_trang": "nghi",
+                               "ghi_chu": r["ghi_chu"]}, "pytest")
+        assert ad.lay_staff(id_)["tinh_trang"] == "nghi"
+        assert acc not in set(bn._nhan_su_dang_lam(["IBB2"], date(2026, 9, 1), date(2026, 9, 11)).acc_norm)
+        ad.luu_mot_staff(id_, {"acc": "IBB2.TuTam.KiemThu", "phong_code": "IBB2", "tinh_trang": "lam", "ghi_chu": ""},
+                         "pytest")
+        assert ad.lay_staff(id_)["tinh_trang"] == "lam"
+        assert _nhan_su()["IBB2"] == truoc + 1
+    finally:
+        with session_scope() as s:
+            s.execute(delete(StaffMap).where(StaffMap.acc_norm == acc))
 
 
 def test_chi_tiet_nhan_su(ibb2):

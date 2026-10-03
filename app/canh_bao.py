@@ -24,6 +24,13 @@ MO_TA_THEO_DOI = (f"Từ {NGAY_THEO_DOI} ngày liền chưa có số, tuần nà
                   "Nghỉ và trưởng phòng.")
 
 
+def la_acc_tam(ghi_chu) -> bool:
+    """Ghi chú đánh dấu "Acc tạm" = người chỉ để nhập liệu ở Báo cáo ngày và Nhập tồn (vd chưa cấp acc inside):
+    KHÔNG tính vào số nhân sự, xếp hạng, cảnh báo (chủ app chốt 03/10/2026). Không phân biệt hoa thường và dấu."""
+    from app.ingest.commit import _bo_dau
+    return "acc tam" in _bo_dau(str(ghi_chu or "")).lower()
+
+
 def _trong(v) -> bool:
     return v is None or (isinstance(v, float) and pd.isna(v))
 
@@ -83,6 +90,8 @@ def acc_khong_xet(them_acc=()) -> dict[str, str]:
     for a, _, ghi_chu in staff:
         if a and a not in out and "nghỉ" in (ghi_chu or "").lower():
             out[a] = "Đã nghỉ"
+        elif a and a not in out and la_acc_tam(ghi_chu):
+            out[a] = "Acc tạm"
     for a in them_acc:
         if a and a not in out and str(a).split(".")[-1] in ten_tp:
             out[a] = "Trưởng phòng"
