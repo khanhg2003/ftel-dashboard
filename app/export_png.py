@@ -94,6 +94,25 @@ def _o_chu(kieu: str, v) -> str:
     return "" if v is None else str(v)
 
 
+def _chu_o(kieu: str, khoa: str, r: dict) -> str:
+    """Chữ trong ô. PTTB CNQL ở dòng có `mttn_hien` kèm số MTTN trong ngoặc như trên web (`tongquan.SO_CNQL_MTTN`):
+    "17 (24)" và "33% (47%)"."""
+    chu = _o_chu(kieu, r.get(khoa))
+    if chu and r.get("mttn_hien"):
+        if khoa == "cnql" and r.get("mttn") is not None:
+            chu += f" ({_so(r['mttn'])})"
+        elif khoa == "cnql_ty_le" and r.get("mttn_ty_le") is not None:
+            chu += f" ({round(float(r['mttn_ty_le']))}%)"
+    return chu
+
+
+def _gia_tri_mau(khoa: str, r: dict):
+    """Số dùng để tô màu: tỷ lệ CNQL ở dòng có MTTN tô theo số MTTN, giống web (`tongquan._GIA_TRI_HEAT_CNQL`)."""
+    if khoa == "cnql_ty_le" and r.get("mttn_hien") and r.get("mttn_ty_le") is not None:
+        return r["mttn_ty_le"]
+    return r.get(khoa)
+
+
 def _chia_dong(ten: str) -> list[str]:
     """Tiêu đề dài thì tách 2 dòng cho khỏi phải kéo cột rộng ra."""
     tu = ten.split()
@@ -128,7 +147,7 @@ def _do_rong_cot(cols, rows, bo: _Bo) -> list[int]:
         w = max(do.textlength(d, font=bo.cot) for d in _chia_dong(ten_cot))
         for r in rows:
             font = bo.o if r.get("loai_dong") == "data" and khoa != "phong" else bo.o_dam
-            w = max(w, do.textlength(_o_chu(kieu, r.get(khoa)), font=font))
+            w = max(w, do.textlength(_chu_o(kieu, khoa, r), font=font))
         rong.append(int(w) + bo.px(DEM * 2))
     return rong
 
@@ -228,13 +247,14 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
         for i, (_, khoa, kieu) in enumerate(cols):
             v = r.get(khoa)
             nen_o = nen_dong
-            if kieu.startswith("pct") and v is not None:
-                mau = mau_heat(kieu.split(":")[1], v)
+            vm = _gia_tri_mau(khoa, r)
+            if kieu.startswith("pct") and vm is not None:
+                mau = mau_heat(kieu.split(":")[1], vm)
                 nen_o = "#" + mau if mau else nen_o
             if khoa == "ket_luan" and v in MAU_KET_LUAN:
                 nen_o = "#" + MAU_KET_LUAN[v]
             d.rectangle([x, y, x + rong[i], y + h], fill=nen_o or NEN, outline=VIEN)
-            chu = _o_chu(kieu, v)
+            chu = _chu_o(kieu, khoa, r)
             font = bo.o_dam if (loai != "data" or khoa == "phong") else bo.o
             if khoa == "phong":
                 _giua(d, x, y, rong[i], h, chu, font, mau_chu, trai=bo.px(DEM))
