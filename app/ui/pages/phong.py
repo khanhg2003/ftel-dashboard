@@ -24,6 +24,7 @@ from flask_login import current_user
 from app import mttn
 from app import bao_cao_phong as bp
 from app import canh_bao as quy_tac   # quy tắc cần chú ý dùng chung
+from app import ho_so_nhan_su
 from app import tro_ly_du_lieu as dl
 from app.auth import ghi_log
 from app.du_bao import du_bao_thang
@@ -38,6 +39,7 @@ from app.ui.luoi import CHENH, SO, PCT_GACH as PCT
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
 from app.ui import tro_ly as tl
+from app.ui.pages import phong_ho_so
 from app.ui.icons import icon
 
 DO, VANG, XANH = ({"backgroundColor": "#F7BDBD", "color": "#7F1D1D", "fontWeight": "600"},
@@ -457,7 +459,7 @@ def _ngan_noi_dung(thang: str, ngay: int, code: str, r: dict):
                f"{_so(r.get('online_ngay'))}"),
             _o("Số ngày có số", f"{int(r.get('so_ngay_co_so') or 0)}/{ngay}",
                "Chưa có số trong 2 tháng" if ngay_lien is None else
-               ("Có số ngày gần nhất" if ngay_lien == 0 else f"{ngay_lien} ngày liền chưa có số")),
+               ("Có số ngày gần nhất" if ngay_lien == 0 else f"{int(ngay_lien)} ngày liền chưa có số")),
             _o("V.VIP", _so(r.get("vvip")), f"VVIP/PTTB {_pct(r.get('kem_vvip'))}"),
             _o("Camera", _so(r.get("camera")), f"Camera/PTTB {_pct(r.get('kem_camera'))}"),
             _o("Chưa online", _so(r.get("ton")), f"{_so(r.get('ton_qua_7'))} hợp đồng chờ từ 7 ngày"),
@@ -471,6 +473,7 @@ def _ngan_noi_dung(thang: str, ngay: int, code: str, r: dict):
         html.H4("Online và bán mới từng ngày"),
         dcc.Graph(figure=_bieu_do(ds, height=250), config={"displayModeBar": False,
                                                            "responsive": True}),
+        *phong_ho_so.phan_ho_so(ho_so_nhan_su.ho_so(thang, ngay, code, r["acc_norm"])),
         html.H4(f"Hợp đồng chưa online ({len(cho)})"),
         dag.AgGrid(
             className="ag-theme-quartz ag-theme-ftel", rowData=cho.to_dict("records"),
