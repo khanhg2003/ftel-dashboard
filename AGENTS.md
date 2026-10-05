@@ -30,6 +30,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Thành phần giao diện dùng chung | `app/ui/components.py` (`tip`, `tieu_de`, `ghi_chu`, `card`, `kpi`, `field`, `seg_control`, `modal`, `cua_so`, `alert`, `callback_can_quyen`...) |
 | Bảng + định dạng số | `app/ui/luoi.py` (`bang`, `SO`, `SO_1`, `PCT`, `PCT_GACH`, `PCT_DAU`, `CHENH`, `CHENH_PCT`, `USD`, `USD_D`, `VND`) |
 | Kỳ báo cáo dùng chung giữa các trang | `app/ui/ky_chung.py` |
+| Ngăn chi tiết một nhân sự (mở từ mọi bảng nhân sự) | `app/ui/ngan_nhan_su.py` + `assets/nhan_su_bam.js`; nội dung hồ sơ ở `app/ho_so_nhan_su.py`, `app/ui/pages/phong_ho_so.py` |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 
@@ -247,6 +248,16 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
     `assets/lam_lai_o.js` gắn thêm, chạy cho mọi bảng có bật undo - đừng gắn riêng từng trang;
   - bảng có chèn dòng tiêu đề nhóm (Nhập tồn) thì **không bật `sortable` / bộ lọc cột của ag-grid**: dòng
     tiêu đề sẽ trôi lẫn vào dữ liệu. Lọc bằng ô riêng trên thanh lọc rồi lọc ở Python.
+- **Bảng liệt kê nhân sự phải bấm đúp được để xem chi tiết** (chốt 05/10/2026): bảng mới có dòng nhân sự thì
+  gắn `nn.lop()` vào `className` (`from app.ui import ngan_nhan_su as nn`; `nn.lop("mot")` bấm một lần cho bảng chỉ
+  để xem, `nn.lop("ten")` chỉ ô tên mở ngăn cho bảng có ô sửa được) và đặt `nn.goi_y()` gần bảng. Mỗi dòng dữ
+  liệu phải có `acc_norm` (hoặc `acc`), cột tên đặt `field` là `ho_ten` hoặc `ten` để có chữ xanh + mũi tên gợi ý;
+  cột chỉ có `acc` thì thêm `cellClass: "o-bam"`. Ngăn là MỘT cái dùng chung ở khung app, máy chủ tự tìm phòng của
+  người đó và kiểm quyền (`phong_nhan_su()`): đừng dựng ngăn riêng từng trang. Có test chặn số bảng gắn lớp.
+- **Báo "đang tải" là việc của `assets/dang_tai.js`, không phải của từng trang**: mọi lượt hỏi máy chủ đều hiện thanh
+  chạy trên đầu trang, và khối sắp đổi (bảng, biểu đồ, thẻ chỉ số, cả vùng nội dung khi đổi trang) tự mờ đi kèm
+  vòng xoay sau 150 ms. Bỏ qua Interval và `cellValueChanged` để bảng nhập liệu không nháy khi đang gõ. Thêm
+  callback mới thì không cần bọc `dcc.Loading`; chỉ bọc khi cần chỗ trống có vòng xoay (như thân ngăn chi tiết).
 - **Component Dash** là falsy (có `__len__`): kiểm bằng `is not None`, không dùng `if comp`.
 - **Mọi trang phải dùng được ở màn laptop hẹp** (khoảng 800 px): lưới 2-3 cột phải tự xuống 1 cột.
 

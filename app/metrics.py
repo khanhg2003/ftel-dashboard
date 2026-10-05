@@ -348,7 +348,7 @@ def bang_ngay_theo_acc(thang: str, metric: str = "online", chi_phong: list[str] 
         accs = accs.assign(tong=tong_acc.reindex(accs.index)).sort_values("tong", ascending=False)
         for acc_norm, r in accs.iterrows():
             rows.append({"loai_dong": "data", "phong_code": code, "phong": meta[code]["ten"],
-                         "acc": r.acc, "ten": ho_ten.get(acc_norm, ""),
+                         "acc": r.acc, "acc_norm": acc_norm, "ten": ho_ten.get(acc_norm, ""),
                          **{str(c): int(so.at[acc_norm, c]) for c in cot_ngay},
                          "Tổng": int(tong_acc.get(acc_norm, 0))})
         tong = so.loc[accs.index].sum()
@@ -421,7 +421,7 @@ def so_sanh_acc(ky1: tuple[str, str], ky2: tuple[str, str], metric: str = "onlin
     if bo_khong_xet and len(m):
         from app.canh_bao import acc_khong_xet
         m = m[~m.acc_norm.isin(set(acc_khong_xet(set(m.acc_norm.dropna()))))]
-    return m[["acc", "phong", "phong_code", "ky1", "ky2", "chenh"]].sort_values("chenh")
+    return m[["acc", "acc_norm", "phong", "phong_code", "ky1", "ky2", "chenh"]].sort_values("chenh")
 
 
 def nhom_khac_theo_ngay(thang: str, metric: str = "online") -> pd.DataFrame:

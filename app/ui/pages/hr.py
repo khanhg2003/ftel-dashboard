@@ -26,9 +26,10 @@ from app.metrics import cac_ngay_co_du_lieu
 from app.org import phong_order
 from app.ui.components import (alert, chi_nhanh_control, chon_ngay, chu_giai, field,
                                gan_chon_ngay, kpi, seg_control)
-from app.ui.luoi import SO, bang, CHENH_PCT as CHENH, PCT_GACH as PCT
+from app.ui.luoi import LOP, SO, bang, CHENH_PCT as CHENH, PCT_GACH as PCT
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
+from app.ui import ngan_nhan_su as nn
 from app.ui.icons import icon
 
 MAU_NHOM = {"MOI": "#F37021", "DANG_LEN": "#37A5E6", "ON_DINH": "#0072BC", "LAU_NAM": "#00A650"}
@@ -130,7 +131,8 @@ def layout(ky: dict | None = None):
             html.Div([
                 _dau_the("Cần trao đổi sớm", "hr-cb-mo-ta"),
                 html.Div(id="hr-cb-tom-tat"),
-                _grid("hr-canhbao", cao=360),
+                nn.goi_y(style={"marginBottom": "8px"}),
+                _grid("hr-canhbao", cao=360, lop=f"{LOP} {nn.lop()}"),
             ], className="card"),
 
             html.Div([
@@ -168,7 +170,8 @@ def layout(ky: dict | None = None):
                     html.Div(className="grow"),
                     seg_control("hr-xem", [("ban", "Bán hàng"), ("nsld", "Hồ sơ NSLĐ")], "ban"),
                 ], className="the-thanh"),
-                _grid("hr-grid", cao=520, getRowId="params.data.acc_norm",
+                nn.goi_y(style={"marginBottom": "8px"}),
+                _grid("hr-grid", cao=520, lop=f"{LOP} {nn.lop()}", getRowId="params.data.acc_norm",
                       dashGridOptions={"rowHeight": 34}),
                 chu_giai("Cách tính", DINH_NGHIA),
             ], className="card"),
@@ -186,14 +189,18 @@ def layout(ky: dict | None = None):
                                 className="btn", title="Hai bảng NSLĐ, mỗi bảng một sheet"),
                 ]),
                 html.Div(id="hr-ns-chu"),
-                _grid("hr-ns-grid", cao=300, getRowStyle=DONG_TONG, dashGridOptions={"rowHeight": 34}),
+                nn.goi_y("Ở chế độ “Từng nhân sự”: bấm đúp vào một người để xem chi tiết đầy đủ.",
+                         style={"marginBottom": "8px"}),
+                _grid("hr-ns-grid", cao=300, lop=f"{LOP} {nn.lop()}", getRowStyle=DONG_TONG, dashGridOptions={"rowHeight": 34}),
             ], className="card"),
             html.Div([
                 _dau_the("NSLĐ tân binh theo tháng làm việc", "hr-tb-mo-ta", nut=[
                     seg_control("hr-tb-xem", [("phong", "Các phòng"), ("nhan_su", "Từng tân binh")],
                                 "phong")]),
                 html.Div(id="hr-tb-chu"),
-                _grid("hr-tb-grid", cao=300, getRowStyle=DONG_TONG, dashGridOptions={"rowHeight": 34}),
+                nn.goi_y("Ở chế độ “Từng tân binh”: bấm đúp vào một người để xem chi tiết đầy đủ.",
+                         style={"marginBottom": "8px"}),
+                _grid("hr-tb-grid", cao=300, lop=f"{LOP} {nn.lop()}", getRowStyle=DONG_TONG, dashGridOptions={"rowHeight": 34}),
                 chu_giai("Cách tính", DINH_NGHIA_NSLD),
             ], className="card"),
         ]),

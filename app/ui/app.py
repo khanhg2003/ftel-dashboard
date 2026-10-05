@@ -205,7 +205,7 @@ def _sidebar(path: str):
 
 
 def serve_layout():
-    from app.ui import tro_ly
+    from app.ui import ngan_nhan_su, tro_ly
     return html.Div([
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="ui-sidebar", storage_type="local", data={"thu_gon": False}),
@@ -226,6 +226,7 @@ def serve_layout():
             html.Div(id="page-content", className="page"),
         ], className="main"),
         tro_ly.khung_chat(),
+        ngan_nhan_su.khung(),
     ], id="app-shell", className="app-shell")
 
 
@@ -427,12 +428,12 @@ def _register_pages():
     from app.ui.pages import settings as settings_page
     from app.ui.pages import phantich, phong, sosanh, taikhoan, tongquan, tracking, upload
 
-    from app.ui import tro_ly
+    from app.ui import ngan_nhan_su, tro_ly
 
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, nhapton
     for mod in (tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
-                settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay):
+                settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su):
         mod.register(app)
 
 

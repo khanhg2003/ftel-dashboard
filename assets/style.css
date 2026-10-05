@@ -1179,3 +1179,38 @@ table.simple tr:last-child td { border-bottom: none; }
   border-radius: 999px; padding: 3px 9px; }
 .kpi-bam:hover .kpi-sua { background: var(--fpt-blue); border-color: var(--fpt-blue); color: #FFFFFF; }
 @media (max-width: 767px) { .kpi-sua { position: static; margin-top: 8px; } }
+
+/* ---------- Đang tải (assets/dang_tai.js) ---------- */
+/* thanh chạy trên đầu trang + con trỏ "đang chờ" cho mọi lượt hỏi máy chủ */
+#thanh-tai { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 3000; overflow: hidden;
+  pointer-events: none; opacity: 0; transition: opacity .15s; }
+#thanh-tai::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 35%;
+  background: linear-gradient(90deg, rgba(0, 114, 188, 0), #0072BC 40%, #F37021 70%, rgba(243, 112, 33, 0));
+  animation: thanh-tai 1.05s ease-in-out infinite; }
+html.dang-tai #thanh-tai { opacity: 1; }
+html.dang-tai body { cursor: progress; }
+@keyframes thanh-tai { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+@keyframes quay-tai { to { transform: rotate(360deg); } }
+/* khối sắp đổi nội dung: mờ đi + vòng xoay ở giữa (bảng, biểu đồ, thẻ chỉ số) */
+.ag-theme-ftel, .kpi-row, .dash-graph { position: relative; }
+.ag-theme-ftel[data-dang-tai] > *, .kpi-row[data-dang-tai] > *, .dash-graph[data-dang-tai] > *,
+#page-content[data-dang-tai] > * { opacity: .45; transition: opacity .15s; }
+.ag-theme-ftel[data-dang-tai]::after, .kpi-row[data-dang-tai]::after, .dash-graph[data-dang-tai]::after,
+#page-content[data-dang-tai]::after { content: ""; position: absolute; top: 50%; left: 50%; z-index: 5;
+  width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; border: 3px solid #CFE3F5;
+  border-top-color: #0072BC; animation: quay-tai .75s linear infinite; pointer-events: none; }
+#page-content[data-dang-tai]::after { position: fixed; top: 42vh; left: calc(50% + var(--sidebar-w, 0px) / 2); }
+
+/* ---------- Bảng nhân sự bấm được (assets/nhan_su_bam.js, app/ui/ngan_nhan_su.py) ---------- */
+.nhan-su-bam .ag-row:not(.ag-row-pinned) { cursor: pointer; }
+.nhan-su-bam .ag-row:not(.ag-row-pinned) .ag-cell[col-id="ho_ten"],
+.nhan-su-bam .ag-row:not(.ag-row-pinned) .ag-cell[col-id="ten"] { color: #0B6BB5; font-weight: 600; }
+.nhan-su-bam .ag-row:not(.ag-row-pinned) .ag-cell[col-id="ho_ten"] .ag-cell-value:not(:empty)::after,
+.nhan-su-bam .ag-row:not(.ag-row-pinned) .ag-cell[col-id="ten"] .ag-cell-value:not(:empty)::after {
+  content: "›"; margin-left: 6px; color: #8FB4D6; font-weight: 700; }
+.nhan-su-bam .ag-row-hover:not(.ag-row-pinned) .ag-cell[col-id="ho_ten"] .ag-cell-value,
+.nhan-su-bam .ag-row-hover:not(.ag-row-pinned) .ag-cell[col-id="ten"] .ag-cell-value { text-decoration: underline; }
+.nhan-su-bam .ag-row-hover:not(.ag-row-pinned) .ag-cell[col-id="ho_ten"] .ag-cell-value::after,
+.nhan-su-bam .ag-row-hover:not(.ag-row-pinned) .ag-cell[col-id="ten"] .ag-cell-value::after { color: var(--fpt-orange, #F37021); }
+.ngan-than { min-height: 260px; }
+.ngan-tai { min-height: 260px; }

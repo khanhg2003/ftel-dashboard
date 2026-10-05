@@ -13,6 +13,7 @@ from app.export_phan_tich import xuat_phan_tich
 from app.metrics import METRIC_LABEL, cac_ngay_co_du_lieu, so_sanh_acc, so_sanh_ky
 from app.org import loc_chi_nhanh, phong_order
 from app.ui.components import card, chi_nhanh_control, field, kpi, pct_vn, seg_control, so_vn
+from app.ui import ngan_nhan_su as nn
 from app.ui import ky_chung as kc
 from app.ui.icons import icon
 
@@ -110,8 +111,9 @@ def layout(ky: dict | None = None):
 
         html.Div([
             html.Div(card([
+                nn.goi_y(style={"marginBottom": "8px"}),
                 dcc.Loading(dag.AgGrid(
-                    id="ss-hut", className="ag-theme-quartz ag-theme-ftel", columnDefs=[],
+                    id="ss-hut", className=f"ag-theme-quartz ag-theme-ftel {nn.lop()}", columnDefs=[],
                     rowData=[], defaultColDef={"resizable": True, "sortable": True},
                     dashGridOptions={"suppressCellFocus": True, "domLayout": "normal"},
                     style={"width": "100%", "height": "420px"}))],
@@ -119,8 +121,9 @@ def layout(ky: dict | None = None):
                 desc="Giảm nhiều nhất so với kỳ 1 - ưu tiên trao đổi trước. Không tính nhân sự đã nghỉ và trưởng phòng."),
                 className="chart-col"),
             html.Div(card([
+                nn.goi_y(style={"marginBottom": "8px"}),
                 dcc.Loading(dag.AgGrid(
-                    id="ss-tang", className="ag-theme-quartz ag-theme-ftel", columnDefs=[],
+                    id="ss-tang", className=f"ag-theme-quartz ag-theme-ftel {nn.lop()}", columnDefs=[],
                     rowData=[], defaultColDef={"resizable": True, "sortable": True},
                     dashGridOptions={"suppressCellFocus": True, "domLayout": "normal"},
                     style={"width": "100%", "height": "420px"}))],
@@ -159,7 +162,7 @@ def _cols_phong():
 def _cols_acc():
     return [
         {"field": "stt", "headerName": "#", "width": 52, "maxWidth": 52},
-        {"field": "acc", "headerName": "Acc nhân viên", "flex": 2, "minWidth": 140},
+        {"field": "acc", "headerName": "Acc nhân viên", "flex": 2, "minWidth": 140, "cellClass": "o-bam"},
         {"field": "phong", "headerName": "Phòng", "flex": 1.6, "minWidth": 110},
         {"field": "ky1", "headerName": "Kỳ 1", "flex": 1, "minWidth": 66, "type": "numericColumn"},
         {"field": "ky2", "headerName": "Kỳ 2", "flex": 1, "minWidth": 66, "type": "numericColumn"},

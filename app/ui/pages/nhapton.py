@@ -17,6 +17,7 @@ from app import nhap_ton as nt
 from app.auth import ghi_log
 from app.org import phong_order
 from app.thoi_gian import gio_viet_nam
+from app.ui import ngan_nhan_su as nn
 from app.ui.components import alert, field, modal, seg_control, tip
 from app.ui.icons import icon
 from app.ui.luoi import PCT, SO, bang
@@ -182,11 +183,12 @@ def layout():
                                "Bấm tiêu đề cột để xếp lại.",
                                className="desc", style={"margin": "2px 0 0"})],
                      className="the-thanh"),
-            bang("nt-nv-luoi", _cot_nv(), cao=356, lop="ag-theme-quartz ag-theme-ftel luoi-ke",
+            bang("nt-nv-luoi", _cot_nv(), cao=356, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop()}",
                  cot_mac_dinh={"resizable": True, "sortable": True, "suppressMovable": True,
                                "wrapHeaderText": True, "autoHeaderHeight": True},
                  tuy_chon=dict(OPTS_NV)),
-            html.Div("Bấm một dòng để xem riêng ca của người đó ở danh sách bên dưới.", className="goi-y-bam"),
+            html.Div("Bấm một dòng để xem riêng ca của người đó ở danh sách bên dưới. "
+                     "Bấm đúp để xem hồ sơ bán hàng chi tiết của người đó.", className="goi-y-bam"),
         ], className="card nt-laptop"),           # điện thoại: mỗi cụm thẻ đã có dòng tóm tắt của nhân viên
 
         html.Div([
@@ -208,7 +210,7 @@ def layout():
             html.Div([html.H3(id="nt-tieu-de-ds", style={"margin": 0}),
                       html.Div(id="nt-mo-ta", className="desc", style={"margin": "2px 0 0"})], className="the-thanh"),
             html.Div(bang("nt-luoi", _cot(ch["han_tra_ve"], ch["phuong_an"]), cao=640,
-                          lop="ag-theme-quartz ag-theme-ftel luoi-ke",
+                          lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
                           cot_mac_dinh={"resizable": True, "sortable": False, "suppressMovable": True,
                                         "wrapHeaderText": True},
                           getRowId="params.data.id",
@@ -227,6 +229,7 @@ def layout():
                      "ghi chú → mốc → ngày → phương án, không cần dùng chuột. "
                      "Gõ nhầm thì Ctrl+Z lùi lại, Ctrl+Shift+Z làm lại. "
                      "Ô viền cam là mục bắt buộc chưa điền. "
+                     "Bấm đúp vào dòng tên nhân viên (đầu mỗi cụm) để xem hồ sơ bán hàng của người đó. "
                      "Trong lúc nhập, danh sách giữ nguyên thứ tự - đổi bộ lọc hoặc bấm ô số ở trên "
                      "để xếp lại theo mức ưu tiên mới.",
                      className="goi-y-bam nt-laptop"),
@@ -280,7 +283,7 @@ def _dong_luoi(df: pd.DataFrame, nhom: bool = True) -> list[dict]:
     out = []
     for acc, g in ds.groupby("acc_norm", sort=False):
         t = tong.loc[acc]
-        out.append({"id": f"nhom-{acc}", "loai_dong": "nhom", "hop_dong": f"{int(t.ton)} ca",
+        out.append({"id": f"nhom-{acc}", "loai_dong": "nhom", "acc_norm": acc, "hop_dong": f"{int(t.ton)} ca",
                     "ten_khach_hang": f"{t.ho_ten} · {t.acc} · {_tom_tat(t, ton=False)}"})
         out.extend(g.drop(columns=["thieu"]).to_dict("records"))
     return out

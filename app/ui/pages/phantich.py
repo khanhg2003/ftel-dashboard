@@ -35,6 +35,7 @@ from app.ui.components import (alert, card, chi_nhanh_control, chu_giai, field, 
 from app.ui.luoi import LOP, SO, PCT_GACH as PCT, bang as _bang
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
+from app.ui import ngan_nhan_su as nn
 from app.ui import tro_ly as tl
 from app.ui.icons import icon
 
@@ -166,7 +167,9 @@ def layout(ky: dict | None = None):
                     dcc.Dropdown(id="pt-ton-phong-loc", options=lua_chon_phong, value="all",
                                  clearable=False, style={"width": "220px"}),
                 ], className="the-thanh"),
-                _grid("pt-ton-ds", cao=520),
+                nn.goi_y("Bấm đúp vào một dòng để xem chi tiết đầy đủ của nhân viên đó.",
+                         style={"marginBottom": "8px"}),
+                _grid("pt-ton-ds", cao=520, className=f"{LOP} {nn.lop()}"),
             ], id="pt-ton-ds-hop", hidden=True) if xem_nv else html.Div(
                 alert("Danh sách hợp đồng có tên nhân viên chỉ dành cho Quản trị và Trưởng phòng.",
                       "info"), id="pt-ton-ds-hop", hidden=True),
@@ -199,7 +202,8 @@ def layout(ky: dict | None = None):
                          options=[{"label": "Tất cả nhân viên có số", "value": "all"},
                                   {"label": "Chưa bán kèm V.VIP hoặc Camera", "value": "khong_kem"},
                                   {"label": "Có hợp đồng chờ từ 7 ngày", "value": "ton"}])),
-            dcc.Loading(_grid("pt-nv", cao=560)),
+            nn.goi_y(style={"marginBottom": "8px"}),
+            dcc.Loading(_grid("pt-nv", cao=560, className=f"{LOP} {nn.lop()}")),
             ghi_chu("Tỷ lệ tính trên số online của chính nhân viên. Màu so với mức chung các phòng "
                     "kinh doanh; nhân viên dưới 5 hợp đồng online không tô vì mẫu quá nhỏ.", nhan="Cách đọc màu",
                     style={"margin": "10px 0 0"}),
@@ -627,8 +631,8 @@ def register(app):
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         ds = _ds_ton(pt.hop_dong_ton(scope), thang, loc_nhan_su(scope, current_user.phong_nhan_su()),
                      phong_loc)
-        return COT_DS_TON, ds[["hop_dong", "ho_ten", "acc_nhan_vien", "phong", "goi_dich_vu",
-                               "nguon_ban", "ngay_tao", "so_ngay_cho"]].to_dict("records")
+        return COT_DS_TON, ds[["hop_dong", "ho_ten", "acc_nhan_vien", "acc_norm", "phong_code", "phong",
+                               "goi_dich_vu", "nguon_ban", "ngay_tao", "so_ngay_cho"]].to_dict("records")
 
     @app.callback(Output("pt-nv", "columnDefs"), Output("pt-nv", "rowData"),
                   Output("pt-mo-ta-nv", "children"),

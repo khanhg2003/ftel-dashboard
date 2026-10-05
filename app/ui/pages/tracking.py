@@ -19,6 +19,7 @@ from app.ui.components import (DONG_TONG_NGAY, HEAT_NGAY, LOP_DONG_NGAY, card, c
 from app.metrics import cac_ngay_co_du_lieu as _cac_ngay
 from app.ui import ky_chung as kc
 from app.ui import lien_ket as lk
+from app.ui import ngan_nhan_su as nn
 from app.ui.icons import icon
 
 ZOOM_STEPS = [50, 75, 90, 100, 125, 150, 200]
@@ -91,7 +92,7 @@ def layout(ky: dict | None = None):
             ], className="toolbar", style={"marginBottom": "12px", "flexWrap": "wrap"}),
             dcc.Download(id="tk-tai-xuong"),
             html.Div(dcc.Loading(dag.AgGrid(
-                id="tk-grid", className="ag-theme-quartz ag-theme-ftel",
+                id="tk-grid", className=f"ag-theme-quartz ag-theme-ftel {nn.lop()}",
                 columnDefs=[], rowData=[], getRowId=lk.ROW_ID,
                 defaultColDef={"resizable": True, "sortable": False, "suppressMovable": True},
                 dashGridOptions={"suppressCellFocus": True, "headerHeight": 38, "rowHeight": 32,
@@ -196,7 +197,7 @@ def register(app):
         if xem_ns:
             df = bang_ngay_theo_acc(thang, metric, chi_phong=[ma_phong], den_ngay=den_ngay,
                                     cong_don=cong_don)
-            ghi_chu = ""
+            ghi_chu = nn.goi_y()
         else:
             # chỉ hiện tới ngày có dữ liệu - khỏi thừa 20 cột trống của những ngày chưa tới
             df = tracking_table(thang, metric, cong_don=cong_don, den_ngay=den_ngay,

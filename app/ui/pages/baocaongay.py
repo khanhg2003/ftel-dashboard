@@ -16,6 +16,7 @@ from app import bao_cao_ngay as bc
 from app.auth import ghi_log
 from app.org import phong_order
 from app.thoi_gian import gio_viet_nam
+from app.ui import ngan_nhan_su as nn
 from app.ui.components import alert, field, modal, tip
 from app.ui.icons import icon
 from app.ui.luoi import SO, bang
@@ -197,7 +198,7 @@ def layout():
             html.Div([html.H3(id="bn-tieu-de", style={"margin": 0}),
                       html.Div(id="bn-mo-ta", className="desc", style={"margin": "2px 0 0"})],
                      className="the-thanh"),
-            html.Div(bang("bn-luoi", _cot(), cao=560, lop="ag-theme-quartz ag-theme-ftel luoi-ke",
+            html.Div(bang("bn-luoi", _cot(), cao=560, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
                           cot_mac_dinh={"resizable": True, "sortable": False, "suppressMovable": True,
                                         "wrapHeaderText": True, "autoHeaderHeight": True},
                           getRowId="params.data.id",
@@ -210,7 +211,8 @@ def layout():
             html.Div(id="bn-the", className="bn-dien-thoai"),
             html.Div(["Bấm vào ô để sửa, sửa xong tự lưu. Nhấn Tab để nhảy sang ô kế tiếp. ",
                       "Gõ nhầm thì Ctrl+Z lùi lại, Ctrl+Shift+Z làm lại. ",
-                      "Ô viền cam là mục chưa điền.", tip(GOI_Y)], className="goi-y-bam bn-laptop"),
+                      "Ô viền cam là mục chưa điền. ",
+                      "Bấm đúp vào tên nhân sự để xem hồ sơ bán hàng chi tiết.", tip(GOI_Y)], className="goi-y-bam bn-laptop"),
         ], className="card"),
 
         _khoi_chu(),
