@@ -82,20 +82,26 @@ def test_tom_tat_ba_khoi_khop_voi_bang():
     assert t["luy_ke"] == int(df.pttb_thang.sum())        # luỹ kế phòng = tổng luỹ kế từng người
 
 
-def test_da_online_sale_go_tay_duoc(mot_nguoi):
-    """File Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn 0; sale phải gõ tay được thì
-    "còn phải online" mới có nghĩa. Hiển thị lấy số LỚN HƠN giữa số gõ tay và số từ file."""
-    tu_file = int(bc.bang(PHONG, NGAY).set_index("acc_norm").at[mot_nguoi, "thuc_hien"])
+def test_da_online_la_o_sale_tu_go_khong_lien_quan_toi_file(mot_nguoi):
+    """Chủ app chốt 06/10/2026: "Đã online" là ô sale tự gõ như Google Sheet. Trước đây app lấy số lớn
+    hơn giữa số gõ và số file nên sale gõ 1 mà file ghi 4 thì ô nhảy 4, gõ lại vẫn 4 (tưởng lỗi nhập)."""
+    from app import phan_tich as pt
+    hd = pt.hop_dong_online(NGAY.isoformat(), NGAY.isoformat(), PHONG)
+    tu_file = int((hd.acc_norm == mot_nguoi).sum())
+    assert tu_file >= 1, "người kiểm thử phải có online theo file trong ngày"
 
-    bc.luu(mot_nguoi, {"onl_sang": 3, "onl_chieu": 2, "da_online": tu_file + 2},
-           PHONG, "kiemthu.tp", NGAY)
+    assert int(bc.bang(PHONG, NGAY).set_index("acc_norm").at[mot_nguoi, "thuc_hien"]) == 0   # chưa gõ: file không tính
+
+    bc.luu(mot_nguoi, {"onl_sang": 3, "onl_chieu": 2, "da_online": 1}, PHONG, "kiemthu.tp", NGAY)
     r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
-    assert int(r.thuc_hien) == tu_file + 2                      # số gõ tay lớn hơn thì dùng số gõ tay
-    assert int(r.con_phai_onl) == 5 - (tu_file + 2)             # còn phải online tính theo số đó
+    assert int(r.thuc_hien) == 1                                # gõ 1 là 1, dù file ghi nhiều hơn
+    assert int(r.con_phai_onl) == 5 - 1
+
+    bc.luu(mot_nguoi, {"da_online": tu_file + 3}, PHONG, "kiemthu.tp", NGAY)
+    assert int(bc.bang(PHONG, NGAY).set_index("acc_norm").at[mot_nguoi, "thuc_hien"]) == tu_file + 3
 
     bc.luu(mot_nguoi, {"da_online": 0}, PHONG, "kiemthu.tp", NGAY)
-    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[mot_nguoi]
-    assert int(r.thuc_hien) == tu_file                          # file không đếm dư nên không tụt xuống
+    assert int(bc.bang(PHONG, NGAY).set_index("acc_norm").at[mot_nguoi, "thuc_hien"]) == 0   # gõ 0 là 0, không bật lại số file
 
 
 def test_thuc_hien_la_o_sale_tu_nhap(mot_nguoi):
@@ -277,10 +283,10 @@ def test_con_phai_onl_cong_doc_va_cong_ngang_deu_khop(mot_nguoi):
     from app.ui.pages.baocaongay import _ghim
 
     df = bc.bang(PHONG, NGAY)
-    vuot = df[df.thuc_hien >= 2].iloc[0]           # người đã online nhiều -> cho dự kiến thấp
-    thieu = df[df.thuc_hien == 0].iloc[0]          # người chưa online -> cho dự kiến cao
+    vuot, thieu = df.iloc[0], df.iloc[1]
     try:
-        bc.luu(vuot.acc_norm, {"onl_sang": 1, "onl_chieu": 0}, PHONG, "kiemthu.tp", NGAY)
+        bc.luu(vuot.acc_norm, {"onl_sang": 1, "onl_chieu": 0, "da_online": 2},   # đã online 2 > dự kiến 1
+               PHONG, "kiemthu.tp", NGAY)
         bc.luu(thieu.acc_norm, {"onl_sang": 2, "onl_chieu": 1}, PHONG, "kiemthu.tp", NGAY)
         d = bc.bang(PHONG, NGAY)
         r = d.set_index("acc_norm").loc[vuot.acc_norm]

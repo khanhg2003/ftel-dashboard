@@ -6,9 +6,9 @@ Chốt với chủ app 24/09/2026:
   đã nạp, để luôn khớp Báo cáo phòng - không có hai nguồn số.
 - "Thực hiện" (thêm 26/09/2026, cột `da_ban`) là số bán sale TỰ NHẬP, để đối chiếu thẳng với ô
   "MT ngày" của chính họ. Không lấy gì từ file - chủ app chốt đây là ô khai báo của sale.
-- "Đã online" (chốt 25/09/2026): file Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn
-  bằng 0, "còn phải online" thành vô nghĩa. Cho sale gõ tay, và lấy số LỚN HƠN giữa số gõ tay và
-  số từ file: file chỉ có thể chậm chứ không đếm dư, nên cách này không bao giờ báo thiếu.
+- "Đã online" (đổi 06/10/2026) là ô sale TỰ GÕ như một ô Google Sheet, KHÔNG liên quan tới file Internet.
+  Trước đó (25/09) hiển thị số lớn hơn giữa số gõ và số file; sale gõ 1 mà file ghi 4 thì ô nhảy 4,
+  gõ lại vẫn 4, sale tưởng lỗi nhập liệu nên chủ app bỏ hẳn việc trộn. Chưa gõ thì tính 0.
 - Mục tiêu tháng của từng người nhập ngay trong bảng này, lưu vào `target_monthly` với
   `doi_tuong = "NHAN_VIEN"` (mọi chỗ khác đều lọc `doi_tuong = 'PHONG'` nên không đụng nhau).
 - Mục tiêu tháng của PHÒNG (chốt 02/10/2026) là ô RIÊNG của trang này: `doi_tuong = "PHONG"`,
@@ -213,9 +213,6 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
                                     pttb_thang=("hop_dong", "size"))
          if len(hd) else pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"],
                                       index=pd.Index([], name="acc_norm")))
-    hom = hd[hd.ngay_online.dt.date == ngay] if len(hd) else hd
-    g["onl_file"] = (hom.groupby("acc_norm").size().reindex(g.index).fillna(0).astype(int)
-                     if len(g) else pd.Series(dtype=int))
     df = g.reset_index()
     # Nhân sự trong danh mục chưa bán gì trong tháng, hoặc người chỉ bán V.VIP/đã tự nhập (chưa có
     # hợp đồng Internet online), cũng phải có dòng - nếu không dòng TỔNG sẽ thiếu so với Báo cáo
@@ -226,7 +223,7 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
         ds_thieu = sorted(thieu)
         them = pd.DataFrame({"acc_norm": ds_thieu,
                              "acc": [acc_cua_staff.get(a, a) for a in ds_thieu],
-                             "phong_code": phong[0], "pttb_thang": 0, "onl_file": 0})
+                             "phong_code": phong[0], "pttb_thang": 0})
         df = pd.concat([df, them], ignore_index=True)
     df["vvip_thang"] = df.acc_norm.map(vvip).fillna(0).astype(int)
 
@@ -241,11 +238,10 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     for c in ("muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu"):
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
     df["ghi_chu"] = df.ghi_chu.where(df.ghi_chu.notna(), "")
-    # "Đã online": lấy số LỚN HƠN giữa số sale gõ tay và số từ file. File Internet chỉ về vào hôm sau
-    # nên buổi sáng số file luôn 0; ngược lại file có thể ghi nhận ca sale chưa kịp đếm. File không
-    # bao giờ đếm dư, nên lấy số lớn hơn thì không bao giờ báo thiếu.
-    df["da_online"] = pd.to_numeric(df.get("da_online"), errors="coerce")
-    df["thuc_hien"] = df[["onl_file", "da_online"]].max(axis=1).fillna(0).astype(int)
+    # "Đã online" là ô sale TỰ GÕ như một ô Google Sheet, không lấy gì từ file Internet (chủ app chốt
+    # 06/10/2026, thay quy tắc 25/09 "lấy số lớn hơn giữa số gõ và số file": sale gõ 1 mà file ghi 4 thì
+    # ô nhảy 4, sale tưởng lỗi nhập liệu). Chưa gõ thì tính 0.
+    df["thuc_hien"] = pd.to_numeric(df.get("da_online"), errors="coerce").fillna(0).astype(int)
     df["dk_onl"] = df.onl_sang + df.onl_chieu
     # KHÔNG kẹp ở 0: người online vượt dự kiến để số âm thì cộng dọc cột mới ra đúng
     # tổng dự kiến - tổng đã online (chủ app chốt 26/09/2026: mọi con số phải cộng được).

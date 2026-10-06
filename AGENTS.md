@@ -123,10 +123,11 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      là một V.VIP, theo ngày online của chính gói đó) đúng như Báo cáo Tổng / Báo cáo phòng; đừng đếm
      gián tiếp qua cờ `co_vvip` của hợp đồng Internet - gói V.VIP online khác ngày hoặc bán thêm trên
      hợp đồng tháng trước sẽ làm lệch (đã đo 24/09: 201 thay vì 199, 4 người sai). Người chỉ bán V.VIP
-     cũng phải có dòng, nếu không dòng TỔNG thiếu. **"Đã online" sale gõ tay được** (chốt 25/09/2026,
-     cột `da_online`, để trống = chưa đếm tay): file Internet chỉ về vào hôm sau nên buổi sáng số từ
-     file luôn 0, không gõ được thì "còn phải online" vô nghĩa. Hiển thị = số LỚN HƠN giữa số gõ tay
-     và số từ file, vì file chỉ có thể chậm chứ không đếm dư. **Cột "Thực hiện"** (thêm 26/09/2026, cột `da_ban`,
+     cũng phải có dòng, nếu không dòng TỔNG thiếu. **"Đã online" là ô sale TỰ GÕ như một ô Google Sheet, KHÔNG liên quan tới file Internet**
+     (đổi 06/10/2026, cột `da_online`; chưa gõ thì tính 0). Trước đó (25/09) app hiển thị số LỚN HƠN giữa số gõ
+     và số file; sale gõ 1 mà file ghi 4 thì ô nhảy 4, gõ lại vẫn 4 nên tưởng lỗi nhập liệu - chủ app bỏ hẳn
+     việc trộn, đừng dựng lại. Cả khối "Dự kiến online" (DK ONL, ONL sáng / chiều, Đã online, Còn phải ONL) là
+     số sale khai báo; chỉ PTTB tháng và V.VIP lấy từ file. **Cột "Thực hiện"** (thêm 26/09/2026, cột `da_ban`,
      hiện ngay sau KHTN) là số bán sale **TỰ NHẬP**, KHÔNG lấy gì từ file và KHÔNG đối chiếu
      `ngay_tao_hd` - chủ app chốt đây là ô khai báo của sale, để so thẳng với ô "MT ngày" của chính
      họ. Ảnh PNG vẫn giữ đúng 8 cột cũ, không thêm cột này vào ảnh. Bảng chia **ba khối cột** (chủ app chốt 26/09/2026, `_dau_khoi` + lớp `khoi-dau` /

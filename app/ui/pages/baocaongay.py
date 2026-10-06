@@ -115,11 +115,9 @@ def _cot() -> list[dict]:
         {"field": "onl_sang", "headerName": "ONL sáng *", "headerTooltip": "Dự kiến online buổi sáng.", **sua},
         {"field": "onl_chieu", "headerName": "ONL chiều *", "headerTooltip": "Dự kiến online buổi chiều.",
          **sua},
-        # sale gõ tay được: file Internet chỉ về vào hôm sau nên buổi sáng số từ file luôn là 0,
-        # không gõ được thì "Còn phải ONL" vô nghĩa. Hiện số lớn hơn giữa số gõ tay và số từ file.
+        # ô sale tự gõ như Google Sheet, không liên quan tới file Internet (chốt 06/10/2026)
         {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **sua_doc,
-         "headerTooltip": "Số đã online hôm nay của người này.\nSale gõ tay trong ngày; khi file Internet "
-                          "về thì app lấy số lớn hơn giữa hai bên."},
+         "headerTooltip": "Số đã online hôm nay của người này.\nSale tự gõ, không lấy từ file Internet."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
          "valueGetter": CON_PHAI_ONL,
          "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "
@@ -325,7 +323,7 @@ def _dong_luoi(df: pd.DataFrame) -> list[dict]:
         if not r.get("da_nhap"):
             for k in ("muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu"):
                 r[k] = None
-            r["thuc_hien"] = r["thuc_hien"] or None    # cột gộp với file: trống khi file cũng 0
+            r["thuc_hien"] = None
     return ds
 
 
