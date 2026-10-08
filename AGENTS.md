@@ -31,6 +31,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Bảng + định dạng số | `app/ui/luoi.py` (`bang`, `SO`, `SO_1`, `PCT`, `PCT_GACH`, `PCT_DAU`, `CHENH`, `CHENH_PCT`, `USD`, `USD_D`, `VND`) |
 | Kỳ báo cáo dùng chung giữa các trang | `app/ui/ky_chung.py` |
 | Ngăn chi tiết một nhân sự (mở từ mọi bảng nhân sự) | `app/ui/ngan_nhan_su.py` + `assets/nhan_su_bam.js`; nội dung hồ sơ ở `app/ho_so_nhan_su.py`, `app/ui/pages/phong_ho_so.py` |
+| Nhập Báo cáo ngày bằng giọng nói | `app/giong_noi.py` (tách số, khớp tên, quyền) + `app/ui/pages/baocaongay_giong.py` + `assets/ghi_am.js` |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 
@@ -150,6 +151,15 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
      file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi
      là người đọc tưởng số đã có thật.
+     **Nhập bằng giọng nói** (`app/giong_noi.py`, chốt 08/10/2026, chỉ phòng ghi ở `config/rules.yml` →
+     `bao_cao_ngay.giong_noi`, hiện IBB7; đúng người vào được Báo cáo ngày): sale nói, trình duyệt chuyển thành chữ
+     (MẶC ĐỊNH MIỄN PHÍ bằng nhận dạng sẵn của trình duyệt; Quản trị → Trợ lý AI đổi sang OpenAI nếu nghe chưa
+     chuẩn, ghi âm khi đó mới gửi máy chủ), AI CHỈ tách người + số, CODE khớp tên (`khop_ten`, bỏ dấu, trùng tên gọi thì
+     bắt chọn) và kiểm số, sale xem lại ở hộp "Nhập báo cáo bằng giọng nói" rồi mới bấm Lưu (`luu_nhieu`: chỉ ghi ô có
+     giá trị, ô trống là KHÔNG ĐỔI, không ghi đè thành 0; chỉ ghi người thuộc phòng). Không lưu ghi âm. Cần AI đã mở
+     quyền cho tài khoản (Quản trị → Trợ lý AI, sale được dùng cả Fox - chủ app đồng ý 08/10/2026), có trần
+     `TOI_DA_NGAY` lượt/ngày (tài khoản sale dùng chung cả phòng; superadmin không giới hạn). Đừng để AI tự chọn
+     nhân sự hay ghi dữ liệu; đừng đưa tên khách hàng vào lời gửi AI.
      Ảnh PNG ở `app/export_png_ngay.py`. **Ba khối chữ do người dùng TỰ NHẬP rồi bấm Lưu** - nút
      "Fox viết giúp" đã bỏ hẳn cùng module `bao_cao_ngay_ai.py` (chủ app chốt 28/09/2026). Dòng TỔNG trong ảnh lấy mục tiêu tháng CỦA PHÒNG, không cộng mục tiêu từng người.
      Ảnh phải giữ đúng mẫu chủ app đưa (nền xanh chuyển màu + vệt chéo + góc cam + tia sét, ba khối số có

@@ -15,6 +15,7 @@ import os
 import socket
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -27,6 +28,9 @@ from app.thoi_gian import gio_viet_nam, LECH_GIO_VN
 API = "https://api.openai.com/v1"
 HAN_GIAY = 50                     # Vercel cắt yêu cầu ở 60 giây
 MAC_DINH = {"bat": False, "ten": "Mây", "model_chat": "gpt-5-mini", "model_nhan_xet": "gpt-5",
+            # nhập Báo cáo ngày bằng giọng nói: "trinh_duyet" = nhận dạng có sẵn của trình duyệt (miễn phí),
+            # "openai" = gửi ghi âm cho OpenAI chuyển thành chữ (chính xác hơn, tính tiền)
+            "giong": "trinh_duyet", "model_giong": "gpt-4o-mini-transcribe",
             "tran_usd": 20.0, "luot_ngay": 20,
             # ai được dùng: theo vai trò HOẶC từng tài khoản (Quản trị → Trợ lý AI). Chưa lưu = mọi vai trò.
             "vai_tro": ["admin", "operator", "phong"], "tai_khoan": []}
@@ -34,7 +38,8 @@ DS_CAU_HINH = ("vai_tro", "tai_khoan")
 # USD / 1 triệu token (vào, ra). Model lạ tính theo giá cao để không vượt trần.
 GIA = {"gpt-5-nano": (0.05, 0.4), "gpt-5-mini": (0.25, 2.0), "gpt-5": (1.25, 10.0),
        "gpt-4.1-nano": (0.1, 0.4), "gpt-4.1-mini": (0.4, 1.6), "gpt-4.1": (2.0, 8.0),
-       "gpt-4o-mini": (0.15, 0.6), "gpt-4o": (2.5, 10.0)}
+       "gpt-4o-mini": (0.15, 0.6), "gpt-4o": (2.5, 10.0),
+       "gpt-4o-mini-transcribe": (1.25, 5.0), "gpt-4o-transcribe": (2.5, 10.0)}
 GIA_LA = (5.0, 20.0)
 
 
@@ -149,12 +154,12 @@ def chi_phi_thang() -> float:
                                .where(AiSuDung.ts >= dau)).scalar() or 0)
 
 
-def luot_hom_nay(username: str) -> int:
+def luot_hom_nay(username: str, loai: tuple[str, ...] = ("chat", "nhan_xet")) -> int:
     _dam_bao_bang()
     with session_scope() as s:
         return int(s.execute(select(func.count()).select_from(AiSuDung).where(
             AiSuDung.username == username, AiSuDung.ts >= _dau_ngay_utc(),
-            AiSuDung.loai.in_(["chat", "nhan_xet"]))).scalar() or 0)
+            AiSuDung.loai.in_(list(loai)))).scalar() or 0)
 
 
 def duoc_dung(user, ch: dict) -> bool:
@@ -219,11 +224,15 @@ def thong_ke_su_dung() -> list[dict]:
 
 
 # ------------------------------------------------------------------ gọi OpenAI
-def _goi_api(duong_dan: str, key: str, body: dict | None = None, han: float = HAN_GIAY) -> dict:
-    req = urllib.request.Request(f"{API}/{duong_dan}", method="POST" if body is not None else "GET",
-                                 data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"Authorization": f"Bearer {key}",
-                                          "Content-Type": "application/json"})
+def _goi_api(duong_dan: str, key: str, body: dict | None = None, han: float = HAN_GIAY,
+             tep: tuple[bytes, str] | None = None) -> dict:
+    """`tep` = (nội dung multipart, Content-Type) khi gửi file âm thanh; còn lại gửi JSON."""
+    if tep:
+        data, kieu = tep
+    else:
+        data, kieu = (json.dumps(body).encode() if body is not None else None), "application/json"
+    req = urllib.request.Request(f"{API}/{duong_dan}", method="POST" if data is not None else "GET", data=data,
+                                 headers={"Authorization": f"Bearer {key}", "Content-Type": kieu})
     try:
         with urllib.request.urlopen(req, timeout=max(5, han)) as r:
             return json.loads(r.read())
@@ -261,7 +270,8 @@ def _muc_suy_nghi(model: str) -> str | None:
 
 
 def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
-        tools: list | None = None, han: float = HAN_GIAY, toi_da: int = 6000, suy_nghi: str | None = None) -> dict:
+        tools: list | None = None, han: float = HAN_GIAY, toi_da: int = 6000, suy_nghi: str | None = None,
+        dinh_dang: dict | None = None) -> dict:
     """Một lượt Chat Completions, ghi lượt dùng. Trả về message của AI.
 
     Tự xử lý 2 trường hợp hay gặp với model suy luận:
@@ -279,6 +289,8 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
             body["reasoning_effort"] = muc
         if tools:
             body["tools"] = tools
+        if dinh_dang:                 # ép trả JSON đúng khuôn (response_format)
+            body["response_format"] = dinh_dang
         con = han - (datetime.utcnow() - bat_dau).total_seconds()
         try:
             kq = _goi_api("chat/completions", key, body, con)
@@ -300,6 +312,26 @@ def hoi(messages: list[dict], model: str, key: str, username: str, loai: str,
         toi_da *= 2
     raise LoiAI("AI dùng hết giới hạn độ dài mà chưa viết xong câu trả lời - bấm tạo lại, hoặc đổi model nhận xét "
                 "sang gpt-5-mini ở Quản trị → Trợ lý AI.")
+
+
+def phien_am(audio: bytes, kieu: str, ch: dict, username: str, goi_y: str = "") -> str:
+    """Ghi âm -> chữ tiếng Việt bằng OpenAI. `goi_y` (tên nhân sự...) giúp nghe đúng tên riêng. Ghi lượt + chi phí."""
+    ranh = "----ftel" + uuid.uuid4().hex
+
+    def phan(ten: str, gia_tri: str) -> bytes:
+        return f'--{ranh}\r\nContent-Disposition: form-data; name="{ten}"\r\n\r\n{gia_tri}\r\n'.encode()
+
+    duoi = "mp4" if "mp4" in kieu else "ogg" if "ogg" in kieu else "webm"
+    dau_tep = (f'--{ranh}\r\nContent-Disposition: form-data; name="file"; filename="giong.{duoi}"\r\n'
+               f"Content-Type: {kieu}\r\n\r\n").encode()
+    thang = (phan("model", ch["model_giong"]) + phan("language", "vi") + phan("response_format", "json")
+             + (phan("prompt", goi_y[:900]) if goi_y else b"")
+             + dau_tep + audio + f"\r\n--{ranh}--\r\n".encode())
+    kq = _goi_api("audio/transcriptions", ch["key"], han=HAN_GIAY, tep=(thang, f"multipart/form-data; boundary={ranh}"))
+    dung = kq.get("usage") or {}
+    _ghi_su_dung(username, "giong_noi_am", ch["model_giong"], int(dung.get("input_tokens") or 0),
+                 int(dung.get("output_tokens") or 0))
+    return (kq.get("text") or "").strip()
 
 
 # ------------------------------------------------------------------ lời dặn chung

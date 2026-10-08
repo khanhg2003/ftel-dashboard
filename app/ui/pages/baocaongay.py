@@ -230,7 +230,14 @@ def layout():
                 html.Div(id="bn-md-msg"),
         ]),
         _modal_muc_tieu(),
+        *_khung_giong(),
     ])
+
+
+def _khung_giong() -> list:
+    """Nút nhập bằng giọng nói - chỉ hiện với đúng người và đúng phòng (xem `app/giong_noi.py`)."""
+    from app.ui.pages import baocaongay_giong
+    return [baocaongay_giong.khung()] if baocaongay_giong.duoc_dung() else []
 
 
 def _modal_muc_tieu():
@@ -571,6 +578,8 @@ def register(app):
         return "", gio_viet_nam().isoformat()
 
     _dang_ky_chu(app)
+    from app.ui.pages import baocaongay_giong
+    baocaongay_giong.register(app)
 
     @app.callback(Output("bn-tai", "data"), Input("bn-png", "n_clicks"), State("bn-phong", "value"),
                   State("bn-ngay", "date"),

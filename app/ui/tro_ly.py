@@ -389,6 +389,10 @@ def pane_cau_hinh(tab: str):
                 o("Trần chi phí mỗi tháng (USD)", dcc.Input(id="ai-tran", type="number", min=0.5, step=0.5,
                                                             className="inp")),
                 o("Số câu mỗi người / ngày", dcc.Input(id="ai-luot", type="number", min=1, step=1, className="inp")),
+                o("Nhận dạng giọng nói (Báo cáo ngày)", dcc.Dropdown(
+                    id="ai-giong", clearable=False, searchable=False,
+                    options=[{"label": "Miễn phí - nhận dạng của trình duyệt", "value": "trinh_duyet"},
+                             {"label": "OpenAI - chính xác hơn, tính tiền", "value": "openai"}])),
                 o("Vai trò được dùng AI", dcc.Dropdown(id="ai-vai-tro", multi=True, searchable=False,
                                                        placeholder="Chưa mở cho vai trò nào",
                                                        options=[{"label": t, "value": v} for v, t in ROLES])),
@@ -544,13 +548,13 @@ def register(app):
 
     @cb(Output("ai-bat", "value"), Output("ai-ten", "value"), Output("ai-model-chat", "value"),
         Output("ai-model-nx", "value"), Output("ai-tran", "value"), Output("ai-luot", "value"),
-        Output("ai-key-hien", "children"), Output("ai-dung-kpi", "children"), Output("ai-dung-grid", "rowData"),
+        Output("ai-giong", "value"), Output("ai-key-hien", "children"), Output("ai-dung-kpi", "children"), Output("ai-dung-grid", "rowData"),
         Output("ai-vai-tro", "value"), Output("ai-tai-khoan", "options"), Output("ai-tai-khoan", "value"),
         Output("ai-quyen-hien", "children"), Output("ai-key", "placeholder"),
         Input("qt-tab", "value"), Input("ai-da-luu", "data"))
     def _nap(tab, _luu):
         if tab != "ai":
-            return (no_update,) * 14
+            return (no_update,) * 15
         ch = ai.cau_hinh()
         users = danh_sach_user()
         tk = [] if users.empty else [{"label": f"{r.username} · {r.ho_ten or ''} ({r.vai_tro})", "value": r.username}
@@ -583,7 +587,7 @@ def register(app):
         for r in dung:
             r["chi_phi"] = round(r["chi_phi"], 4)
         return (["bat"] if ch["bat"] else [], ch["ten"], ch["model_chat"], ch["model_nhan_xet"], ch["tran_usd"],
-                ch["luot_ngay"], key, kpis, dung, ch["vai_tro"], tk, ch["tai_khoan"], quyen,
+                ch["luot_ngay"], ch["giong"], key, kpis, dung, ch["vai_tro"], tk, ch["tai_khoan"], quyen,
                 f"Đã lưu {ai.key_an(ch['key'])} · để trống là giữ mã này" if ch["key"] else "sk-...")
 
     @cb(Output("ai-msg", "children"), Output("ai-key", "value"), Output("ai-da-luu", "data"),
@@ -591,8 +595,8 @@ def register(app):
         State("ai-bat", "value"), State("ai-ten", "value"), State("ai-key", "value"),
         State("ai-model-chat", "value"), State("ai-model-nx", "value"), State("ai-tran", "value"),
         State("ai-luot", "value"), State("ai-vai-tro", "value"), State("ai-tai-khoan", "value"),
-        prevent_initial_call=True)
-    def _thao_tac(_l, _t, _x, bat, ten, key, m_chat, m_nx, tran, luot, vai_tro, tai_khoan):
+        State("ai-giong", "value"), prevent_initial_call=True)
+    def _thao_tac(_l, _t, _x, bat, ten, key, m_chat, m_nx, tran, luot, vai_tro, tai_khoan, giong):
         key, m_chat, m_nx = (key or "").strip(), (m_chat or "").strip(), (m_nx or "").strip()
         trig = ctx.triggered_id
         if trig == "ai-xoa-key":
@@ -616,7 +620,8 @@ def register(app):
             key = ""
         ai.luu_cau_hinh({"bat": "bat" in (bat or []), "ten": ten.strip(), "key": key, "model_chat": m_chat,
                          "model_nhan_xet": m_nx, "tran_usd": float(tran), "luot_ngay": int(luot),
-                         "vai_tro": list(vai_tro or []), "tai_khoan": list(tai_khoan or [])},
+                         "vai_tro": list(vai_tro or []), "tai_khoan": list(tai_khoan or []),
+                         "giong": giong if giong in ("trinh_duyet", "openai") else "trinh_duyet"},
                         current_user.username)
         ch = ai.cau_hinh()
         nhac = (" Ô mã API không phải mã OpenAI (phải bắt đầu bằng “sk-”) nên vẫn giữ mã đã lưu." if bo_qua_ma else

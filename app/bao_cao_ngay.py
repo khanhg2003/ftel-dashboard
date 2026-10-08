@@ -75,7 +75,7 @@ def ngay_xa_nhat() -> date:
 def cau_hinh() -> dict:
     from app.config import rules_config
     c = rules_config().get("bao_cao_ngay") or {}
-    return {"phong": list(c.get("phong") or [])}
+    return {"phong": list(c.get("phong") or []), "giong_noi": list(c.get("giong_noi") or [])}
 
 
 # ------------------------------------------------------------------ mục tiêu (dùng lại target_monthly)

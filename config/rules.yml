@@ -61,6 +61,8 @@ mttn:
 # Báo cáo đầu ngày (trang Báo cáo ngày): phòng nào dùng. Chốt 24/09/2026.
 bao_cao_ngay:
   phong: [IBB7]
+  # Nhập báo cáo bằng giọng nói (app/giong_noi.py), chốt 08/10/2026: phòng nào được dùng (phải nằm trong `phong`).
+  giong_noi: [IBB7]
 
 nhap_ton:
   phong: [IBB7]

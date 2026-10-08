@@ -1214,3 +1214,37 @@ html.dang-tai body { cursor: progress; }
 .nhan-su-bam .ag-row-hover:not(.ag-row-pinned) .ag-cell[col-id="ten"] .ag-cell-value::after { color: var(--fpt-orange, #F37021); }
 .ngan-than { min-height: 260px; }
 .ngan-tai { min-height: 260px; }
+
+/* ---------- Nhập báo cáo ngày bằng giọng nói (assets/ghi_am.js, app/ui/pages/baocaongay_giong.py) ---------- */
+.bn-gn-nut { position: fixed; right: 16px; bottom: 20px; z-index: 80; display: flex; align-items: center; gap: 10px; }
+.bn-gn-mic, .bn-gn-go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0;
+  cursor: pointer; font: inherit; font-weight: 700; color: #fff; }
+.bn-gn-mic { height: 58px; padding: 0 22px 0 18px; border-radius: 999px; font-size: 15px;
+  background: var(--fpt-orange, #F37021); box-shadow: 0 10px 24px rgba(243, 112, 33, .45); }
+.bn-gn-mic.dang-nghe { background: #C8372D; animation: gn-nhap 1.2s ease-in-out infinite; }
+.bn-gn-go { height: 42px; padding: 0 14px; border-radius: 999px; font-size: 13px; background: #0B3A66;
+  box-shadow: 0 6px 16px rgba(11, 58, 102, .35); }
+@keyframes gn-nhap { 50% { box-shadow: 0 0 0 12px rgba(200, 55, 45, .2); } }
+#bn-gn-tt { display: none; position: fixed; left: 12px; right: 12px; bottom: 92px; z-index: 80; max-width: 560px;
+  margin-left: auto; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.45; color: #fff;
+  background: #0B3A66; box-shadow: 0 8px 22px rgba(6, 24, 44, .3); }
+#bn-gn-tt.co { display: block; }
+#bn-gn-tt.nghe { background: #C8372D; }
+#bn-gn-tt.loi { background: #8A5A00; }
+.bn-gn-chu { width: 100%; min-height: 76px; resize: vertical; }
+.bn-gn-the { display: flex; flex-direction: column; gap: 12px; margin: 12px 0; }
+.bn-gn-nguoi { border: 1px solid var(--border); border-left: 4px solid var(--fpt-blue); border-radius: 10px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.bn-gn-nguoi.thieu { border-left-color: #F0B35B; background: #FFFAF0; }
+.bn-gn-nghe { font-size: 12.5px; color: var(--text-muted); }
+.bn-gn-luoi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; }
+.bn-gn-luoi .field { min-width: 0; }
+.bn-gn-luoi .field > label { font-size: 11.5px; }
+.bn-gn-co { margin: 0; }
+@media (max-width: 767px) {
+  #bn-gn .modal-hop { top: 0; left: 0; transform: none; width: 100vw; max-height: 100dvh; height: 100dvh;
+    border-radius: 0; }
+  #bn-gn .modal-chan { position: sticky; bottom: 0; }
+  .bn-gn-mic .gn-chu { display: inline; }
+}
+body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi không che thẻ cuối trang */
