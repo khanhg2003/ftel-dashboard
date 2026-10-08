@@ -514,7 +514,7 @@ def _xoa_muc_tieu_rieng():
 
     def don():
         with session_scope() as s:
-            s.execute(delete(Target).where(Target.chi_tieu == bc.CHI_TIEU_THANG))
+            s.execute(delete(Target).where(Target.chi_tieu.in_([bc.CHI_TIEU_THANG, bc.CHI_TIEU_NGAY])))
     don()
     yield
     don()
@@ -531,6 +531,22 @@ def test_muc_tieu_ngay_chia_deu_cho_so_ngay_cua_thang():
     assert bc.muc_tieu_ngay(650, "2026-09") == 22        # 650 / 30 = 21,67
     assert bc.muc_tieu_ngay(600, "2026-02") == 21        # 600 / 28 = 21,43
     assert bc.muc_tieu_ngay(0, "2026-10") == 0
+
+
+def test_muc_tieu_ngay_dat_tay_thay_cho_tu_chia(_xoa_muc_tieu_rieng):
+    """Chủ app chốt 08/10/2026: tháng 750 tự chia ra 24/ngày nhưng muốn giao 25/ngày thì đặt tay được.
+    Để trống thì quay về tự chia; mỗi tháng một số riêng."""
+    bc.dat_muc_tieu_thang("2026-10", "IBB7", 750, "kiemthu.admin")
+    assert bc.muc_tieu_ngay_phong("2026-10", PHONG) == 24 and bc.muc_tieu_ngay_rieng("2026-10", "IBB7") is None
+
+    bc.dat_muc_tieu_ngay_phong("2026-10", "IBB7", 25, "kiemthu.admin")
+    assert bc.muc_tieu_ngay_phong("2026-10", PHONG) == 25 and bc.muc_tieu_ngay_rieng("2026-10", "IBB7") == 25
+    assert bc.muc_tieu_ngay_phong("2026-09", PHONG) == bc.muc_tieu_ngay(bc.muc_tieu_thang("2026-09", PHONG), "2026-09")
+    t = bc.tom_tat(PHONG, date(2026, 10, 3))
+    assert t["mt_ngay"] == 25 and t["hq_muc_tieu"] == 25                 # ảnh báo cáo và "kết quả hôm qua" cùng số
+
+    bc.dat_muc_tieu_ngay_phong("2026-10", "IBB7", None, "kiemthu.admin")  # xoá số đặt tay
+    assert bc.muc_tieu_ngay_phong("2026-10", PHONG) == 24 and bc.muc_tieu_ngay_rieng("2026-10", "IBB7") is None
 
 
 def test_muc_tieu_thang_rieng_khong_dung_chi_tieu_cua_bao_cao_tong(_xoa_muc_tieu_rieng):

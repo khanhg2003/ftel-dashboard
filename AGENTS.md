@@ -135,7 +135,9 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      ONL chiều · Đã online · Còn phải ONL) · *Số Net / Pay* (PTTB tháng · MT tháng · V.VIP); DK ONL
      đứng TRƯỚC ONL sáng. Mục tiêu tháng TỪNG NGƯỜI nhập ngay trong bảng
      này, lưu vào `target_monthly` với `doi_tuong = "NHAN_VIEN"` (mọi truy vấn khác đều lọc `= 'PHONG'` nên
-     không đụng nhau); mục tiêu PTTB/ngày của phòng dùng chung ô `chi_tieu = "ngay"` đã có. Ô để TRỐNG nghĩa
+     không đụng nhau); mục tiêu PTTB/ngày của phòng mặc định TỰ CHIA mục tiêu tháng cho số ngày của tháng (làm tròn gần nhất),
+     nhưng BGĐ đặt tay được cho cả tháng ở hộp "Sửa mục tiêu" (`chi_tieu = "bcn_ngay"`, chốt 08/10/2026: tháng 750
+     tự chia ra 24 mà muốn giao 25/ngày); để trống là quay về tự chia. Ô để TRỐNG nghĩa
      là người đó chưa báo cáo, khác hẳn với số 0 đã nhập - đừng hiển thị 0 cho người chưa nhập (có test). **"Còn phải ONL" = dự kiến − đã online, KHÔNG kẹp ở 0**: người online
      vượt dự kiến để SỐ ÂM (tô xanh). Chủ app chốt 26/09/2026 là mọi con số phải cộng được cả hai
      chiều - kẹp ở 0 thì cộng dọc cột ra số lớn hơn dòng TỔNG, còn ép dòng TỔNG bằng tổng trừ tổng

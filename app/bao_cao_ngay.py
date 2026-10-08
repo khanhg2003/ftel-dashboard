@@ -14,7 +14,8 @@ Chốt với chủ app 24/09/2026:
 - Mục tiêu tháng của PHÒNG (chốt 02/10/2026) là ô RIÊNG của trang này: `doi_tuong = "PHONG"`,
   `chi_tieu = "bcn_thang"`. Không dùng chung chỉ tiêu Internet của Báo cáo Tổng, để BGĐ sửa mục tiêu
   ở đây không làm lệch số của các trang khác. Chưa đặt riêng thì tạm đọc chỉ tiêu Internet của phòng.
-  Mục tiêu mỗi ngày KHÔNG nhập tay nữa: chia đều mục tiêu tháng cho số ngày của tháng đó.
+  Mục tiêu mỗi ngày mặc định chia đều mục tiêu tháng cho số ngày của tháng đó, nhưng BGĐ đặt tay được
+  cho cả tháng (chốt 08/10/2026, `CHI_TIEU_NGAY`); để trống thì quay về tự chia.
 - "Pay" trong ảnh báo cáo = số V.VIP luỹ kế tháng của người đó, đếm từ file FPT Play
   (`_vvip_theo_acc`) đúng như Báo cáo Tổng và Báo cáo phòng.
 - Dự kiến online tổng = sáng + chiều (không nhập riêng); còn phải online = tổng dự kiến - đã online.
@@ -24,7 +25,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 
 from app import phan_tich as pt
 from app.bo_nho import xoa
@@ -129,6 +130,37 @@ def muc_tieu_ngay(mt_thang: int, thang: str) -> int:
 
 def dat_muc_tieu_thang(thang: str, phong_code: str, gia_tri: float, nguoi: str) -> None:
     dat_muc_tieu(thang, "PHONG", phong_code, CHI_TIEU_THANG, gia_tri, nguoi)
+
+
+CHI_TIEU_NGAY = "bcn_ngay"         # mục tiêu mỗi ngày đặt tay cho cả tháng; không có thì tự chia
+
+
+def muc_tieu_ngay_phong(thang: str, phong: list[str]) -> int:
+    """Mục tiêu PTTB mỗi ngày của phòng trong tháng.
+
+    BGĐ đặt tay được (chủ app chốt 08/10/2026: tháng 750 tự chia ra 24 mà muốn giao 25/ngày); phòng nào chưa
+    đặt thì tự chia đều như `muc_tieu_ngay`. Trống hết thì giữ đúng cách cũ: chia tổng mục tiêu tháng."""
+    rieng = {c: _muc_tieu(thang, "PHONG", c, CHI_TIEU_NGAY) for c in phong}
+    if not any(rieng.values()):
+        return muc_tieu_ngay(muc_tieu_thang(thang, phong), thang)
+    return sum(int(rieng[c]) if rieng[c] else muc_tieu_ngay(muc_tieu_thang(thang, [c]), thang) for c in phong)
+
+
+def muc_tieu_ngay_rieng(thang: str, phong_code: str) -> int | None:
+    """Số BGĐ đã đặt tay cho một phòng; None là đang để tự chia."""
+    v = _muc_tieu(thang, "PHONG", phong_code, CHI_TIEU_NGAY)
+    return int(v) if v else None
+
+
+def dat_muc_tieu_ngay_phong(thang: str, phong_code: str, gia_tri: float | None, nguoi: str) -> None:
+    """Đặt mục tiêu mỗi ngày của phòng; để trống hoặc 0 là bỏ số đã đặt, quay về tự chia."""
+    if gia_tri:
+        return dat_muc_tieu(thang, "PHONG", phong_code, CHI_TIEU_NGAY, gia_tri, nguoi)
+    with session_scope() as s:
+        s.execute(delete(Target).where(Target.thang == thang, Target.doi_tuong == "PHONG",
+                                       Target.ma_doi_tuong == phong_code, Target.chi_tieu == CHI_TIEU_NGAY))
+        s.add(AuditLog(username=nguoi, action="sua_muc_tieu", detail=f"{thang} PHONG {phong_code} {CHI_TIEU_NGAY} = tự chia"))
+    xoa("so_lieu")
 
 
 def _mt_nhan_vien(thang: str) -> pd.Series:
@@ -264,10 +296,10 @@ def tom_tat(phong: list[str], ngay: date | None = None) -> dict:
     hqua = ngay - timedelta(days=1)
     onl_hqua = int((hd.ngay_online.dt.date == hqua).sum()) if len(hd) else 0
     mt_thang = muc_tieu_thang(thang, phong)
-    mt_ngay = muc_tieu_ngay(mt_thang, thang)
+    mt_ngay = muc_tieu_ngay_phong(thang, phong)
     # Hôm qua có thể thuộc tháng trước (ngày 1) nên mục tiêu ngày của nó phải lấy theo tháng của chính nó.
     thang_hq = f"{hqua:%Y-%m}"
-    mt_hq = mt_ngay if thang_hq == thang else muc_tieu_ngay(muc_tieu_thang(thang_hq, phong), thang_hq)
+    mt_hq = mt_ngay if thang_hq == thang else muc_tieu_ngay_phong(thang_hq, phong)
     luy_ke = len(hd)
     s = (lambda c: int(df[c].sum())) if not df.empty else (lambda c: 0)
     return {

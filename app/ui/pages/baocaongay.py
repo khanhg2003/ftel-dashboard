@@ -234,11 +234,14 @@ def layout():
 
 
 def _modal_muc_tieu():
-    """Đặt mục tiêu PTTB tháng của phòng - chỉ dùng cho trang Báo cáo ngày. Mục tiêu mỗi ngày
-    tự chia đều nên không có ô nhập riêng."""
+    """Đặt mục tiêu PTTB tháng và (tuỳ chọn) mục tiêu mỗi ngày của phòng - chỉ dùng cho trang Báo cáo ngày.
+    Ô mục tiêu ngày để trống thì tự chia đều mục tiêu tháng."""
     return modal("bn-mt", html.Span(id="bn-mt-tieu-de"), [
         html.Div([html.Label("Mục tiêu PTTB cả tháng"),
                   dcc.Input(id="bn-f-mt-thang", type="number", min=0, max=100000, step=1,
+                            className="inp")], className="field rong"),
+        html.Div([html.Label("Mục tiêu PTTB mỗi ngày (để trống = tự chia)"),
+                  dcc.Input(id="bn-f-mt-ngay", type="number", min=0, max=1000, step=1,
                             className="inp")], className="field rong"),
         html.Div(id="bn-mt-chia", className="desc"),
         html.Div("Số này chỉ dùng cho trang Báo cáo ngày, không ảnh hưởng chỉ tiêu ở Báo cáo Tổng "
@@ -521,7 +524,8 @@ def register(app):
 
     # ---------------------------------------------- mục tiêu tháng (chỉ Quản trị)
     @app.callback(Output("bn-mt", "className"), Output("bn-mt-tieu-de", "children"),
-                  Output("bn-f-mt-thang", "value"), Output("bn-mt-msg", "children"),
+                  Output("bn-f-mt-thang", "value"), Output("bn-f-mt-ngay", "value"),
+                  Output("bn-mt-msg", "children"),
                   Input("bn-mt-mo", "n_clicks"), Input("bn-mt-dong", "n_clicks"),
                   Input("bn-mt-huy", "n_clicks"), Input("bn-da-luu", "data"),
                   State("bn-phong", "value"), State("bn-ngay", "date"), prevent_initial_call=True)
@@ -529,36 +533,41 @@ def register(app):
         # `mo` phải khác 0: thẻ Luỹ kế tháng được dựng lại mỗi lần nạp số, Dash coi component mới
         # xuất hiện là một lần kích hoạt - không xét n_clicks thì hộp thoại tự bật khi mở trang.
         if ctx.triggered_id != "bn-mt-mo" or not mo or not _sua_duoc_muc_tieu():
-            return "modal", no_update, no_update, ""
+            return "modal", no_update, no_update, no_update, ""
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
         thang = f"{d:%Y-%m}"
         return ("modal mo", f"Mục tiêu tháng {d:%m/%Y} · {code}",
-                bc.muc_tieu_thang(thang, phong), "")
+                bc.muc_tieu_thang(thang, phong), bc.muc_tieu_ngay_rieng(thang, phong[0]), "")
 
     @app.callback(Output("bn-mt-chia", "children"), Input("bn-f-mt-thang", "value"),
-                  State("bn-ngay", "date"))
-    def _xem_chia(mt, ngay):
+                  Input("bn-f-mt-ngay", "value"), State("bn-ngay", "date"))
+    def _xem_chia(mt, mt_ngay, ngay):
         d = _ngay_hop_le(ngay)
         thang = f"{d:%Y-%m}"
         so_ngay = bc.month_range(thang)[2]
         mt = int(mt or 0)
-        return (f"Mục tiêu mỗi ngày = {mt} ÷ {so_ngay} ngày = "
-                f"{bc.muc_tieu_ngay(mt, thang)} PTTB/ngày.")
+        tu_chia = f"{mt} ÷ {so_ngay} ngày = {bc.muc_tieu_ngay(mt, thang)} PTTB/ngày"
+        if mt_ngay:
+            return f"Mục tiêu mỗi ngày: {int(mt_ngay)} PTTB/ngày (đặt tay). Nếu để trống, app tự chia: {tu_chia}."
+        return f"Mục tiêu mỗi ngày tự chia: {tu_chia}."
 
     @app.callback(Output("bn-mt-msg", "children", allow_duplicate=True),
                   Output("bn-da-luu", "data", allow_duplicate=True),
                   Input("bn-mt-ok", "n_clicks"), State("bn-f-mt-thang", "value"),
-                  State("bn-phong", "value"), State("bn-ngay", "date"), prevent_initial_call=True)
-    def _luu_muc_tieu(_n, mt, code, ngay):
+                  State("bn-f-mt-ngay", "value"), State("bn-phong", "value"), State("bn-ngay", "date"),
+                  prevent_initial_call=True)
+    def _luu_muc_tieu(_n, mt, mt_ngay, code, ngay):
         if not _sua_duoc_muc_tieu():
             raise PreventUpdate
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
         thang = f"{d:%Y-%m}"
         try:
             bc.dat_muc_tieu_thang(thang, phong[0], float(mt or 0), current_user.username)
+            bc.dat_muc_tieu_ngay_phong(thang, phong[0], float(mt_ngay) if mt_ngay else None,
+                                       current_user.username)
         except (bc.LoiBaoCao, TypeError, ValueError) as e:
             return alert(str(e) or "Mục tiêu không hợp lệ.", "bad"), no_update
-        ghi_log("dat_muc_tieu_bao_cao_ngay", f"{thang} {phong[0]} = {int(mt or 0)}")
+        ghi_log("dat_muc_tieu_bao_cao_ngay", f"{thang} {phong[0]} = {int(mt or 0)}, ngày {mt_ngay or 'tự chia'}")
         return "", gio_viet_nam().isoformat()
 
     _dang_ky_chu(app)
