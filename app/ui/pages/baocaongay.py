@@ -17,7 +17,7 @@ from app.auth import ghi_log
 from app.org import phong_order
 from app.thoi_gian import gio_viet_nam
 from app.ui import ngan_nhan_su as nn
-from app.ui.components import alert, field, modal, tip
+from app.ui.components import alert, field, modal, seg_control, tip
 from app.ui.icons import icon
 from app.ui.luoi import SO, bang
 
@@ -178,6 +178,7 @@ def layout():
         ], className="toolbar loc-trang"),
         dcc.Download(id="bn-tai"),
         dcc.Store(id="bn-da-luu"),
+        dcc.Store(id="bn-dang-ghi"),
         # cả phòng cùng gõ một bảng nên phải tự nạp lại khi người khác vừa sửa
         dcc.Store(id="bn-moc"),
         dcc.Interval(id="bn-nhip", interval=NHIP_MS),
@@ -193,8 +194,10 @@ def layout():
         html.Div(id="bn-tom-tat", className="kpi-row kpi-3"),
 
         html.Div([
-            html.Div([html.H3(id="bn-tieu-de", style={"margin": 0}),
-                      html.Div(id="bn-mo-ta", className="desc", style={"margin": "2px 0 0"})],
+            html.Div([html.Div([html.H3(id="bn-tieu-de", style={"margin": 0}),
+                                html.Div(id="bn-mo-ta", className="desc", style={"margin": "2px 0 0"})]),
+                      html.Div(className="grow"),
+                      html.Div(_chon_dang(), className="bn-chi-dt")],
                      className="the-thanh"),
             html.Div(bang("bn-luoi", _cot(), cao=560, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
                           cot_mac_dinh={"resizable": True, "sortable": False, "suppressMovable": True,
@@ -232,6 +235,13 @@ def layout():
         _modal_muc_tieu(),
         *_khung_giong(),
     ])
+
+
+def _chon_dang():
+    """Điện thoại: mặc định hiện BẢNG như máy tính, bấm "Thẻ" để xem mỗi người một thẻ. App nhớ lựa chọn trên máy."""
+    t = seg_control("bn-dang", [("bang", "Bảng"), ("the", "Thẻ")], "bang")
+    t.persistence, t.persistence_type = True, "local"
+    return t
 
 
 def _khung_giong() -> list:
@@ -373,6 +383,10 @@ def _the(df: pd.DataFrame) -> list:
 
 # ------------------------------------------------------------------ callbacks
 def register(app):
+    # Điện thoại: chọn Bảng / Thẻ -> đặt lên <body> để CSS ẩn / hiện đúng khối (xem assets/style.css, mục Báo cáo ngày)
+    app.clientside_callback(
+        """function (dang) { document.body.dataset.bnDang = dang || 'bang'; return window.dash_clientside.no_update; }""",
+        Output("bn-dang-ghi", "data"), Input("bn-dang", "value"))
     # Đặt dòng TỔNG vào bảng ngay tại trình duyệt, không qua `dashGridOptions` (xem ghi chú ở layout).
     app.clientside_callback(
         """function (ghim) {
@@ -435,7 +449,7 @@ def register(app):
                      + mo_ta)
         if _dung_chung() and not toi_la:
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
-        return (chon, _tom_tat(t), [] if dien_thoai else _dong_luoi(df), no_update, _ghim(df),
+        return (chon, _tom_tat(t), _dong_luoi(df), no_update, _ghim(df),
                 _the(df) if dien_thoai else [], tieu_de, mo_ta, moc)
 
     @app.callback(Output("bn-luoi", "rowTransaction", allow_duplicate=True),

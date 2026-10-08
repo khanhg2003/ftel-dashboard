@@ -1130,10 +1130,12 @@ table.simple tr:last-child td { border-bottom: none; }
 }
 
 /* Báo cáo ngày: laptop sửa trong bảng, điện thoại mỗi người một thẻ (chốt 24/09/2026) */
-.bn-dien-thoai { display: none; }
+/* điện thoại: mặc định BẢNG như máy tính (chốt 08/10/2026), nút Bảng / Thẻ ở đầu khung để đổi sang mỗi người một thẻ */
+.bn-dien-thoai, .bn-chi-dt { display: none; }
 @media (max-width: 767px) {
-  .bn-laptop { display: none !important; }
-  .bn-dien-thoai { display: flex; flex-direction: column; gap: 8px; }
+  .bn-chi-dt { display: block; }
+  body[data-bn-dang="the"] .bn-laptop { display: none !important; }
+  body[data-bn-dang="the"] .bn-dien-thoai { display: flex; flex-direction: column; gap: 8px; }
 }
 #bn-luoi .ag-cell.o-dam { font-weight: 600; }
 #bn-luoi .ag-cell.o-sale { background: #FEFCF7; }

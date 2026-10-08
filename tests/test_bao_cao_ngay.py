@@ -578,3 +578,33 @@ def test_muc_tieu_ngay_cua_hom_qua_lay_theo_thang_cua_hom_qua(_xoa_muc_tieu_rien
     bc.dat_muc_tieu_thang("2026-10", "IBB7", 620, "kiemthu.admin")     # 620 / 31 = 20
     t = bc.tom_tat(PHONG, date(2026, 10, 1))
     assert t["hq_muc_tieu"] == 10 and t["mt_ngay"] == 20
+
+
+# ------------------------------------------------------------------ điện thoại: mặc định bảng (chốt 08/10/2026)
+def test_dien_thoai_mac_dinh_hien_bang_va_co_nut_doi_sang_the():
+    import re
+    css = (Path(__file__).resolve().parent.parent / "assets" / "style.css").read_text(encoding="utf-8")
+    assert 'body[data-bn-dang="the"] .bn-laptop' in css and 'body[data-bn-dang="the"] .bn-dien-thoai' in css
+    assert not re.search(r"@media \(max-width: 767px\) \{\s*\.bn-laptop \{ display: none", css)   # không ẩn bảng vô điều kiện
+    from flask_login import login_user
+    from app.ui.app import server
+    from app.ui.pages import baocaongay as bn
+    with server.test_request_context("/"):
+        login_user(_tk("nvkd", ["IBB7"]))
+        chu = json.dumps(bn.layout(), default=lambda o: o.to_plotly_json() if hasattr(o, "to_plotly_json") else str(o))
+    assert '"bn-dang"' in chu and '"persistence": true' in chu
+
+
+def test_nap_tren_dien_thoai_van_do_du_lieu_bang_va_the():
+    from dash._callback_context import context_value
+    from dash._utils import AttributeDict
+    from flask_login import login_user
+    from app.ui.app import app, server
+    nap = next(getattr(v["callback"], "__wrapped__", v["callback"]) for v in app.callback_map.values()
+               if "callback" in v and any(i["id"] == "bn-nhip" for i in v["inputs"]))
+    with server.test_request_context("/"):
+        login_user(_tk("nvkd", ["IBB7"]))
+        context_value.set(AttributeDict(triggered_inputs=[{"prop_id": "bn-phong.value", "value": "IBB7"}],
+                                        inputs_list=[], states_list=[], outputs_list=[]))
+        kq = nap("IBB7", NGAY.isoformat(), None, None, None, {"w": 375, "h": 812}, None)
+    assert len(kq[2]) > 0 and len(kq[5]) > 0          # bảng VÀ thẻ đều có dữ liệu, CSS quyết định hiện cái nào
