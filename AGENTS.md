@@ -145,8 +145,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      thì cộng dọc lại không khớp. Để số âm là cách duy nhất khớp cả hai. `tom_tat` (ảnh báo cáo) cũng
      bỏ `max(..., 0)` cho cùng một số. **Báo cáo của ngày ĐÃ QUA bị xoá** (`don_ngay_cu()`, gọi từ `layout()` chứ
      KHÔNG gọi trong `dam_bao_bang()` - gọi ở đó thì database kiểm thử tháng 9 bị dọn mất khi chạy
-     test); chỉ giữ hôm nay và các ngày nhập trước. **Trang tự nạp lại** mỗi `NHIP_MS` (15 giây) nhưng
-     chỉ dựng lại bảng khi `moc_cap_nhat()` đổi, để không cắt ngang ô người khác đang gõ.
+     test); chỉ giữ hôm nay và các ngày nhập trước. **Trang tự nạp lại** mỗi `NHIP_MS` (60 giây; 15 giây
+     làm Vercel Hobby cạn 4 giờ CPU, thực tế 9 giờ trong một chu kỳ - 09/10/2026) và `assets/nhip_an.js` TẮT nhịp
+     khi tab ẩn, bật lại + nạp ngay khi quay về. Chỉ dựng lại bảng khi `moc_cap_nhat()` đổi, để không cắt ngang ô
+     người khác đang gõ. Thêm nhịp tự hỏi máy chủ ở trang khác thì phải tính CPU: mỗi lượt là một lần gọi hàm.
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
      file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi

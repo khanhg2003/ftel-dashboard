@@ -608,3 +608,11 @@ def test_nap_tren_dien_thoai_van_do_du_lieu_bang_va_the():
                                         inputs_list=[], states_list=[], outputs_list=[]))
         kq = nap("IBB7", NGAY.isoformat(), None, None, None, {"w": 375, "h": 812}, None)
     assert len(kq[2]) > 0 and len(kq[5]) > 0          # bảng VÀ thẻ đều có dữ liệu, CSS quyết định hiện cái nào
+
+
+def test_nhip_tu_nap_thua_va_tat_khi_tab_an():
+    """Nhịp 15 giây từng làm Vercel Hobby cạn CPU: giữ nhịp thưa và có JS tắt nhịp khi tab ẩn."""
+    from app.ui.pages import baocaongay as trang
+    assert trang.NHIP_MS >= 45_000
+    js = (Path(__file__).resolve().parents[1] / "assets" / "nhip_an.js").read_text(encoding="utf-8")
+    assert "bn-nhip" in js and "visibilitychange" in js and "disabled" in js

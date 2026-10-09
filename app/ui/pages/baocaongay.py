@@ -25,7 +25,7 @@ AN = {"display": "none"}
 TOI_LA = "Chọn tên mình (để ghi tên)"
 GHI_TEN = "Chọn tên mình ở ô \"Tôi là\" để phần \"cập nhật bởi\" ghi đúng tên."
 SUA = "params.data.sua_duoc"
-NHIP_MS = 15_000                   # nhịp hỏi lại xem có ai vừa sửa không (chốt 26/09/2026)
+NHIP_MS = 60_000                   # nhịp hỏi lại xem có ai vừa sửa không; 15 giây làm Vercel cạn CPU (09/10/2026)
 # Vá lại dòng mình vừa sửa sau khi ngừng gõ CHO_VA giây. Phải hoãn chứ không vá ngay lúc lưu:
 # ag-grid XOÁ SẠCH undo stack mỗi lần nhận transaction, vá ngay là Ctrl+Z mất tác dụng.
 NHIP_VA_MS = 2_000
