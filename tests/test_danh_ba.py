@@ -251,3 +251,20 @@ def test_trang_danh_ba_co_nut_chuyen_the_so_do():
         login_user(ad)
         nut = [n for n in danhba.layout().children if getattr(n, "id", None) == "db-cd"][0]
         assert [b.to_plotly_json()["props"]["data-cd"] for b in nut.children] == ["the", "so_do"]
+
+
+def test_so_do_tach_rieng_dvkh_ke_toan_hanh_chinh_nhan_su():
+    """Chủ app sửa 10/10/2026: KHÔNG gộp - Kỹ thuật → Đội trưởng → DVKH → Kế toán → Hành chính nhân sự là từng tầng riêng."""
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Máy không có Node để chạy bộ lọc của trình duyệt")
+    ds = [{"t": f"P{i}", "n": n} for i, n in enumerate(["hcns", "ke_toan", "dvkh", "doi_truong", "ha_tang", "pho_giam_doc",
+                                                         "truong_phong_kt", "giam_doc", "khac"])]
+    code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
+            "console.log(JSON.stringify(m.chiaTang(JSON.parse(d)).map(t=>[t.ten,t.ds.length])));});")
+    js = Path(__file__).resolve().parent.parent / "assets" / "danh_ba.js"
+    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps(ds), capture_output=True, text=True,
+                                   encoding="utf-8", check=True).stdout)
+    assert kq == [["Ban giám đốc", 2], ["Kỹ thuật và hạ tầng", 2], ["Đội trưởng theo khu vực", 1],
+                  ["Chăm sóc khách hàng (DVKH)", 1], ["Kế toán", 1], ["Hành chính nhân sự", 1], ["Khác", 1]]

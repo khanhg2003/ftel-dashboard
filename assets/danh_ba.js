@@ -19,8 +19,8 @@
     const KHO = {db: {du_lieu: null, nhom: 'all', che: 'the'}, sm: {du_lieu: null, nhom: 'all', che: 'the'}};
     // Sơ đồ theo CHỨC DANH, không phải quan hệ báo cáo (file danh bạ không có cột "báo cáo cho").
     const TANG = [['Ban giám đốc', ['giam_doc', 'pho_giam_doc']], ['Kỹ thuật và hạ tầng', ['truong_phong_kt', 'ha_tang']],
-                  ['Đội trưởng theo khu vực', ['doi_truong']], ['Kế toán, chăm sóc khách hàng, hành chính', ['ke_toan', 'dvkh', 'hcns']],
-                  ['Khác', ['khac']]];
+                  ['Đội trưởng theo khu vực', ['doi_truong']], ['Chăm sóc khách hàng (DVKH)', ['dvkh']], ['Kế toán', ['ke_toan']],
+                  ['Hành chính nhân sự', ['hcns']], ['Khác', ['khac']]];
     const IC = {
         mail: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M3 7l9 6 9-6"/></svg>',
         phone: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>',

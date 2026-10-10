@@ -15,7 +15,7 @@ from flask_login import current_user
 
 from app import danh_ba as db
 from app.thoi_gian import chu_gio_vn
-from app.ui.components import alert, field, modal
+from app.ui.components import alert, card, field, modal
 from app.ui.icons import icon
 
 NHOM_NUT = [("all", "Tất cả"), ("giam_doc", "Giám đốc"), ("pho_giam_doc", "Phó GĐ"), ("truong_phong_kt", "TP kỹ thuật"),
@@ -86,18 +86,20 @@ def _chu_lan(nguon: str) -> str:
 
 
 def _khung_nap():
+    """Thẻ nạp file giống trang Nạp dữ liệu (ô kéo thả nét đứt, chữ giữa); hai ô cạnh nhau, mỗi ô một nguồn."""
     def o(nguon, nhan):
-        return html.Div([html.B(nhan), html.Div(_chu_lan(nguon), id=f"db-lan-{nguon}", className="desc"),
-                         dcc.Upload(id=f"db-file-{nguon}", className="upload-zone", accept=".xlsx",
-                                    children=html.Div([icon("upload", 18), html.Span(" Kéo thả hoặc bấm chọn file .xlsx")]))],
-                        className="db-nap-o")
-    return html.Details([
-        html.Summary("Nạp danh bạ từ file Excel (Quản trị, mỗi tháng một lần)", className="cg-tieu-de"),
-        html.Div("Mỗi file là bản chụp mới nhất: nạp lại thì thay toàn bộ người của nguồn đó. "
-                 "Người sale tự thêm không bị đụng.", className="desc"),
+        return html.Div([
+            html.Div([html.B(nhan), html.Div(_chu_lan(nguon), id=f"db-lan-{nguon}", className="desc")], className="db-nap-tieu"),
+            dcc.Upload(id=f"db-file-{nguon}", className="upload-zone", accept=".xlsx", children=html.Div([
+                html.Div("⬆", style={"fontSize": "26px", "marginBottom": "6px"}),
+                html.Div([html.B("Chọn file"), " hoặc kéo thả vào đây"]),
+                html.Div("Định dạng .xlsx", style={"fontSize": "12px", "marginTop": "4px"})]))], className="db-nap-o")
+    return html.Div(card([
         html.Div([o("PNC", db.NGUON_FILE["PNC"]), o("TIN", db.NGUON_FILE["TIN"])], className="db-nap"),
         dcc.Loading(html.Div(id="db-nap-msg"), type="dot"),
-    ], className="chu-giai card")
+    ], title="Nạp danh bạ từ file Excel",
+        desc="Quản trị nạp mỗi tháng một lần. Mỗi file là bản chụp mới nhất: nạp lại thì thay toàn bộ người của nguồn đó, "
+             "người sale tự thêm không bị đụng."), className="db-khung-nap")
 
 
 # ------------------------------------------------------------------ callbacks

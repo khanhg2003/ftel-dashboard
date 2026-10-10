@@ -1349,3 +1349,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .db-o-dong { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px; max-width: 100%; }
 .db-o-cu { font-style: normal; font-size: 11px; color: #8A5A00; background: #FFF1D6; border-radius: 999px; padding: 1px 8px; margin-top: 2px; }
 @media (max-width: 767px) { .db-o { width: 100%; } }
+
+/* Danh bạ: thẻ nạp file (giống trang Nạp dữ liệu), cách danh sách bên trên cho thoáng */
+.db-khung-nap { margin-top: 28px; }
+.db-nap-tieu { margin-bottom: 8px; }
+.db-nap-o .upload-zone { padding: 28px; }
