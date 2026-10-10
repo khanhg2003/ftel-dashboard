@@ -130,7 +130,7 @@
         const xep = function (d) {
             return d.slice().sort(function (a, b) { return ((a.r || 0) - (b.r || 0)) || ((cu(a) ? 1 : 0) - (cu(b) ? 1 : 0)); });
         };
-        if (dem) { dem.textContent = ds.length + ' người · sơ đồ theo phòng ban, dựng từ chức danh (không thể hiện ai báo cáo cho ai)'; }
+        if (dem) { dem.textContent = ds.length + ' người'; }
         if (!ds.length) { kq.innerHTML = '<div class="card"><div class="desc">Không có ai khớp.</div></div>'; return; }
         const c = chiaPhongBan(ds);
         const dsHtml = function (d) { return xep(d).map(function (r) { return nut(r, cuHon, false); }).join(''); };
