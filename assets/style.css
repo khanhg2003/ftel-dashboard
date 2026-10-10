@@ -1352,7 +1352,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-hanh-dong { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 16px; background: #F8FAFC; border-top: 1px solid var(--border); }
 .sm-nut { display: flex; gap: 8px; flex-wrap: wrap; }
 .sm-hanh-dong .desc { margin: 0; font-size: 12px; }
-.sm-chep .nut-chep.lon { padding: 6px 12px; font-size: 13px; }
 .sm-db-kq { display: grid; gap: 10px; max-height: 60vh; overflow: auto; }
 @media (min-width: 901px) and (min-height: 760px) { .sm-thu { position: sticky; top: 10px; } }
 @media (max-width: 900px) { .sm-luoi { grid-template-columns: 1fr; } }
