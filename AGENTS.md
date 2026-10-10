@@ -192,6 +192,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      người (tên + chi nhánh) gộp lúc ĐỌC theo TAY > PNC > TIN, email lệch giữ thành "email khác". Người ngoài file (vd
      người CC trong mail mẫu) do sale tự thêm (nguồn TAY, sửa / xoá được). Có số di động nội bộ: không đưa file Excel
      danh bạ vào git, không in ra log.
+     **Tốc độ (10/10/2026): danh bạ lọc NGAY TRÊN TRÌNH DUYỆT** (`assets/danh_ba.js`; máy chủ chỉ gửi MỘT lần `cho_trinh_duyet()`, khoảng 350 KB cho 1.100 người).
+     Mỗi lần gõ tìm hay đổi nhóm chức danh từng là một lượt hỏi máy chủ + dựng 60 thẻ Dash nên trễ, có lúc nhóm đã đổi mà danh sách chưa kịp đổi (chủ app báo);
+     nay mỗi lần lọc ~60-120 ms và không tốn CPU Vercel. Đổi cách lọc / xếp thì sửa `loc` ở JS (có test chạy đúng hàm đó bằng Node). Soạn email dựng sẵn CẢ BA
+     biểu mẫu và chỉ ẩn / hiện bằng CSS (đổi loại tức thì, ô đã gõ không mất) nên id mọi ô mang cả tên loại (`l`). Bảng nhiều thẻ dựng bằng Dash thì nghĩ tới cách này.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền

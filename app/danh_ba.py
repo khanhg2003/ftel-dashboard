@@ -20,7 +20,7 @@ from app.bo_nho import ghi, nho
 from app.db import engine, session_scope
 from app.giong_noi import bo_dau
 from app.models import AuditLog, DanhBa
-from app.thoi_gian import utc_bay_gio
+from app.thoi_gian import chu_gio_vn, utc_bay_gio
 
 NGUON_FILE = {"PNC": "PNC (Đà Nẵng vào Nam)", "TIN": "TIN (Đà Nẵng ra Bắc)"}
 UU_TIEN = {"TAY": 0, "PNC": 1, "TIN": 2}          # trùng người: nguồn đứng trước thắng (PNC T10 mới hơn TIN T8)
@@ -281,22 +281,28 @@ def ds_don_vi() -> list[str]:
     return [ten[k] for k in sorted(ten.index, key=lambda k: (k not in DV_UU_TIEN, k)) if ten[k]]
 
 
-def tim(q: str = "", don_vi: str | None = None, nhom: str | None = None, gioi_han: int = 60) -> tuple[pd.DataFrame, int]:
-    """(kết quả đã xếp, tổng số khớp). Mọi từ khoá phải xuất hiện (bỏ dấu); khớp trong TÊN xếp trước, rồi chi nhánh
-    của sale, rồi nhóm chức danh (Giám đốc trước)."""
+def _s(v) -> str:
+    return v if isinstance(v, str) else ""
+
+
+def cho_trinh_duyet() -> dict:
+    """Toàn bộ danh bạ dạng gọn để TRÌNH DUYỆT tự lọc (`assets/danh_ba.js`): tìm, chi nhánh, nhóm chức danh đổi là ra
+    ngay, không hỏi máy chủ và không dựng hàng nghìn thành phần Dash (đã đo: chuyển nhóm bị trễ rõ). Đã xếp sẵn: chi nhánh
+    của sale đứng đầu, rồi nhóm chức danh (Giám đốc trước), rồi tên. Khoá ngắn để payload nhỏ: i id, t tên, c chức vụ,
+    e email, k email khác, x máy lẻ, d di động, v chi nhánh, g ghi chú, n nhóm, s nguồn, u ngày cập nhật, y id nếu sale tự
+    thêm (sửa được), q chuỗi tìm (đã bỏ dấu), b tên bỏ dấu."""
     df = tat_ca()
-    if don_vi:
-        df = df[df.dv_chuan == chuan_don_vi(don_vi)]
-    if nhom and nhom != "all":
-        df = df[df.nhom == nhom]
-    k = bo_dau(q).split()
-    if k:
-        df = df[df.tim.map(lambda t: all(x in t for x in k))]
     thu_tu = {n: i for i, n in enumerate(NHOM)}
-    df = df.assign(_ten=~df.ten_kd.map(lambda t: bool(k) and all(x in t for x in k)),
-                   _dv=~df.dv_chuan.isin(DV_UU_TIEN), _nhom=df.nhom.map(thu_tu)
-                   ).sort_values(["_ten", "_dv", "_nhom", "ho_ten"], kind="stable")
-    return df.drop(columns=["_ten", "_dv", "_nhom"]).head(gioi_han), len(df)
+    df = df.assign(_dv=~df.dv_chuan.isin(DV_UU_TIEN), _nhom=df.nhom.map(thu_tu)).sort_values(
+        ["_dv", "_nhom", "ho_ten"], kind="stable")
+    ds = [{"i": int(r.id), "t": r.ho_ten, "c": _s(r.chuc_vu), "e": _s(r.email), "k": _s(r.email_khac), "x": _s(r.ext),
+           "d": _s(r.di_dong), "v": _s(r.don_vi), "g": _s(r.ghi_chu), "n": r.nhom, "s": r.nguon_ds,
+           "u": chu_gio_vn(r.cap_nhat_luc, "%d/%m") if pd.notna(r.cap_nhat_luc) else "",
+           "y": int(r.id_tay) if pd.notna(r.id_tay) else 0, "q": r.tim, "b": r.ten_kd}
+          for r in df.itertuples()]
+    moi = " · ".join(f"{n} cập nhật {chu_gio_vn(t, '%d/%m/%Y')}" for n, t in sorted(lan_nap_cuoi().items())
+                     if n != "TAY" and t)
+    return {"ds": ds, "moi": moi, "nhom": NHOM, "dv": ds_don_vi()}
 
 
 def theo_nhom(don_vi: str, nhom: str) -> pd.DataFrame:

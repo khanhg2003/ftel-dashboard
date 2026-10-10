@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -123,18 +124,44 @@ def test_nap_thay_dung_nguon_va_gop_trung_giua_hai_file(sach):
         db.nap(b"", "x", "KHAC", "kiemthu.admin")
 
 
-def test_tim_bo_dau_loc_chi_nhanh_va_xep_ten_truoc(sach):
+def _loc_js(du_lieu: dict, q="", dv="", nhom="all") -> list[str]:
+    """Chạy ĐÚNG hàm lọc của trình duyệt (assets/danh_ba.js) bằng Node - bộ lọc không còn nằm ở Python."""
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Máy không có Node để chạy bộ lọc của trình duyệt")
+    js = Path(__file__).resolve().parent.parent / "assets" / "danh_ba.js"
+    code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const a=JSON.parse(d);"
+            "console.log(JSON.stringify(m.loc(a.ds,a.q,a.dv,a.nhom).map(r=>r.t)));});")
+    kq = subprocess.run([node, "-e", code, str(js)], input=json.dumps({"ds": du_lieu["ds"], "q": q, "dv": dv, "nhom": nhom}),
+                        capture_output=True, text=True, encoding="utf-8", check=True)
+    return json.loads(kq.stdout)
+
+
+def test_du_lieu_cho_trinh_duyet_gon_va_da_xep(sach):
     db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
-    ds, tong = db.tim("binh")                                          # không dấu vẫn ra "Bình"
-    assert tong == 1 and ds.iloc[0].ho_ten == "Tô Duy Bình"
-    assert db.tim("giam doc")[1] == 3                                  # Giám Đốc ×2 + Phó Giám đốc
-    ds, _ = db.tim("", don_vi="Khánh Hòa")
-    assert set(ds.ho_ten) == {"Lê Cảnh Ý", "Hoàng Anh"}
-    ds, _ = db.tim("", nhom="giam_doc")
-    assert set(ds.ho_ten) == {"Nguyễn Đăng Duy", "Hoàng Anh"}
-    ds, _ = db.tim("0962523713")                                       # tìm theo số điện thoại
-    assert list(ds.ho_ten) == ["Tô Duy Bình"]
-    assert db.ds_don_vi()[0] == "Đà Nẵng"                              # chi nhánh của sale đứng đầu
+    db.nap(_xlsx({"Miền Trung": TIN_MT}), "tin.xlsx", "TIN", "kiemthu.admin")
+    d = db.cho_trinh_duyet()
+    assert d["dv"][0] == "Đà Nẵng" and "PNC cập nhật" in d["moi"] and "TIN cập nhật" in d["moi"]
+    assert d["nhom"]["giam_doc"] == "Giám đốc" and len(d["ds"]) == 7
+    assert d["ds"][0]["v"] == "Đà Nẵng" and d["ds"][0]["n"] == "giam_doc"        # chi nhánh của sale, giám đốc trước
+    binh = next(r for r in d["ds"] if r["t"] == "Tô Duy Bình")
+    assert binh["e"] == "BinhTD@vienthongtin.com" and binh["k"] == "BinhTD7@fpt.com" and binh["y"] == 0
+    assert set(binh) == {"i", "t", "c", "e", "k", "x", "d", "v", "g", "n", "s", "u", "y", "q", "b"}
+    db.luu_tay({"ho_ten": "Người Tay", "email": "tay@fpt.com", "don_vi": "Đà Nẵng"}, "kiemthu.nvkd")
+    assert next(r for r in db.cho_trinh_duyet()["ds"] if r["t"] == "Người Tay")["y"] > 0      # có id => hiện nút Sửa
+
+
+def test_bo_loc_trinh_duyet_bo_dau_chi_nhanh_nhom_so_dien_thoai(sach):
+    db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
+    d = db.cho_trinh_duyet()
+    assert _loc_js(d, "binh") == ["Tô Duy Bình"]                              # không dấu vẫn ra "Bình"
+    assert len(_loc_js(d, "giam doc")) == 3                                   # Giám Đốc ×2 + Phó Giám đốc
+    assert set(_loc_js(d, dv="Khánh Hòa")) == {"Lê Cảnh Ý", "Hoàng Anh"}
+    assert set(_loc_js(d, nhom="giam_doc")) == {"Nguyễn Đăng Duy", "Hoàng Anh"}
+    assert _loc_js(d, "0962523713") == ["Tô Duy Bình"]                        # tìm theo số điện thoại
+    assert _loc_js(d, "khong co ai") == [] and len(_loc_js(d)) == 5
+    assert _loc_js(d, "duy")[0] == "Nguyễn Đăng Duy"                          # khớp ngay trong TÊN xếp trước ("Tô Duy Bình" cũng khớp)
 
 
 def test_goi_y_doi_truong_theo_dia_chi_va_doan_chi_nhanh(sach):
@@ -167,7 +194,7 @@ def test_nguoi_sale_tu_them_sua_xoa_va_chi_sua_duoc_nguoi_tay(sach):
         with pytest.raises(db.LoiDanhBa, match=thong_bao):
             db.luu_tay(sai, "kiemthu.nvkd")
     db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
-    id_file = int(db.tim("Lê Cảnh Ý")[0].iloc[0].id)
+    id_file = int(db.tat_ca().set_index("ho_ten").loc["Lê Cảnh Ý"].id)
     with pytest.raises(db.LoiDanhBa, match="sale tự thêm"):
         db.xoa_tay(id_file, "kiemthu.nvkd")
     db.xoa_tay(id_, "kiemthu.nvkd")

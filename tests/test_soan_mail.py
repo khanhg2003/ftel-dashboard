@@ -190,5 +190,42 @@ def test_trang_soan_email_dung_duoc_ma_khong_can_database():
     nut = soanmail._hanh_dong("ca_hot", kq, nguoi)[0].children
     assert nut[1].to_plotly_json()["props"]["data-chep"] == "a@fpt.com" and nut[2].to_plotly_json()["props"]["data-chep"] == ""
     assert nut[0].to_plotly_json()["props"]["data-chep-nguon"] == "#sm-than"
-    assert len(soanmail._o_form("hoa_don")) == len(sm.LOAI["hoa_don"]["truong"]) + 1
+    assert len(soanmail._o_form("hoa_don").children) == len(sm.LOAI["hoa_don"]["truong"]) + 1
     assert soanmail._xem(kq).to_plotly_json()
+
+
+def _cac_id(nut) -> list[str]:
+    """Mọi id trong cây thành phần Dash (id kiểu dict đổi sang chuỗi để so trùng)."""
+    ids, dung = [], [nut]
+    while dung:
+        n = dung.pop()
+        if isinstance(n, (list, tuple)):
+            dung.extend(n)
+            continue
+        i = getattr(n, "id", None)
+        if i is not None:
+            ids.append(str(sorted(i.items())) if isinstance(i, dict) else i)
+        dung.extend([c for c in [getattr(n, "children", None)] if c is not None])
+    return ids
+
+
+def test_hai_trang_dung_duoc_va_khong_trung_id():
+    """Lỗi thật 10/10/2026: `html.Input` không tồn tại nên trang Danh bạ nổ 500 mà các test hàm không bắt được."""
+    from flask_login import login_user
+
+    from app.auth import SessionUser
+    from app.ui.app import server
+    from app.ui.pages import danhba, soanmail
+    ad = SessionUser(SimpleNamespace(id=1, username="kiemthu.admin", ho_ten="K", role="admin", ma_nv=None,
+                                     session_version=0, scope="[]"))
+    with server.test_request_context("/"):
+        login_user(ad)
+        for trang in (danhba, soanmail):
+            ids = _cac_id(trang.layout())
+            assert ids and not {i for i in ids if ids.count(i) > 1}, trang.__name__
+            assert trang.topbar()
+        ids = _cac_id(soanmail.layout())
+        assert {"sm-form", "sm-loai", "sm-db-kq", "sm-db-tim", "sm-db-dv", "sm-db-dem", "sm-du-lieu", "sm-sk-chon"} <= set(ids)
+        assert {"db-kq", "db-dem", "db-tim", "db-dv", "db-sk-sua", "db-du-lieu"} <= set(_cac_id(danhba.layout()))
+        # cả ba biểu mẫu có mặt sẵn, mỗi ô mang tên loại để không trùng nhau
+        assert all(f"sm-form-{loai}" in ids for loai in sm.LOAI)
