@@ -43,14 +43,23 @@
         return (chu || '').split(/[;,]/).map(function (x) { return x.trim(); }).filter(Boolean);
     }
 
-    const LINK_TOI_DA = 7000;                                   // link dài quá thì bỏ nội dung khỏi link, nội dung vẫn nằm trong clipboard
+    const LINK_TOI_DA = 8000;                                   // link dài quá thì bỏ nội dung khỏi link, nội dung vẫn nằm trong clipboard
 
+    /* Outlook web nhận thư mới qua `compose?mailtouri=<mailto đã mã hoá>` (đúng đường nó tự đăng ký làm chương trình mail).
+       Dùng riêng các tham số to / cc thì Outlook bỏ qua CC (chủ app báo 10/10/2026), mailtouri thì đọc đủ Đến, CC, tiêu đề, nội dung. */
     function taoLinkOutlook(den, cc, tieu, noiDung) {
-        const q = ['to=' + encodeURIComponent(den.join(';')), 'subject=' + encodeURIComponent(tieu)];
-        if (cc.length) { q.splice(1, 0, 'cc=' + encodeURIComponent(cc.join(';'))); }
-        const goc = 'https://outlook.office.com/mail/deeplink/compose?' + q.join('&');
-        const co = noiDung ? goc + '&body=' + encodeURIComponent(noiDung.replace(/\r?\n/g, '\r\n')) : goc;
-        return co.length <= LINK_TOI_DA ? co : goc;
+        const mailto = function (body) {
+            const q = [];
+            if (cc.length) { q.push('cc=' + cc.join(',')); }
+            q.push('subject=' + encodeURIComponent(tieu));
+            if (body) { q.push('body=' + encodeURIComponent(body.replace(/\r?\n/g, '\r\n'))); }
+            return 'mailto:' + den.join(',') + '?' + q.join('&');
+        };
+        const link = function (body) {
+            return 'https://outlook.office.com/mail/deeplink/compose?mailtouri=' + encodeURIComponent(mailto(body));
+        };
+        const co = link(noiDung);
+        return co.length <= LINK_TOI_DA ? co : link('');
     }
 
     if (typeof document !== 'undefined') { document.addEventListener('click', async function (e) {

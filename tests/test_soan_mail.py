@@ -270,8 +270,10 @@ def test_link_outlook_web_dien_san_den_cc_tieu_de_noi_dung():
             "d:m.taoLinkOutlook(['a@fpt.com'],[],'T','ế'.repeat(5000))}))")
     js = Path(__file__).resolve().parent.parent / "assets" / "sao_chep.js"
     o = json.loads(subprocess.run([node, "-e", code, str(js)], capture_output=True, text=True, encoding="utf-8", check=True).stdout)
-    goc = "https://outlook.office.com/mail/deeplink/compose?"
-    assert o["a"] == goc + ("to=a%40fpt.com%3Bb%40fpt.com&cc=c%40fpt.com&subject=H%C4%90%20X1%20%26%20g%E1%BA%A5p"
-                            "&body=Dear%20anh%2C%0D%0A%0D%0AEm%20c%E1%BA%A3m%20%C6%A1n")
-    assert o["b"] == goc + "to=a%40fpt.com&subject=T" and o["c"] == ["a@x.vn", "b@x.vn"]
-    assert o["d"] == goc + "to=a%40fpt.com&subject=T"                       # nội dung quá dài: bỏ khỏi link, vẫn có trong clipboard
+    from urllib.parse import quote
+    goc = "https://outlook.office.com/mail/deeplink/compose?mailtouri="
+    mt = ("mailto:a@fpt.com,b@fpt.com?cc=c@fpt.com&subject=H%C4%90%20X1%20%26%20g%E1%BA%A5p"
+          "&body=Dear%20anh%2C%0D%0A%0D%0AEm%20c%E1%BA%A3m%20%C6%A1n")
+    assert o["a"] == goc + quote(mt, safe="")                      # CC nằm trong mailto: Outlook web chỉ đọc đủ CC theo đường này
+    assert o["b"] == goc + quote("mailto:a@fpt.com?subject=T", safe="") and o["c"] == ["a@x.vn", "b@x.vn"]
+    assert o["d"] == goc + quote("mailto:a@fpt.com?subject=T", safe="")      # nội dung quá dài: bỏ khỏi link, vẫn có trong clipboard
