@@ -143,6 +143,9 @@ def _o_form(loai: str) -> html.Div:
 
 
 def _chip(vt: str, i: int, p: dict) -> html.Span:
+    if p.get("khoa"):                                        # CC bắt buộc: không có nút gỡ
+        return html.Span([html.Span(p["ten"], className="sm-ten"), html.Span(p["chuc_vu"], className="sm-cv")],
+                         className="sm-chip khoa", title=p["email"] + " · luôn CC theo quy định của phòng")
     return html.Span([html.Span(p["ten"], className="sm-ten"),
                       html.Span(p["chuc_vu"], className="sm-cv") if p["chuc_vu"] else None,
                       html.Button("×", id={"type": "sm-go", "vt": vt, "i": i}, className="sm-x", n_clicks=0,
@@ -265,7 +268,8 @@ def _dang_ky_nguoi(app):
     @app.callback(Output("sm-chips", "children"), Input("sm-nguoi", "data"))
     def _chips(nguoi):
         _vao()
-        return [_dong_chip(vt, (nguoi or {}).get(vt, [])) for vt in ("den", "cc")]
+        nguoi = sm.gop_cc_bat_buoc(nguoi or {}, current_user)
+        return [_dong_chip(vt, nguoi[vt]) for vt in ("den", "cc")]
 
 
 def _dang_ky_xem(app):
@@ -279,7 +283,7 @@ def _dang_ky_xem(app):
         _vao()
         if loai not in sm.LOAI:
             raise PreventUpdate
-        nguoi = nguoi or {"den": [], "cc": []}
+        nguoi = sm.gop_cc_bat_buoc(nguoi or {}, current_user)
         v = {**_cua_loai(loai, vals, ids), **_cua_loai(loai, vals_t, ids_t), "xung": xung or "anh", "nguoi_gui": gui or "",
              "chao": sm.loi_chao(nguoi["den"], xung or "anh")}
         kq = sm.dung(loai, v)

@@ -189,6 +189,26 @@ def goi_y(loai: str, don_vi_lap: str | None, dia_chi: str) -> dict:
     return out
 
 
+def cc_bat_buoc(user) -> list[dict]:
+    """Người luôn phải CC theo phòng của tài khoản nvkd (config/rules.yml → soan_mail.cc_bat_buoc, chủ app chốt 10/10/2026:
+    nvkd IBB7 luôn CC PhucVHD). Admin không bị áp. Mỗi người có cờ `khoa` để giao diện không cho gỡ."""
+    if getattr(user, "role", None) != "nvkd":
+        return []
+    ch = rules_config().get("soan_mail", {}).get("cc_bat_buoc") or {}
+    phong = set(user.phong_soan_mail())
+    return [{"id": 0, "ten": e.split("@")[0], "email": e, "chuc_vu": "CC bắt buộc", "don_vi": "", "khoa": True}
+            for p, ds in ch.items() if p in phong for e in ds]
+
+
+def gop_cc_bat_buoc(nguoi: dict, user) -> dict:
+    """Danh sách người nhận kèm CC bắt buộc (bản sao, chỉ để hiển thị / dựng mail, không lưu lại). Ai đã có sẵn ở Đến hoặc CC thì
+    không thêm lần nữa."""
+    nguoi = {"den": list(nguoi.get("den") or []), "cc": list(nguoi.get("cc") or [])}
+    co = {p["email"].lower() for p in nguoi["den"] + nguoi["cc"]}
+    nguoi["cc"] += [p for p in cc_bat_buoc(user) if p["email"].lower() not in co]
+    return nguoi
+
+
 def _chu(v) -> str:
     return v if isinstance(v, str) else ""
 

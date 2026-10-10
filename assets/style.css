@@ -1323,6 +1323,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-chip { display: inline-flex; align-items: center; gap: 6px; background: #E6EEF8; color: var(--fpt-blue);
   border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; }
 .sm-cv { color: #475467; font-size: 11px; margin-left: 5px; }
+.sm-chip.khoa { background: #EEF0F3; color: #475467; padding-right: 10px; }
 .sm-x { border: 0; background: transparent; cursor: pointer; color: inherit; font-size: 15px; line-height: 1; padding: 0 6px; }
 .sm-tay { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 8px 16px; border-top: 1px solid var(--border); }
 .sm-tay .inp { flex: 1; min-width: 200px; }

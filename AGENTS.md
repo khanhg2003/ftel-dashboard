@@ -184,7 +184,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      (cột ghi chú là chữ tự do "Block Sơn Trà" nên khớp cụm với địa chỉ, không có bảng phân vùng) + TP kỹ thuật; hoá đơn →
      PGĐ nơi lắp, CC giám đốc nơi lắp + giám đốc Đà Nẵng; hạ tầng → TP hạ tầng, CC giám đốc. Chi nhánh có trong cả hai
      file thì chỉ gợi ý người của bản MỚI (PNC T10) vì TIN (T8) có thể đã cũ (giám đốc Đà Nẵng lệch giữa hai file).
-     **Fox chỉ viết MỘT đoạn "tình huống" từ ý chính của sale**; địa chỉ, SĐT, MST, tên khách KHÔNG gửi AI (số dài ≥ 6 chữ
+     **CC bắt buộc theo phòng** (`rules.yml` → `soan_mail.cc_bat_buoc`, 10/10/2026: nvkd IBB7 luôn CC PhucVHD@fpt.com; admin không bị áp): gộp lúc hiển thị / dựng mail (`gop_cc_bat_buoc`), chip có cờ `khoa` không có nút gỡ, không lưu vào danh sách của sale. **Fox chỉ viết MỘT đoạn "tình huống" từ ý chính của sale**; địa chỉ, SĐT, MST, tên khách KHÔNG gửi AI (số dài ≥ 6 chữ
      số và email bị che trong `_che`), có trần `TOI_DA_NGAY` lượt/ngày, nút `running=` khoá khi đang chạy, có "Hoàn tác".
      **Giao diện (chốt 10/10/2026):** bên trái chọn loại (ba thẻ, bấm là đổi ngay trên trình duyệt) + điền ô + ô "Thêm ý riêng" (đoạn `{?y_them}` nằm
      trước câu cảm ơn); bên phải là MỘT lá thư kiểu Outlook: Đến / CC, gợi ý, tiêu đề, nội dung. **Tiêu đề và nội dung sửa được trực tiếp**

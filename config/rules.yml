@@ -68,6 +68,9 @@ bao_cao_ngay:
 soan_mail:
   phong: [IBB7]
   chi_nhanh_nha: Đà Nẵng        # chi nhánh của người soạn: mail xin xuất hoá đơn luôn CC giám đốc chi nhánh này
+  # CC bắt buộc theo phòng (chốt 10/10/2026): tài khoản nvkd của phòng nào thì mail luôn CC những người này, không gỡ được.
+  cc_bat_buoc:
+    IBB7: [PhucVHD@fpt.com]
 
 nhap_ton:
   phong: [IBB7]

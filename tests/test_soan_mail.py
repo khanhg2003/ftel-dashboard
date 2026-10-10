@@ -277,3 +277,29 @@ def test_link_outlook_web_dien_san_den_cc_tieu_de_noi_dung():
     assert o["a"] == goc + quote(mt, safe="")                      # CC nằm trong mailto: Outlook web chỉ đọc đủ CC theo đường này
     assert o["b"] == goc + quote("mailto:a@fpt.com?subject=T", safe="") and o["c"] == ["a@x.vn", "b@x.vn"]
     assert o["d"] == goc + quote("mailto:a@fpt.com?subject=T", safe="")      # nội dung quá dài: bỏ khỏi link, vẫn có trong clipboard
+
+
+def test_nvkd_ibb7_luon_cc_phuc_con_admin_thi_khong():
+    """Chủ app chốt 10/10/2026: tài khoản nvkd IBB7 phải CC PhucVHD@fpt.com. Gộp ở bản sao hiển thị, không lưu vào danh sách của sale."""
+    nvkd = SimpleNamespace(role="nvkd", phong_soan_mail=lambda: ["IBB7"])
+    khac = SimpleNamespace(role="nvkd", phong_soan_mail=lambda: ["IBB2"])
+    admin = SimpleNamespace(role="admin", phong_soan_mail=lambda: ["IBB7"])
+    assert [p["email"] for p in sm.cc_bat_buoc(nvkd)] == ["PhucVHD@fpt.com"] and sm.cc_bat_buoc(khac) == [] and sm.cc_bat_buoc(admin) == []
+    goc = {"den": [{"ten": "A", "email": "a@fpt.com"}], "cc": [{"ten": "B", "email": "b@fpt.com"}]}
+    g = sm.gop_cc_bat_buoc(goc, nvkd)
+    assert [p["email"] for p in g["cc"]] == ["b@fpt.com", "PhucVHD@fpt.com"] and g["cc"][1]["khoa"] and len(goc["cc"]) == 1
+    cu = {"den": [], "cc": [{"ten": "P", "email": "phucvhd@FPT.com"}]}               # đã tự thêm: không nhân đôi
+    assert len(sm.gop_cc_bat_buoc(cu, nvkd)["cc"]) == 1
+    assert sm.gop_cc_bat_buoc({}, admin) == {"den": [], "cc": []}
+
+
+def test_cc_bat_buoc_ap_dung_voi_tai_khoan_that():
+    import json
+
+    from app.auth import SessionUser
+
+    def tk(role, scope):
+        return SessionUser(SimpleNamespace(id=1, username=f"kiemthu.{role}", ho_ten="K", role=role, ma_nv=None,
+                                           session_version=0, scope=json.dumps(scope)))
+    assert [p["email"] for p in sm.cc_bat_buoc(tk("nvkd", ["IBB7"]))] == ["PhucVHD@fpt.com"]
+    assert sm.cc_bat_buoc(tk("nvkd", ["IBB2"])) == [] and sm.cc_bat_buoc(tk("admin", [])) == []
