@@ -127,11 +127,16 @@ NAV = [
         ("/", "Báo cáo Tổng", "dashboard", None),
         ("/tracking", "Tracking ngày & So sánh", "trend", None),
     ]),
-    ("Phòng & nhân sự", [
+    # Thứ tự theo ngày làm việc của sale: nhập liệu đầu ngày -> công cụ làm việc -> xem số (chủ app yêu cầu 10/10/2026)
+    ("Nhập liệu", [
         ("/baocaongay", "Báo cáo ngày", "calendar", "baocaongay"),
         ("/nhapton", "Nhập tồn", "edit", "nhapton"),
+    ]),
+    ("Công cụ", [
         ("/soanmail", "Soạn email", "mail", "soanmail"),
         ("/danhba", "Danh bạ", "book", "soanmail"),
+    ]),
+    ("Phòng & nhân sự", [
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
         ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
     ]),

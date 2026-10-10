@@ -208,7 +208,7 @@ def test_menu_con_8_muc_theo_nhom():
     assert len(muc) == 13 and len(set(muc)) == 13          # 24/09/2026 thêm Báo cáo ngày; 10/10/2026 thêm Soạn email + Danh bạ
     assert {"/nhapton", "/baocaongay", "/soanmail", "/danhba"} <= set(muc)
     assert "/settings" not in muc and "/sosanh" not in muc
-    assert [n for n, _ in NAV] == ["Hằng ngày", "Phòng & nhân sự", "Phân tích", "Dữ liệu", "Hệ thống"]
+    assert [n for n, _ in NAV] == ["Hằng ngày", "Nhập liệu", "Công cụ", "Phòng & nhân sự", "Phân tích", "Dữ liệu", "Hệ thống"]
 
 
 @pytest.mark.parametrize("duong_dan, tim_thay", [
