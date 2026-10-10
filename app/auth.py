@@ -42,7 +42,7 @@ ROLE_SETTINGS = {"admin"}
 ROLE_XEM_NHAN_SU = {"admin", "phong", "nvkd"}
 # Nhân viên KD (tài khoản dùng chung của một phòng, chốt 21/09/2026): chỉ vào đúng các trang này,
 # chi tiết nhân sự chỉ phòng mình, Ads chỉ khi phòng mình là phòng chạy Ads.
-TRANG_NVKD = {"/baocaongay", "/nhapton", "/phong", "/ads", "/taikhoan", "/huongdan"}
+TRANG_NVKD = {"/baocaongay", "/nhapton", "/soanmail", "/danhba", "/phong", "/ads", "/taikhoan", "/huongdan"}
 PHONG_ADS = "IBB7"
 
 
@@ -128,6 +128,15 @@ class SessionUser(UserMixin):
     def phong_bao_cao_ngay(self) -> list[str]:
         """Phòng được xem / ghi Báo cáo đầu ngày (chốt 24/09/2026)."""
         return self._phong_bat("bao_cao_ngay")
+
+    def phong_soan_mail(self) -> list[str]:
+        """Phòng được dùng Soạn email + Danh bạ (nvkd của phòng bật ở rules.yml; BGĐ / admin dùng được mọi lúc)."""
+        return self._phong_bat("soan_mail")
+
+    @property
+    def duoc_soan_mail(self) -> bool:
+        """Soạn email + Danh bạ: admin (BGĐ + tài khoản kỹ thuật) và nvkd đúng phòng IBB7 (chủ app chốt 10/10/2026)."""
+        return self.role == "admin" or self.la_superadmin or (self.role == "nvkd" and bool(self.phong_soan_mail()))
 
     @property
     def duoc_nhap_ton(self) -> bool:

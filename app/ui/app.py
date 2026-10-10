@@ -130,6 +130,8 @@ NAV = [
     ("Phòng & nhân sự", [
         ("/baocaongay", "Báo cáo ngày", "calendar", "baocaongay"),
         ("/nhapton", "Nhập tồn", "edit", "nhapton"),
+        ("/soanmail", "Soạn email", "mail", "soanmail"),
+        ("/danhba", "Danh bạ", "book", "soanmail"),
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
         ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
     ]),
@@ -163,6 +165,8 @@ def _sidebar(path: str):
             if quyen == "nhapton" and not current_user.duoc_nhap_ton:
                 continue
             if quyen == "baocaongay" and not current_user.duoc_bao_cao_ngay:
+                continue
+            if quyen == "soanmail" and not current_user.duoc_soan_mail:
                 continue
             if quyen == "ads" and not current_user.duoc_xem_ads:
                 continue
@@ -365,6 +369,12 @@ def _router(path, search=None, store=None):
     if path == "/nhapton":
         from app.ui.pages import nhapton
         return nhapton.layout(), nhapton.topbar()
+    if path in ("/soanmail", "/danhba"):
+        from app.ui.pages import danhba, soanmail
+        if not current_user.duoc_soan_mail:
+            return html.Div("Tài khoản này không dùng được Soạn email và Danh bạ."), _topbar_simple("Danh bạ")
+        trang = soanmail if path == "/soanmail" else danhba
+        return trang.layout(), trang.topbar()
     ky = ky_chung.doc(store, search)
     if path in TRANG_CAN_SO:
         from app.metrics import ngay_moi_nhat
@@ -431,9 +441,10 @@ def _register_pages():
     from app.ui import ngan_nhan_su, tro_ly
 
     from app.ui.pages import ads as ads_page
-    from app.ui.pages import baocaongay, nhapton
+    from app.ui.pages import baocaongay, danhba, nhapton, soanmail
     for mod in (tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
-                settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su):
+                settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
+                danhba, soanmail):
         mod.register(app)
 
 

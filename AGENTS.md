@@ -32,6 +32,8 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Kỳ báo cáo dùng chung giữa các trang | `app/ui/ky_chung.py` |
 | Ngăn chi tiết một nhân sự (mở từ mọi bảng nhân sự) | `app/ui/ngan_nhan_su.py` + `assets/nhan_su_bam.js`; nội dung hồ sơ ở `app/ho_so_nhan_su.py`, `app/ui/pages/phong_ho_so.py` |
 | Nhập Báo cáo ngày bằng giọng nói | `app/giong_noi.py` (tách số, khớp tên, quyền) + `app/ui/pages/baocaongay_giong.py` + `assets/ghi_am.js` |
+| Danh bạ liên hệ (đọc hai file PNC / TIN, gộp trùng, tra cứu, người sale tự thêm) | `app/danh_ba.py` + `app/ui/pages/danhba.py` |
+| Soạn email (khuôn 3 loại mail, gợi ý người nhận, Fox viết đoạn tình huống) + nút copy dùng chung | `app/soan_mail.py` + `app/ui/pages/soanmail.py` + `assets/sao_chep.js` |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 
@@ -171,6 +173,25 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      phải ĐỌC ĐƯỢC TRÊN ĐIỆN THOẠI: đừng giảm xuống dưới mức hiện tại (dòng số 19, bảng 17, ba khối chữ
      16,5 ở tỷ lệ vẽ 1). Nút gọi AI hoặc vẽ ảnh phải có `running=` khoá nút + đổi chữ trong lúc chạy,
      nếu không người dùng bấm lại nhiều lần - mỗi lần là một lượt gọi AI tốn tiền.
+   - *Soạn email + Danh bạ* (`app/soan_mail.py`, `app/danh_ba.py`, chốt 10/10/2026; **chỉ admin + nvkd IBB7**:
+     `duoc_soan_mail`, phòng bật ở `config/rules.yml` → `soan_mail`; trưởng phòng KHÔNG dùng): sale chọn một trong 3 loại mail
+     mẫu (ca hot triển khai · xin xuất hoá đơn DN · xin đầu tư hạ tầng), điền các ô thay đổi, KHUÔN (`LOAI[...]["than"]`) tự
+     điền phần cố định, xem trước rồi **Copy dán vào Outlook** - app KHÔNG gửi mail, KHÔNG mở Outlook (mailto bị giới hạn độ
+     dài, mất chữ đậm), KHÔNG lưu nội dung mail và KHÔNG xử lý ảnh CCCD (sale tự đính kèm; có dòng nhắc). Chỉ ghi nhật ký
+     `soan_mail` (loại + mã HĐ) và `soan_mail_fox`. **Người nhận chỉ GỢI Ý, sale tự chọn Đến / CC** (chủ app chốt):
+     đừng tự điền người nhận. Quy tắc gợi ý ở `LOAI[...]["goi_y"]` theo nhóm chức danh (`danh_ba.nhom_chuc`) và chi nhánh
+     nơi lắp (ô chọn, hoặc đoán từ địa chỉ, hoặc chi nhánh của sale): ca hot → đội trưởng phụ trách khu vực trong địa chỉ
+     (cột ghi chú là chữ tự do "Block Sơn Trà" nên khớp cụm với địa chỉ, không có bảng phân vùng) + TP kỹ thuật; hoá đơn →
+     PGĐ nơi lắp, CC giám đốc nơi lắp + giám đốc Đà Nẵng; hạ tầng → TP hạ tầng, CC giám đốc. Chi nhánh có trong cả hai
+     file thì chỉ gợi ý người của bản MỚI (PNC T10) vì TIN (T8) có thể đã cũ (giám đốc Đà Nẵng lệch giữa hai file).
+     **Fox chỉ viết MỘT đoạn "tình huống" từ ý chính của sale**; địa chỉ, SĐT, MST, tên khách KHÔNG gửi AI (số dài ≥ 6 chữ
+     số và email bị che trong `_che`), có trần `TOI_DA_NGAY` lượt/ngày, nút `running=` khoá khi đang chạy, có "Hoàn tác".
+     Thêm loại mail mới = thêm một mục vào `LOAI` (có test chặn ô trong khuôn không có nguồn). Danh bạ: file PNC (Đà
+     Nẵng vào Nam, mới hơn) và TIN (Đà Nẵng ra Bắc) do admin nạp lại hằng tháng, **mỗi file là bản chụp mới nhất** (thay
+     toàn bộ dòng của nguồn đó), bộ đọc nhận cột theo TÊN chứ không theo vị trí vì hai file khác nhau (`_doc_sheet`); trùng
+     người (tên + chi nhánh) gộp lúc ĐỌC theo TAY > PNC > TIN, email lệch giữ thành "email khác". Người ngoài file (vd
+     người CC trong mail mẫu) do sale tự thêm (nguồn TAY, sửa / xoá được). Có số di động nội bộ: không đưa file Excel
+     danh bạ vào git, không in ra log.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền
@@ -200,7 +221,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    Trước đây chỉ giao phạm vi với danh sách bật nên ai có IBB7 trong phạm vi là vào được (chủ app
    phát hiện qua tài khoản LongPH). Bật thêm phòng thì thêm mã phòng vào `rules.yml`, đừng nới quyền.
 5. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
-   Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
+   Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Soạn email, Danh bạ, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
    Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel.
    **AI (đổi 28/09/2026):** KHÔNG còn quyền AI nào. Trước đây có một đường mở riêng để bấm nút
    "Fox viết giúp" ở Báo cáo ngày (`VAI_TRO_VIET_BAO_CAO` + tham số `chi_viet`); nút đó đã bỏ nên

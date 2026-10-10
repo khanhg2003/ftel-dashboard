@@ -396,3 +396,22 @@ class TonTheoDoi(Base):
     phuong_an: Mapped[str | None] = mapped_column(String(60), nullable=True)
     cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC
     cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class DanhBa(Base):
+    """Danh bạ liên hệ nội bộ (Soạn email + Danh bạ, chốt 10/10/2026). Mỗi nguồn là một bản chụp theo file:
+    nạp lại file nào thì thay đúng các dòng của nguồn đó (PNC = Đà Nẵng vào Nam, TIN = Đà Nẵng ra Bắc).
+    Người sale tự thêm là nguồn TAY. Hai file trùng người thì gộp lúc ĐỌC (`danh_ba.tat_ca`), không gộp lúc lưu."""
+    __tablename__ = "danh_ba"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nguon: Mapped[str] = mapped_column(String(8), index=True)                     # PNC | TIN | TAY
+    ho_ten: Mapped[str] = mapped_column(String(120))
+    chuc_vu: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    ext: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    di_dong: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    don_vi: Mapped[str | None] = mapped_column(String(80), nullable=True)          # chi nhánh / đơn vị: Đà Nẵng, Khánh Hòa...
+    khu_vuc: Mapped[str | None] = mapped_column(String(80), nullable=True)         # sheet / khu vực lớn
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # UTC
+    cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)

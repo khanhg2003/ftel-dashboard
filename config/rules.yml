@@ -64,6 +64,11 @@ bao_cao_ngay:
   # Nhập báo cáo bằng giọng nói (app/giong_noi.py), chốt 08/10/2026: phòng nào được dùng (phải nằm trong `phong`).
   giong_noi: [IBB7]
 
+# Soạn email + Danh bạ (app/soan_mail.py, app/danh_ba.py), chốt 10/10/2026: nvkd của các phòng này + admin dùng được.
+soan_mail:
+  phong: [IBB7]
+  chi_nhanh_nha: Đà Nẵng        # chi nhánh của người soạn: mail xin xuất hoá đơn luôn CC giám đốc chi nhánh này
+
 nhap_ton:
   phong: [IBB7]
   han_tra_ve_ngay: 3
