@@ -17,10 +17,13 @@
         sm: {kq: 'sm-db-kq', dem: 'sm-db-dem', tim: 'sm-db-tim', dv: 'sm-db-dv', gioiHan: 30, chon: true}
     };
     const KHO = {db: {du_lieu: null, nhom: 'all', che: 'the'}, sm: {du_lieu: null, nhom: 'all', che: 'the'}};
-    // Sơ đồ theo CHỨC DANH, không phải quan hệ báo cáo (file danh bạ không có cột "báo cáo cho").
-    const TANG = [['Ban giám đốc', ['giam_doc', 'pho_giam_doc']], ['Kỹ thuật và hạ tầng', ['truong_phong_kt', 'ha_tang']],
-                  ['Đội trưởng theo khu vực', ['doi_truong']], ['Chăm sóc khách hàng (DVKH)', ['dvkh']], ['Kế toán', ['ke_toan']],
-                  ['Hành chính nhân sự', ['hcns']], ['Khác', ['khac']]];
+    // Sơ đồ cây theo PHÒNG BAN dựng từ chức danh: ban giám đốc ở gốc, mỗi phòng ban là một nhánh. Đường nối chỉ nói
+    // "phòng ban này thuộc chi nhánh", KHÔNG nói ai báo cáo cho ai (file danh bạ không có cột "báo cáo cho").
+    const GOC = ['giam_doc', 'pho_giam_doc'];
+    const PB = [{ten: 'Kỹ thuật và hạ tầng', nhom: ['truong_phong_kt', 'ha_tang'],
+                 con: {ten: 'Đội trưởng theo khu vực', nhom: ['doi_truong']}},
+                {ten: 'Chăm sóc khách hàng (DVKH)', nhom: ['dvkh']}, {ten: 'Kế toán', nhom: ['ke_toan']},
+                {ten: 'Hành chính nhân sự', nhom: ['hcns']}, {ten: 'Khác', nhom: ['khac']}];
     const IC = {
         mail: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M3 7l9 6 9-6"/></svg>',
         phone: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>',
@@ -88,24 +91,30 @@
         return h + '</div></div>';
     }
 
-    function chiaTang(ds) {
-        return TANG.map(function (t) { return {ten: t[0], ds: ds.filter(function (r) { return t[1].indexOf(r.n) >= 0; })}; })
-            .filter(function (t) { return t.ds.length; });
+    function chiaPhongBan(ds) {
+        const theo = function (nhom) { return ds.filter(function (r) { return nhom.indexOf(r.n) >= 0; }); };
+        return {
+            goc: theo(GOC),
+            pb: PB.map(function (p) {
+                return {ten: p.ten, ds: theo(p.nhom), con: p.con ? {ten: p.con.ten, ds: theo(p.con.nhom)} : null};
+            }).filter(function (p) { return p.ds.length || (p.con && p.con.ds.length); })
+        };
     }
 
-    function o(r, cuHon) {
+    function nut(r, cuHon, goc) {
         const so = String(r.d || '').replace(/\D/g, '');
-        let h = '<div class="db-o"><b>' + esc(r.t) + '</b><span class="db-o-cv">' + esc(r.c) + '</span>';
-        if (r.g) { h += '<span class="db-o-gc">' + esc(r.g) + '</span>'; }
+        let h = '<div class="db-n' + (goc ? ' goc' : '') + '"><b>' + esc(r.t) + '</b><span class="db-n-cv">' + esc(r.c) + '</span>';
+        if (r.g) { h += '<span class="db-n-gc" title="' + esc(r.g) + '">' + esc(r.g) + '</span>'; }
         if (r.e) {
-            h += '<span class="db-o-dong">' + IC.mail + '<span class="db-gia-tri">' + esc(r.e)
+            h += '<span class="db-n-dong">' + IC.mail + '<span class="db-gia-tri" title="' + esc(r.e) + '">' + esc(r.e)
                 + '</span><button class="nut-chep" title="Copy email" data-chep="' + esc(r.e) + '">' + IC.copy + '</button></span>';
         }
         if (r.d || r.x) {
-            h += '<span class="db-o-dong">' + IC.phone + (r.d ? '<a class="db-gia-tri" href="tel:' + so + '">' + esc(r.d) + '</a>' : '')
-                + (r.x ? '<span class="db-nhan">máy lẻ ' + esc(r.x) + '</span>' : '') + '</span>';
+            h += '<span class="db-n-dong">' + IC.phone + (r.d ? '<a class="db-gia-tri" href="tel:' + so + '">' + esc(r.d) + '</a>' : '')
+                + (r.x ? '<span class="db-nhan">lẻ ' + esc(r.x) + '</span>' : '')
+                + (r.d ? '<button class="nut-chep" title="Copy số" data-chep="' + so + '">' + IC.copy + '</button>' : '') + '</span>';
         }
-        if (cuHon && r.s === 'TIN') { h += '<em class="db-o-cu" title="Chi nhánh này có bản mới hơn (PNC), người này chỉ có trong file TIN cũ">TIN · có thể cũ</em>'; }
+        if (cuHon && r.s === 'TIN') { h += '<em class="db-n-cu" title="Chi nhánh này có bản mới hơn (PNC), người này chỉ có trong file TIN cũ">TIN · có thể cũ</em>'; }
         return h + '</div>';
     }
 
@@ -120,13 +129,23 @@
         }
         const ds = loc(st.du_lieu.ds, q, dv, 'all');
         const cuHon = ds.some(function (r) { return r.s.indexOf('PNC') >= 0 || r.s.indexOf('TAY') >= 0; });
-        if (dem) { dem.textContent = ds.length + ' người · sơ đồ theo chức danh, không thể hiện ai báo cáo cho ai'; }
-        const cu = function (r) { return cuHon && r.s === 'TIN'; };            // người chỉ có trong file TIN cũ xếp cuối tầng
-        kq.innerHTML = ds.length ? chiaTang(ds).map(function (t, i) {
-            t.ds = t.ds.filter(function (r) { return !cu(r); }).concat(t.ds.filter(cu));
-            return (i ? '<div class="db-noi"></div>' : '') + '<div class="db-tang"><div class="db-tang-ten">' + esc(t.ten) + ' · ' + t.ds.length
-                + '</div><div class="db-hang">' + t.ds.map(function (r) { return o(r, cuHon); }).join('') + '</div></div>';
-        }).join('') : '<div class="card"><div class="desc">Không có ai khớp.</div></div>';
+        const cu = function (r) { return cuHon && r.s === 'TIN'; };            // người chỉ có trong file TIN cũ xếp cuối nhóm
+        const xep = function (d) { return d.filter(function (r) { return !cu(r); }).concat(d.filter(cu)); };
+        if (dem) { dem.textContent = ds.length + ' người · sơ đồ theo phòng ban, dựng từ chức danh (không thể hiện ai báo cáo cho ai)'; }
+        if (!ds.length) { kq.innerHTML = '<div class="card"><div class="desc">Không có ai khớp.</div></div>'; return; }
+        const c = chiaPhongBan(ds);
+        const dsHtml = function (d) { return xep(d).map(function (r) { return nut(r, cuHon, false); }).join(''); };
+        const pbHtml = function (p) {
+            const tong = p.ds.length + (p.con ? p.con.ds.length : 0);
+            return '<div class="db-pb"><div class="db-pb-ten"><span>' + esc(p.ten) + '</span><i>' + tong + '</i></div><div class="db-ds">'
+                + dsHtml(p.ds) + (p.con && p.con.ds.length ? '<div class="db-sub"><div class="db-sub-ten"><span>' + esc(p.con.ten)
+                + '</span><i>' + p.con.ds.length + '</i></div><div class="db-ds">' + dsHtml(p.con.ds) + '</div></div>' : '') + '</div></div>';
+        };
+        kq.innerHTML = '<div class="db-cay"><div class="db-cay-trong"><div class="db-goc">'
+            + (c.goc.length ? xep(c.goc).map(function (r) { return nut(r, cuHon, true); }).join('')
+                : '<div class="db-n goc trong">Chưa có thông tin ban giám đốc</div>')
+            + '</div>' + (c.pb.length ? '<div class="db-than"></div><div class="db-nhanh">' + c.pb.map(pbHtml).join('') + '</div>' : '')
+            + '</div></div>';
     }
 
     function ve(ma) {
@@ -210,5 +229,5 @@
             nap_sm: function (d) { return nap('sm', d); }
         });
     }
-    if (typeof module !== 'undefined') { module.exports = {loc, boDau, chiaTang}; }          // để kiểm thử bằng Node
+    if (typeof module !== 'undefined') { module.exports = {loc, boDau, chiaPhongBan}; }          // để kiểm thử bằng Node
 })();

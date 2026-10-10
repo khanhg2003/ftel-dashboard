@@ -220,8 +220,8 @@ def test_dong_trang_thai_nap_file_cap_nhat_sau_khi_nap(sach):
     assert _chu_lan("PNC").startswith("Đang dùng bản nạp ngày ") and _chu_lan("TIN") == "Chưa nạp"
 
 
-def test_so_do_chia_tang_theo_chuc_danh_dung_thu_tu(sach):
-    """Sơ đồ chi nhánh: Ban giám đốc -> Kỹ thuật và hạ tầng -> Đội trưởng -> hỗ trợ; tầng nào trống thì bỏ."""
+def test_so_do_cay_goc_la_ban_giam_doc_nhanh_la_phong_ban(sach):
+    """Sơ đồ cây chi nhánh: gốc = ban giám đốc, mỗi phòng ban một nhánh, đội trưởng nằm trong nhánh Kỹ thuật."""
     import subprocess
     node = shutil.which("node")
     if not node:
@@ -230,13 +230,14 @@ def test_so_do_chia_tang_theo_chuc_danh_dung_thu_tu(sach):
     db.nap(_xlsx({"Miền Trung": TIN_MT}), "tin.xlsx", "TIN", "kiemthu.admin")
     d = db.cho_trinh_duyet()
     code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const a=JSON.parse(d);"
-            "const ds=m.loc(a.ds,'','Đà Nẵng','all');console.log(JSON.stringify(m.chiaTang(ds).map(t=>[t.ten,t.ds.map(r=>r.t)])));});")
+            "const ds=m.loc(a.ds,'','Đà Nẵng','all');const c=m.chiaPhongBan(ds);console.log(JSON.stringify({goc:c.goc.map(r=>r.t),"
+            "pb:c.pb.map(p=>[p.ten,p.ds.map(r=>r.t),p.con?p.con.ds.map(r=>r.t):null])}));});")
     js = Path(__file__).resolve().parent.parent / "assets" / "danh_ba.js"
     kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps(d), capture_output=True, text=True,
                                    encoding="utf-8", check=True).stdout)
-    assert [t[0] for t in kq] == ["Ban giám đốc", "Kỹ thuật và hạ tầng", "Đội trưởng theo khu vực"]
-    assert kq[0][1] == ["Nguyễn Đăng Duy"] and kq[2][1] == ["Tô Duy Bình"]
-    assert set(kq[1][1]) == {"Châu Ngọc Vinh", "Phan Anh Tú"}
+    assert kq["goc"] == ["Nguyễn Đăng Duy"]                                   # ban giám đốc ở gốc cây
+    assert [p[0] for p in kq["pb"]] == ["Kỹ thuật và hạ tầng"]                 # phòng ban không có người thì không có nhánh
+    assert set(kq["pb"][0][1]) == {"Châu Ngọc Vinh", "Phan Anh Tú"} and kq["pb"][0][2] == ["Tô Duy Bình"]
 
 
 def test_trang_danh_ba_co_nut_chuyen_the_so_do():
@@ -255,8 +256,8 @@ def test_trang_danh_ba_co_nut_chuyen_the_so_do():
         assert [b.to_plotly_json()["props"]["data-cd"] for b in cd.children] == ["the", "so_do"]
 
 
-def test_so_do_tach_rieng_dvkh_ke_toan_hanh_chinh_nhan_su():
-    """Chủ app sửa 10/10/2026: KHÔNG gộp - Kỹ thuật → Đội trưởng → DVKH → Kế toán → Hành chính nhân sự là từng tầng riêng."""
+def test_so_do_cay_tach_rieng_dvkh_ke_toan_hanh_chinh_nhan_su():
+    """Chủ app sửa 10/10/2026: KHÔNG gộp - Kỹ thuật (kèm đội trưởng) / DVKH / Kế toán / Hành chính nhân sự là từng nhánh riêng."""
     import subprocess
     node = shutil.which("node")
     if not node:
@@ -264,9 +265,10 @@ def test_so_do_tach_rieng_dvkh_ke_toan_hanh_chinh_nhan_su():
     ds = [{"t": f"P{i}", "n": n} for i, n in enumerate(["hcns", "ke_toan", "dvkh", "doi_truong", "ha_tang", "pho_giam_doc",
                                                          "truong_phong_kt", "giam_doc", "khac"])]
     code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
-            "console.log(JSON.stringify(m.chiaTang(JSON.parse(d)).map(t=>[t.ten,t.ds.length])));});")
+            "const c=m.chiaPhongBan(JSON.parse(d));console.log(JSON.stringify({goc:c.goc.length,"
+            "pb:c.pb.map(p=>[p.ten,p.ds.length,p.con?p.con.ds.length:null])}));});")
     js = Path(__file__).resolve().parent.parent / "assets" / "danh_ba.js"
     kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps(ds), capture_output=True, text=True,
                                    encoding="utf-8", check=True).stdout)
-    assert kq == [["Ban giám đốc", 2], ["Kỹ thuật và hạ tầng", 2], ["Đội trưởng theo khu vực", 1],
-                  ["Chăm sóc khách hàng (DVKH)", 1], ["Kế toán", 1], ["Hành chính nhân sự", 1], ["Khác", 1]]
+    assert kq == {"goc": 2, "pb": [["Kỹ thuật và hạ tầng", 2, 1], ["Chăm sóc khách hàng (DVKH)", 1, None], ["Kế toán", 1, None],
+                                   ["Hành chính nhân sự", 1, None], ["Khác", 1, None]]}

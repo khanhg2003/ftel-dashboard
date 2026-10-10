@@ -196,9 +196,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      Mỗi lần gõ tìm hay đổi nhóm chức danh từng là một lượt hỏi máy chủ + dựng 60 thẻ Dash nên trễ, có lúc nhóm đã đổi mà danh sách chưa kịp đổi (chủ app báo);
      nay mỗi lần lọc ~60-120 ms và không tốn CPU Vercel. Đổi cách lọc / xếp thì sửa `loc` ở JS (có test chạy đúng hàm đó bằng Node). Soạn email dựng sẵn CẢ BA
      biểu mẫu và chỉ ẩn / hiện bằng CSS (đổi loại tức thì, ô đã gõ không mất) nên id mọi ô mang cả tên loại (`l`). Bảng nhiều thẻ dựng bằng Dash thì nghĩ tới cách này.
-     Danh bạ có chế độ **Sơ đồ** (chọn một chi nhánh; căn giữa; tầng Ban giám đốc → Kỹ thuật và hạ tầng → Đội trưởng theo khu vực → Kế toán / DVKH / hành chính theo
-     `danh_ba.nhom_chuc`): đây là sơ đồ theo CHỨC DANH, file KHÔNG có cột "báo cáo cho" nên đừng vẽ nét nối cấp trên cấp dưới (sẽ phải đoán và dễ sai); người chỉ có
-     trong file TIN cũ mà chi nhánh đã có bản PNC thì gắn nhãn "có thể cũ" và xếp cuối tầng.
+     Danh bạ có chế độ **Sơ đồ** (chọn một chi nhánh): CÂY theo PHÒNG BAN, căn giữa, đường nối đầy đủ - gốc là ban giám đốc, mỗi phòng ban một nhánh
+     (Kỹ thuật và hạ tầng, trong đó có đội trưởng theo khu vực · DVKH · Kế toán · Hành chính nhân sự, theo `danh_ba.nhom_chuc`; KHÔNG gộp các phòng ban với nhau, chủ app sửa
+     10/10/2026). Đường nối chỉ nói "phòng ban này thuộc chi nhánh": file KHÔNG có cột "báo cáo cho" nên đừng nối từng người với cấp trên (sẽ phải đoán và dễ sai).
+     Màn dưới 900 px chuyển thành cây dọc. Người chỉ có trong file TIN cũ mà chi nhánh đã có bản PNC thì gắn nhãn "có thể cũ" và xếp cuối nhóm.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền
