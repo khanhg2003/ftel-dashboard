@@ -1275,7 +1275,10 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   justify-content: center; border: 1px solid var(--border); background: #fff; border-radius: 6px; cursor: pointer;
   color: var(--text-muted); padding: 0; }
 .nut-chep:hover { color: var(--fpt-blue); border-color: var(--fpt-blue); }
-.nut-chep.lon { width: auto; height: auto; padding: 8px 14px; gap: 6px; color: inherit; font: inherit; }
+.nut-chep.lon { width: auto; height: auto; padding: 9px 16px; gap: 7px; border-radius: var(--radius-sm); font-family: inherit;
+  font-size: 13.5px; font-weight: 600; color: var(--text); }
+.nut-chep.lon.primary { color: #fff; }
+.nut-chep.lon.primary:hover { color: #fff; }
 .nut-chep.da-chep::after, .nut-chep.chep-loi::after { content: "Đã copy"; position: absolute; top: -28px; right: 0;
   background: #0B3A66; color: #fff; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 6px;
   white-space: nowrap; z-index: 5; }
