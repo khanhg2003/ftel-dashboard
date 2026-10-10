@@ -79,26 +79,26 @@ def layout():
 
 
 def _thu() -> html.Div:
-    """Lá thư bên phải: người nhận ở đầu thư, rồi tiêu đề, nội dung sửa được, nút copy."""
+    """Lá thư bên phải theo thứ tự cửa sổ soạn thư: người nhận (Đến, CC, thêm / tra / gợi ý), tiêu đề, lời chào, nội dung sửa được."""
     return html.Div([
-        html.Div([html.H3("2 · Thư"), html.Span("Bấm vào chữ trong thư để sửa trực tiếp", className="sm-meo")],
-                 className="sm-thu-dau"),
+        html.Div(html.H3("2 · Thư"), className="sm-thu-dau"),
         html.Div(id="sm-chips", className="sm-chips"),
-        html.Div([html.Span("Dear", className="sm-vt"),
-                  dcc.Input(id="sm-chao", type="text", className="sm-o-chao", debounce=True, maxLength=120, autoComplete="off",
-                            placeholder="Gõ lời chào, VD: phòng kỹ thuật DNG, anh Bình, các anh")], className="sm-dong-chao"),
-        html.Div([dcc.Input(id="sm-email-tay", type="text", className="inp", debounce=False,
-                            placeholder="Thêm email chưa có trong danh bạ (cách nhau dấu ;)"),
+        html.Div([dcc.Input(id="sm-email-tay", type="text", className="inp", debounce=False, placeholder="Thêm email khác"),
                   html.Button("+ Đến", id="sm-tay-den", className="btn nho"),
                   html.Button("+ CC", id="sm-tay-cc", className="btn nho"),
                   html.Button([icon("search", 14), html.Span("Tra danh bạ")], id="sm-db-mo", className="btn nho")],
                  className="sm-tay"),
-        html.Div([html.Div([html.Label("Gợi ý theo chi nhánh nơi lắp"),
-                            html.Div(dcc.Dropdown(id="sm-dv", options=[{"label": "Tự nhận từ địa chỉ", "value": TU_NHAN}],
-                                                  value=TU_NHAN, clearable=False), className="sm-gy-dv")], className="sm-gy-dau"),
+        html.Div([html.Div([html.Div([html.Label("Gợi ý cho"),
+                                      html.Div(dcc.Dropdown(id="sm-dv", options=[{"label": "Tự nhận từ địa chỉ", "value": TU_NHAN}],
+                                                            value=TU_NHAN, clearable=False), className="sm-gy-dv")],
+                                     className="sm-gy-chon"),
+                            html.Button("Dùng hết", id="sm-ap-het", className="btn nho", n_clicks=0)], className="sm-gy-dau"),
                   html.Div(id="sm-goiy-khung", className="sm-goiy")], className="sm-gy-khoi"),
         html.Div([html.Span("Tiêu đề", className="sm-nhan"),
                   html.Div(id="sm-tieu", className="sm-tieu", contentEditable="true", spellCheck=False)], className="sm-dong-tieu"),
+        html.Div([html.Span("Lời chào", className="sm-nhan"),
+                  dcc.Input(id="sm-chao", type="text", className="sm-o-chao", debounce=True, maxLength=120, autoComplete="off",
+                            placeholder="VD: phòng kỹ thuật DNG, anh Bình, các anh")], className="sm-dong-chao"),
         html.Div([html.Span("Bạn đã sửa tay phần này nên các ô bên trái sẽ không đổi nó nữa."),
                   html.Button("Dựng lại từ các ô", id="sm-dung-lai", className="btn nho", n_clicks=0)],
                  id="sm-sua-bao", className="sm-sua-bao an"),
@@ -161,10 +161,7 @@ def _dong_chip(vt: str, ds: list[dict]) -> html.Div:
 
 def _goi_y_khung(g: dict) -> list:
     if not (g["den"] or g["cc"]):
-        return [html.Div(f"Chưa có gợi ý cho {g['don_vi']}. Dùng Tra danh bạ hoặc gõ email.", className="desc")]
-    ro = "" if g["khu_vuc_ro"] else "Chưa rõ khu vực nên hiện mọi đội trưởng, chọn đúng người. "
-    o = [html.Div([html.Span(ro + f"Gợi ý cho {g['don_vi']}", className="desc"),
-                   html.Button("Dùng hết gợi ý", id="sm-ap-het", className="btn nho", n_clicks=0)], className="sm-gy-ghi")]
+        return [html.Div("Chưa có gợi ý.", className="desc")]
     chips = []
     for vt in ("den", "cc"):
         for i, p in enumerate(g[vt]):
@@ -175,7 +172,7 @@ def _goi_y_khung(g: dict) -> list:
                 html.Button("+ " + VT[vt], id={"type": "sm-ap", "vt": vt, "i": i}, className="btn nho sm-ap-chinh", n_clicks=0),
                 html.Button("+ " + VT[kia], id={"type": "sm-ap", "vt": vt, "i": -1 - i}, className="btn nho", n_clicks=0)],
                 className="sm-gy"))
-    return [*o, html.Div(chips, className="sm-gy-ds")]
+    return [html.Div(chips, className="sm-gy-ds")]
 
 
 def _hanh_dong(loai: str, kq: dict, nguoi: dict) -> list:

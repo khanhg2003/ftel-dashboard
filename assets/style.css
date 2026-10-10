@@ -1319,7 +1319,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .card.sm-thu { padding: 0; overflow: hidden; }
 .sm-thu-dau { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 14px 16px 10px; }
 .sm-thu-dau h3 { margin: 0; font-size: 14.5px; }
-.sm-meo { font-size: 12px; color: var(--text-muted); }
 .sm-chips { display: flex; flex-direction: column; }
 .sm-dong-chip { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-height: 42px; padding: 6px 16px; border-top: 1px solid var(--border); }
 .sm-vt, .sm-nhan { width: 52px; flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
@@ -1334,8 +1333,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-gy-dau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .sm-gy-dau label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .sm-gy-dv { width: 230px; max-width: 100%; }
-.sm-gy-ghi { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.sm-gy-ghi .desc { margin: 0; font-size: 12px; }
 .sm-gy-ds { display: flex; flex-wrap: wrap; gap: 6px; }
 .sm-gy { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; background: #fff; border: 1px solid var(--border); border-radius: 999px; }
 .sm-gy-ten { font-size: 13px; margin-right: 2px; }
@@ -1462,8 +1459,13 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-dong-chao { display: flex; align-items: center; gap: 6px; padding: 4px 16px; border-top: 1px solid var(--border); min-height: 42px; }
 .sm-o-chao { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; color: var(--text); padding: 6px; border-radius: 6px; }
 .sm-o-chao:focus { background: #F4F9FE; box-shadow: inset 0 0 0 2px #0072bc33; }
-.sm-gy-ghi .desc { color: #8A94A4; }
 .sm-gy-dau label { font-weight: 500; }
-.sm-meo { color: #98A2B3; }
 .sm-tieu { font-size: 14.5px; }
 .sm-vt, .sm-nhan { font-weight: 500; color: #8A94A4; }
+
+/* Soạn email: lá thư gọn - gợi ý một dòng tiêu đề, lời chào nằm dưới tiêu đề */
+.sm-gy-dau { justify-content: space-between; margin-bottom: 10px; }
+.sm-gy-chon { display: flex; align-items: center; gap: 8px; }
+.sm-gy-chon label { font-size: 13px; font-weight: 500; color: #8A94A4; }
+.sm-gy-dv { width: 210px; }
+.sm-thu-dau { padding-bottom: 12px; }
