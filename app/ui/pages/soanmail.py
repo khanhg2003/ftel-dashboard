@@ -20,7 +20,7 @@ from app import danh_ba as db
 from app import soan_mail as sm
 from app import tro_ly as ai
 from app.auth import ghi_log
-from app.ui.components import alert, field, modal
+from app.ui.components import alert, field, modal, tip
 from app.ui.icons import icon
 from app.ui.pages.danhba import chon_chi_nhanh
 
@@ -65,8 +65,6 @@ def layout():
         html.Div([
             html.Div([
                 html.H3("1 · Điền thông tin", style={"margin": "0 0 12px"}),
-                field("Lời chào đầu thư (Dear …) *", dcc.Input(id="sm-chao", type="text", className="inp", debounce=True, maxLength=120,
-                                                               placeholder="VD: phòng kỹ thuật DNG · anh Bình · các anh")),
                 html.Div([_o_form(loai) for loai in sm.LOAI], id="sm-form", className="sm-khung loai-ca_hot"),
                 html.Div([
                     field("Người gửi (ký tên cuối mail)", dcc.Input(id="sm-gui", type="text", className="inp", debounce=True,
@@ -86,6 +84,9 @@ def _thu() -> html.Div:
         html.Div([html.H3("2 · Thư"), html.Span("Bấm vào chữ trong thư để sửa trực tiếp", className="sm-meo")],
                  className="sm-thu-dau"),
         html.Div(id="sm-chips", className="sm-chips"),
+        html.Div([html.Span("Dear", className="sm-vt"),
+                  dcc.Input(id="sm-chao", type="text", className="sm-o-chao", debounce=True, maxLength=120, autoComplete="off",
+                            placeholder="Gõ lời chào, VD: phòng kỹ thuật DNG, anh Bình, các anh")], className="sm-dong-chao"),
         html.Div([dcc.Input(id="sm-email-tay", type="text", className="inp", debounce=False,
                             placeholder="Thêm email chưa có trong danh bạ (cách nhau dấu ;)"),
                   html.Button("+ Đến", id="sm-tay-den", className="btn nho"),
@@ -119,7 +120,7 @@ def _khung_tra_danh_ba():
 
 def _o_form(loai: str) -> html.Div:
     L = sm.LOAI[loai]
-    o = html.Div([html.Div([html.Label(t["nhan"] + (" *" if t["bat_buoc"] else "")),
+    o = html.Div([html.Div([html.Label([t["nhan"], html.Span(" *", className="sm-bb") if t["bat_buoc"] else None]),
                             dcc.Input(id={"type": F, "l": loai, "k": t["khoa"]}, type="text", className="inp", debounce=True,
                                       placeholder=t["goi_y"], maxLength=300)], className="field sm-dai" if t["dai"] else "field")
                   for t in L["truong"]], className="sm-o")
@@ -130,7 +131,7 @@ def _o_form(loai: str) -> html.Div:
         html.Div([html.Button([icon("sparkle", 14), html.Span("Fox viết giúp")], id={"type": "sm-fox", "l": loai},
                               className="btn nho sm-fox", n_clicks=0),
                   html.Button("Hoàn tác", id={"type": "sm-hoan", "l": loai}, className="btn nho", n_clicks=0),
-                  html.Span(NHAC_AI, className="desc")], className="sm-fox-dong"),
+                  tip(NHAC_AI, trai=True)], className="sm-fox-dong"),
         dcc.Store(id={"type": "sm-y-goc", "l": loai}),
         html.Div(id={"type": "sm-fox-msg", "l": loai})], className="field rong")
     them = html.Details([
@@ -161,8 +162,8 @@ def _dong_chip(vt: str, ds: list[dict]) -> html.Div:
 def _goi_y_khung(g: dict) -> list:
     if not (g["den"] or g["cc"]):
         return [html.Div(f"Chưa có gợi ý cho {g['don_vi']}. Dùng Tra danh bạ hoặc gõ email.", className="desc")]
-    ro = "" if g["khu_vuc_ro"] else "Chưa rõ khu vực trong địa chỉ nên hiện cả các đội trưởng, hãy chọn đúng người. "
-    o = [html.Div([html.Span(ro + f"Gợi ý cho {g['don_vi']}:", className="desc"),
+    ro = "" if g["khu_vuc_ro"] else "Chưa rõ khu vực nên hiện mọi đội trưởng, chọn đúng người. "
+    o = [html.Div([html.Span(ro + f"Gợi ý cho {g['don_vi']}", className="desc"),
                    html.Button("Dùng hết gợi ý", id="sm-ap-het", className="btn nho", n_clicks=0)], className="sm-gy-ghi")]
     chips = []
     for vt in ("den", "cc"):
