@@ -218,3 +218,36 @@ def test_dong_trang_thai_nap_file_cap_nhat_sau_khi_nap(sach):
     assert _chu_lan("PNC") == "Chưa nạp" and _chu_lan("TIN") == "Chưa nạp"
     db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
     assert _chu_lan("PNC").startswith("Đang dùng bản nạp ngày ") and _chu_lan("TIN") == "Chưa nạp"
+
+
+def test_so_do_chia_tang_theo_chuc_danh_dung_thu_tu(sach):
+    """Sơ đồ chi nhánh: Ban giám đốc -> Kỹ thuật và hạ tầng -> Đội trưởng -> hỗ trợ; tầng nào trống thì bỏ."""
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Máy không có Node để chạy bộ lọc của trình duyệt")
+    db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
+    db.nap(_xlsx({"Miền Trung": TIN_MT}), "tin.xlsx", "TIN", "kiemthu.admin")
+    d = db.cho_trinh_duyet()
+    code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const a=JSON.parse(d);"
+            "const ds=m.loc(a.ds,'','Đà Nẵng','all');console.log(JSON.stringify(m.chiaTang(ds).map(t=>[t.ten,t.ds.map(r=>r.t)])));});")
+    js = Path(__file__).resolve().parent.parent / "assets" / "danh_ba.js"
+    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps(d), capture_output=True, text=True,
+                                   encoding="utf-8", check=True).stdout)
+    assert [t[0] for t in kq] == ["Ban giám đốc", "Kỹ thuật và hạ tầng", "Đội trưởng theo khu vực"]
+    assert kq[0][1] == ["Nguyễn Đăng Duy"] and kq[2][1] == ["Tô Duy Bình"]
+    assert set(kq[1][1]) == {"Châu Ngọc Vinh", "Phan Anh Tú"}
+
+
+def test_trang_danh_ba_co_nut_chuyen_the_so_do():
+    from flask_login import login_user
+
+    from app.auth import SessionUser
+    from app.ui.app import server
+    from app.ui.pages import danhba
+    ad = SessionUser(SimpleNamespace(id=1, username="kiemthu.admin", ho_ten="K", role="admin", ma_nv=None,
+                                     session_version=0, scope="[]"))
+    with server.test_request_context("/"):
+        login_user(ad)
+        nut = [n for n in danhba.layout().children if getattr(n, "id", None) == "db-cd"][0]
+        assert [b.to_plotly_json()["props"]["data-cd"] for b in nut.children] == ["the", "so_do"]

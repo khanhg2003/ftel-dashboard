@@ -16,7 +16,11 @@
         db: {kq: 'db-kq', dem: 'db-dem', tim: 'db-tim', dv: 'db-dv', gioiHan: 60},
         sm: {kq: 'sm-db-kq', dem: 'sm-db-dem', tim: 'sm-db-tim', dv: 'sm-db-dv', gioiHan: 30, chon: true}
     };
-    const KHO = {db: {ds: null, nhom: 'all'}, sm: {ds: null, nhom: 'all'}};
+    const KHO = {db: {du_lieu: null, nhom: 'all', che: 'the'}, sm: {du_lieu: null, nhom: 'all', che: 'the'}};
+    // Sơ đồ theo CHỨC DANH, không phải quan hệ báo cáo (file danh bạ không có cột "báo cáo cho").
+    const TANG = [['Ban giám đốc', ['giam_doc', 'pho_giam_doc']], ['Kỹ thuật và hạ tầng', ['truong_phong_kt', 'ha_tang']],
+                  ['Đội trưởng theo khu vực', ['doi_truong']], ['Kế toán, chăm sóc khách hàng, hành chính', ['ke_toan', 'dvkh', 'hcns']],
+                  ['Khác', ['khac']]];
     const IC = {
         mail: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M3 7l9 6 9-6"/></svg>',
         phone: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>',
@@ -84,9 +88,52 @@
         return h + '</div></div>';
     }
 
+    function chiaTang(ds) {
+        return TANG.map(function (t) { return {ten: t[0], ds: ds.filter(function (r) { return t[1].indexOf(r.n) >= 0; })}; })
+            .filter(function (t) { return t.ds.length; });
+    }
+
+    function o(r, cuHon) {
+        const so = String(r.d || '').replace(/\D/g, '');
+        let h = '<div class="db-o"><b>' + esc(r.t) + '</b><span class="db-o-cv">' + esc(r.c) + '</span>';
+        if (r.g) { h += '<span class="db-o-gc">' + esc(r.g) + '</span>'; }
+        if (r.e) {
+            h += '<span class="db-o-dong">' + IC.mail + '<span class="db-gia-tri">' + esc(r.e)
+                + '</span><button class="nut-chep" title="Copy email" data-chep="' + esc(r.e) + '">' + IC.copy + '</button></span>';
+        }
+        if (r.d || r.x) {
+            h += '<span class="db-o-dong">' + IC.phone + (r.d ? '<a class="db-gia-tri" href="tel:' + so + '">' + esc(r.d) + '</a>' : '')
+                + (r.x ? '<span class="db-nhan">máy lẻ ' + esc(r.x) + '</span>' : '') + '</span>';
+        }
+        if (cuHon && r.s === 'TIN') { h += '<em class="db-o-cu" title="Chi nhánh này có bản mới hơn (PNC), người này chỉ có trong file TIN cũ">TIN · có thể cũ</em>'; }
+        return h + '</div>';
+    }
+
+    function veSoDo(st, kq, dem) {
+        const q = (document.getElementById(MO.db.tim) || {}).value || '';
+        const dv = (document.getElementById(MO.db.dv) || {}).value || '';
+        kq.className = 'db-so-do';
+        if (!dv) {
+            if (dem) { dem.textContent = ''; }
+            kq.innerHTML = '<div class="card"><div class="desc">Chọn một chi nhánh để xem sơ đồ.</div></div>';
+            return;
+        }
+        const ds = loc(st.du_lieu.ds, q, dv, 'all');
+        const cuHon = ds.some(function (r) { return r.s.indexOf('PNC') >= 0 || r.s.indexOf('TAY') >= 0; });
+        if (dem) { dem.textContent = ds.length + ' người · sơ đồ theo chức danh, không thể hiện ai báo cáo cho ai'; }
+        const cu = function (r) { return cuHon && r.s === 'TIN'; };            // người chỉ có trong file TIN cũ xếp cuối tầng
+        kq.innerHTML = ds.length ? chiaTang(ds).map(function (t, i) {
+            t.ds = t.ds.filter(function (r) { return !cu(r); }).concat(t.ds.filter(cu));
+            return (i ? '<div class="db-noi"></div>' : '') + '<div class="db-tang"><div class="db-tang-ten">' + esc(t.ten) + ' · ' + t.ds.length
+                + '</div><div class="db-hang">' + t.ds.map(function (r) { return o(r, cuHon); }).join('') + '</div></div>';
+        }).join('') : '<div class="card"><div class="desc">Không có ai khớp.</div></div>';
+    }
+
     function ve(ma) {
         const mo = MO[ma], st = KHO[ma], kq = document.getElementById(mo.kq);
         if (!kq || !st.du_lieu) { return; }
+        if (ma === 'db' && st.che === 'so_do') { veSoDo(st, kq, document.getElementById(mo.dem)); return; }
+        kq.className = 'db-luoi';
         const q = (document.getElementById(mo.tim) || {}).value || '';
         const dv = (document.getElementById(mo.dv) || {}).value || '';
         const ds = loc(st.du_lieu.ds, q, dv, st.nhom), hien = ds.slice(0, mo.gioiHan);
@@ -136,6 +183,17 @@
                 ve('db');
                 return;
             }
+            const cd = t.closest('.db-cd');
+            if (cd) {
+                KHO.db.che = cd.dataset.cd;
+                const sel = document.getElementById(MO.db.dv);
+                if (KHO.db.che === 'so_do' && sel && !sel.value && sel.options.length > 1) { sel.selectedIndex = 1; }   // chi nhánh của sale
+                document.querySelectorAll('.db-cd').forEach(function (b) { b.classList.toggle('active', b === cd); });
+                const chips = document.getElementById('db-nhom');
+                if (chips) { chips.style.display = KHO.db.che === 'so_do' ? 'none' : ''; }
+                ve('db');
+                return;
+            }
             const sua = t.closest('[data-sua]'), chon = t.closest('[data-chon]');
             if (sua) {
                 window.dash_clientside.set_props('db-sk-sua', {data: {id: Number(sua.dataset.sua), t: Date.now()}});
@@ -152,5 +210,5 @@
             nap_sm: function (d) { return nap('sm', d); }
         });
     }
-    if (typeof module !== 'undefined') { module.exports = {loc, boDau}; }          // để kiểm thử bằng Node
+    if (typeof module !== 'undefined') { module.exports = {loc, boDau, chiaTang}; }          // để kiểm thử bằng Node
 })();
