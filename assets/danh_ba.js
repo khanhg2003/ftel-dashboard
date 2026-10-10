@@ -261,7 +261,7 @@
             const cd = t.closest('.db-cd');
             if (cd) {
                 KHO.db.che = cd.dataset.cd;
-                const dau = KHO.db.du_lieu && KHO.db.du_lieu.dv.length ? KHO.db.du_lieu.dv[0].ds[0] : '';
+                const dau = KHO.db.du_lieu ? KHO.db.du_lieu.dv_mac_dinh : '';
                 if (KHO.db.che === 'so_do' && !KHO.db.dv && dau) { KHO.db.dv = dau; cbKhoiPhuc('db'); }       // chi nhánh của sale
                 document.querySelectorAll('.db-cd').forEach(function (b) { b.classList.toggle('active', b === cd); });
                 const chips = document.getElementById('db-nhom');

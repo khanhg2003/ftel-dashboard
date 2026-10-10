@@ -203,8 +203,7 @@ def _dang_ky_goi_y(app):
             opts = no_update
         else:                                                 # danh sách chi nhánh nạp một lần, lần đầu vào trang
             opts = [{"label": "Tự nhận từ địa chỉ", "value": TU_NHAN},
-                    *[{"label": f"{d} · {g['mien']}" if g["mien"] != "Chi nhánh của bạn" else d, "value": d}
-                      for g in db.nhom_chi_nhanh() for d in g["ds"]]]
+                    *[{"label": f"{d} · {g['mien']}", "value": d} for g in db.nhom_chi_nhanh() for d in g["ds"]]]
         return g, _goi_y_khung(g), opts
 
 

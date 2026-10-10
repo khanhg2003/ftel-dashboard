@@ -142,7 +142,8 @@ def test_du_lieu_cho_trinh_duyet_gon_va_da_xep(sach):
     db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
     db.nap(_xlsx({"Miền Trung": TIN_MT}), "tin.xlsx", "TIN", "kiemthu.admin")
     d = db.cho_trinh_duyet()
-    assert d["dv"][0] == {"mien": "Chi nhánh của bạn", "ds": ["Đà Nẵng"]} and "PNC cập nhật" in d["moi"] and "TIN cập nhật" in d["moi"]
+    assert d["dv"][0] == {"mien": db.MIEN_TRUNG, "ds": ["Đà Nẵng", "Huế", "Khánh Hòa"]} and d["dv_mac_dinh"] == "Đà Nẵng"
+    assert "PNC cập nhật" in d["moi"] and "TIN cập nhật" in d["moi"]
     assert d["nhom"]["giam_doc"] == "Giám đốc" and len(d["ds"]) == 7
     assert d["ds"][0]["v"] == "Đà Nẵng" and d["ds"][0]["n"] == "giam_doc"        # chi nhánh của sale, giám đốc trước
     binh = next(r for r in d["ds"] if r["t"] == "Tô Duy Bình")
@@ -295,7 +296,8 @@ def test_mien_theo_sheet_roi_theo_ten_tinh():
 
 
 def test_chi_nhanh_gom_theo_khu_vuc_xep_chu_cai_va_so(sach):
-    """Danh sách chi nhánh: "Chi nhánh của bạn" đầu tiên, rồi từng khu vực, trong khu vực xếp chữ cái (Sài Gòn 2 trước Sài Gòn 10)."""
+    """Danh sách chi nhánh gom theo khu vực (Đà Nẵng, Quảng Nam nằm đúng khu vực, không tách riêng), trong khu vực xếp chữ cái
+    (Sài Gòn 2 trước Sài Gòn 10)."""
     pnc = [["Khu vực", "Họ tên", "Chức vụ", "Email"],
            ["Đà Nẵng", "A1", "Giám Đốc", "a1@fpt.com"], ["Quảng Nam", "A2", "Giám Đốc", "a2@fpt.com"],
            ["Sài Gòn 10", "A3", "Giám Đốc", "a3@fpt.com"], ["Sài Gòn 2", "A4", "Giám Đốc", "a4@fpt.com"],
@@ -303,10 +305,11 @@ def test_chi_nhanh_gom_theo_khu_vuc_xep_chu_cai_va_so(sach):
            ["Ban Giám Đốc", "A7", "Giám Đốc", "a7@fpt.com"]]
     db.nap(_xlsx({"TĐĐT": pnc}), "pnc.xlsx", "PNC", "kiemthu.admin")
     nhom = db.nhom_chi_nhanh()
-    assert [g["mien"] for g in nhom] == ["Chi nhánh của bạn", db.MIEN_BAC, db.MIEN_NAM, db.KHOI]
+    assert [g["mien"] for g in nhom] == [db.MIEN_TRUNG, db.MIEN_BAC, db.MIEN_NAM, db.KHOI]
     assert nhom[0]["ds"] == ["Đà Nẵng", "Quảng Nam"] and nhom[1]["ds"] == ["Hải Phòng"]
     assert nhom[2]["ds"] == ["Cà Mau", "Sài Gòn 2", "Sài Gòn 10"] and nhom[3]["ds"] == ["Ban Giám Đốc"]
     assert db.ds_don_vi()[:3] == ["Đà Nẵng", "Quảng Nam", "Hải Phòng"]
+    assert db.chi_nhanh_mac_dinh() == "Đà Nẵng"
 
 
 def test_the_va_so_do_xep_truong_phong_tren_pho_phong(sach):

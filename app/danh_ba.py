@@ -323,19 +323,24 @@ def lan_nap_cuoi() -> dict:
 
 @nho("danh_ba", 60)
 def nhom_chi_nhanh() -> list[dict]:
-    """Chi nhánh gom theo khu vực để dễ tìm: "Chi nhánh của bạn" (Đà Nẵng, Quảng Nam) đứng đầu, rồi Miền Trung - Tây Nguyên, Miền
-    Bắc, Miền Nam, Khối văn phòng và trung tâm; trong mỗi nhóm xếp theo chữ cái."""
+    """Chi nhánh gom theo khu vực để dễ tìm: Miền Trung - Tây Nguyên, Miền Bắc, Miền Nam, Khối văn phòng và trung tâm; trong mỗi
+    khu vực xếp theo chữ cái (Đà Nẵng, Quảng Nam nằm đúng khu vực của mình, không tách riêng - chủ app chốt 10/10/2026)."""
     df = tat_ca()
     if df.empty:
         return []
     g = df.groupby("dv_chuan").agg(ten=("don_vi", "first"), sheets=("khu_vuc", lambda x: set(x.dropna())))
     nhom: dict[str, list[str]] = {m: [] for m in THU_TU_MIEN}
     for k, r in g.iterrows():
-        if r.ten and k not in DV_UU_TIEN:
+        if r.ten:
             nhom[mien_cua(r.ten, r.sheets)].append(r.ten)
-    ghim = [g.at[k, "ten"] for k in DV_UU_TIEN if k in g.index and g.at[k, "ten"]]
-    return ([{"mien": "Chi nhánh của bạn", "ds": ghim}] if ghim else []) + [
-        {"mien": m, "ds": sorted(nhom[m], key=_khoa_xep)} for m in THU_TU_MIEN if nhom[m]]
+    return [{"mien": m, "ds": sorted(nhom[m], key=_khoa_xep)} for m in THU_TU_MIEN if nhom[m]]
+
+
+def chi_nhanh_mac_dinh() -> str:
+    """Chi nhánh chọn sẵn khi mở Sơ đồ: chi nhánh của sale (Đà Nẵng, rồi Quảng Nam) nếu có trong danh bạ."""
+    co = set(ds_don_vi())
+    return next((d for d in co if chuan_don_vi(d) == DV_UU_TIEN[0]), None) or next(
+        (d for d in co if chuan_don_vi(d) in DV_UU_TIEN), None) or (sorted(co, key=_khoa_xep)[0] if co else "")
 
 
 def ds_don_vi() -> list[str]:
@@ -366,7 +371,7 @@ def cho_trinh_duyet() -> dict:
           for r in df.itertuples()]
     moi = " · ".join(f"{n} cập nhật {chu_gio_vn(t, '%d/%m/%Y')}" for n, t in sorted(lan_nap_cuoi().items())
                      if n != "TAY" and t)
-    return {"ds": ds, "moi": moi, "nhom": NHOM, "dv": nhom_chi_nhanh()}
+    return {"ds": ds, "moi": moi, "nhom": NHOM, "dv": nhom_chi_nhanh(), "dv_mac_dinh": chi_nhanh_mac_dinh()}
 
 
 def theo_nhom(don_vi: str, nhom: str) -> pd.DataFrame:
