@@ -15,7 +15,7 @@ from app import soan_mail as sm                                         # noqa: 
 from app import tro_ly as ai                                            # noqa: E402
 from app.config import DATA_DIR                                          # noqa: E402
 
-CHUNG = {"chao", "xung", "nguoi_gui", "tinh_huong"}
+CHUNG = {"chao", "xung", "nguoi_gui", "tinh_huong", "y_them"}
 CA_HOT = {"hop_dong": "DAAAP6381", "dia_chi": "K62/H75/17 Nguyễn Phan Vinh, Sơn Trà, Đà Nẵng", "han_lap": "17h chiều nay",
           "xung": "anh", "chao": "anh Bình", "tinh_huong": "Hiện case này khách cần lắp đặt trong 17h chiều nay."}
 
@@ -183,8 +183,10 @@ def test_trang_soan_email_dung_duoc_ma_khong_can_database():
     nut = soanmail._hanh_dong("ca_hot", kq, nguoi)[0].children
     assert nut[1].to_plotly_json()["props"]["data-chep"] == "a@fpt.com" and nut[2].to_plotly_json()["props"]["data-chep"] == ""
     assert nut[0].to_plotly_json()["props"]["data-chep-nguon"] == "#sm-than"
-    assert len(soanmail._o_form("hoa_don").children) == len(sm.LOAI["hoa_don"]["truong"]) + 1
-    assert soanmail._xem(kq).to_plotly_json()
+    assert nut[3].to_plotly_json()["props"]["data-chep-nguon"] == "#sm-tieu"           # copy đúng chữ tiêu đề đang hiện, kể cả khi sale sửa
+    form = soanmail._o_form("hoa_don").children
+    assert len(form[0].children) == len(sm.LOAI["hoa_don"]["truong"]) and len(form) == 3      # ô · tình huống · ý riêng
+    assert all(t["dai"] for t in sm.LOAI["hoa_don"]["truong"] if t["khoa"].startswith("dia_chi"))
 
 
 def _cac_id(nut) -> list[str]:
@@ -218,7 +220,36 @@ def test_hai_trang_dung_duoc_va_khong_trung_id():
             assert ids and not {i for i in ids if ids.count(i) > 1}, trang.__name__
             assert trang.topbar()
         ids = _cac_id(soanmail.layout())
+        assert {"sm-tieu", "sm-than", "sm-sua-bao", "sm-dung-lai", "sm-kq", "sm-xung", "sm-gui", "sm-dv"} <= set(ids)
         assert {"sm-form", "sm-loai", "sm-db-kq", "sm-db-tim", "sm-db-dv-tim", "sm-db-dv-ds", "sm-db-dem", "sm-du-lieu", "sm-sk-chon"} <= set(ids)
         assert {"db-kq", "db-dem", "db-tim", "db-dv-tim", "db-dv-ds", "db-sk-sua", "db-du-lieu"} <= set(_cac_id(danhba.layout()))
         # cả ba biểu mẫu có mặt sẵn, mỗi ô mang tên loại để không trùng nhau
         assert all(f"sm-form-{loai}" in ids for loai in sm.LOAI)
+
+
+def test_y_them_nam_truoc_cau_cam_on_va_bo_ca_doan_khi_trong():
+    """Ô "Thêm ý riêng" là cách thêm ý ngoài khuôn mà vẫn tự cập nhật; để trống thì mail không thừa dòng trắng."""
+    for loai in sm.LOAI:
+        v = {**CA_HOT, "hop_dong": "X1", "tinh_huong": "Hiện khách cần gấp."} if loai == "ca_hot" else {"tinh_huong": "Hiện khách cần gấp."}
+        goc = sm.dung(loai, v)["text"]
+        co = sm.dung(loai, {**v, "y_them": "Khách quen, nhờ anh ưu tiên giúp em.\nEm cảm ơn."})["text"]
+        assert "Khách quen" not in goc and "\n\n\n" not in goc
+        assert co.index("Khách quen") < co.index("Em xin chân thành cảm ơn")
+        assert "Khách quen, nhờ anh ưu tiên giúp em.\nEm cảm ơn." in co
+
+
+def test_ban_xem_truoc_ve_tren_trinh_duyet_dung_dam_xuong_dong_va_o_thieu():
+    """soan_mail.js vẽ thư từ `doan` của máy chủ: chữ đậm, xuống dòng, ô còn trống tô nổi, ký tự HTML bị thoát."""
+    import json
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Máy không có Node để chạy phần vẽ thư của trình duyệt")
+    kq = sm.dung("ca_hot", {**CA_HOT, "hop_dong": "", "tinh_huong": "Cần <gấp> & sớm"})
+    code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(m.htmlThan(JSON.parse(d))));")
+    js = Path(__file__).resolve().parent.parent / "assets" / "soan_mail.js"
+    out = subprocess.run([node, "-e", code, str(js)], input=json.dumps(kq["doan"]), capture_output=True, text=True,
+                         encoding="utf-8", check=True).stdout
+    assert '<span class="sm-thieu">[Mã hợp đồng]</span>' in out and "<br>" in out
+    assert "Cần &lt;gấp&gt; &amp; sớm" in out and out.count("<p>") == len(kq["doan"])

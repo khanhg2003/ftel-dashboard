@@ -1287,38 +1287,79 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   .db-cb { width: 100%; }
 }
 
-/* ---- Soạn email (app/ui/pages/soanmail.py) ---- */
-.sm-luoi { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; margin-top: 12px; align-items: start; }
-.sm-phai { display: flex; flex-direction: column; gap: 14px; }
+/* ---- Soạn email (app/ui/pages/soanmail.py, assets/soan_mail.js): chọn loại · form · lá thư sửa được ---- */
+.sm-loai { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sm-loai-the { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 11px 14px; cursor: pointer; text-align: left;
+  font: inherit; background: var(--card); border: 1.5px solid var(--border); border-radius: 12px;
+  transition: border-color .15s, background .15s, box-shadow .15s; }
+.sm-loai-the:hover { border-color: var(--fpt-blue); }
+.sm-loai-the.chon { border-color: var(--fpt-blue); background: #EEF5FC; box-shadow: 0 0 0 3px #0072bc1f; }
+.sm-loai-ten { font-size: 14px; font-weight: 650; color: var(--text); }
+.sm-loai-the.chon .sm-loai-ten { color: var(--fpt-blue-700); }
+.sm-loai-mo { font-size: 12px; color: var(--text-muted); line-height: 1.35; }
+
+.sm-luoi { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; margin-top: 12px; align-items: start; }
+.sm-o { display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: row dense; gap: 12px 14px; margin-bottom: 14px; }
+.sm-o .field { min-width: 0; }
+.sm-o .sm-dai { grid-column: 1 / -1; }
 .sm-ta { width: 100%; min-height: 96px; resize: vertical; }
 .sm-fox-dong { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
-.sm-chung { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
-.sm-chips { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
-.sm-dong-chip { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.sm-vt { width: 34px; font-size: 12px; color: var(--text-muted); }
+.sm-fox-dong .desc { flex: 1 1 200px; margin: 0; font-size: 12px; }
+.sm-them { margin-top: 12px; }
+.sm-them > summary { cursor: pointer; padding: 6px 0; font-size: 13px; font-weight: 600; color: var(--fpt-blue-700); }
+.sm-them[open] > summary { margin-bottom: 6px; }
+.sm-them .desc { margin: 4px 0 0; font-size: 12px; }
+.sm-chung { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; }
+.sm-chung .field { min-width: 0; }
+
+/* lá thư: đầu thư (Đến / CC / gợi ý / tiêu đề) rồi nội dung, giống cửa sổ soạn thư của Outlook */
+.card.sm-thu { padding: 0; overflow: hidden; }
+.sm-thu-dau { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 14px 16px 10px; }
+.sm-thu-dau h3 { margin: 0; font-size: 14.5px; }
+.sm-meo { font-size: 12px; color: var(--text-muted); }
+.sm-chips { display: flex; flex-direction: column; }
+.sm-dong-chip { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-height: 42px; padding: 6px 16px; border-top: 1px solid var(--border); }
+.sm-vt, .sm-nhan { width: 52px; flex: none; font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
 .sm-chip { display: inline-flex; align-items: center; gap: 6px; background: #E6EEF8; color: var(--fpt-blue);
   border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; }
-.sm-cv { color: #475467; font-size: 11px; }
+.sm-cv { color: #475467; font-size: 11px; margin-left: 5px; }
 .sm-x { border: 0; background: transparent; cursor: pointer; color: inherit; font-size: 15px; line-height: 1; padding: 0 6px; }
-.sm-goiy { border: 1px dashed var(--border-strong, #C9D1DC); border-radius: 10px; padding: 8px 10px; display: flex;
-  flex-direction: column; gap: 6px; margin-bottom: 10px; }
-.sm-gy { display: flex; gap: 6px; align-items: center; }
-.sm-gy-ten { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
-.sm-tay { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.sm-tay .inp { flex: 1; min-width: 220px; }
-.sm-tieu-de { font-size: 13px; margin-bottom: 8px; padding: 8px 10px; background: #F7F8FA; border-radius: 8px; }
-.sm-than { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-family: Calibri, Arial, sans-serif;
-  font-size: 14px; line-height: 1.55; }
-.sm-than p { margin: 0 0 10px; }
+.sm-tay { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 8px 16px; border-top: 1px solid var(--border); }
+.sm-tay .inp { flex: 1; min-width: 200px; }
+.sm-gy-khoi { padding: 10px 16px 12px; background: #F6F9FC; border-top: 1px solid var(--border); }
+.sm-gy-dau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.sm-gy-dau label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.sm-gy-dv { width: 230px; max-width: 100%; }
+.sm-gy-ghi { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sm-gy-ghi .desc { margin: 0; font-size: 12px; }
+.sm-gy-ds { display: flex; flex-wrap: wrap; gap: 6px; }
+.sm-gy { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; background: #fff; border: 1px solid var(--border); border-radius: 999px; }
+.sm-gy-ten { font-size: 13px; margin-right: 2px; }
+.sm-gy .btn.nho { padding: 2px 9px; font-size: 12px; border-radius: 999px; }
+.sm-gy .sm-ap-chinh { background: #E6EEF8; border-color: #C9DBF0; color: var(--fpt-blue-700); font-weight: 600; }
+.sm-dong-tieu { display: flex; align-items: baseline; gap: 6px; padding: 9px 16px; border-top: 1px solid var(--border); }
+.sm-tieu { flex: 1; min-width: 0; min-height: 1.5em; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 14px; outline: none; overflow-wrap: anywhere; }
+.sm-sua-bao { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 16px;
+  background: #FFF8E6; color: #7A5200; border-top: 1px solid #F3DFA8; font-size: 12.5px; }
+.sm-sua-bao.an { display: none; }
+.sm-than { min-height: 220px; padding: 16px 18px; border-top: 1px solid var(--border); outline: none; cursor: text;
+  font-family: Calibri, Arial, sans-serif; font-size: 14.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.sm-than:hover { background: #FBFDFF; }
+.sm-than:focus, .sm-tieu:focus { background: #F4F9FE; box-shadow: inset 0 0 0 2px #0072bc33; }
+.sm-than:empty::before { content: "Điền thông tin ở khung bên trái, nội dung thư sẽ hiện ở đây."; color: var(--text-muted); }
+.sm-than p { margin: 0 0 12px; }
 .sm-thieu { background: #FFF1D6; color: #8A5A00; border-radius: 4px; padding: 0 3px; }
-.sm-hanh-dong { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.sm-hanh-dong { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 16px; background: #F8FAFC; border-top: 1px solid var(--border); }
 .sm-nut { display: flex; gap: 8px; flex-wrap: wrap; }
 .sm-db-kq { display: grid; gap: 10px; max-height: 60vh; overflow: auto; }
+@media (min-width: 901px) and (min-height: 760px) { .sm-thu { position: sticky; top: 10px; } }
 @media (max-width: 900px) { .sm-luoi { grid-template-columns: 1fr; } }
-@media (max-width: 767px) { .sm-nut .btn { flex: 1 1 45%; } }
 @media (max-width: 767px) {
-  #sm-loai { display: flex; flex-wrap: wrap; width: 100%; }
-  #sm-loai .seg-item { flex: 1 1 auto; text-align: center; }
+  .sm-loai { grid-template-columns: 1fr; gap: 6px; }
+  .sm-loai-the { padding: 9px 12px; }
+  .sm-o, .sm-chung { grid-template-columns: 1fr; }
+  .sm-nut .btn { flex: 1 1 45%; }
+  .sm-gy-dv { width: 100%; }
 }
 
 /* Soạn email: cả ba biểu mẫu dựng sẵn, chỉ hiện biểu mẫu của loại đang chọn (đổi loại tức thì, ô đã gõ không mất) */

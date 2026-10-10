@@ -27,19 +27,20 @@ def _o(khoa, nhan, goi_y="", dai=False, bat_buoc=True):
     return {"khoa": khoa, "nhan": nhan, "goi_y": goi_y, "dai": dai, "bat_buoc": bat_buoc}
 
 
-# Mỗi loại: ô sale điền (`truong`), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
-# ô đó trống), tiêu đề, gợi ý người nhận (`goi_y`: (nhóm chức danh, nơi)), và lời dặn Fox (`fox`).
+# Mỗi loại: ô sale điền (`truong`; `dai` = chiếm cả hàng), `mo_ta` (một dòng trên thẻ chọn loại), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
+# ô đó trống; {?y_them} là đoạn sale tự thêm), tiêu đề, gợi ý người nhận (`goi_y`: (nhóm chức danh, nơi)), và lời dặn Fox (`fox`).
 LOAI = {
     "ca_hot": {
         "ten": "Ca hot triển khai",
+        "mo_ta": "Khách cần lắp gấp, nhờ phân công kỹ thuật",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: DAAAP6381"),
-                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, quận / huyện, tỉnh"),
+                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, quận / huyện, tỉnh", dai=True),
                    _o("han_lap", "Cần lắp trước", "VD: 17h chiều nay")],
         "y_chinh": "Tình huống (gõ ý chính, Fox viết giúp)",
         "y_mau": "khách chỉ rảnh chiều nay vì tăng ca cả tuần, không kịp thì huỷ, sợ mất khách sang đối thủ",
         "tieu_de": "{hop_dong} - CA HOT CẦN HỖ TRỢ LẮP ĐẶT TRƯỚC {han_lap}",
         "than": ["Dear {chao},", "Em có HĐ: **{hop_dong}**\nĐịa chỉ: {dia_chi}", "{tinh_huong}",
-                 "Em xin chân thành cảm ơn các {xung}!", "{?nguoi_gui}"],
+                 "{?y_them}", "Em xin chân thành cảm ơn các {xung}!", "{?nguoi_gui}"],
         "goi_y": {"den": [("doi_truong", "khu_vuc")], "cc": [("truong_phong_kt", "lap")]},
         "fox": ("Viết đoạn nêu ca hot: khách cần lắp gấp, hiện chưa có mốc hẹn phù hợp, sale đã care khách, và nhờ người nhận "
                 "hỗ trợ phương án phân công kỹ thuật kịp thời gian để tránh khách huỷ hoặc lắp mạng đối thủ."),
@@ -51,12 +52,13 @@ LOAI = {
     },
     "hoa_don": {
         "ten": "Xin xuất hoá đơn DN",
+        "mo_ta": "Khách đăng ký gói cá nhân nhưng xuất hoá đơn công ty",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: NTAAQ4015"),
-                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh"),
-                   _o("dia_chi_hd", "Địa chỉ xuất hoá đơn", "Địa chỉ trên giấy phép doanh nghiệp"),
+                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),
+                   _o("dia_chi_hd", "Địa chỉ xuất hoá đơn", "Địa chỉ trên giấy phép doanh nghiệp", dai=True),
                    _o("mst", "Mã số thuế", "VD: 4201591367"),
                    _o("sdt", "Số điện thoại khách", "VD: 0963901900"),
-                   _o("goi_cuoc", "Gói cước", "VD: combo vvip no box SKY trả trước 6 tháng")],
+                   _o("goi_cuoc", "Gói cước", "VD: combo vvip no box SKY trả trước 6 tháng", dai=True)],
         "y_chinh": "Lý do / nhu cầu của khách (gõ ý chính, Fox viết giúp)",
         "y_mau": "khách chỉ đăng ký gói trả trước 6 tháng, đứng tên doanh nghiệp, dùng cho 3 máy tính nhân viên, đang mở thêm chi nhánh",
         "tieu_de": "{hop_dong} - HỖ TRỢ CF KHÁCH HÀNG LẮP GÓI CÁ NHÂN MUỐN XHĐ DOANH NGHIỆP",
@@ -65,7 +67,7 @@ LOAI = {
                  "{tinh_huong}",
                  "D/c lắp đặt: {dia_chi}\nĐc xuất hóa đơn: **{dia_chi_hd}**\nMã số thuế: **{mst}**\nSố điện thoại: {sdt}\n"
                  "Gói cước: {goi_cuoc}",
-                 "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
+                 "{?y_them}", "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
         "goi_y": {"den": [("pho_giam_doc", "lap")], "cc": [("giam_doc", "lap"), ("giam_doc", "nha")]},
         "nhac": "Nhớ đính kèm ảnh CCCD hai mặt của chủ hợp đồng vào mail trong Outlook (app không lưu ảnh).",
         "fox": ("Viết đoạn nói rõ khách chỉ muốn đăng ký gói gì, đứng tên doanh nghiệp và xuất hoá đơn, nhu cầu sử dụng, rồi "
@@ -79,8 +81,9 @@ LOAI = {
     },
     "ha_tang": {
         "ten": "Xin đầu tư hạ tầng",
+        "mo_ta": "Tập điểm đầy port, xin nâng cấp để lắp cho khách",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: CMAAE5918"),
-                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh"),
+                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),
                    _o("tap_diem", "Tập điểm (TD)", "VD: CMUP003.0008/HO"),
                    _o("port_hien_tai", "Số port hiện có", "VD: 8"),
                    _o("port_nang_cap", "Nâng cấp lên (port)", "VD: 16"),
@@ -94,7 +97,7 @@ LOAI = {
                  "Hiện kỹ thuật qua khảo sát báo lại nhà KH kéo về TD **{tap_diem}** hiện đang full {port_hien_tai} port cần "
                  "nâng cấp để có thể triển khai cho khách hàng, nhờ {chao} hỗ trợ phương án nâng cấp tập điểm **{tap_diem}** "
                  "từ {port_hien_tai} port lên {port_nang_cap} port để có thể sớm hỗ trợ cho khách hàng với ạ, {tinh_huong}",
-                 "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
+                 "{?y_them}", "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
         "goi_y": {"den": [("ha_tang", "lap")], "cc": [("giam_doc", "lap")]},
         "fox": ("Viết MỘT mệnh đề ngắn (không có chủ ngữ mở đầu, nối tiếp sau chữ 'với ạ,') nói vì sao khách cần sớm và có thể "
                 "đợi bao lâu nếu sale nhắc. Chỉ dùng ý sale đưa."),
@@ -133,7 +136,7 @@ def dung(loai: str, v: dict) -> dict:
         raise LoiSoanMail("Loại mail không có trong danh sách.")
     L = LOAI[loai]
     kq, nhan = _gia_tri(loai, v), {t["khoa"]: t["nhan"] for t in L["truong"]}
-    nhan.update({"tinh_huong": "Tình huống", "chao": "Lời chào"})
+    nhan.update({"tinh_huong": "Tình huống", "chao": "Lời chào", "y_them": "Ý thêm"})
     thieu: list[str] = []
 
     def dien(mau: str) -> str | None:
