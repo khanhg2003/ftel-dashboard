@@ -40,7 +40,7 @@ LOAI = {
         "y_mau": "khách chỉ rảnh chiều nay vì tăng ca cả tuần, không kịp thì huỷ, sợ mất khách sang đối thủ",
         "tieu_de": "{hop_dong} - CA HOT CẦN HỖ TRỢ LẮP ĐẶT TRƯỚC {han_lap}",
         "than": ["Dear {chao},", "Em có HĐ: **{hop_dong}**\nĐịa chỉ: {dia_chi}", "{tinh_huong}",
-                 "{?y_them}", "Em xin chân thành cảm ơn các {xung}!", "{?nguoi_gui}"],
+                 "{?y_them}", "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
         "goi_y": {"den": [("doi_truong", "khu_vuc")], "cc": [("truong_phong_kt", "lap")]},
         "fox": ("Viết đoạn nêu ca hot: khách cần lắp gấp, hiện chưa có mốc hẹn phù hợp, sale đã care khách, và nhờ người nhận "
                 "hỗ trợ phương án phân công kỹ thuật kịp thời gian để tránh khách huỷ hoặc lắp mạng đối thủ."),
@@ -112,14 +112,8 @@ class LoiSoanMail(ValueError):
 
 
 # ------------------------------------------------------------------ dựng mail từ khuôn
-def loi_chao(den: list[dict], xung: str = "anh") -> str:
-    """Lời chào theo người nhận đầu tiên: 1 người -> "anh Bình"; nhiều người -> "các anh"; chưa chọn -> "anh/chị"."""
-    xung = xung if xung in ("anh", "chị") else "anh"
-    if not den:
-        return "anh/chị"
-    return f"{xung} {db.ten_goi(den[0].get('ten'))}".strip() if len(den) == 1 else f"các {xung}"
-
-
+# Lời chào (`chao`) do sale TỰ GÕ (VD "phòng kỹ thuật DNG", "anh Bình"): chủ app bỏ ô chọn anh / chị (10/10/2026) vì mail
+# hay gửi cả một phòng. Để trống thì mail hiện [Lời chào] và báo còn trống.
 def _gia_tri(loai: str, v: dict) -> dict:
     """Giá trị đã chuẩn hoá để điền khuôn: bỏ khoảng trắng thừa, ô tình huống trống thì lấy câu mẫu (nếu loại có)."""
     kq = {k: re.sub(r"[ \t]+", " ", str(x or "")).strip() for k, x in v.items()}

@@ -50,6 +50,57 @@
         return window.dash_clientside.no_update;
     }
 
+    /* Hộp Tra danh bạ: bấm Đến / CC phải thấy ngay là đã thêm. Thẻ người đổi sang xanh + nút thành "✓ Đã thêm vào Đến", nút kia
+       thành "Chuyển sang CC", kèm thông báo nhỏ ở đáy màn hình. Trạng thái đọc từ các thẻ người nhận trên thư (#sm-chips) nên luôn
+       khớp thật; `tam` giữ phần vừa bấm trong lúc chờ máy chủ xác nhận. #sm-db-kq do trình duyệt vẽ nên sửa trực tiếp được. */
+    const tam = {};                                              // email (chữ thường) -> 'den' | 'cc'
+    const NHAN = {den: 'Đến', cc: 'CC'};
+    let cho = null;
+
+    function emailThe(the) {
+        const e = the.querySelector('.db-gia-tri');
+        return e ? e.textContent.trim().toLowerCase() : '';
+    }
+
+    function daChon() {
+        const kq = {};
+        document.querySelectorAll('#sm-chips .sm-dong-chip').forEach(function (d) {
+            const vt = d.querySelector('.sm-vt'), loai = vt && vt.textContent.trim() === 'CC' ? 'cc' : 'den';
+            d.querySelectorAll('.sm-chip').forEach(function (c) { kq[(c.title || '').split(' ')[0].toLowerCase()] = loai; });
+        });
+        return Object.assign(kq, tam);
+    }
+
+    function danhDau() {
+        const kq = document.getElementById('sm-db-kq');
+        if (!kq) { return; }
+        const co = daChon();
+        kq.querySelectorAll('.db-the').forEach(function (the) {
+            const vt = co[emailThe(the)] || '';
+            if ((the.dataset.trang || '') === vt) { return; }
+            the.dataset.trang = vt;
+            the.querySelectorAll('[data-chon]').forEach(function (b) {
+                const l = b.dataset.chon;
+                b.textContent = !vt ? NHAN[l] : (l === vt ? '✓ Đã thêm vào ' + NHAN[l] : 'Chuyển sang ' + NHAN[l]);
+                b.classList.toggle('da-them', l === vt);
+            });
+        });
+    }
+
+    function bao(chu) {
+        let t = document.getElementById('sm-toast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'sm-toast';
+            t.className = 'sm-toast';
+            document.body.appendChild(t);
+        }
+        t.textContent = chu;
+        t.classList.add('hien');
+        clearTimeout(t._h);
+        t._h = setTimeout(function () { t.classList.remove('hien'); }, 2200);
+    }
+
     function khoiSua(e) {
         return e.target && e.target.closest ? e.target.closest('#sm-than, #sm-tieu') : null;
     }
@@ -69,6 +120,20 @@
             const bao = document.getElementById('sm-sua-bao');
             if (bao) { bao.classList.remove('an'); }
         });
+        document.addEventListener('click', function (e) {           // bấm Đến / CC ở hộp Tra danh bạ
+            const b = e.target && e.target.closest ? e.target.closest('#sm-db-kq [data-chon]') : null;
+            if (!b || b.classList.contains('da-them')) { return; }
+            const the = b.closest('.db-the'), ten = the.querySelector('.db-ten b'), truoc = the.dataset.trang;
+            tam[emailThe(the)] = b.dataset.chon;
+            danhDau();
+            bao('✓ ' + (truoc ? 'Đã chuyển ' : 'Đã thêm ') + (ten ? ten.textContent : '') + (truoc ? ' sang ' : ' vào ') + NHAN[b.dataset.chon]);
+        });
+        new MutationObserver(function (ms) {
+            if (ms.some(function (m) { return m.target.closest && m.target.closest('#sm-chips'); })) {
+                Object.keys(tam).forEach(function (k) { delete tam[k]; });            // máy chủ đã cập nhật thư: lấy theo thư
+            }
+            if (!cho) { cho = requestAnimationFrame(function () { cho = null; danhDau(); }); }
+        }).observe(document.documentElement, {childList: true, subtree: true});
         document.addEventListener('paste', function (e) {           // dán chữ trơn: không mang định dạng Word / web vào thư
             const el = khoiSua(e);
             if (!el) { return; }

@@ -15,9 +15,9 @@ from app import soan_mail as sm                                         # noqa: 
 from app import tro_ly as ai                                            # noqa: E402
 from app.config import DATA_DIR                                          # noqa: E402
 
-CHUNG = {"chao", "xung", "nguoi_gui", "tinh_huong", "y_them"}
+CHUNG = {"chao", "nguoi_gui", "tinh_huong", "y_them"}
 CA_HOT = {"hop_dong": "DAAAP6381", "dia_chi": "K62/H75/17 Nguyễn Phan Vinh, Sơn Trà, Đà Nẵng", "han_lap": "17h chiều nay",
-          "xung": "anh", "chao": "anh Bình", "tinh_huong": "Hiện case này khách cần lắp đặt trong 17h chiều nay."}
+          "chao": "anh Bình", "tinh_huong": "Hiện case này khách cần lắp đặt trong 17h chiều nay."}
 
 
 def test_moi_o_trong_khuon_deu_co_nguon_du_lieu():
@@ -33,7 +33,7 @@ def test_mail_ca_hot_dung_cau_chu_mail_mau():
     kq = sm.dung("ca_hot", CA_HOT)
     assert kq["thieu"] == [] and kq["tieu_de"] == "DAAAP6381 - CA HOT CẦN HỖ TRỢ LẮP ĐẶT TRƯỚC 17h chiều nay"
     assert kq["text"] == ("Dear anh Bình,\n\nEm có HĐ: DAAAP6381\nĐịa chỉ: K62/H75/17 Nguyễn Phan Vinh, Sơn Trà, Đà Nẵng\n\n"
-                          "Hiện case này khách cần lắp đặt trong 17h chiều nay.\n\nEm xin chân thành cảm ơn các anh!")
+                          "Hiện case này khách cần lắp đặt trong 17h chiều nay.\n\nEm xin chân thành cảm ơn ạ!")
     assert ("DAAAP6381", True) in kq["doan"][1]                 # mã hợp đồng in đậm
 
 
@@ -47,12 +47,12 @@ def test_o_trong_hien_trong_ngoac_va_liet_ke_o_thieu():
 def test_chu_ky_chi_hien_khi_co_nguoi_gui():
     assert not sm.dung("ca_hot", CA_HOT)["text"].endswith("Rin")
     kq = sm.dung("ca_hot", {**CA_HOT, "nguoi_gui": "Rin"})
-    assert kq["text"].endswith("các anh!\n\nRin")
+    assert kq["text"].endswith("cảm ơn ạ!\n\nRin")
 
 
 def test_mail_xin_hoa_don_dn_du_cac_dong_cua_mail_mau():
     v = {"hop_dong": "NTAAQ4015", "dia_chi": "225 Cầu Dừa, Nha Trang, Khánh Hòa", "dia_chi_hd": "Số 02L Ngô Quyền, Sơn Trà, Đà Nẵng",
-         "mst": "4201591367", "sdt": "0963901900", "goi_cuoc": "combo vvip trả trước 6 tháng", "xung": "anh", "chao": "anh Ý",
+         "mst": "4201591367", "sdt": "0963901900", "goi_cuoc": "combo vvip trả trước 6 tháng", "chao": "anh Ý",
          "tinh_huong": "Hiện khách chỉ muốn đăng ký gói trả trước 6 tháng."}
     kq = sm.dung("hoa_don", v)
     assert kq["thieu"] == [] and kq["text"].startswith("Kính gửi anh Ý,")
@@ -65,7 +65,7 @@ def test_mail_xin_hoa_don_dn_du_cac_dong_cua_mail_mau():
 
 def test_mail_ha_tang_dung_cau_mau_va_cau_mac_dinh_khi_khong_co_y_rieng():
     v = {"hop_dong": "CMAAE5918", "dia_chi": "x", "tap_diem": "CMUP003.0008/HO", "port_hien_tai": "8", "port_nang_cap": "16",
-         "thoi_gian_cho": "2 đến 3 ngày", "xung": "anh", "chao": "anh Hiếu", "tinh_huong": ""}
+         "thoi_gian_cho": "2 đến 3 ngày", "chao": "anh Hiếu", "tinh_huong": ""}
     kq = sm.dung("ha_tang", v)
     assert kq["thieu"] == []                                   # ô tình huống không bắt buộc ở loại này
     assert "nâng cấp tập điểm CMUP003.0008/HO từ 8 port lên 16 port" in kq["text"]
@@ -74,11 +74,12 @@ def test_mail_ha_tang_dung_cau_mau_va_cau_mac_dinh_khi_khong_co_y_rieng():
     assert "khách rất gấp" in sm.dung("ha_tang", {**v, "tinh_huong": "khách rất gấp."})["text"]
 
 
-@pytest.mark.parametrize("den, xung, chao", [
-    ([], "anh", "anh/chị"), ([{"ten": "Tô Duy Bình"}], "anh", "anh Bình"), ([{"ten": "Lê Thị Lý"}], "chị", "chị Lý"),
-    ([{"ten": "A B"}, {"ten": "C D"}], "anh", "các anh"), ([{"ten": "Tô Duy Bình"}], "xyz", "anh Bình")])
-def test_loi_chao_theo_nguoi_nhan(den, xung, chao):
-    assert sm.loi_chao(den, xung) == chao
+def test_loi_chao_do_sale_tu_go_va_trong_thi_bao_con_thieu():
+    """Chủ app (10/10/2026): bỏ ô chọn anh / chị, sale tự gõ "phòng kỹ thuật DNG"..."""
+    v = {**CA_HOT, "chao": "phòng kỹ thuật DNG"}
+    assert sm.dung("ca_hot", v)["text"].startswith("Dear phòng kỹ thuật DNG,")
+    kq = sm.dung("ca_hot", {**CA_HOT, "chao": ""})
+    assert kq["text"].startswith("Dear [Lời chào],") and "Lời chào" in kq["thieu"]
 
 
 def test_che_so_dai_va_email_truoc_khi_gui_ai():
@@ -221,7 +222,7 @@ def test_hai_trang_dung_duoc_va_khong_trung_id():
             assert ids and not {i for i in ids if ids.count(i) > 1}, trang.__name__
             assert trang.topbar()
         ids = _cac_id(soanmail.layout())
-        assert {"sm-tieu", "sm-than", "sm-sua-bao", "sm-dung-lai", "sm-kq", "sm-xung", "sm-gui", "sm-dv"} <= set(ids)
+        assert {"sm-tieu", "sm-than", "sm-sua-bao", "sm-dung-lai", "sm-kq", "sm-chao", "sm-gui", "sm-dv"} <= set(ids)
         assert {"sm-form", "sm-loai", "sm-db-kq", "sm-db-tim", "sm-db-dv-tim", "sm-db-dv-ds", "sm-db-dem", "sm-du-lieu", "sm-sk-chon"} <= set(ids)
         assert {"db-kq", "db-dem", "db-tim", "db-dv-tim", "db-dv-ds", "db-sk-sua", "db-du-lieu"} <= set(_cac_id(danhba.layout()))
         # cả ba biểu mẫu có mặt sẵn, mỗi ô mang tên loại để không trùng nhau

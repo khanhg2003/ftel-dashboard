@@ -1434,3 +1434,11 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .db-cb-it { padding: 7px 12px; font-size: 13.5px; cursor: pointer; }
 .db-cb-it:hover { background: #F0F5FB; }
 .db-cb-it.on { background: #E6EEF8; color: var(--fpt-blue); font-weight: 600; }
+
+/* Soạn email: hộp Tra danh bạ báo "đã thêm" (assets/soan_mail.js) */
+#sm-db-kq .db-the[data-trang="den"], #sm-db-kq .db-the[data-trang="cc"] { border-color: #8FD1AE; background: #F3FAF6; }
+#sm-db-kq .btn.da-them { background: #1E8E5A; border-color: #1E8E5A; color: #fff; pointer-events: none; }
+.sm-toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 12px); z-index: 5000; padding: 9px 16px; border-radius: 999px;
+  background: #0B3A66; color: #fff; font-size: 13.5px; font-weight: 500; box-shadow: 0 6px 20px #0b3a6640; opacity: 0; pointer-events: none;
+  transition: opacity .18s, transform .18s; }
+.sm-toast.hien { opacity: 1; transform: translate(-50%, 0); }

@@ -65,10 +65,10 @@ def layout():
         html.Div([
             html.Div([
                 html.H3("1 · Điền thông tin", style={"margin": "0 0 12px"}),
+                field("Lời chào đầu thư (Dear …) *", dcc.Input(id="sm-chao", type="text", className="inp", debounce=True, maxLength=120,
+                                                               placeholder="VD: phòng kỹ thuật DNG · anh Bình · các anh")),
                 html.Div([_o_form(loai) for loai in sm.LOAI], id="sm-form", className="sm-khung loai-ca_hot"),
                 html.Div([
-                    field("Xưng hô với người nhận", dcc.Dropdown(id="sm-xung", options=["anh", "chị"], value="anh", clearable=False,
-                                                                 searchable=False)),
                     field("Người gửi (ký tên cuối mail)", dcc.Input(id="sm-gui", type="text", className="inp", debounce=True,
                                                                     placeholder="VD: Rin", persistence=True,
                                                                     persistence_type="local")),
@@ -242,7 +242,7 @@ def _dang_ky_nguoi(app):
         if not gia_tri:
             raise PreventUpdate                              # nút vừa dựng lại, chưa ai bấm
         nguoi = {"den": list((nguoi or {}).get("den") or []), "cc": list((nguoi or {}).get("cc") or [])}
-        moi = []                                             # [(vị trí, người)]
+        moi, chuyen = [], False                              # [(vị trí, người)]; chuyen: người đã có thì dời sang vị trí mới
         if t == "sm-ap-het":
             moi = [(vt, p) for vt in ("den", "cc") for p in (goi_y or {}).get(vt, [])]
         elif isinstance(t, dict) and t["type"] == "sm-ap":
@@ -255,12 +255,15 @@ def _dang_ky_nguoi(app):
         elif t == "sm-sk-chon" and (chon or {}).get("vt") in VT:
             r = db.tat_ca()
             r = r[r.id == chon.get("id")]
-            moi = [(chon["vt"], sm.nguoi_dict(next(r.itertuples())))] if not r.empty else []
+            moi, chuyen = ([(chon["vt"], sm.nguoi_dict(next(r.itertuples())))] if not r.empty else []), True
         elif t in ("sm-tay-den", "sm-tay-cc"):
             vt = "den" if t == "sm-tay-den" else "cc"
             moi = [(vt, {"id": 0, "ten": e.split("@")[0], "email": e, "chuc_vu": "", "don_vi": ""})
                    for e in MAU_EMAIL.findall(tay or "")]
         for vt, p in moi:
+            if chuyen:
+                for k in VT:
+                    nguoi[k] = [x for x in nguoi[k] if x["email"].lower() != p["email"].lower()]
             if p["email"].lower() not in {x["email"].lower() for x in nguoi["den"] + nguoi["cc"]}:
                 nguoi[vt].append(p)
         return nguoi, ("" if t in ("sm-tay-den", "sm-tay-cc") else no_update)
@@ -276,16 +279,15 @@ def _dang_ky_xem(app):
     @app.callback(Output("sm-kq", "data"), Output("sm-hanh-dong", "children"),
                   Input("sm-loai", "data"), Input({"type": F, "l": ALL, "k": ALL}, "value"),
                   Input({"type": FT, "l": ALL, "k": ALL}, "n_blur"), Input({"type": "sm-fox-msg", "l": ALL}, "children"),
-                  Input("sm-nguoi", "data"), Input("sm-xung", "value"), Input("sm-gui", "value"), Input("sm-dung-lai", "n_clicks"),
+                  Input("sm-nguoi", "data"), Input("sm-chao", "value"), Input("sm-gui", "value"), Input("sm-dung-lai", "n_clicks"),
                   State({"type": F, "l": ALL, "k": ALL}, "id"), State({"type": FT, "l": ALL, "k": ALL}, "value"),
                   State({"type": FT, "l": ALL, "k": ALL}, "id"))
-    def _xem_truoc(loai, vals, _blur, _fox, nguoi, xung, gui, lam_lai, ids, vals_t, ids_t):
+    def _xem_truoc(loai, vals, _blur, _fox, nguoi, chao, gui, lam_lai, ids, vals_t, ids_t):
         _vao()
         if loai not in sm.LOAI:
             raise PreventUpdate
         nguoi = sm.gop_cc_bat_buoc(nguoi or {}, current_user)
-        v = {**_cua_loai(loai, vals, ids), **_cua_loai(loai, vals_t, ids_t), "xung": xung or "anh", "nguoi_gui": gui or "",
-             "chao": sm.loi_chao(nguoi["den"], xung or "anh")}
+        v = {**_cua_loai(loai, vals, ids), **_cua_loai(loai, vals_t, ids_t), "nguoi_gui": gui or "", "chao": chao or ""}
         kq = sm.dung(loai, v)
         # trình duyệt tự vẽ thư (assets/soan_mail.js) để giữ được phần sale sửa tay; `lam_lai` đổi là bỏ phần sửa tay
         return {"loai": loai, "tieu_de": kq["tieu_de"], "doan": kq["doan"], "lam_lai": lam_lai or 0}, _hanh_dong(loai, kq, nguoi)
