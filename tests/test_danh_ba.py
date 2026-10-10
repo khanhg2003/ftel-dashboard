@@ -249,8 +249,10 @@ def test_trang_danh_ba_co_nut_chuyen_the_so_do():
                                      session_version=0, scope="[]"))
     with server.test_request_context("/"):
         login_user(ad)
-        nut = [n for n in danhba.layout().children if getattr(n, "id", None) == "db-cd"][0]
-        assert [b.to_plotly_json()["props"]["data-cd"] for b in nut.children] == ["the", "so_do"]
+        hang = [n for n in danhba.layout().children if "db-loc-hang" in str(getattr(n, "className", ""))][0]
+        cd, nhom = hang.children                            # cùng một hàng: Thẻ / Sơ đồ rồi tới nhóm chức danh
+        assert cd.id == "db-cd" and nhom.id == "db-nhom"
+        assert [b.to_plotly_json()["props"]["data-cd"] for b in cd.children] == ["the", "so_do"]
 
 
 def test_so_do_tach_rieng_dvkh_ke_toan_hanh_chinh_nhan_su():

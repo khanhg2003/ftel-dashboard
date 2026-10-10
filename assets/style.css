@@ -1354,3 +1354,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .db-khung-nap { margin-top: 28px; }
 .db-nap-tieu { margin-bottom: 8px; }
 .db-nap-o .upload-zone { padding: 28px; }
+
+/* Danh bạ: Thẻ / Sơ đồ và nhóm chức danh cùng một hàng cho gọn */
+.db-loc-hang { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
+.db-loc-hang .db-nhom { margin: 0; }

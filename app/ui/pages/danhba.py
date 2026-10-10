@@ -48,10 +48,12 @@ def layout():
             field("Chi nhánh", html.Select([html.Option("Mọi chi nhánh", value="")], id="db-dv", className="inp db-chon")),
             html.Button([icon("plus", 14), html.Span("Thêm người")], id="db-them-mo", className="btn nt-nut"),
         ], className="toolbar"),
-        html.Div([html.Button(ten, className="db-cd" + (" active" if v == "the" else ""), **{"data-cd": v})
-                  for v, ten in (("the", "Thẻ"), ("so_do", "Sơ đồ"))], id="db-cd", className="db-nhom db-cd-nhom"),
-        html.Div([html.Button(ten, className="db-chip" + (" active" if v == "all" else ""), **{"data-nhom": v})
-                  for v, ten in NHOM_NUT], id="db-nhom", className="db-nhom"),
+        html.Div([  # một hàng gọn: chuyển Thẻ / Sơ đồ + lọc theo nhóm chức danh
+            html.Div([html.Button(ten, className="db-cd" + (" active" if v == "the" else ""), **{"data-cd": v})
+                      for v, ten in (("the", "Thẻ"), ("so_do", "Sơ đồ"))], id="db-cd", className="db-nhom db-cd-nhom"),
+            html.Div([html.Button(ten, className="db-chip" + (" active" if v == "all" else ""), **{"data-nhom": v})
+                      for v, ten in NHOM_NUT], id="db-nhom", className="db-nhom"),
+        ], className="db-loc-hang"),
         html.Div(id="db-dem", className="desc db-dem"),
         html.Div(html.Div("Đang tải danh bạ…", className="desc"), id="db-kq", className="db-luoi"),
         html.Div(id="db-msg"),
