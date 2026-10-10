@@ -28,19 +28,26 @@ NHOM = {"giam_doc": "Giám đốc", "pho_giam_doc": "Phó giám đốc", "truong
         "ha_tang": "Hạ tầng", "doi_truong": "Đội trưởng", "ke_toan": "Kế toán", "dvkh": "DVKH",
         "hcns": "Hành chính nhân sự", "khac": "Khác"}
 DV_UU_TIEN = ("da nang", "quang nam")              # chi nhánh của sale: luôn xếp lên đầu kết quả
-MIEN_TRUNG, MIEN_BAC, MIEN_NAM, KHOI = "Miền Trung - Tây Nguyên", "Miền Bắc", "Miền Nam", "Khối văn phòng và trung tâm"
-THU_TU_MIEN = (MIEN_TRUNG, MIEN_BAC, MIEN_NAM, KHOI)
+MIEN_BAC, MIEN_TRUNG, MIEN_NAM, MIEN_TAY, KHOI = ("Miền Bắc", "Miền Trung - Tây Nguyên", "Miền Nam", "Miền Tây",
+                                                   "Khối văn phòng và trung tâm")
+THU_TU_MIEN = (MIEN_BAC, MIEN_TRUNG, MIEN_NAM, MIEN_TAY, KHOI)                  # từ Bắc xuống Nam
 # Miền theo TÊN SHEET của hai file danh bạ (sheet khu vực nói rõ miền); chi nhánh nằm ở sheet khác (TĐĐT, Thập đại đô thị...)
 # thì đoán theo tên tỉnh / thành. Chi nhánh không khớp gì (Ban giám đốc, INF, SOC...) vào "Khối văn phòng và trung tâm".
 MIEN_THEO_SHEET = {"tay nguyen - mien trung": MIEN_TRUNG, "mien trung": MIEN_TRUNG, "cn hnx": MIEN_BAC, "tay bac bo": MIEN_BAC,
-                   "dong bac bo": MIEN_BAC, "dong nam bo": MIEN_NAM, "tay nam bo": MIEN_NAM}
-TINH_THEO_MIEN = {
-    MIEN_TRUNG: "thanh hoa|nghe an|ha tinh|quang binh|quang tri|hue|da nang|quang nam|quang ngai|binh dinh|phu yen|khanh hoa|"
-                "ninh thuan|binh thuan|kon tum|gia lai|dak lak|dac lak|dak nong|dac nong|lam dong",
-    MIEN_BAC: "ha noi|hai phong|quang ninh|hai duong|hung yen|thai binh|nam dinh|ha nam|ninh binh|vinh phuc|bac ninh|bac giang|"
-              "phu tho|thai nguyen|lang son|cao bang|ha giang|tuyen quang|lao cai|yen bai|son la|dien bien|lai chau|hoa binh|bac kan",
-    MIEN_NAM: "ho chi minh|sai gon|hcm|dong nai|binh duong|binh phuoc|tay ninh|ba ria|vung tau|long an|tien giang|ben tre|vinh long|"
-              "tra vinh|dong thap|an giang|kien giang|can tho|hau giang|soc trang|bac lieu|ca mau"}
+                   "dong bac bo": MIEN_BAC, "dong nam bo": MIEN_NAM, "tay nam bo": MIEN_TAY}
+# Thứ tự tỉnh TỪ BẮC XUỐNG NAM trong từng miền (chủ app yêu cầu 10/10/2026: Đà Nẵng rồi tới Quảng Nam...). Mỗi phần tử là biểu
+# thức khớp tên chi nhánh (bỏ dấu); đồng thời là danh sách tỉnh dùng để đoán miền khi sheet không nói rõ. Tỉnh nằm ở miền nào theo
+# CÁCH HAI FILE CHIA (vd file xếp Thanh Hóa, Nghệ An vào miền Bắc; Long An, Lâm Đồng, Ninh Thuận vào Đông Nam Bộ).
+THU_TU_TINH = {
+    MIEN_BAC: ("ha giang", "cao bang", "lao cai", "lang son", "yen bai", "tuyen quang", "bac kan", "dien bien", "lai chau", "son la",
+               "thai nguyen", "phu tho", "vinh phuc", "bac giang", "quang ninh", "bac ninh", r"ha noi|hn\d", "hai phong", "hai duong",
+               "hung yen", "hoa binh", "ha nam", "thai binh", "nam dinh", "ninh binh", "thanh hoa", "nghe an", "ha tinh"),
+    MIEN_TRUNG: ("quang binh", "quang tri", "hue", "da nang", "quang nam", "quang ngai", "kon tum", "gia lai", "binh dinh", "phu yen",
+                 "dak lak|dac lak", "khanh hoa", "dak nong|dac nong"),
+    MIEN_NAM: ("lam dong", "binh phuoc", "ninh thuan", "tay ninh", "binh thuan", "binh duong", "dong nai", "ho chi minh|sai gon|hcm",
+               "long an", "ba ria|vung tau"),
+    MIEN_TAY: ("dong thap", "an giang", "tien giang", "ben tre", "vinh long", "can tho", "kien giang", "tra vinh", "hau giang",
+               "soc trang", "bac lieu", "ca mau")}
 GIOI_HAN = {"ho_ten": 120, "chuc_vu": 160, "email": 160, "ext": 30, "di_dong": 30, "don_vi": 80, "khu_vuc": 80}
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _da_tao = False
@@ -134,8 +141,8 @@ def mien_cua(don_vi, sheets) -> str:
         if m:
             return m
     k = chuan_don_vi(don_vi)
-    for mien, ds in TINH_THEO_MIEN.items():
-        if re.search(rf"\b({ds})\b", k):
+    for mien, ds in THU_TU_TINH.items():
+        if any(re.search(rf"\b({m})\b", k) for m in ds):
             return mien
     return KHOI
 
@@ -143,6 +150,16 @@ def mien_cua(don_vi, sheets) -> str:
 def _khoa_xep(ten: str) -> str:
     """Khoá xếp theo chữ cái không dấu, số xếp theo giá trị ("Sài Gòn 2" trước "Sài Gòn 10")."""
     return re.sub(r"\d+", lambda m: m.group().zfill(4), bo_dau(ten))
+
+
+def _vi_tri(mien: str, ten: str) -> tuple[int, str]:
+    """Vị trí chi nhánh trong miền: theo thứ tự tỉnh từ Bắc xuống Nam; chi nhánh không có trong danh sách (Sài Gòn 2, HN4...) xếp
+    cùng tỉnh của nó, cuối cùng mới tới chi nhánh lạ xếp chữ cái."""
+    k = chuan_don_vi(ten)
+    for i, mau in enumerate(THU_TU_TINH.get(mien, ())):
+        if re.search(rf"\b({mau})\b", k):
+            return i, _khoa_xep(ten)
+    return 999, _khoa_xep(ten)
 
 
 def ten_goi(ho_ten) -> str:
@@ -323,8 +340,8 @@ def lan_nap_cuoi() -> dict:
 
 @nho("danh_ba", 60)
 def nhom_chi_nhanh() -> list[dict]:
-    """Chi nhánh gom theo khu vực để dễ tìm: Miền Trung - Tây Nguyên, Miền Bắc, Miền Nam, Khối văn phòng và trung tâm; trong mỗi
-    khu vực xếp theo chữ cái (Đà Nẵng, Quảng Nam nằm đúng khu vực của mình, không tách riêng - chủ app chốt 10/10/2026)."""
+    """Chi nhánh gom theo khu vực (Miền Bắc, Miền Trung - Tây Nguyên, Miền Nam, Miền Tây, Khối văn phòng và trung tâm), trong mỗi khu vực
+    xếp tỉnh từ Bắc xuống Nam (`_vi_tri`). Đà Nẵng, Quảng Nam nằm đúng khu vực của mình, không tách riêng (chủ app chốt 10/10/2026)."""
     df = tat_ca()
     if df.empty:
         return []
@@ -333,7 +350,7 @@ def nhom_chi_nhanh() -> list[dict]:
     for k, r in g.iterrows():
         if r.ten:
             nhom[mien_cua(r.ten, r.sheets)].append(r.ten)
-    return [{"mien": m, "ds": sorted(nhom[m], key=_khoa_xep)} for m in THU_TU_MIEN if nhom[m]]
+    return [{"mien": m, "ds": sorted(nhom[m], key=lambda t: _vi_tri(m, t))} for m in THU_TU_MIEN if nhom[m]]
 
 
 def chi_nhanh_mac_dinh() -> str:

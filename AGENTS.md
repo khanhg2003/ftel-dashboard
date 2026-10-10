@@ -196,15 +196,16 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      Mỗi lần gõ tìm hay đổi nhóm chức danh từng là một lượt hỏi máy chủ + dựng 60 thẻ Dash nên trễ, có lúc nhóm đã đổi mà danh sách chưa kịp đổi (chủ app báo);
      nay mỗi lần lọc ~60-120 ms và không tốn CPU Vercel. Đổi cách lọc / xếp thì sửa `loc` ở JS (có test chạy đúng hàm đó bằng Node). Soạn email dựng sẵn CẢ BA
      biểu mẫu và chỉ ẩn / hiện bằng CSS (đổi loại tức thì, ô đã gõ không mất) nên id mọi ô mang cả tên loại (`l`). Bảng nhiều thẻ dựng bằng Dash thì nghĩ tới cách này.
-     Danh bạ có chế độ **Sơ đồ** (chọn một chi nhánh): CÂY theo PHÒNG BAN, căn giữa, đường nối đầy đủ - gốc là ban giám đốc, mỗi phòng ban một nhánh
+     Trang Danh bạ CHỈ xem từng chi nhánh dạng **Sơ đồ** (chủ app chốt 10/10/2026: bỏ dạng thẻ, bỏ nút Thẻ / Sơ đồ, bỏ lọc nhóm chức danh, bỏ "Mọi chi nhánh"; mở trang là Đà Nẵng, ô "Tìm" chỉ tìm TRONG chi nhánh đang chọn; tra người trong toàn danh bạ ở hộp Tra danh bạ của Soạn email, vẫn dạng thẻ): CÂY theo PHÒNG BAN, căn giữa, đường nối đầy đủ - gốc là ban giám đốc, mỗi phòng ban một nhánh
      (Kỹ thuật và hạ tầng, trong đó có đội trưởng theo khu vực · DVKH · Kế toán · Hành chính nhân sự, theo `danh_ba.nhom_chuc`; KHÔNG gộp các phòng ban với nhau, chủ app sửa
      10/10/2026). Đường nối chỉ nói "phòng ban này thuộc chi nhánh": file KHÔNG có cột "báo cáo cho" nên đừng nối từng người với cấp trên (sẽ phải đoán và dễ sai).
      **Thứ tự người trong mỗi nhóm theo CẤP BẬC rồi tên gọi** (`danh_ba.cap_bac`: giám đốc → phó giám đốc → trưởng phòng / trưởng nhóm / đội trưởng / kế toán trưởng → phó phòng → còn lại; cùng cấp xếp theo tên gọi, vd Bình, Hưng, Vũ):
      trưởng phòng phải đứng trên phó phòng (chủ app báo 10/10/2026), nên người chỉ có trong file TIN cũ chỉ bị đẩy xuống CUỐI TRONG CÙNG CẤP, không được vượt cấp. **Chi nhánh gom theo khu vực**
-     (`nhom_chi_nhanh`): Miền Trung - Tây Nguyên → Miền Bắc → Miền Nam → Khối văn phòng và trung tâm, chữ cái trong nhóm (số theo giá trị); Đà Nẵng, Quảng Nam nằm đúng khu vực, KHÔNG tách nhóm
-     riêng (chủ app chốt 10/10/2026), chỉ là chi nhánh chọn sẵn khi mở Sơ đồ (`chi_nhanh_mac_dinh`); miền lấy theo TÊN
+     (`nhom_chi_nhanh`): Miền Bắc → Miền Trung - Tây Nguyên → Miền Nam → Miền Tây → Khối văn phòng và trung tâm (từ Bắc xuống Nam), và trong mỗi miền xếp TỈNH TỪ BẮC XUỐNG NAM
+     (`THU_TU_TINH`, vd Quảng Bình → Huế → Đà Nẵng → Quảng Nam → Quảng Ngãi; chi nhánh có số như Sài Gòn, HN xếp theo số); Đà Nẵng, Quảng Nam nằm đúng khu vực, KHÔNG tách nhóm
+     riêng (chủ app chốt 10/10/2026), chỉ là chi nhánh chọn sẵn khi mở trang (`chi_nhanh_mac_dinh`); miền lấy theo TÊN
      SHEET của hai file trước (`MIEN_THEO_SHEET`; file xếp Thanh Hóa / Nghệ An vào miền Bắc, Ninh Thuận / Lâm Đồng vào miền Nam thì theo file), sheet đô thị lớn (TĐĐT...) thì theo tên tỉnh (`TINH_THEO_MIEN`).
-     Ô chọn chi nhánh gõ chữ để tìm (combobox dựng bằng JS, danh sách có tiêu đề khu vực). Màn dưới 900 px chuyển thành cây dọc. Người chỉ có trong file TIN cũ mà chi nhánh đã có bản PNC thì gắn nhãn "có thể cũ" và xếp cuối nhóm.
+     Ô chọn chi nhánh gõ chữ để tìm (combobox dựng bằng JS, tiêu đề khu vực là thanh xanh dính đầu danh sách, mở ra là cuộn tới chi nhánh đang chọn). Màn dưới 900 px chuyển thành cây dọc. Người chỉ có trong file TIN cũ mà chi nhánh đã có bản PNC thì gắn nhãn "có thể cũ" và xếp cuối nhóm.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền

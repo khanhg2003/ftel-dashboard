@@ -1253,13 +1253,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 
 /* ---- Danh bạ (app/ui/pages/danhba.py) + nút copy dùng chung (assets/sao_chep.js) ---- */
 .db-o-tim { width: 420px !important; max-width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--border-strong, #C9D1DC); border-radius: 8px; font: inherit; background: #fff; }
-.db-nhom { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px; background: rgba(255, 255, 255, .6); border-radius: 12px; width: fit-content; max-width: 100%; }
-.db-chip { border: 0; background: transparent; padding: 7px 14px; border-radius: 9px; font: inherit; font-size: 13.5px; color: var(--text-muted); cursor: pointer; }
-.db-chip:hover { color: var(--fpt-blue); }
-.db-chip.active { background: #fff; color: var(--fpt-blue); font-weight: 600; box-shadow: 0 1px 3px rgba(16, 24, 40, .12); }
 .db-chan .grow { flex: 1; }
 .db-dem { margin: 10px 0; }
-.db-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 12px; }
 .db-the { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; min-width: 0;
   display: flex; flex-direction: column; gap: 6px; }
 .db-dau { display: flex; gap: 10px; align-items: center; }
@@ -1286,7 +1281,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   white-space: nowrap; z-index: 5; }
 .nut-chep.chep-loi::after { content: "Không copy được"; background: #8A5A00; }
 @media (max-width: 767px) {
-  .db-luoi, .db-nap { grid-template-columns: 1fr; }
+  .db-nap { grid-template-columns: 1fr; }
   .db-o-tim { width: 100% !important; }
   .toolbar .field:has(.db-o-tim), .toolbar .field:has(.db-cb) { flex: 1 1 100%; }
   .db-cb { width: 100%; }
@@ -1331,9 +1326,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-khung.loai-ca_hot .f-ca_hot, .sm-khung.loai-hoa_don .f-hoa_don, .sm-khung.loai-ha_tang .f-ha_tang { display: block; }
 
 /* Danh bạ: chế độ Sơ đồ cây theo phòng ban (căn giữa, có đường nối đầy đủ) - assets/danh_ba.js */
-.db-cd-nhom { margin: 4px 0 8px; }
-.db-cd { border: 0; background: transparent; padding: 7px 18px; border-radius: 9px; font: inherit; font-size: 13.5px; color: var(--text-muted); cursor: pointer; }
-.db-cd.active { background: #fff; color: var(--fpt-blue); font-weight: 600; box-shadow: 0 1px 3px rgba(16, 24, 40, .12); }
 .db-so-do { --duong: #9FB1C6; overflow-x: auto; padding: 4px 0 12px; }
 .db-cay-trong { width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; }
 .db-goc { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
@@ -1368,6 +1360,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .db-n-dong .db-gia-tri { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .db-n-dong a.db-gia-tri { flex: 0 0 auto; overflow: visible; }
 .db-n .nut-chep { width: 22px; height: 20px; }
+.db-n-sua { align-self: flex-start; margin-top: 3px; }
 .db-n-cu { align-self: flex-start; font-style: normal; font-size: 10.5px; color: #8A5A00; background: #FFF1D6; border-radius: 999px; padding: 1px 8px; }
 .db-n.goc { width: 236px; border-top: 3px solid var(--fpt-blue); align-items: center; text-align: center; }
 .db-n.goc .db-n-dong, .db-n.goc .db-n-gc { align-self: center; }
@@ -1386,17 +1379,15 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .db-nap-tieu { margin-bottom: 8px; }
 .db-nap-o .upload-zone { padding: 28px; }
 
-/* Danh bạ: Thẻ / Sơ đồ và nhóm chức danh cùng một hàng cho gọn */
-.db-loc-hang { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
-.db-loc-hang .db-nhom { margin: 0; }
-
 /* Ô chọn chi nhánh: gõ để tìm, danh sách gom theo khu vực (assets/danh_ba.js) */
 .db-cb { position: relative; width: 270px; }
 .db-cb-o { width: 100%; height: 36px; padding: 0 12px; }
 .db-cb-ds { display: none; position: absolute; z-index: 40; top: 100%; left: 0; right: 0; max-height: 360px; overflow-y: auto; margin-top: 4px;
   background: #fff; border: 1px solid var(--border-strong, #C9D1DC); border-radius: 10px; box-shadow: 0 10px 28px rgba(16, 24, 40, .16); padding: 4px 0 6px; }
 .db-cb.mo .db-cb-ds { display: block; }
-.db-cb-nh { padding: 9px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--text-muted); }
+.db-cb-nh { position: sticky; top: 0; z-index: 1; padding: 7px 12px; margin-top: 6px; font-size: 12px; font-weight: 700; letter-spacing: .6px;
+  text-transform: uppercase; color: #fff; background: var(--fpt-blue); }
+.db-cb-nh:first-child { margin-top: 0; }
 .db-cb-it { padding: 7px 12px; font-size: 13.5px; cursor: pointer; }
 .db-cb-it:hover { background: #F0F5FB; }
 .db-cb-it.on { background: #E6EEF8; color: var(--fpt-blue); font-weight: 600; }

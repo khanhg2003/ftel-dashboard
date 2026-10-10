@@ -18,8 +18,6 @@ from app.thoi_gian import chu_gio_vn
 from app.ui.components import alert, card, field, modal
 from app.ui.icons import icon
 
-NHOM_NUT = [("all", "Tất cả"), ("giam_doc", "Giám đốc"), ("pho_giam_doc", "Phó GĐ"), ("truong_phong_kt", "TP kỹ thuật"),
-            ("ha_tang", "Hạ tầng"), ("doi_truong", "Đội trưởng"), ("ke_toan", "Kế toán"), ("khac", "Khác")]
 O_NGUOI = ("ho_ten", "chuc_vu", "email", "di_dong", "ext", "don_vi", "ghi_chu")
 
 
@@ -49,19 +47,13 @@ def layout():
     return html.Div([
         dcc.Store(id="db-da-luu"), dcc.Store(id="db-du-lieu"), dcc.Store(id="db-ve"), dcc.Store(id="db-sk-sua"),
         html.Div([
-            field("Tìm", dcc.Input(id="db-tim", type="search", className="o-tim db-o-tim", autoComplete="off",
-                                    placeholder="Tên, chức danh, email, chi nhánh hoặc số điện thoại")),
-            field("Chi nhánh", chon_chi_nhanh("db-dv")),
+            field("Tìm trong chi nhánh", dcc.Input(id="db-tim", type="search", className="o-tim db-o-tim", autoComplete="off",
+                                                   placeholder="Tên, chức danh, email hoặc số điện thoại")),
+            field("Chi nhánh", chon_chi_nhanh("db-dv", "Chọn chi nhánh · gõ để tìm")),
             html.Button([icon("plus", 14), html.Span("Thêm người")], id="db-them-mo", className="btn nt-nut"),
         ], className="toolbar"),
-        html.Div([  # một hàng gọn: chuyển Thẻ / Sơ đồ + lọc theo nhóm chức danh
-            html.Div([html.Button(ten, className="db-cd" + (" active" if v == "the" else ""), **{"data-cd": v})
-                      for v, ten in (("the", "Thẻ"), ("so_do", "Sơ đồ"))], id="db-cd", className="db-nhom db-cd-nhom"),
-            html.Div([html.Button(ten, className="db-chip" + (" active" if v == "all" else ""), **{"data-nhom": v})
-                      for v, ten in NHOM_NUT], id="db-nhom", className="db-nhom"),
-        ], className="db-loc-hang"),
         html.Div(id="db-dem", className="desc db-dem"),
-        html.Div(html.Div("Đang tải danh bạ…", className="desc"), id="db-kq", className="db-luoi"),
+        html.Div(html.Div("Đang tải danh bạ…", className="desc"), id="db-kq", className="db-so-do"),
         html.Div(id="db-msg"),
         _khung_nguoi(),
         _khung_nap() if current_user.duoc_cau_hinh else None,

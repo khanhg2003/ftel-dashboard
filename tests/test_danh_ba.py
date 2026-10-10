@@ -142,7 +142,7 @@ def test_du_lieu_cho_trinh_duyet_gon_va_da_xep(sach):
     db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
     db.nap(_xlsx({"Miền Trung": TIN_MT}), "tin.xlsx", "TIN", "kiemthu.admin")
     d = db.cho_trinh_duyet()
-    assert d["dv"][0] == {"mien": db.MIEN_TRUNG, "ds": ["Đà Nẵng", "Huế", "Khánh Hòa"]} and d["dv_mac_dinh"] == "Đà Nẵng"
+    assert d["dv"][0] == {"mien": db.MIEN_TRUNG, "ds": ["Huế", "Đà Nẵng", "Khánh Hòa"]} and d["dv_mac_dinh"] == "Đà Nẵng"
     assert "PNC cập nhật" in d["moi"] and "TIN cập nhật" in d["moi"]
     assert d["nhom"]["giam_doc"] == "Giám đốc" and len(d["ds"]) == 7
     assert d["ds"][0]["v"] == "Đà Nẵng" and d["ds"][0]["n"] == "giam_doc"        # chi nhánh của sale, giám đốc trước
@@ -241,7 +241,8 @@ def test_so_do_cay_goc_la_ban_giam_doc_nhanh_la_phong_ban(sach):
     assert set(kq["pb"][0][1]) == {"Châu Ngọc Vinh", "Phan Anh Tú"} and kq["pb"][0][2] == ["Tô Duy Bình"]
 
 
-def test_trang_danh_ba_co_nut_chuyen_the_so_do():
+def test_trang_danh_ba_chi_xem_theo_chi_nhanh_dang_so_do():
+    """Chủ app chốt 10/10/2026: bỏ dạng thẻ, bỏ nút Thẻ / Sơ đồ, bỏ lọc nhóm chức danh và bỏ "Mọi chi nhánh" ở trang Danh bạ."""
     from flask_login import login_user
 
     from app.auth import SessionUser
@@ -251,10 +252,19 @@ def test_trang_danh_ba_co_nut_chuyen_the_so_do():
                                      session_version=0, scope="[]"))
     with server.test_request_context("/"):
         login_user(ad)
-        hang = [n for n in danhba.layout().children if "db-loc-hang" in str(getattr(n, "className", ""))][0]
-        cd, nhom = hang.children                            # cùng một hàng: Thẻ / Sơ đồ rồi tới nhóm chức danh
-        assert cd.id == "db-cd" and nhom.id == "db-nhom"
-        assert [b.to_plotly_json()["props"]["data-cd"] for b in cd.children] == ["the", "so_do"]
+        ids, dung = [], [danhba.layout()]
+        while dung:
+            n = dung.pop()
+            if isinstance(n, (list, tuple)):
+                dung.extend(n)
+                continue
+            if getattr(n, "id", None) is not None:
+                ids.append(str(n.id))
+            dung.extend([c for c in [getattr(n, "children", None)] if c is not None])
+    assert {"db-dv-tim", "db-dv-ds", "db-kq"} <= set(ids) and not {"db-cd", "db-nhom"} & set(ids)
+    js = (Path(__file__).resolve().parent.parent / "assets" / "danh_ba.js").read_text(encoding="utf-8")
+    assert "moi: false" in js and "db-chip" not in js and "db-cd" not in js        # db: không còn "Mọi chi nhánh", thẻ, nút chuyển
+
 
 
 def test_so_do_cay_tach_rieng_dvkh_ke_toan_hanh_chinh_nhan_su():
@@ -289,27 +299,34 @@ def test_mien_theo_sheet_roi_theo_ten_tinh():
     assert db.mien_cua("Thanh Hóa", {"Đông Bắc Bộ"}) == db.MIEN_BAC                   # file TIN xếp Thanh Hóa vào miền Bắc
     assert db.mien_cua("Ninh Thuận", {"Đông Nam Bộ"}) == db.MIEN_NAM                  # file PNC xếp Ninh Thuận vào Đông Nam Bộ
     assert db.mien_cua("Đà Nẵng", {"TĐĐT", "Thập đại đô thị"}) == db.MIEN_TRUNG       # sheet đô thị lớn: theo tên tỉnh
-    assert db.mien_cua("Khánh Hòa", {"TĐĐT"}) == db.MIEN_TRUNG and db.mien_cua("Cà Mau", {"Tây Nam Bộ "}) == db.MIEN_NAM
+    assert db.mien_cua("Khánh Hòa", {"TĐĐT"}) == db.MIEN_TRUNG and db.mien_cua("Cà Mau", {"Tây Nam Bộ "}) == db.MIEN_TAY
     assert db.mien_cua("Sài Gòn 7", {"TĐĐT"}) == db.MIEN_NAM and db.mien_cua("HN4", {"CN HNx"}) == db.MIEN_BAC
     for ten in ("QLKV", "BGĐ", "INF", "Phòng Kế toán", "Trung tâm ĐHDV"):
         assert db.mien_cua(ten, {"Tây Nam Bộ"} if ten in ("QLKV", "BGĐ") else {"SOC"}) == db.KHOI, ten
 
 
-def test_chi_nhanh_gom_theo_khu_vuc_xep_chu_cai_va_so(sach):
-    """Danh sách chi nhánh gom theo khu vực (Đà Nẵng, Quảng Nam nằm đúng khu vực, không tách riêng), trong khu vực xếp chữ cái
-    (Sài Gòn 2 trước Sài Gòn 10)."""
-    pnc = [["Khu vực", "Họ tên", "Chức vụ", "Email"],
-           ["Đà Nẵng", "A1", "Giám Đốc", "a1@fpt.com"], ["Quảng Nam", "A2", "Giám Đốc", "a2@fpt.com"],
-           ["Sài Gòn 10", "A3", "Giám Đốc", "a3@fpt.com"], ["Sài Gòn 2", "A4", "Giám Đốc", "a4@fpt.com"],
-           ["Cà Mau", "A5", "Giám Đốc", "a5@fpt.com"], ["Hải Phòng", "A6", "Giám Đốc", "a6@fpt.com"],
-           ["Ban Giám Đốc", "A7", "Giám Đốc", "a7@fpt.com"]]
-    db.nap(_xlsx({"TĐĐT": pnc}), "pnc.xlsx", "PNC", "kiemthu.admin")
-    nhom = db.nhom_chi_nhanh()
-    assert [g["mien"] for g in nhom] == [db.MIEN_TRUNG, db.MIEN_BAC, db.MIEN_NAM, db.KHOI]
-    assert nhom[0]["ds"] == ["Đà Nẵng", "Quảng Nam"] and nhom[1]["ds"] == ["Hải Phòng"]
-    assert nhom[2]["ds"] == ["Cà Mau", "Sài Gòn 2", "Sài Gòn 10"] and nhom[3]["ds"] == ["Ban Giám Đốc"]
-    assert db.ds_don_vi()[:3] == ["Đà Nẵng", "Quảng Nam", "Hải Phòng"]
-    assert db.chi_nhanh_mac_dinh() == "Đà Nẵng"
+def _pnc(*cn):
+    return [["Khu vực", "Họ tên", "Chức vụ", "Email"], *[[c, f"Người {i}", "Giám Đốc", f"n{i}@fpt.com"] for i, c in enumerate(cn)]]
+
+
+def test_chi_nhanh_gom_theo_khu_vuc_tu_bac_xuong_nam(sach):
+    """Chủ app chốt 10/10/2026: bỏ nhóm "Chi nhánh của bạn"; có Miền Tây; khu vực và tỉnh trong khu vực xếp từ BẮC xuống NAM
+    (Miền Trung: Quảng Bình, Huế, Đà Nẵng, Quảng Nam, Quảng Ngãi...); chi nhánh có số (Sài Gòn, HN) xếp theo số."""
+    db.nap(_xlsx({"TĐĐT": _pnc("Quảng Ngãi", "Đà Nẵng", "Quảng Bình", "Quảng Nam", "Huế", "Hải Phòng", "Hà Giang", "HN4", "HN2",
+                               "Sài Gòn 10", "Sài Gòn 2", "Bình Dương", "Cà Mau", "Đồng Tháp", "Ban Giám Đốc")}),
+           "pnc.xlsx", "PNC", "kiemthu.admin")
+    nhom = {g["mien"]: g["ds"] for g in db.nhom_chi_nhanh()}
+    assert list(nhom) == [db.MIEN_BAC, db.MIEN_TRUNG, db.MIEN_NAM, db.MIEN_TAY, db.KHOI]
+    assert nhom[db.MIEN_TRUNG] == ["Quảng Bình", "Huế", "Đà Nẵng", "Quảng Nam", "Quảng Ngãi"]
+    assert nhom[db.MIEN_BAC] == ["Hà Giang", "HN2", "HN4", "Hải Phòng"]
+    assert nhom[db.MIEN_NAM] == ["Bình Dương", "Sài Gòn 2", "Sài Gòn 10"]
+    assert nhom[db.MIEN_TAY] == ["Đồng Tháp", "Cà Mau"] and nhom[db.KHOI] == ["Ban Giám Đốc"]
+    assert db.ds_don_vi()[:3] == ["Hà Giang", "HN2", "HN4"] and db.chi_nhanh_mac_dinh() == "Đà Nẵng"
+
+
+def test_chi_nhanh_mac_dinh_khi_khong_co_da_nang_thi_quang_nam(sach):
+    db.nap(_xlsx({"TĐĐT": _pnc("Quảng Nam", "Huế")}), "pnc.xlsx", "PNC", "kiemthu.admin")
+    assert db.chi_nhanh_mac_dinh() == "Quảng Nam"
 
 
 def test_the_va_so_do_xep_truong_phong_tren_pho_phong(sach):
