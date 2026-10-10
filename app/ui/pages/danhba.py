@@ -78,11 +78,14 @@ def _khung_nguoi():
     ], nut_chinh="Lưu")
 
 
+def _chu_lan(nguon: str) -> str:
+    lan = db.lan_nap_cuoi().get(nguon)
+    return f"Đang dùng bản nạp ngày {chu_gio_vn(lan, '%d/%m/%Y')}" if lan else "Chưa nạp"
+
+
 def _khung_nap():
     def o(nguon, nhan):
-        lan = db.lan_nap_cuoi().get(nguon)
-        return html.Div([html.B(nhan), html.Div(f"Đang dùng bản nạp ngày {chu_gio_vn(lan, '%d/%m/%Y')}" if lan
-                                                else "Chưa nạp", className="desc"),
+        return html.Div([html.B(nhan), html.Div(_chu_lan(nguon), id=f"db-lan-{nguon}", className="desc"),
                          dcc.Upload(id=f"db-file-{nguon}", className="upload-zone", accept=".xlsx",
                                     children=html.Div([icon("upload", 18), html.Span(" Kéo thả hoặc bấm chọn file .xlsx")]))],
                         className="db-nap-o")
@@ -146,6 +149,7 @@ def register(app):
         return "modal", "", pd.Timestamp.now().isoformat(), alert(chu, "ok")
 
     @app.callback(Output("db-nap-msg", "children"), Output("db-da-luu", "data", allow_duplicate=True),
+                  Output("db-lan-PNC", "children"), Output("db-lan-TIN", "children"),
                   Input("db-file-PNC", "contents"), Input("db-file-TIN", "contents"),
                   State("db-file-PNC", "filename"), State("db-file-TIN", "filename"), prevent_initial_call=True)
     def _nap(pnc, tin, ten_pnc, ten_tin):
@@ -158,7 +162,7 @@ def register(app):
         try:
             kq = db.nap(base64.b64decode(noi_dung.split(",", 1)[1]), ten or "", ma, current_user.username)
         except (db.LoiDanhBa, ValueError, IndexError) as e:
-            return alert(str(e), "bad"), no_update
+            return alert(str(e), "bad"), no_update, no_update, no_update
         chu = (f"Đã nạp {kq['so_nguoi']} người cho {ma} ({kq['co_email']} có email), thay {kq['so_cu']} người cũ."
                + (f" Bỏ qua sheet không phải danh bạ: {', '.join(kq['bo_qua'])}." if kq["bo_qua"] else ""))
-        return alert(chu, "ok"), pd.Timestamp.now().isoformat()
+        return alert(chu, "ok"), pd.Timestamp.now().isoformat(), _chu_lan("PNC"), _chu_lan("TIN")

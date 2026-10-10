@@ -211,3 +211,10 @@ def test_quyen_soan_email_chi_admin_va_nvkd_ibb7():
     assert not tk("nvkd", ["IBB2"]).duoc_soan_mail and not tk("phong", ["IBB7"]).duoc_soan_mail
     for trang in ("/soanmail", "/danhba"):
         assert tk("nvkd", ["IBB7"]).vao_duoc(trang)
+
+
+def test_dong_trang_thai_nap_file_cap_nhat_sau_khi_nap(sach):
+    from app.ui.pages.danhba import _chu_lan
+    assert _chu_lan("PNC") == "Chưa nạp" and _chu_lan("TIN") == "Chưa nạp"
+    db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
+    assert _chu_lan("PNC").startswith("Đang dùng bản nạp ngày ") and _chu_lan("TIN") == "Chưa nạp"
