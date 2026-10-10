@@ -74,13 +74,6 @@ def test_mail_ha_tang_dung_cau_mau_va_cau_mac_dinh_khi_khong_co_y_rieng():
     assert "khách rất gấp" in sm.dung("ha_tang", {**v, "tinh_huong": "khách rất gấp."})["text"]
 
 
-def test_html_mail_thoat_ky_tu_dac_biet_va_in_dam():
-    kq = sm.dung("ca_hot", {**CA_HOT, "tinh_huong": "Khách <script>alert(1)</script> & vợ"})
-    h = sm.html_mail(kq["doan"])
-    assert "<script>" not in h and "&lt;script&gt;" in h and "&amp;" in h
-    assert "<b>DAAAP6381</b>" in h and h.count("<p>") == len(kq["doan"]) and "<br>" in h
-
-
 @pytest.mark.parametrize("den, xung, chao", [
     ([], "anh", "anh/chị"), ([{"ten": "Tô Duy Bình"}], "anh", "anh Bình"), ([{"ten": "Lê Thị Lý"}], "chị", "chị Lý"),
     ([{"ten": "A B"}, {"ten": "C D"}], "anh", "các anh"), ([{"ten": "Tô Duy Bình"}], "xyz", "anh Bình")])

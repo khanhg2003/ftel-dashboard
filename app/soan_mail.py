@@ -10,7 +10,6 @@ dữ liệu khách của AGENTS.md): Fox chỉ thấy ý chính + hạn lắp + 
 from __future__ import annotations
 
 import re
-from html import escape
 
 from app import danh_ba as db
 from app import tro_ly as ai
@@ -162,12 +161,6 @@ def dung(loai: str, v: dict) -> dict:
     tieu_de = dien(L["tieu_de"]) or ""
     text = "\n\n".join("".join(c for c, _ in d) for d in doan)
     return {"tieu_de": tieu_de, "doan": doan, "text": text, "thieu": thieu}
-
-
-def html_mail(doan: list) -> str:
-    """HTML thuần của thân mail (đoạn <p>, dòng <br>, chữ đậm <b>) - kiểm thử so khớp với bản xem trước."""
-    return "".join("<p>" + "".join(f"<b>{escape(c)}</b>" if dam else escape(c) for c, dam in d).replace("\n", "<br>")
-                   + "</p>" for d in doan)
 
 
 # ------------------------------------------------------------------ gợi ý người nhận (chỉ gợi ý, sale tự chọn)

@@ -191,8 +191,8 @@ def register(app):
 
 def _dang_ky_goi_y(app):
     @app.callback(Output("sm-goiy", "data"), Output("sm-goiy-khung", "children"), Output("sm-dv", "options"),
-                  Input("sm-loai", "value"), Input("sm-dv", "value"), Input({"type": F, "l": ALL, "k": ALL}, "value"),
-                  State({"type": F, "l": ALL, "k": ALL}, "id"), State("sm-dv", "options"))
+                  Input("sm-loai", "value"), Input("sm-dv", "value"), Input({"type": F, "l": ALL, "k": "dia_chi"}, "value"),
+                  State({"type": F, "l": ALL, "k": "dia_chi"}, "id"), State("sm-dv", "options"))
     def _goi_y(loai, dv, vals, ids, opts):
         _vao()
         if loai not in sm.LOAI:

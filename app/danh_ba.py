@@ -285,6 +285,7 @@ def _s(v) -> str:
     return v if isinstance(v, str) else ""
 
 
+@nho("danh_ba", 60)
 def cho_trinh_duyet() -> dict:
     """Toàn bộ danh bạ dạng gọn để TRÌNH DUYỆT tự lọc (`assets/danh_ba.js`): tìm, chi nhánh, nhóm chức danh đổi là ra
     ngay, không hỏi máy chủ và không dựng hàng nghìn thành phần Dash (đã đo: chuyển nhóm bị trễ rõ). Đã xếp sẵn: chi nhánh
