@@ -256,8 +256,8 @@ def test_ban_xem_truoc_ve_tren_trinh_duyet_dung_dam_xuong_dong_va_o_thieu():
     assert "Cần &lt;gấp&gt; &amp; sớm" in out and out.count("<p>") == len(kq["doan"])
 
 
-def test_link_outlook_web_dien_san_den_cc_tieu_de():
-    """Nút Mở thư trong Outlook: thư mới trên Outlook web phải có sẵn Đến, CC, tiêu đề (sale đỡ điền lại)."""
+def test_link_outlook_web_dien_san_den_cc_tieu_de_noi_dung():
+    """Nút Mở thư trong Outlook: thư mới trên Outlook web có sẵn Đến, CC, tiêu đề, nội dung (sale đỡ điền / dán lại)."""
     import json
     import shutil
     import subprocess
@@ -265,10 +265,13 @@ def test_link_outlook_web_dien_san_den_cc_tieu_de():
     if not node:
         pytest.skip("Máy không có Node")
     code = ("const m=require(process.argv[1]);"
-            "console.log(JSON.stringify({a:m.taoLinkOutlook(['a@fpt.com','b@fpt.com'],['c@fpt.com'],'HĐ X1 - CA HOT & gấp'),"
-            "b:m.taoLinkOutlook(['a@fpt.com'],[],'T'),c:m.danhSach('a@x.vn; b@x.vn ;')}))")
+            "console.log(JSON.stringify({a:m.taoLinkOutlook(['a@fpt.com','b@fpt.com'],['c@fpt.com'],'HĐ X1 & gấp','Dear anh,\\n\\nEm cảm ơn'),"
+            "b:m.taoLinkOutlook(['a@fpt.com'],[],'T',''),c:m.danhSach('a@x.vn; b@x.vn ;'),"
+            "d:m.taoLinkOutlook(['a@fpt.com'],[],'T','ế'.repeat(5000))}))")
     js = Path(__file__).resolve().parent.parent / "assets" / "sao_chep.js"
     o = json.loads(subprocess.run([node, "-e", code, str(js)], capture_output=True, text=True, encoding="utf-8", check=True).stdout)
     goc = "https://outlook.office.com/mail/deeplink/compose?"
-    assert o["a"] == goc + "to=a%40fpt.com%3Bb%40fpt.com&cc=c%40fpt.com&subject=H%C4%90%20X1%20-%20CA%20HOT%20%26%20g%E1%BA%A5p"
+    assert o["a"] == goc + ("to=a%40fpt.com%3Bb%40fpt.com&cc=c%40fpt.com&subject=H%C4%90%20X1%20%26%20g%E1%BA%A5p"
+                            "&body=Dear%20anh%2C%0D%0A%0D%0AEm%20c%E1%BA%A3m%20%C6%A1n")
     assert o["b"] == goc + "to=a%40fpt.com&subject=T" and o["c"] == ["a@x.vn", "b@x.vn"]
+    assert o["d"] == goc + "to=a%40fpt.com&subject=T"                       # nội dung quá dài: bỏ khỏi link, vẫn có trong clipboard

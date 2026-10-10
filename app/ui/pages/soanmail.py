@@ -178,13 +178,13 @@ def _hanh_dong(loai: str, kq: dict, nguoi: dict) -> list:
     emails = lambda vt: "; ".join(p["email"] for p in nguoi[vt])         # noqa: E731
     nut = [html.Button([icon("mail", 14), html.Span("Mở thư trong Outlook")], id="sm-mo-outlook", n_clicks=0,
                        className="btn primary nut-chep lon",
-                       title="Mở thư mới trên Outlook web đã điền sẵn Đến, CC, tiêu đề. Nội dung đã copy, nhấn Ctrl+V vào thân thư.",
+                       title="Mở thư mới trên Outlook web đã điền sẵn Đến, CC, tiêu đề và nội dung.",
                        **{"data-outlook": "web", "data-den": emails("den"), "data-cc": emails("cc"), "data-tieu-nguon": "#sm-tieu",
                           "data-chep-nguon": "#sm-than", "data-chep-html": ""}),
            html.Button("Copy nội dung", id="sm-copy-ma", n_clicks=0, className="btn nut-chep lon",
-                       title="Chỉ copy nội dung thư (giữ chữ đậm), tự dán vào chỗ khác.",
+                       title="Copy nội dung thư kèm chữ đậm để tự dán vào chỗ khác.",
                        **{"data-chep-nguon": "#sm-than", "data-chep-html": ""})]
-    ghi = [html.Div("Thư Outlook mở ra đã có Đến, CC, tiêu đề. Nhấn Ctrl+V vào thân thư để dán nội dung.", className="desc")]
+    ghi = [html.Div("Thư Outlook mở ra đã có đủ Đến, CC, tiêu đề, nội dung. Muốn giữ chữ đậm thì chọn hết thân thư rồi nhấn Ctrl+V (nội dung có định dạng đã được copy sẵn).", className="desc")]
     if kq["thieu"]:
         ghi.append(alert("Còn trống: " + ", ".join(kq["thieu"]) + ".", "warn"))
     if not nguoi["den"]:

@@ -5,8 +5,8 @@
      CẢ định dạng HTML (đậm, xuống dòng) để dán vào Outlook vẫn giữ chữ đậm, kèm bản chữ thường.
    - data-outlook="web" (cùng data-den, data-cc = danh sách email cách nhau dấu ;, data-tieu-nguon="#id", và data-chep-nguon
      + data-chep-html như trên): copy nội dung rồi mở thư mới trên Outlook web (deeplink compose) đã điền sẵn Đến, CC, tiêu đề;
-     người dùng chỉ việc Ctrl+V vào thân thư. Link không nhét được nội dung có định dạng (giới hạn độ dài, mất chữ đậm) nên nội dung
-     đi bằng clipboard. (Thử `mailto:` và file .eml ngày 10/10/2026: máy chủ app dùng Outlook web nên mailto không mở được gì.)
+     nội dung chữ trơn (mất chữ đậm) đi luôn trong link nên mở ra là đủ, không cần dán. Link quá dài (> LINK_TOI_DA) thì bỏ nội dung khỏi
+     link; bản có chữ đậm luôn nằm trong clipboard để Ctrl+V. (Thử `mailto:` và file .eml ngày 10/10/2026: máy chủ app dùng Outlook web nên mailto không mở được gì.)
    Copy xong nút nháy chữ "Đã copy" (lớp da-chep) khoảng 1,5 giây. Dùng Clipboard API; trình duyệt cũ / không có
    quyền thì quay về execCommand("copy").
    ===================================================================== */
@@ -43,10 +43,14 @@
         return (chu || '').split(/[;,]/).map(function (x) { return x.trim(); }).filter(Boolean);
     }
 
-    function taoLinkOutlook(den, cc, tieu) {
+    const LINK_TOI_DA = 7000;                                   // link dài quá thì bỏ nội dung khỏi link, nội dung vẫn nằm trong clipboard
+
+    function taoLinkOutlook(den, cc, tieu, noiDung) {
         const q = ['to=' + encodeURIComponent(den.join(';')), 'subject=' + encodeURIComponent(tieu)];
         if (cc.length) { q.splice(1, 0, 'cc=' + encodeURIComponent(cc.join(';'))); }
-        return 'https://outlook.office.com/mail/deeplink/compose?' + q.join('&');
+        const goc = 'https://outlook.office.com/mail/deeplink/compose?' + q.join('&');
+        const co = noiDung ? goc + '&body=' + encodeURIComponent(noiDung.replace(/\r?\n/g, '\r\n')) : goc;
+        return co.length <= LINK_TOI_DA ? co : goc;
     }
 
     if (typeof document !== 'undefined') { document.addEventListener('click', async function (e) {
@@ -63,7 +67,7 @@
         let ok = chu ? await copy(chu, html) : false;     // không có gì để copy cũng báo lỗi, đừng im lặng
         if (b.dataset.outlook === 'web') {            // mở thư dù copy lỗi: thư vẫn có Đến, CC, tiêu đề
             const tieu = document.querySelector(b.dataset.tieuNguon);
-            const cua = window.open(taoLinkOutlook(danhSach(b.dataset.den), danhSach(b.dataset.cc), tieu ? tieu.innerText.trim() : ''), '_blank');
+            const cua = window.open(taoLinkOutlook(danhSach(b.dataset.den), danhSach(b.dataset.cc), tieu ? tieu.innerText.trim() : '', chu), '_blank');
             if (!cua) { ok = false; }                                       // trình duyệt chặn cửa sổ mới
         }
         b.classList.toggle(ok ? 'da-chep' : 'chep-loi', true);
