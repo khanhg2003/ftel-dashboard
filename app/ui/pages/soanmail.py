@@ -183,11 +183,11 @@ def _hanh_dong(loai: str, kq: dict, nguoi: dict) -> list:
                html.Button([icon("copy", 14), html.Span("Tải thư nháp (.eml)")], id="sm-tai-eml", n_clicks=0, className="btn nut-chep lon",
                            title="Tải file thư nháp có đủ người nhận, tiêu đề, nội dung. Bấm đúp file là Outlook mở thư, không cần dán.",
                            **{**thu, "data-outlook": "eml"})]
-    chep = [html.Button("Copy cả mail", id="sm-copy-ma", n_clicks=0, className="btn nho nut-chep",
+    chep = [html.Button("Copy cả mail", id="sm-copy-ma", n_clicks=0, className="btn nho nut-chep lon",
                         **{"data-chep-nguon": "#sm-than", "data-chep-html": ""}),
-            html.Button("Copy người nhận", className="btn nho nut-chep", **{"data-chep": emails("den")}),
-            html.Button("Copy CC", className="btn nho nut-chep", **{"data-chep": emails("cc")}),
-            html.Button("Copy tiêu đề", className="btn nho nut-chep", **{"data-chep-nguon": "#sm-tieu"})]
+            html.Button("Copy người nhận", className="btn nho nut-chep lon", **{"data-chep": emails("den")}),
+            html.Button("Copy CC", className="btn nho nut-chep lon", **{"data-chep": emails("cc")}),
+            html.Button("Copy tiêu đề", className="btn nho nut-chep lon", **{"data-chep-nguon": "#sm-tieu"})]
     ghi = [html.Div("Bấm Mở Outlook rồi nhấn Ctrl+V vào thân thư. Nếu Outlook không tự mở, dùng Tải thư nháp hoặc các nút Copy.", className="desc")]
     if kq["thieu"]:
         ghi.append(alert("Còn trống: " + ", ".join(kq["thieu"]) + ".", "warn"))
