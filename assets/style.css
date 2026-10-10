@@ -1253,7 +1253,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 
 /* ---- Danh bạ (app/ui/pages/danhba.py) + nút copy dùng chung (assets/sao_chep.js) ---- */
 .db-o-tim { width: 420px !important; max-width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--border-strong, #C9D1DC); border-radius: 8px; font: inherit; background: #fff; }
-.db-chon { height: 36px; min-width: 190px; }
 .db-nhom { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px; background: rgba(255, 255, 255, .6); border-radius: 12px; width: fit-content; max-width: 100%; }
 .db-chip { border: 0; background: transparent; padding: 7px 14px; border-radius: 9px; font: inherit; font-size: 13.5px; color: var(--text-muted); cursor: pointer; }
 .db-chip:hover { color: var(--fpt-blue); }
@@ -1289,8 +1288,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 @media (max-width: 767px) {
   .db-luoi, .db-nap { grid-template-columns: 1fr; }
   .db-o-tim { width: 100% !important; }
-  .toolbar .field:has(.db-o-tim), .toolbar .field:has(.db-chon) { flex: 1 1 100%; }
-  .db-chon { width: 100%; }
+  .toolbar .field:has(.db-o-tim), .toolbar .field:has(.db-cb) { flex: 1 1 100%; }
+  .db-cb { width: 100%; }
 }
 
 /* ---- Soạn email (app/ui/pages/soanmail.py) ---- */
@@ -1390,3 +1389,14 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 /* Danh bạ: Thẻ / Sơ đồ và nhóm chức danh cùng một hàng cho gọn */
 .db-loc-hang { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
 .db-loc-hang .db-nhom { margin: 0; }
+
+/* Ô chọn chi nhánh: gõ để tìm, danh sách gom theo khu vực (assets/danh_ba.js) */
+.db-cb { position: relative; width: 270px; }
+.db-cb-o { width: 100%; height: 36px; padding: 0 12px; }
+.db-cb-ds { display: none; position: absolute; z-index: 40; top: 100%; left: 0; right: 0; max-height: 360px; overflow-y: auto; margin-top: 4px;
+  background: #fff; border: 1px solid var(--border-strong, #C9D1DC); border-radius: 10px; box-shadow: 0 10px 28px rgba(16, 24, 40, .16); padding: 4px 0 6px; }
+.db-cb.mo .db-cb-ds { display: block; }
+.db-cb-nh { padding: 9px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--text-muted); }
+.db-cb-it { padding: 7px 12px; font-size: 13.5px; cursor: pointer; }
+.db-cb-it:hover { background: #F0F5FB; }
+.db-cb-it.on { background: #E6EEF8; color: var(--fpt-blue); font-weight: 600; }

@@ -28,6 +28,19 @@ NHOM = {"giam_doc": "Giám đốc", "pho_giam_doc": "Phó giám đốc", "truong
         "ha_tang": "Hạ tầng", "doi_truong": "Đội trưởng", "ke_toan": "Kế toán", "dvkh": "DVKH",
         "hcns": "Hành chính nhân sự", "khac": "Khác"}
 DV_UU_TIEN = ("da nang", "quang nam")              # chi nhánh của sale: luôn xếp lên đầu kết quả
+MIEN_TRUNG, MIEN_BAC, MIEN_NAM, KHOI = "Miền Trung - Tây Nguyên", "Miền Bắc", "Miền Nam", "Khối văn phòng và trung tâm"
+THU_TU_MIEN = (MIEN_TRUNG, MIEN_BAC, MIEN_NAM, KHOI)
+# Miền theo TÊN SHEET của hai file danh bạ (sheet khu vực nói rõ miền); chi nhánh nằm ở sheet khác (TĐĐT, Thập đại đô thị...)
+# thì đoán theo tên tỉnh / thành. Chi nhánh không khớp gì (Ban giám đốc, INF, SOC...) vào "Khối văn phòng và trung tâm".
+MIEN_THEO_SHEET = {"tay nguyen - mien trung": MIEN_TRUNG, "mien trung": MIEN_TRUNG, "cn hnx": MIEN_BAC, "tay bac bo": MIEN_BAC,
+                   "dong bac bo": MIEN_BAC, "dong nam bo": MIEN_NAM, "tay nam bo": MIEN_NAM}
+TINH_THEO_MIEN = {
+    MIEN_TRUNG: "thanh hoa|nghe an|ha tinh|quang binh|quang tri|hue|da nang|quang nam|quang ngai|binh dinh|phu yen|khanh hoa|"
+                "ninh thuan|binh thuan|kon tum|gia lai|dak lak|dac lak|dak nong|dac nong|lam dong",
+    MIEN_BAC: "ha noi|hai phong|quang ninh|hai duong|hung yen|thai binh|nam dinh|ha nam|ninh binh|vinh phuc|bac ninh|bac giang|"
+              "phu tho|thai nguyen|lang son|cao bang|ha giang|tuyen quang|lao cai|yen bai|son la|dien bien|lai chau|hoa binh|bac kan",
+    MIEN_NAM: "ho chi minh|sai gon|hcm|dong nai|binh duong|binh phuoc|tay ninh|ba ria|vung tau|long an|tien giang|ben tre|vinh long|"
+              "tra vinh|dong thap|an giang|kien giang|can tho|hau giang|soc trang|bac lieu|ca mau"}
 GIOI_HAN = {"ho_ten": 120, "chuc_vu": 160, "email": 160, "ext": 30, "di_dong": 30, "don_vi": 80, "khu_vuc": 80}
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _da_tao = False
@@ -97,6 +110,39 @@ def nhom_chuc(chuc_vu) -> str:
     if re.search(r"hanh chinh|hcns|nhan su|\bhr\b", c):
         return "hcns"
     return "khac"
+
+
+def cap_bac(chuc_vu) -> int:
+    """Cấp bậc để xếp người TRONG một nhóm: 0 giám đốc, 1 phó giám đốc, 2 trưởng (trưởng phòng, trưởng nhóm, đội trưởng, kế toán
+    trưởng), 3 phó (phó phòng, phó nhóm), 4 còn lại (CB, chuyên viên, AD...). Trưởng phòng phải đứng trên phó phòng."""
+    c = bo_dau(chuc_vu)
+    if re.search(r"\bpho (giam doc|gd)\b|\bpgd\b", c):
+        return 1
+    if re.search(r"\bgiam doc\b|^gd\b", c):
+        return 0
+    if re.search(r"\bpho\b", c):
+        return 3
+    return 2 if re.search(r"\btruong\b", c) else 4
+
+
+def mien_cua(don_vi, sheets) -> str:
+    """Miền của một chi nhánh: theo sheet khu vực chứa nó, không có thì theo tên tỉnh / thành, không có nữa thì khối văn phòng."""
+    if chuan_don_vi(don_vi) in ("qlkv", "bgd"):               # Ban giám đốc / quản lý khu vực có mặt ở nhiều sheet, không thuộc miền nào
+        return KHOI
+    for sh in sheets:
+        m = MIEN_THEO_SHEET.get(bo_dau(sh).strip())
+        if m:
+            return m
+    k = chuan_don_vi(don_vi)
+    for mien, ds in TINH_THEO_MIEN.items():
+        if re.search(rf"\b({ds})\b", k):
+            return mien
+    return KHOI
+
+
+def _khoa_xep(ten: str) -> str:
+    """Khoá xếp theo chữ cái không dấu, số xếp theo giá trị ("Sài Gòn 2" trước "Sài Gòn 10")."""
+    return re.sub(r"\d+", lambda m: m.group().zfill(4), bo_dau(ten))
 
 
 def ten_goi(ho_ten) -> str:
@@ -235,7 +281,7 @@ def xoa_tay(id_: int, nguoi: str) -> None:
 
 # ------------------------------------------------------------------ đọc + tra cứu
 COT_RA = ["id", "nguon", "nguon_ds", "ho_ten", "chuc_vu", "email", "email_khac", "ext", "di_dong", "don_vi",
-          "khu_vuc", "ghi_chu", "cap_nhat_luc", "id_tay", "dv_chuan", "nhom", "ten_kd", "tim"]
+          "khu_vuc", "ghi_chu", "cap_nhat_luc", "id_tay", "dv_chuan", "nhom", "cb", "ten_kd", "tim"]
 
 
 @nho("danh_ba", 60)
@@ -260,6 +306,7 @@ def tat_ca() -> pd.DataFrame:
     out["cap_nhat_luc"] = df.groupby("khoa", sort=False).cap_nhat_luc.max()
     out = out.reset_index(drop=True)
     out["nhom"] = out.chuc_vu.map(nhom_chuc)
+    out["cb"] = out.chuc_vu.map(cap_bac)
     out["ten_kd"] = out.ho_ten.map(bo_dau)
     out["tim"] = (out[["ho_ten", "chuc_vu", "don_vi", "khu_vuc", "email", "ghi_chu"]].fillna("").agg(" ".join, axis=1)
                   .map(bo_dau) + " " + out.di_dong.fillna("").str.replace(r"\D", "", regex=True))
@@ -274,11 +321,26 @@ def lan_nap_cuoi() -> dict:
         return {n: t for n, t in c.execute(text("SELECT nguon, MAX(cap_nhat_luc) FROM danh_ba GROUP BY nguon"))}
 
 
-def ds_don_vi() -> list[str]:
-    """Các chi nhánh / đơn vị có trong danh bạ (chi nhánh của sale đứng đầu, còn lại theo chữ cái)."""
+@nho("danh_ba", 60)
+def nhom_chi_nhanh() -> list[dict]:
+    """Chi nhánh gom theo khu vực để dễ tìm: "Chi nhánh của bạn" (Đà Nẵng, Quảng Nam) đứng đầu, rồi Miền Trung - Tây Nguyên, Miền
+    Bắc, Miền Nam, Khối văn phòng và trung tâm; trong mỗi nhóm xếp theo chữ cái."""
     df = tat_ca()
-    ten = df.groupby("dv_chuan").don_vi.first()
-    return [ten[k] for k in sorted(ten.index, key=lambda k: (k not in DV_UU_TIEN, k)) if ten[k]]
+    if df.empty:
+        return []
+    g = df.groupby("dv_chuan").agg(ten=("don_vi", "first"), sheets=("khu_vuc", lambda x: set(x.dropna())))
+    nhom: dict[str, list[str]] = {m: [] for m in THU_TU_MIEN}
+    for k, r in g.iterrows():
+        if r.ten and k not in DV_UU_TIEN:
+            nhom[mien_cua(r.ten, r.sheets)].append(r.ten)
+    ghim = [g.at[k, "ten"] for k in DV_UU_TIEN if k in g.index and g.at[k, "ten"]]
+    return ([{"mien": "Chi nhánh của bạn", "ds": ghim}] if ghim else []) + [
+        {"mien": m, "ds": sorted(nhom[m], key=_khoa_xep)} for m in THU_TU_MIEN if nhom[m]]
+
+
+def ds_don_vi() -> list[str]:
+    """Danh sách phẳng các chi nhánh theo đúng thứ tự `nhom_chi_nhanh`."""
+    return [d for g in nhom_chi_nhanh() for d in g["ds"]]
 
 
 def _s(v) -> str:
@@ -290,20 +352,21 @@ def cho_trinh_duyet() -> dict:
     """Toàn bộ danh bạ dạng gọn để TRÌNH DUYỆT tự lọc (`assets/danh_ba.js`): tìm, chi nhánh, nhóm chức danh đổi là ra
     ngay, không hỏi máy chủ và không dựng hàng nghìn thành phần Dash (đã đo: chuyển nhóm bị trễ rõ). Đã xếp sẵn: chi nhánh
     của sale đứng đầu, rồi nhóm chức danh (Giám đốc trước), rồi tên. Khoá ngắn để payload nhỏ: i id, t tên, c chức vụ,
-    e email, k email khác, x máy lẻ, d di động, v chi nhánh, g ghi chú, n nhóm, s nguồn, u ngày cập nhật, y id nếu sale tự
+    e email, k email khác, x máy lẻ, d di động, v chi nhánh, g ghi chú, n nhóm, r cấp bậc (0 giám đốc ... 4), s nguồn, u ngày cập nhật, y id nếu sale tự
     thêm (sửa được), q chuỗi tìm (đã bỏ dấu), b tên bỏ dấu."""
     df = tat_ca()
     thu_tu = {n: i for i, n in enumerate(NHOM)}
-    df = df.assign(_dv=~df.dv_chuan.isin(DV_UU_TIEN), _nhom=df.nhom.map(thu_tu)).sort_values(
-        ["_dv", "_nhom", "ho_ten"], kind="stable")
+    df = df.assign(_dv=~df.dv_chuan.isin(DV_UU_TIEN), _nhom=df.nhom.map(thu_tu),
+                   _goi=df.ho_ten.map(lambda t: bo_dau(ten_goi(t)))).sort_values(
+        ["_dv", "_nhom", "cb", "_goi", "ten_kd"], kind="stable")                  # cùng cấp: xếp theo TÊN gọi (Bình, Hưng, Vũ)
     ds = [{"i": int(r.id), "t": r.ho_ten, "c": _s(r.chuc_vu), "e": _s(r.email), "k": _s(r.email_khac), "x": _s(r.ext),
-           "d": _s(r.di_dong), "v": _s(r.don_vi), "g": _s(r.ghi_chu), "n": r.nhom, "s": r.nguon_ds,
+           "d": _s(r.di_dong), "v": _s(r.don_vi), "g": _s(r.ghi_chu), "n": r.nhom, "r": int(r.cb), "s": r.nguon_ds,
            "u": chu_gio_vn(r.cap_nhat_luc, "%d/%m") if pd.notna(r.cap_nhat_luc) else "",
            "y": int(r.id_tay) if pd.notna(r.id_tay) else 0, "q": r.tim, "b": r.ten_kd}
           for r in df.itertuples()]
     moi = " · ".join(f"{n} cập nhật {chu_gio_vn(t, '%d/%m/%Y')}" for n, t in sorted(lan_nap_cuoi().items())
                      if n != "TAY" and t)
-    return {"ds": ds, "moi": moi, "nhom": NHOM, "dv": ds_don_vi()}
+    return {"ds": ds, "moi": moi, "nhom": NHOM, "dv": nhom_chi_nhanh()}
 
 
 def theo_nhom(don_vi: str, nhom: str) -> pd.DataFrame:

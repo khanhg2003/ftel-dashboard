@@ -21,6 +21,7 @@ from app import tro_ly as ai
 from app.auth import ghi_log
 from app.ui.components import alert, field, modal, seg_control
 from app.ui.icons import icon
+from app.ui.pages.danhba import chon_chi_nhanh
 
 F, FT = "sm-f", "sm-ft"                                   # kiểu id của ô một dòng / ô nhiều dòng (tình huống)
 TU_NHAN = ""                                              # ô chi nhánh nơi lắp: để trống = tự nhận từ địa chỉ
@@ -90,7 +91,7 @@ def _khung_tra_danh_ba():
     return modal("sm-db", "Tra danh bạ", [
         html.Div([dcc.Input(id="sm-db-tim", type="search", className="inp o-tim", autoComplete="off",
                              placeholder="Tên, chức danh, email, chi nhánh"),
-                  html.Select([html.Option("Mọi chi nhánh", value="")], id="sm-db-dv", className="inp db-chon")],
+                  chon_chi_nhanh("sm-db-dv")],
                  className="toolbar"),
         html.Div(id="sm-db-dem", className="desc db-dem"),
         html.Div(id="sm-db-kq", className="sm-db-kq"),
@@ -201,7 +202,9 @@ def _dang_ky_goi_y(app):
         if len(opts or []) > 1:
             opts = no_update
         else:                                                 # danh sách chi nhánh nạp một lần, lần đầu vào trang
-            opts = [{"label": "Tự nhận từ địa chỉ", "value": TU_NHAN}, *[{"label": d, "value": d} for d in db.ds_don_vi()]]
+            opts = [{"label": "Tự nhận từ địa chỉ", "value": TU_NHAN},
+                    *[{"label": f"{d} · {g['mien']}" if g["mien"] != "Chi nhánh của bạn" else d, "value": d}
+                      for g in db.nhom_chi_nhanh() for d in g["ds"]]]
         return g, _goi_y_khung(g), opts
 
 

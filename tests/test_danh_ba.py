@@ -142,12 +142,12 @@ def test_du_lieu_cho_trinh_duyet_gon_va_da_xep(sach):
     db.nap(_xlsx({"TĐĐT": PNC_TD}), "pnc.xlsx", "PNC", "kiemthu.admin")
     db.nap(_xlsx({"Miền Trung": TIN_MT}), "tin.xlsx", "TIN", "kiemthu.admin")
     d = db.cho_trinh_duyet()
-    assert d["dv"][0] == "Đà Nẵng" and "PNC cập nhật" in d["moi"] and "TIN cập nhật" in d["moi"]
+    assert d["dv"][0] == {"mien": "Chi nhánh của bạn", "ds": ["Đà Nẵng"]} and "PNC cập nhật" in d["moi"] and "TIN cập nhật" in d["moi"]
     assert d["nhom"]["giam_doc"] == "Giám đốc" and len(d["ds"]) == 7
     assert d["ds"][0]["v"] == "Đà Nẵng" and d["ds"][0]["n"] == "giam_doc"        # chi nhánh của sale, giám đốc trước
     binh = next(r for r in d["ds"] if r["t"] == "Tô Duy Bình")
     assert binh["e"] == "BinhTD@vienthongtin.com" and binh["k"] == "BinhTD7@fpt.com" and binh["y"] == 0
-    assert set(binh) == {"i", "t", "c", "e", "k", "x", "d", "v", "g", "n", "s", "u", "y", "q", "b"}
+    assert set(binh) == {"i", "t", "c", "e", "k", "x", "d", "v", "g", "n", "r", "s", "u", "y", "q", "b"}
     db.luu_tay({"ho_ten": "Người Tay", "email": "tay@fpt.com", "don_vi": "Đà Nẵng"}, "kiemthu.nvkd")
     assert next(r for r in db.cho_trinh_duyet()["ds"] if r["t"] == "Người Tay")["y"] > 0      # có id => hiện nút Sửa
 
@@ -272,3 +272,64 @@ def test_so_do_cay_tach_rieng_dvkh_ke_toan_hanh_chinh_nhan_su():
                                    encoding="utf-8", check=True).stdout)
     assert kq == {"goc": 2, "pb": [["Kỹ thuật và hạ tầng", 2, 1], ["Chăm sóc khách hàng (DVKH)", 1, None], ["Kế toán", 1, None],
                                    ["Hành chính nhân sự", 1, None], ["Khác", 1, None]]}
+
+
+@pytest.mark.parametrize("cv, bac", [
+    ("Giám đốc", 0), ("Giám Đốc Chi nhánh", 0), ("Phó Giám Đốc", 1), ("PGĐ TTPT&QLHT", 1), ("Trưởng phòng DVKH 1,2", 2),
+    ("Trưởng nhóm HCNS", 2), ("Kế toán trưởng", 2), ("Đội trưởng TKBT", 2), ("Phó phòng DVKH 1", 3), ("Phó phòng Kỹ thuật", 3),
+    ("CB Quản lý hạ tầng", 4), ("Kế toán", 4), ("AD - HR", 4), (None, 4)])
+def test_cap_bac_truong_phong_tren_pho_phong(cv, bac):
+    assert db.cap_bac(cv) == bac
+
+
+def test_mien_theo_sheet_roi_theo_ten_tinh():
+    """Chi nhánh gom theo khu vực: sheet khu vực quyết định trước (đúng cách hai file chia), không có thì theo tên tỉnh / thành."""
+    assert db.mien_cua("Gia Lai", {"Tây Nguyên - Miền Trung"}) == db.MIEN_TRUNG
+    assert db.mien_cua("Thanh Hóa", {"Đông Bắc Bộ"}) == db.MIEN_BAC                   # file TIN xếp Thanh Hóa vào miền Bắc
+    assert db.mien_cua("Ninh Thuận", {"Đông Nam Bộ"}) == db.MIEN_NAM                  # file PNC xếp Ninh Thuận vào Đông Nam Bộ
+    assert db.mien_cua("Đà Nẵng", {"TĐĐT", "Thập đại đô thị"}) == db.MIEN_TRUNG       # sheet đô thị lớn: theo tên tỉnh
+    assert db.mien_cua("Khánh Hòa", {"TĐĐT"}) == db.MIEN_TRUNG and db.mien_cua("Cà Mau", {"Tây Nam Bộ "}) == db.MIEN_NAM
+    assert db.mien_cua("Sài Gòn 7", {"TĐĐT"}) == db.MIEN_NAM and db.mien_cua("HN4", {"CN HNx"}) == db.MIEN_BAC
+    for ten in ("QLKV", "BGĐ", "INF", "Phòng Kế toán", "Trung tâm ĐHDV"):
+        assert db.mien_cua(ten, {"Tây Nam Bộ"} if ten in ("QLKV", "BGĐ") else {"SOC"}) == db.KHOI, ten
+
+
+def test_chi_nhanh_gom_theo_khu_vuc_xep_chu_cai_va_so(sach):
+    """Danh sách chi nhánh: "Chi nhánh của bạn" đầu tiên, rồi từng khu vực, trong khu vực xếp chữ cái (Sài Gòn 2 trước Sài Gòn 10)."""
+    pnc = [["Khu vực", "Họ tên", "Chức vụ", "Email"],
+           ["Đà Nẵng", "A1", "Giám Đốc", "a1@fpt.com"], ["Quảng Nam", "A2", "Giám Đốc", "a2@fpt.com"],
+           ["Sài Gòn 10", "A3", "Giám Đốc", "a3@fpt.com"], ["Sài Gòn 2", "A4", "Giám Đốc", "a4@fpt.com"],
+           ["Cà Mau", "A5", "Giám Đốc", "a5@fpt.com"], ["Hải Phòng", "A6", "Giám Đốc", "a6@fpt.com"],
+           ["Ban Giám Đốc", "A7", "Giám Đốc", "a7@fpt.com"]]
+    db.nap(_xlsx({"TĐĐT": pnc}), "pnc.xlsx", "PNC", "kiemthu.admin")
+    nhom = db.nhom_chi_nhanh()
+    assert [g["mien"] for g in nhom] == ["Chi nhánh của bạn", db.MIEN_BAC, db.MIEN_NAM, db.KHOI]
+    assert nhom[0]["ds"] == ["Đà Nẵng", "Quảng Nam"] and nhom[1]["ds"] == ["Hải Phòng"]
+    assert nhom[2]["ds"] == ["Cà Mau", "Sài Gòn 2", "Sài Gòn 10"] and nhom[3]["ds"] == ["Ban Giám Đốc"]
+    assert db.ds_don_vi()[:3] == ["Đà Nẵng", "Quảng Nam", "Hải Phòng"]
+
+
+def test_the_va_so_do_xep_truong_phong_tren_pho_phong(sach):
+    """Chủ app báo 10/10/2026: Phó phòng DVKH đang nằm TRÊN Trưởng phòng DVKH. Cấp bậc phải quyết định thứ tự trong nhóm."""
+    pnc = [["Khu vực", "Họ tên", "Chức vụ", "Email"],
+           ["Đà Nẵng", "Phó Hai", "Phó phòng DVKH 2", "p2@fpt.com"], ["Đà Nẵng", "Trưởng Một", "Trưởng phòng DVKH 1,2", "t1@fpt.com"],
+           ["Đà Nẵng", "Phó Ba", "Phó phòng DVKH 1", "p1@fpt.com"], ["Đà Nẵng", "Nhóm Trưởng", "Trưởng nhóm HCNS", "nt@fpt.com"],
+           ["Đà Nẵng", "Admin An", "AD - HR", "an@fpt.com"],
+           ["Đà Nẵng", "Nguyễn Tuấn Vũ", "Đội trưởng TKBT", "vu@fpt.com"], ["Đà Nẵng", "Tô Duy Bình", "Đội trưởng TKBT", "binh@fpt.com"]]
+    db.nap(_xlsx({"TĐĐT": pnc}), "pnc.xlsx", "PNC", "kiemthu.admin")
+    ten = [r["t"] for r in db.cho_trinh_duyet()["ds"]]
+    assert ten.index("Trưởng Một") < ten.index("Phó Ba") < ten.index("Phó Hai")             # dạng thẻ
+    assert ten.index("Nhóm Trưởng") < ten.index("Admin An")
+    assert ten.index("Tô Duy Bình") < ten.index("Nguyễn Tuấn Vũ")                   # cùng cấp: xếp theo tên gọi (Bình trước Vũ)
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Máy không có Node để chạy bộ lọc của trình duyệt")
+    mau = [{"t": "Phó Hai", "n": "dvkh", "r": 3}, {"t": "Trưởng Một", "n": "dvkh", "r": 2}, {"t": "Phó Ba", "n": "dvkh", "r": 3},
+           {"t": "Bác Sĩ", "n": "ha_tang", "r": 4}, {"t": "TP Hạ tầng", "n": "ha_tang", "r": 2}, {"t": "TP KT", "n": "truong_phong_kt", "r": 2}]
+    code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
+            "const c=m.chiaPhongBan(JSON.parse(d));console.log(JSON.stringify(c.pb.map(p=>p.ds.map(r=>r.t))));});")
+    js = Path(__file__).resolve().parent.parent / "assets" / "danh_ba.js"
+    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps(mau), capture_output=True, text=True,
+                                   encoding="utf-8", check=True).stdout)
+    assert kq == [["TP Hạ tầng", "TP KT", "Bác Sĩ"], ["Trưởng Một", "Phó Hai", "Phó Ba"]]

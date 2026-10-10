@@ -218,7 +218,7 @@ def test_hai_trang_dung_duoc_va_khong_trung_id():
             assert ids and not {i for i in ids if ids.count(i) > 1}, trang.__name__
             assert trang.topbar()
         ids = _cac_id(soanmail.layout())
-        assert {"sm-form", "sm-loai", "sm-db-kq", "sm-db-tim", "sm-db-dv", "sm-db-dem", "sm-du-lieu", "sm-sk-chon"} <= set(ids)
-        assert {"db-kq", "db-dem", "db-tim", "db-dv", "db-sk-sua", "db-du-lieu"} <= set(_cac_id(danhba.layout()))
+        assert {"sm-form", "sm-loai", "sm-db-kq", "sm-db-tim", "sm-db-dv-tim", "sm-db-dv-ds", "sm-db-dem", "sm-du-lieu", "sm-sk-chon"} <= set(ids)
+        assert {"db-kq", "db-dem", "db-tim", "db-dv-tim", "db-dv-ds", "db-sk-sua", "db-du-lieu"} <= set(_cac_id(danhba.layout()))
         # cả ba biểu mẫu có mặt sẵn, mỗi ô mang tên loại để không trùng nhau
         assert all(f"sm-form-{loai}" in ids for loai in sm.LOAI)

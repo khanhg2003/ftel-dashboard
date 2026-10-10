@@ -38,6 +38,12 @@ def _chu(v) -> str:
     return "" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v)
 
 
+def chon_chi_nhanh(goc: str, nhan: str = "Mọi chi nhánh · gõ để tìm") -> html.Div:
+    """Ô chọn chi nhánh gõ chữ để tìm, danh sách gom theo khu vực (`assets/danh_ba.js` dựng và xử lý; không hỏi máy chủ)."""
+    return html.Div([dcc.Input(id=f"{goc}-tim", type="text", className="inp db-cb-o", placeholder=nhan, autoComplete="off"),
+                     html.Div(id=f"{goc}-ds", className="db-cb-ds")], id=f"{goc}-cb", className="db-cb")
+
+
 def layout():
     db.dam_bao_bang()
     return html.Div([
@@ -45,7 +51,7 @@ def layout():
         html.Div([
             field("Tìm", dcc.Input(id="db-tim", type="search", className="o-tim db-o-tim", autoComplete="off",
                                     placeholder="Tên, chức danh, email, chi nhánh hoặc số điện thoại")),
-            field("Chi nhánh", html.Select([html.Option("Mọi chi nhánh", value="")], id="db-dv", className="inp db-chon")),
+            field("Chi nhánh", chon_chi_nhanh("db-dv")),
             html.Button([icon("plus", 14), html.Span("Thêm người")], id="db-them-mo", className="btn nt-nut"),
         ], className="toolbar"),
         html.Div([  # một hàng gọn: chuyển Thẻ / Sơ đồ + lọc theo nhóm chức danh
