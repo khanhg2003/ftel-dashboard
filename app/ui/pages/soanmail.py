@@ -187,7 +187,7 @@ def _hanh_dong(loai: str, kq: dict, nguoi: dict) -> list:
            html.Button("Copy nội dung", id="sm-copy-ma", n_clicks=0, className="btn nut-chep lon",
                        title="Copy nội dung thư kèm chữ đậm để tự dán vào chỗ khác.",
                        **{"data-chep-nguon": "#sm-than", "data-chep-html": ""})]
-    ghi = [html.Div("Thư Outlook mở ra đã có đủ Đến, CC, tiêu đề, nội dung. Muốn giữ chữ đậm thì chọn hết thân thư rồi nhấn Ctrl+V (nội dung có định dạng đã được copy sẵn).", className="desc")]
+    ghi = []
     if kq["thieu"]:
         ghi.append(alert("Còn trống: " + ", ".join(kq["thieu"]) + ".", "warn"))
     if not nguoi["den"]:

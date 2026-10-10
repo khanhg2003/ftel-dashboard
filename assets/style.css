@@ -1442,3 +1442,5 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   background: #0B3A66; color: #fff; font-size: 13.5px; font-weight: 500; box-shadow: 0 6px 20px #0b3a6640; opacity: 0; pointer-events: none;
   transition: opacity .18s, transform .18s; }
 .sm-toast.hien { opacity: 1; transform: translate(-50%, 0); }
+
+.sm-trai > .field { margin-bottom: 16px; }
