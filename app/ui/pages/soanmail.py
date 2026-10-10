@@ -176,19 +176,26 @@ def _goi_y_khung(g: dict) -> list:
 
 def _hanh_dong(loai: str, kq: dict, nguoi: dict) -> list:
     emails = lambda vt: "; ".join(p["email"] for p in nguoi[vt])         # noqa: E731
-    o = [html.Button([icon("copy", 14), html.Span("Copy cả mail")], id="sm-copy-ma", n_clicks=0,
-                     className="btn primary nut-chep lon", **{"data-chep-nguon": "#sm-than", "data-chep-html": ""}),
-         html.Button("Copy người nhận", className="btn nut-chep lon", **{"data-chep": emails("den")}),
-         html.Button("Copy CC", className="btn nut-chep lon", **{"data-chep": emails("cc")}),
-         html.Button("Copy tiêu đề", className="btn nut-chep lon", **{"data-chep-nguon": "#sm-tieu"})]
-    ghi = []
+    thu = {"data-den": emails("den"), "data-cc": emails("cc"), "data-tieu-nguon": "#sm-tieu", "data-chep-nguon": "#sm-than"}
+    outlook = [html.Button([icon("mail", 14), html.Span("Mở Outlook")], id="sm-mo-outlook", n_clicks=0, className="btn primary nut-chep lon",
+                           title="Mở thư mới đã điền sẵn Đến, CC, tiêu đề. Nội dung đã copy, bấm Ctrl+V vào thân thư.",
+                           **{**thu, "data-outlook": "mailto", "data-chep-html": ""}),
+               html.Button([icon("copy", 14), html.Span("Tải thư nháp (.eml)")], id="sm-tai-eml", n_clicks=0, className="btn nut-chep lon",
+                           title="Tải file thư nháp có đủ người nhận, tiêu đề, nội dung. Bấm đúp file là Outlook mở thư, không cần dán.",
+                           **{**thu, "data-outlook": "eml"})]
+    chep = [html.Button("Copy cả mail", id="sm-copy-ma", n_clicks=0, className="btn nho nut-chep",
+                        **{"data-chep-nguon": "#sm-than", "data-chep-html": ""}),
+            html.Button("Copy người nhận", className="btn nho nut-chep", **{"data-chep": emails("den")}),
+            html.Button("Copy CC", className="btn nho nut-chep", **{"data-chep": emails("cc")}),
+            html.Button("Copy tiêu đề", className="btn nho nut-chep", **{"data-chep-nguon": "#sm-tieu"})]
+    ghi = [html.Div("Bấm Mở Outlook rồi nhấn Ctrl+V vào thân thư. Nếu Outlook không tự mở, dùng Tải thư nháp hoặc các nút Copy.", className="desc")]
     if kq["thieu"]:
         ghi.append(alert("Còn trống: " + ", ".join(kq["thieu"]) + ".", "warn"))
     if not nguoi["den"]:
         ghi.append(html.Div("Chưa chọn người nhận (Đến).", className="desc"))
     if sm.LOAI[loai].get("nhac"):
         ghi.append(alert(sm.LOAI[loai]["nhac"], "info"))
-    return [html.Div(o, className="sm-nut"), *ghi]
+    return [html.Div(outlook, className="sm-nut"), html.Div(chep, className="sm-nut sm-chep"), *ghi]
 
 
 # ------------------------------------------------------------------ callbacks
@@ -283,13 +290,14 @@ def _dang_ky_xem(app):
         # trình duyệt tự vẽ thư (assets/soan_mail.js) để giữ được phần sale sửa tay; `lam_lai` đổi là bỏ phần sửa tay
         return {"loai": loai, "tieu_de": kq["tieu_de"], "doan": kq["doan"], "lam_lai": lam_lai or 0}, _hanh_dong(loai, kq, nguoi)
 
-    @app.callback(Output("sm-log", "data"), Input("sm-copy-ma", "n_clicks"), State("sm-loai", "data"),
+    @app.callback(Output("sm-log", "data"), Input("sm-copy-ma", "n_clicks"), Input("sm-mo-outlook", "n_clicks"),
+                  Input("sm-tai-eml", "n_clicks"), State("sm-loai", "data"),
                   State({"type": F, "l": ALL, "k": ALL}, "value"), State({"type": F, "l": ALL, "k": ALL}, "id"),
                   prevent_initial_call=True)
-    def _ghi_nhat_ky(n, loai, vals, ids):
+    def _ghi_nhat_ky(_a, _b, _c, loai, vals, ids):
         _vao()
-        if not n:
-            raise PreventUpdate
+        if not ctx.triggered[0]["value"]:
+            raise PreventUpdate                              # nút vừa dựng lại, chưa ai bấm
         ghi_log("soan_mail", f"{loai} {str(_cua_loai(loai, vals, ids).get('hop_dong') or '')[:30]}")   # không ghi nội dung mail
         return pd.Timestamp.now().isoformat()
 

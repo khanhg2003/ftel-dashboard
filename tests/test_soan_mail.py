@@ -180,7 +180,11 @@ def test_trang_soan_email_dung_duoc_ma_khong_can_database():
     from app.ui.pages import soanmail
     kq = sm.dung("ca_hot", CA_HOT)
     nguoi = {"den": [{"ten": "Tô Duy Bình", "email": "a@fpt.com", "chuc_vu": "", "don_vi": ""}], "cc": []}
-    nut = soanmail._hanh_dong("ca_hot", kq, nguoi)[0].children
+    hd = soanmail._hanh_dong("ca_hot", kq, nguoi)
+    mo = hd[0].children[0].to_plotly_json()["props"]
+    assert mo["data-outlook"] == "mailto" and mo["data-den"] == "a@fpt.com" and mo["data-tieu-nguon"] == "#sm-tieu"
+    assert hd[0].children[1].to_plotly_json()["props"]["data-outlook"] == "eml"
+    nut = hd[1].children
     assert nut[1].to_plotly_json()["props"]["data-chep"] == "a@fpt.com" and nut[2].to_plotly_json()["props"]["data-chep"] == ""
     assert nut[0].to_plotly_json()["props"]["data-chep-nguon"] == "#sm-than"
     assert nut[3].to_plotly_json()["props"]["data-chep-nguon"] == "#sm-tieu"           # copy đúng chữ tiêu đề đang hiện, kể cả khi sale sửa
@@ -253,3 +257,28 @@ def test_ban_xem_truoc_ve_tren_trinh_duyet_dung_dam_xuong_dong_va_o_thieu():
                          encoding="utf-8", check=True).stdout
     assert '<span class="sm-thieu">[Mã hợp đồng]</span>' in out and "<br>" in out
     assert "Cần &lt;gấp&gt; &amp; sớm" in out and out.count("<p>") == len(kq["doan"])
+
+
+def test_mailto_va_thu_nhap_eml_co_du_nguoi_nhan_tieu_de_noi_dung():
+    """Nút Mở Outlook / Tải thư nháp: Outlook phải có sẵn Đến, CC, tiêu đề (sale đỡ điền lại)."""
+    import json
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Máy không có Node")
+    code = ("const m=require(process.argv[1]);"
+            "console.log(JSON.stringify({a:m.taoMailto(['a@fpt.com','b@fpt.com'],['c@fpt.com'],'HĐ X1 - CA HOT & gấp'),"
+            "b:m.taoMailto(['a@fpt.com'],[],'T'),c:m.danhSach('a@x.vn; b@x.vn ;'),"
+            "d:m.taoEml(['a@fpt.com'],['c@fpt.com'],'Tiêu đề',' <p>Xin <b>chào</b></p>')}))")
+    js = Path(__file__).resolve().parent.parent / "assets" / "sao_chep.js"
+    o = json.loads(subprocess.run([node, "-e", code, str(js)], capture_output=True, text=True, encoding="utf-8", check=True).stdout)
+    assert o["a"] == "mailto:a@fpt.com,b@fpt.com?cc=c@fpt.com&subject=H%C4%90%20X1%20-%20CA%20HOT%20%26%20g%E1%BA%A5p"
+    assert o["b"] == "mailto:a@fpt.com?subject=T" and o["c"] == ["a@x.vn", "b@x.vn"]
+    eml = o["d"]
+    assert "X-Unsent: 1\r\nTo: a@fpt.com\r\nCc: c@fpt.com\r\nSubject: =?UTF-8?B?" in eml
+    import email
+    import email.header
+    m = email.message_from_string(eml)
+    assert m["To"] == "a@fpt.com" and "<b>chào</b>" in m.get_payload(decode=True).decode("utf-8")
+    assert str(email.header.make_header(email.header.decode_header(m["Subject"]))) == "Tiêu đề"

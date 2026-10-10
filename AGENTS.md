@@ -190,7 +190,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      trước câu cảm ơn); bên phải là MỘT lá thư kiểu Outlook: Đến / CC, gợi ý, tiêu đề, nội dung. **Tiêu đề và nội dung sửa được trực tiếp**
      (chủ app hỏi "muốn thêm ý ngoài khuôn thì sao"): máy chủ chỉ gửi `kq` vào `dcc.Store` `sm-kq`, `assets/soan_mail.js` tự vẽ vào `#sm-tieu`
      / `#sm-than` (hai khối này KHÔNG có con do Dash dựng, nếu dựng bằng Dash thì chữ sale gõ sẽ bị xoá hoặc lệch khi Dash cập nhật). Phần sale đã sửa tay được GIỮ khi đổi ô
-     bên trái (hiện thanh vàng + nút "Dựng lại từ các ô"); nút Copy đọc thẳng chữ đang hiện nên luôn là bản đã sửa. Dán vào thư luôn là chữ trơn. Đừng đưa lại
+     bên trái (hiện thanh vàng + nút "Dựng lại từ các ô"); nút Copy đọc thẳng chữ đang hiện nên luôn là bản đã sửa. Dán vào thư luôn là chữ trơn. **Đưa sang Outlook:** nút "Mở Outlook" copy nội dung rồi mở `mailto:` đã điền sẵn Đến / CC / tiêu đề (sale chỉ Ctrl+V vào thân thư; `mailto` không nhét được nội dung vì giới hạn độ dài và mất chữ đậm), nút "Tải thư nháp (.eml)" tải file `X-Unsent` có đủ cả nội dung có định dạng (bấm đúp là Outlook mở thư). Cả hai nằm ở `assets/sao_chep.js` (có test Node). Đừng đưa lại
      ô "Lời chào": lời chào tự theo người nhận và sửa thẳng trong thư. Thêm loại mail mới = thêm một mục vào `LOAI` (có test chặn ô trong khuôn không có nguồn). Danh bạ: file PNC (Đà
      Nẵng vào Nam, mới hơn) và TIN (Đà Nẵng ra Bắc) do admin nạp lại hằng tháng, **mỗi file là bản chụp mới nhất** (thay
      toàn bộ dòng của nguồn đó), bộ đọc nhận cột theo TÊN chứ không theo vị trí vì hai file khác nhau (`_doc_sheet`); trùng
