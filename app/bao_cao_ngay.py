@@ -345,7 +345,7 @@ def _kiem_voi_ca(acc_norm: str, d: dict, phong: list[str], ngay: date) -> None:
     for cot, b, ten in (("onl_sang", "sang", "buổi sáng"), ("onl_chieu", "chieu", "buổi chiều")):
         n = sum(buoi.get(c["khung"]) == b for c in ca)
         if cot in d and d[cot] < n:
-            raise LoiBaoCao(f"Đã có {n} ca {ten} ở mục Theo dõi Online nên không đặt thấp hơn {n}. Muốn giảm thì huỷ hoặc dời ca ở mục đó.")
+            raise LoiBaoCao(f"Chưa sửa được: người này đã có {n} ca {ten} ở mục Theo dõi Online nên ô không thể thấp hơn {n} (ô đã quay về số cũ). Muốn giảm thì huỷ hoặc dời ca ở mục đó.")
     n_on = sum(c["tt"] == "da_online" for c in ca)
     if "da_online" in d and d["da_online"] != n_on:
         raise LoiBaoCao(f"Đã online của người này lấy từ mục Theo dõi Online ({n_on} ca). Muốn đổi thì bấm trạng thái ở thẻ ca.")

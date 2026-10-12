@@ -1636,3 +1636,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-ton-ds i { font-style: normal; font-weight: 600; color: #9A5B13; }
 
 #onl-md .modal-hop { max-width: 400px; }
+
+/* Báo cáo ngày: lỗi khi gõ vào bảng hiện nổi ở cuối màn hình (bảng dài, dòng báo ở đầu trang nằm ngoài tầm nhìn nên sale tưởng ô tự nhảy lại) và tự mờ đi sau ~10 giây */
+#bn-msg { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 60; width: min(560px, calc(100vw - 32px)); pointer-events: none; }
+#bn-msg .alert { margin: 0; box-shadow: 0 8px 24px #1018282e; pointer-events: auto; animation: bn-msg-tat .4s ease 10s forwards; }
+@keyframes bn-msg-tat { to { opacity: 0; visibility: hidden; } }
