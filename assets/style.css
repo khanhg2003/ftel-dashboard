@@ -1562,10 +1562,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-mn-nhom { padding: 6px 6px; } .onl-mn-nhom + .onl-mn-nhom { border-top: 1px solid var(--onl-ke); }
 .onl-mn-nhan { padding: 0 6px 4px; font-size: 11px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; color: #98A2B3; }
 .onl-mn-hang { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 6px; padding: 3px 6px; font-size: 12.5px; color: var(--onl-mo); }
-.onl-mn-ds select, .onl-mn-ds input[type=date] { width: 100%; min-width: 0; padding: 4px 6px; font: inherit; font-size: 12.5px; border: 1px solid #D0D5DD; border-radius: 5px; background: #fff; color: var(--onl-chu); }
-.onl-mn-ngay { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; }
-.onl-mn-ngay button { border: 1px solid #D0D5DD; background: #fff; border-radius: 5px; padding: 4px 8px; font: inherit; font-size: 12.5px; color: var(--onl-chu); cursor: pointer; white-space: nowrap; }
-.onl-mn-ngay button:hover { border-color: var(--fpt-blue); color: var(--fpt-blue); }
+.onl-mn-ds select { width: 100%; min-width: 0; padding: 4px 6px; font: inherit; font-size: 12.5px; border: 1px solid #D0D5DD; border-radius: 5px; background: #fff; color: var(--onl-chu); }
 .onl-mn-nhom > button { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; border: 0; background: none; text-align: left; padding: 7px 8px; border-radius: 5px; font: inherit; font-size: 13px; color: var(--onl-chu); cursor: pointer; }
 .onl-mn-nhom > button small { font-size: 11.5px; color: #98A2B3; }
 .onl-mn-nhom > button:hover { background: #F2F4F7; }

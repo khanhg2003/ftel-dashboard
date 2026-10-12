@@ -76,6 +76,16 @@
         return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
     }
 
+
+    function chonNgay() {                                       // các ngày ca được dời tới (ngày mai → ngày xa nhất cho nhập trước), mỗi ngày một dòng
+        let o = '<option value="">Chọn ngày…</option>', n = ngayKe(du.ngay), i = 0;
+        while (n <= (du.xa_nhat || '') && i < 8) {
+            o += '<option value="' + n + '">' + (i === 0 ? 'Ngày mai · ' : '') + THU[new Date(n + 'T00:00:00').getDay()] + ' ' + ngayVn(n) + '</option>';
+            n = ngayKe(n); i++;
+        }
+        return i ? o : '<option value="">Chưa có ngày để dời</option>';
+    }
+
     function ngayVn(iso) { return String(iso || '').slice(8, 10) + '/' + String(iso || '').slice(5, 7); }
 
     function tenCua(acc) {
@@ -214,8 +224,7 @@
             + '<details class="onl-mn"><summary title="Dời khung giờ, dời ngày, sửa ghi chú, huỷ">⋯</summary><div class="onl-mn-ds">'
             + '<div class="onl-mn-nhom"><div class="onl-mn-nhan">Dời ca</div>'
             + '<label class="onl-mn-hang"><span>Khung</span><select data-act="khung" data-id="' + c.id + '">' + khung + '</select></label>'
-            + '<div class="onl-mn-hang"><span>Ngày</span><div class="onl-mn-ngay"><button type="button" data-act="mai" data-id="' + c.id + '">Ngày mai</button>'
-            + '<input type="date" title="Chọn ngày khác" data-act="ngay" data-id="' + c.id + '" min="' + esc(ngayKe(du.ngay)) + '" max="' + esc(du.xa_nhat || '') + '"></div></div></div>'
+            + '<label class="onl-mn-hang"><span>Ngày</span><select data-act="ngay" data-id="' + c.id + '">' + chonNgay() + '</select></label></div>'
             + '<div class="onl-mn-nhom">'
             + '<button type="button" data-act="sua" data-id="' + c.id + '">' + (c.gc ? 'Sửa ghi chú' : 'Thêm ghi chú') + '<small>' + ((c.ls || []).length > 1 ? 'Lịch sử' : '') + '</small></button>'
             + (lech ? '<button type="button" class="luu-y" data-act="dong-bo-hen" data-id="' + c.id + '">Đổi ngày hẹn ở Nhập tồn<small>→ ' + ngayVn(du.ngay) + '</small></button>' : '')
@@ -299,11 +308,6 @@
         if (!du) { return; }
         const d = e.dataset, c = d.id ? tim(d.id) : null;
         if (act === 'tt' && c) { if (c.tt === d.val) { return; } c.tt = d.val; gui('tt', {id: c.id, val: d.val}); }
-        else if (act === 'mai' && c) {
-            du.ca = du.ca.filter(function (x) { return x !== c; });
-            bao('Đã dời ' + c.ma + ' sang ngày mai');
-            gui('mai', {id: c.id});
-        }
         else if (act === 'ngay' && c) {
             if (!d.ngay) { return; }
             du.ca = du.ca.filter(function (x) { return x !== c; });
@@ -363,12 +367,11 @@
             lenh(b.dataset.act, b);
         });
         document.addEventListener('change', function (e) {
-            const dt = e.target && e.target.closest ? e.target.closest('#onl-goc input[data-act="ngay"]') : null;
-            if (dt && du && dt.value) { dt.dataset.ngay = dt.value; lenh('ngay', dt); return; }
             const s = e.target && e.target.closest ? e.target.closest('#onl-goc select[data-act]') : null;
             if (!s || !du) { return; }
             if (s.dataset.act === 'loc-nv-sel') { chonNv(s.value); return; }
             const c = tim(s.dataset.id);
+            if (s.dataset.act === 'ngay') { if (s.value) { s.dataset.ngay = s.value; lenh('ngay', s); } return; }
             if (s.dataset.act === 'khung' && c && c.khung !== s.value) {
                 c.khung = s.value;
                 gui('khung', {id: c.id, val: s.value});
