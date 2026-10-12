@@ -436,15 +436,3 @@ class OnlineCa(Base):
     tao_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
     cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
-
-
-class OnlineKhongCa(Base):
-    """Nhân viên báo "hôm nay không có ca online" để khỏi bị nhắc chưa khai khung giờ đầu ngày."""
-    __tablename__ = "online_khong_ca"
-    __table_args__ = (UniqueConstraint("ngay", "acc_norm", name="uq_online_khong_ca"),)
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ngay: Mapped[date] = mapped_column(Date, index=True)
-    phong_code: Mapped[str] = mapped_column(String(20), index=True)
-    acc_norm: Mapped[str] = mapped_column(String(60))
-    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)

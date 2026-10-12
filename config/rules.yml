@@ -64,14 +64,14 @@ bao_cao_ngay:
   # Nhập báo cáo bằng giọng nói (app/giong_noi.py), chốt 08/10/2026: phòng nào được dùng (phải nằm trong `phong`).
   giong_noi: [IBB7]
   # Theo dõi Online trong ngày (mục dưới bảng Báo cáo ngày, chốt 12/10/2026): các khung giờ sale khai ca dự kiến online.
-  # buoi: sang | chieu quyết định ca đó tính vào ô ONL sáng hay ONL chiều của bảng; để trống (Chưa hẹn giờ) là chưa tính vào ô nào.
+  # phu: true = khung phụ, chỉ hiện trên bảng khi đang có ca (đỡ rối). buoi: sang | chieu quyết định ca đó tính vào ô ONL sáng hay ONL chiều của bảng; để trống (Chưa hẹn giờ) là chưa tính vào ô nào.
   khung_online:
     - {ma: "08-10", nhan: "08h–10h", buoi: sang, tu: "08:00", den: "10:00"}
     - {ma: "10-12", nhan: "10h–12h", buoi: sang, tu: "10:00", den: "12:00"}
     - {ma: "1330-1530", nhan: "13h30–15h30", buoi: chieu, tu: "13:30", den: "15:30"}
     - {ma: "1530-1730", nhan: "15h30–17h30", buoi: chieu, tu: "15:30", den: "17:30"}
-    - {ma: "sau", nhan: "Sau 17h30", buoi: chieu, tu: "17:30", den: "23:59"}
-    - {ma: "chua", nhan: "Chưa hẹn giờ", buoi: "", tu: "", den: ""}
+    - {ma: "sau", nhan: "Sau 17h30", buoi: chieu, tu: "17:30", den: "23:59", phu: true}
+    - {ma: "chua", nhan: "Chưa hẹn giờ", buoi: "", tu: "", den: "", phu: true}
 
 # Soạn email + Danh bạ (app/soan_mail.py, app/danh_ba.py), chốt 10/10/2026: nvkd của các phòng này + admin dùng được.
 soan_mail:

@@ -155,10 +155,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      **Theo dõi Online trong ngày** (mục dưới bảng, cùng tab, chốt 12/10/2026; `app/online_ca.py`, khung giờ ở `rules.yml` →
      `bao_cao_ngay.khung_online`): mỗi mã HĐ là MỘT phiếu (nhân viên + khung giờ + trạng thái Dự kiến → Đang triển khai → Đã online, sale
      tự cập nhật, không lấy từ file; không lưu tên khách; dời khung / dời sang mai ghi lịch sử, huỷ ca = xoá phiếu). Sale PHẢI khai
-     khung giờ dự kiến đầu ngày: ai chưa khai (và chưa bấm "Không có ca") hiện cảnh báo đỏ, KHÔNG chặn phần nào khác. **Nối với bảng**
-     (chủ app muốn hai nơi thống nhất): mỗi lần phiếu của một người đổi, `dong_bo_bang` TÍNH LẠI và ghi vào ba ô ONL sáng (phiếu buổi sáng) /
-     ONL chiều (phiếu buổi chiều + Sau 17h30) / Đã online (phiếu đã online) của người đó, rồi bảng tự vá dòng đó; ca "Chưa hẹn giờ" chưa tính
-     vào ô nào. Ô trong bảng vẫn gõ tay được nhưng lần sau phiếu đổi sẽ ghi đè bằng số từ phiếu. Phiếu được GIỮ qua các ngày (khác báo cáo
+     khung giờ cho số ca đã gõ ở ô ONL sáng / chiều của bảng: CHỈ người có dự kiến > 0 (hoặc đã có phiếu) mới hiện ở mục này và mới bị cảnh
+     báo khi chưa khai đủ giờ (`thieu_gio`: cần = max(số dự kiến gõ, số phiếu), thiếu = cần - phiếu đã có khung; ca "Chưa hẹn giờ" vẫn
+     là chưa khai giờ) - người dự kiến 0 ẨN HẲN (chủ app chốt 12/10/2026, đừng dựng lại nút "Không có ca"), cảnh báo KHÔNG chặn phần nào khác.
+     **Nối với bảng** (chủ app muốn hai nơi thống nhất): mỗi lần phiếu của một người đổi, `dong_bo_bang` ghi "Đã online" = số phiếu đã
+     online, còn ONL sáng (phiếu buổi sáng) / ONL chiều (phiếu buổi chiều + Sau 17h30) CHỈ ghi khi số phiếu đã đủ so với số sale gõ (không
+     thì số gõ bị thay bằng số nhỏ hơn và cảnh báo thiếu mất); huỷ ca / dời sang mai / đổi người là chủ ý bớt ca nên luôn ghi đúng số phiếu.
+     Khung phụ (`phu: true`: Sau 17h30, Chưa hẹn giờ) chỉ hiện cột khi đang có ca. Phiếu được GIỮ qua các ngày (khác báo cáo
      đầu ngày). Giao diện vẽ ở trình duyệt (`assets/online.js`, thẻ đổi trạng thái / dời khung tức thì rồi mới báo máy chủ, giống Danh bạ);
      `thongKe` bên JS phải giống `online_ca.thong_ke` (có test đối chiếu bằng Node).
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,

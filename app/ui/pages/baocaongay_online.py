@@ -1,7 +1,7 @@
 """Mục "Theo dõi Online" nằm dưới bảng của trang Báo cáo ngày (quy tắc: app/online_ca.py; giao diện vẽ ở assets/online.js).
 
 Máy chủ chỉ làm ba việc: nạp gói dữ liệu của ngày (`onl-du-lieu`), nhận sự kiện từ trình duyệt qua `onl-sk` (đổi trạng thái, dời
-khung, dời mai, huỷ, báo không có ca) và nhận form thêm ca / sửa ca. Phòng và ngày lấy từ chính bộ lọc của trang Báo cáo ngày
+khung, dời mai, huỷ) và nhận form thêm ca / sửa ca. Phòng và ngày lấy từ chính bộ lọc của trang Báo cáo ngày
 (`bn-phong`, `bn-ngay`); ai được xem / sửa thì theo đúng quyền của Báo cáo ngày (`bn._phong_hop_le`). Mỗi lần ca đổi, số ONL sáng /
 ONL chiều / Đã online trong bảng phía trên được tính lại từ phiếu (`online_ca.dong_bo_bang`) và dòng đó tự cập nhật.
 """
@@ -26,7 +26,8 @@ def khung() -> list:
         dcc.Store(id="onl-du-lieu"), dcc.Store(id="onl-sk"), dcc.Store(id="onl-lam-moi"), dcc.Store(id="onl-ve"),
         dcc.Store(id="onl-thong-bao"), dcc.Store(id="onl-bao-xong"),
         html.Div([
-            html.Div(id="onl-tong-quan"),
+            html.Div(id="onl-hero"),
+            html.Div(id="onl-nguoi"),
             html.Div([
                 dcc.Input(id="onl-f-hd", type="text", className="inp onl-f-hd", maxLength=24, autoComplete="off",
                           placeholder="Mã hợp đồng, VD: DAAAP6381"),
@@ -38,7 +39,6 @@ def khung() -> list:
             html.Div(id="onl-msg"),
             html.Div(id="onl-canh-bao"),
             html.Div(id="onl-bang"),
-            html.Div(id="onl-nv"),
         ], className="card onl", id="onl-goc"),
         modal("onl-md", html.Span(id="onl-md-tieu-de"), [
             dcc.Store(id="onl-md-id"),
@@ -84,8 +84,8 @@ def register(app):
 
     @app.callback(Output("onl-du-lieu", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-nhip", "n_intervals"),
-                  Input("onl-lam-moi", "data"), State("onl-du-lieu", "data"))
-    def _nap(code, ngay, _nhip, _moi, cu):
+                  Input("onl-lam-moi", "data"), Input("bn-da-luu", "data"), State("onl-du-lieu", "data"))
+    def _nap(code, ngay, _nhip, _moi, _luu, cu):
         phong, d, _ = _ngu_canh(code, ngay, None)
         if ctx.triggered_id == "bn-nhip" and cu and cu.get("moc") == oc.moc(phong, d) and cu.get("ngay") == d.isoformat():
             raise PreventUpdate                                # nhịp tự động: chỉ nạp lại khi có người vừa sửa
@@ -131,9 +131,6 @@ def register(app):
             elif act == "xoa":
                 t = oc.xoa(sk["id"], phong, ai)
                 ghi_log("online_xoa", f"{t['ma_hd']} {t['ngay']:%d/%m/%Y} {code}")
-            elif act == "khong":
-                oc.khong_ca(sk.get("acc"), phong, d, bool(sk.get("co")), ai)
-                accs = []
             else:
                 raise PreventUpdate
         except oc.LoiOnline as e:                              # trình duyệt đã đổi tạm trên màn hình: nạp lại số thật + báo lỗi

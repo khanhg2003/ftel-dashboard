@@ -28,13 +28,12 @@ def _don():
     from sqlalchemy import delete
 
     from app.db import session_scope
-    from app.models import BaoCaoNgay, OnlineCa, OnlineKhongCa
+    from app.models import BaoCaoNgay, OnlineCa
 
     def don():
         with session_scope() as s:
             for ngay in (NGAY, NGAY + timedelta(days=1)):
                 s.execute(delete(OnlineCa).where(OnlineCa.ngay == ngay))
-                s.execute(delete(OnlineKhongCa).where(OnlineKhongCa.ngay == ngay))
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay.in_([NGAY, NGAY + timedelta(days=1)])))
     bc.dam_bao_bang()
     oc.dam_bao_bang()
@@ -141,16 +140,37 @@ def test_doi_sang_ngay_mai_ve_du_kien_chua_hen_gio_va_tinh_lai_hai_ngay(hai_nguo
         oc.doi_ngay_mai(j, PHONG, "k")
 
 
-def test_canh_bao_chua_khai_va_khong_co_ca(hai_nguoi):
+def test_chi_nhac_nguoi_da_nhap_du_kien_ma_chua_khai_du_gio_nguoi_du_kien_0_an_han(hai_nguoi):
+    """Chủ app (12/10/2026): người dự kiến online 0 không hiện; chỉ người đã gõ dự kiến mà chưa khai đủ giờ mới bị nhắc."""
     a, b = hai_nguoi
-    nv = oc.nhan_vien(tuple(PHONG), NGAY.isoformat())
-    assert set(oc.chua_khai([], nv, [])) == {x["a"] for x in nv}                    # đầu ngày ai cũng chưa khai
-    oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)
-    oc.khong_ca(b, PHONG, NGAY, True, "k")
     d = oc.du_lieu(PHONG, NGAY)
-    assert a not in d["chua_khai"] and b not in d["chua_khai"] and len(d["chua_khai"]) == len(nv) - 2
-    oc.khong_ca(b, PHONG, NGAY, False, "k")
-    assert b in oc.du_lieu(PHONG, NGAY)["chua_khai"]
+    assert d["thieu"] == {} and d["dk"] == {}                                       # đầu ngày chưa ai gõ gì: không ai bị nhắc
+    bc.luu(a, {"onl_sang": 2, "onl_chieu": 1}, PHONG, "k", NGAY)                    # a gõ dự kiến 3 ca, chưa khai ca nào
+    bc.luu(b, {"onl_sang": 0, "onl_chieu": 0}, PHONG, "k", NGAY)                    # b gõ 0
+    d = oc.du_lieu(PHONG, NGAY)
+    assert d["thieu"] == {a: {"can": 3, "khai": 0, "chua": 0, "thieu": 3}} and b not in d["thieu"]
+    oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)
+    oc.them("DAAAP0002", a, "chua", PHONG, "k", NGAY)                               # "Chưa hẹn giờ" vẫn là chưa khai giờ
+    assert oc.du_lieu(PHONG, NGAY)["thieu"][a] == {"can": 3, "khai": 1, "chua": 1, "thieu": 2}
+    oc.them("DAAAP0003", a, "10-12", PHONG, "k", NGAY)
+    i = oc.ds_ca(PHONG, NGAY)
+    oc.doi_khung(next(c["id"] for c in i if c["khung"] == "chua"), "1330-1530", PHONG, "k")
+    assert oc.du_lieu(PHONG, NGAY)["thieu"][a]["thieu"] == 0                        # khai đủ 3 ca có giờ: hết nhắc
+    oc.them("DAAAP0004", b, "08-10", PHONG, "k", NGAY)                              # b có phiếu thì có mặt, không thiếu
+    assert oc.du_lieu(PHONG, NGAY)["thieu"][b] == {"can": 1, "khai": 1, "chua": 0, "thieu": 0}
+
+
+def test_chua_khai_du_thi_khong_ghi_de_so_da_go_nhung_huy_ca_thi_ghi_dung(hai_nguoi):
+    a, _ = hai_nguoi
+    bc.luu(a, {"onl_sang": 3, "onl_chieu": 2}, PHONG, "k", NGAY)                    # gõ dự kiến 5
+    ids = [oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP0002", a, "1530-1730", PHONG, "k", NGAY)]
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
+    assert (r.onl_sang, r.onl_chieu) == (3, 2)                                      # mới khai 2/5 ca: số gõ còn nguyên
+    oc.doi_trang_thai(ids[0], "da_online", PHONG, "k")
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1         # "Đã online" luôn đúng số phiếu
+    oc.xoa(ids[1], PHONG, "k")                                                      # huỷ ca là chủ ý bớt ca: ghi đúng số phiếu
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
+    assert (r.onl_sang, r.onl_chieu) == (1, 0)
 
 
 def test_moc_doi_khi_co_nguoi_sua(hai_nguoi):
@@ -171,6 +191,11 @@ def test_khong_sua_duoc_ca_cua_phong_khac(hai_nguoi):
         oc.xoa(i, ["IBB2"], "k")
 
 
+def test_khung_phu_chi_hien_khi_co_ca():
+    phu = {k["ma"] for k in oc.khung() if k["phu"]}
+    assert phu == {"sau", "chua"}
+
+
 def test_khung_doc_tu_cau_hinh_co_sau_khung_va_chua_hen():
     ma = [k["ma"] for k in oc.khung()]
     assert ma == ["08-10", "10-12", "1330-1530", "1530-1730", "sau", "chua"]
@@ -179,6 +204,9 @@ def test_khung_doc_tu_cau_hinh_co_sau_khung_va_chua_hen():
 
 
 # ------------------------------------------------------------------ phần vẽ trên trình duyệt (assets/online.js)
+DK = {"x": 4, "z": 2, "k": 0}
+
+
 def test_ban_tinh_thong_ke_tren_trinh_duyet_khop_ban_python():
     node = shutil.which("node")
     if not node:
@@ -186,12 +214,12 @@ def test_ban_tinh_thong_ke_tren_trinh_duyet_khop_ban_python():
     ca = [{"id": 1, "ma": "A", "acc": "x", "khung": "08-10", "tt": "da_online"}, {"id": 2, "ma": "B", "acc": "x", "khung": "08-10", "tt": "dang_lam"},
           {"id": 3, "ma": "C", "acc": "y", "khung": "chua", "tt": "du_kien"}, {"id": 4, "ma": "D", "acc": "y", "khung": "sau", "tt": "du_kien"}]
     code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
-            "const j=JSON.parse(d);console.log(JSON.stringify(m.thongKe(j.ca,j.khung)));});")
+            "const j=JSON.parse(d);console.log(JSON.stringify({tk:m.thongKe(j.ca,j.khung),th:m.thieuGio(j.ca,j.dk)}));});")
     js = Path(__file__).resolve().parent.parent / "assets" / "online.js"
-    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps({"ca": ca, "khung": oc.khung()}), capture_output=True,
+    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps({"ca": ca, "khung": oc.khung(), "dk": DK}), capture_output=True,
                                    text=True, encoding="utf-8", check=True).stdout)
-    py = oc.thong_ke(ca)
-    assert kq == py
+    assert kq["tk"] == oc.thong_ke(ca)
+    assert kq["th"] == oc.thieu_gio(ca, DK) and kq["th"]["x"] == {"can": 4, "khai": 2, "chua": 0, "thieu": 2}
 
 
 def test_trang_bao_cao_ngay_co_muc_theo_doi_online_va_khong_trung_id():
@@ -220,4 +248,4 @@ def test_trang_bao_cao_ngay_co_muc_theo_doi_online_va_khong_trung_id():
             return kq
         tat = ids(baocaongay.layout())
         assert not {i for i in tat if tat.count(i) > 1}
-        assert {"onl-du-lieu", "onl-sk", "onl-tong-quan", "onl-bang", "onl-f-hd", "onl-f-nv", "onl-f-khung", "onl-md"} <= set(tat)
+        assert {"onl-du-lieu", "onl-sk", "onl-hero", "onl-nguoi", "onl-bang", "onl-f-hd", "onl-f-nv", "onl-f-khung", "onl-md"} <= set(tat)

@@ -1,13 +1,15 @@
 """Theo dõi Online trong ngày: mục nằm dưới bảng của trang Báo cáo ngày (chốt 12/10/2026, bật cùng phòng với Báo cáo ngày).
 
 Quy tắc đã chốt với chủ app:
-- Mỗi mã hợp đồng là MỘT phiếu (ca) riêng, gắn nhân viên + khung giờ dự kiến + trạng thái. Sale PHẢI khai khung giờ dự kiến đầu
-  ngày; ai chưa khai (và chưa bấm "không có ca") thì hiện cảnh báo, KHÔNG chặn các phần khác của trang.
+- Mỗi mã hợp đồng là MỘT phiếu (ca) riêng, gắn nhân viên + khung giờ dự kiến + trạng thái. Sale PHẢI khai khung giờ cho số ca
+  đã nhập ở ô ONL sáng / ONL chiều của bảng: chỉ người có dự kiến online MÀ chưa khai đủ giờ mới bị cảnh báo (người dự kiến 0 ẩn hẳn,
+  chủ app chốt 12/10/2026), KHÔNG chặn các phần khác của trang. Ca "Chưa hẹn giờ" cũng tính là chưa khai giờ.
 - Trạng thái: Dự kiến → Đang triển khai → Đã online. Sale tự cập nhật, KHÔNG lấy từ file Internet (cùng cách với ô "Đã online").
   Dời khung giờ hay dời sang ngày mai thì ghi vào lịch sử của phiếu. Không lưu tên khách hàng.
 - NỐI với bảng Báo cáo ngày: mỗi lần phiếu của một nhân viên đổi thì app TÍNH LẠI và ghi vào ba ô của người đó: ONL sáng (phiếu
-  ở khung buổi sáng), ONL chiều (phiếu buổi chiều + sau 17h30), Đã online (phiếu đã online). Ca "Chưa hẹn giờ" chưa tính vào ô nào
-  cho tới khi chọn khung. Ô trong bảng vẫn gõ tay được; lần sau phiếu đổi thì số tính từ phiếu ghi đè (sale hai nơi thì nhìn một số).
+  ở khung buổi sáng), ONL chiều (phiếu buổi chiều + sau 17h30), Đã online (phiếu đã online). "Đã online" luôn ghi đúng số phiếu. ONL
+  sáng / chiều chỉ ghi khi số phiếu ĐỦ so với số sale đã gõ (không thì số gõ bị ghi đè nhỏ hơn và mất cảnh báo thiếu); riêng huỷ ca,
+  dời sang ngày mai, đổi người phụ trách là việc chủ ý bớt ca nên luôn ghi đúng số phiếu. Ca "Chưa hẹn giờ" chưa tính vào ô nào.
 - Phiếu giữ lại sau ngày (khác báo cáo đầu ngày bị xoá), để sau này xem lại tỷ lệ ca lên đúng giờ.
 """
 from __future__ import annotations
@@ -23,7 +25,7 @@ from app import bao_cao_ngay as bc
 from app.bo_nho import nho
 from app.config import rules_config
 from app.db import engine, session_scope
-from app.models import OnlineCa, OnlineKhongCa
+from app.models import OnlineCa
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
 TRANG_THAI = ("du_kien", "dang_lam", "da_online")
@@ -38,8 +40,8 @@ KHUNG_MAC_DINH = [
     {"ma": "10-12", "nhan": "10h–12h", "buoi": "sang", "tu": "10:00", "den": "12:00"},
     {"ma": "1330-1530", "nhan": "13h30–15h30", "buoi": "chieu", "tu": "13:30", "den": "15:30"},
     {"ma": "1530-1730", "nhan": "15h30–17h30", "buoi": "chieu", "tu": "15:30", "den": "17:30"},
-    {"ma": "sau", "nhan": "Sau 17h30", "buoi": "chieu", "tu": "17:30", "den": "23:59"},
-    {"ma": "chua", "nhan": "Chưa hẹn giờ", "buoi": "", "tu": "", "den": ""},
+    {"ma": "sau", "nhan": "Sau 17h30", "buoi": "chieu", "tu": "17:30", "den": "23:59", "phu": True},
+    {"ma": "chua", "nhan": "Chưa hẹn giờ", "buoi": "", "tu": "", "den": "", "phu": True},
 ]
 
 
@@ -51,7 +53,6 @@ def dam_bao_bang() -> None:
     global _da_tao
     if not _da_tao:
         OnlineCa.__table__.create(engine, checkfirst=True)
-        OnlineKhongCa.__table__.create(engine, checkfirst=True)
         _da_tao = True
 
 
@@ -59,7 +60,7 @@ def khung() -> list[dict]:
     """Các khung giờ trong ngày, đặt ở config/rules.yml → bao_cao_ngay.khung_online (không có thì dùng mặc định)."""
     ds = (rules_config().get("bao_cao_ngay") or {}).get("khung_online") or KHUNG_MAC_DINH
     return [{"ma": str(k["ma"]), "nhan": str(k["nhan"]), "buoi": str(k.get("buoi") or ""),
-             "tu": str(k.get("tu") or ""), "den": str(k.get("den") or "")} for k in ds]
+             "tu": str(k.get("tu") or ""), "den": str(k.get("den") or ""), "phu": bool(k.get("phu"))} for k in ds]
 
 
 def _khung_hop_le(ma: str) -> str:
@@ -113,24 +114,26 @@ def ds_ca(phong: list[str], ngay: date) -> list[dict]:
     return sorted(ca, key=lambda c: (thu_tu.get(c["khung"], 99), c["id"]))
 
 
-def ds_khong_ca(phong: list[str], ngay: date) -> list[str]:
-    dam_bao_bang()
-    with session_scope() as s:
-        return list(s.execute(select(OnlineKhongCa.acc_norm).where(OnlineKhongCa.ngay == ngay,
-                                                                  OnlineKhongCa.phong_code.in_(phong))).scalars())
+def dk_nhap(phong: list[str], ngay: date) -> dict[str, int]:
+    """Số dự kiến online (ONL sáng + ONL chiều) mỗi người đã gõ ở bảng Báo cáo ngày: {acc_norm: số}."""
+    bc.dam_bao_bang()
+    ma = {f"p{i}": c for i, c in enumerate(phong)}
+    cho = ", ".join(f":{k}" for k in ma)
+    with engine.connect() as c:
+        rows = c.execute(text(f"""SELECT acc_norm, COALESCE(onl_sang, 0) + COALESCE(onl_chieu, 0) FROM bao_cao_ngay
+                                  WHERE ngay = :n AND phong_code IN ({cho})"""), {**ma, "n": ngay.isoformat()}).all()
+    return {a: int(n) for a, n in rows if n}
 
 
 def moc(phong: list[str], ngay: date) -> str:
-    """Dấu vết lần sửa gần nhất của cả phòng, để trang tự nạp lại khi người khác vừa cập nhật."""
+    """Dấu vết lần sửa gần nhất của phiếu và của bảng Báo cáo ngày, để trang tự nạp lại khi người khác vừa cập nhật."""
     dam_bao_bang()
     ma = {f"p{i}": c for i, c in enumerate(phong)}
     cho = ", ".join(f":{k}" for k in ma)
     with engine.connect() as c:
         a = c.execute(text(f"SELECT COUNT(*), MAX(cap_nhat_luc) FROM online_ca WHERE ngay = :n AND phong_code IN ({cho})"),
                       {**ma, "n": ngay.isoformat()}).one()
-        b = c.execute(text(f"SELECT COUNT(*), MAX(cap_nhat_luc) FROM online_khong_ca WHERE ngay = :n AND phong_code IN ({cho})"),
-                      {**ma, "n": ngay.isoformat()}).one()
-    return f"{a[0]}|{a[1] or ''}|{b[0]}|{b[1] or ''}"
+    return f"{a[0]}|{a[1] or ''}|{bc.moc_cap_nhat(phong, ngay)}"
 
 
 def thong_ke(ca: list[dict]) -> dict:
@@ -146,18 +149,27 @@ def thong_ke(ca: list[dict]) -> dict:
     return out
 
 
-def chua_khai(ca: list[dict], nv: list[dict], khong_ca: list[str]) -> list[str]:
-    """Nhân viên chưa khai ca nào và chưa báo "không có ca" (acc_norm)."""
-    co = {c["acc"] for c in ca} | set(khong_ca)
-    return [x["a"] for x in nv if x["a"] not in co]
+def thieu_gio(ca: list[dict], dk: dict) -> dict:
+    """Những người CÓ ca (đã gõ dự kiến online hoặc đã có phiếu): {acc: {can, khai, chua, thieu}}.
+    can = số ca người đó cần khai = lớn hơn giữa số dự kiến đã gõ và số phiếu; khai = phiếu đã có khung giờ; chua = phiếu "Chưa hẹn giờ";
+    thieu = can - khai (số ca còn phải khai giờ). Người dự kiến 0 và chưa có phiếu không có mặt ở đây (ẩn hẳn khỏi mục theo dõi).
+    assets/online.js có bản tính y hệt để cập nhật tức thì (có test đối chiếu)."""
+    out = {}
+    for a in dict.fromkeys([*dk, *(c["acc"] for c in ca)]):
+        khai = sum(c["acc"] == a and c["khung"] != "chua" for c in ca)
+        chua = sum(c["acc"] == a and c["khung"] == "chua" for c in ca)
+        can = max(int(dk.get(a, 0) or 0), khai + chua)
+        if can > 0:
+            out[a] = {"can": can, "khai": khai, "chua": chua, "thieu": can - khai}
+    return out
 
 
 def du_lieu(phong: list[str], ngay: date) -> dict:
     """Gói dữ liệu duy nhất gửi trình duyệt vẽ mục Theo dõi Online (assets/online.js)."""
     nv = nhan_vien(tuple(phong), ngay.isoformat())
-    ca, kc = ds_ca(phong, ngay), ds_khong_ca(phong, ngay)
-    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "khong_ca": kc,
-            "chua_khai": chua_khai(ca, nv, kc), "moc": moc(phong, ngay)}
+    ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
+    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "dk": dk,
+            "thieu": thieu_gio(ca, dk), "moc": moc(phong, ngay)}
 
 
 # ------------------------------------------------------------------ ghi
@@ -171,15 +183,20 @@ def _dau(r: OnlineCa, ai: str) -> None:
     r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), ai[:60]
 
 
-def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str) -> None:
-    """Tính lại ONL sáng / ONL chiều / Đã online của các nhân viên từ phiếu rồi ghi vào bảng Báo cáo ngày."""
+def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, ep: bool = False) -> None:
+    """Tính lại ONL sáng / ONL chiều / Đã online của các nhân viên từ phiếu rồi ghi vào bảng Báo cáo ngày.
+
+    Số phiếu còn ÍT hơn số sale đã gõ ở ô dự kiến (chưa khai đủ) thì KHÔNG ghi đè ONL sáng / chiều, nếu không số gõ bị thay bằng số nhỏ
+    hơn và cảnh báo thiếu biến mất. `ep=True` (huỷ ca, dời sang ngày mai, đổi người) là chủ ý bớt ca nên luôn ghi đúng số phiếu."""
     buoi = {k["ma"]: k["buoi"] for k in khung()}
-    ca = ds_ca(phong, ngay)
+    ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
     for a in dict.fromkeys(a for a in accs if a):
         cua = [c for c in ca if c["acc"] == a]
-        bc.luu(a, {"onl_sang": sum(buoi.get(c["khung"]) == "sang" for c in cua),
-                   "onl_chieu": sum(buoi.get(c["khung"]) == "chieu" for c in cua),
-                   "da_online": sum(c["tt"] == "da_online" for c in cua)}, phong, ai, ngay, ghi_ten=ai)
+        so = {"da_online": sum(c["tt"] == "da_online" for c in cua)}
+        if ep or len(cua) >= dk.get(a, 0):
+            so["onl_sang"] = sum(buoi.get(c["khung"]) == "sang" for c in cua)
+            so["onl_chieu"] = sum(buoi.get(c["khung"]) == "chieu" for c in cua)
+        bc.luu(a, so, phong, ai, ngay, ghi_ten=ai)
 
 
 def _tim(s, id_: int, phong: list[str]) -> OnlineCa:
@@ -259,7 +276,7 @@ def doi_ngay_mai(id_: int, phong: list[str], ai: str) -> date:
         _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}")
         r.ngay, r.khung, r.trang_thai = moi, "chua", "du_kien"
         _dau(r, ai)
-    dong_bo_bang(cu, phong, [acc], ai)
+    dong_bo_bang(cu, phong, [acc], ai, ep=True)
     dong_bo_bang(moi, phong, [acc], ai)
     return moi
 
@@ -277,7 +294,7 @@ def sua(id_: int, acc_norm: str, ghi_chu: str, phong: list[str], ai: str) -> Non
         r.acc_norm, r.ghi_chu = acc_norm, (ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None
         _dau(r, ai)
         ngay = r.ngay
-    dong_bo_bang(ngay, phong, [cu, acc_norm], ai)
+    dong_bo_bang(ngay, phong, [cu, acc_norm], ai, ep=True)
 
 
 def xoa(id_: int, phong: list[str], ai: str) -> dict:
@@ -288,19 +305,5 @@ def xoa(id_: int, phong: list[str], ai: str) -> dict:
         thong_tin = {"ma_hd": r.ma_hd, "ngay": r.ngay}
         acc = r.acc_norm
         s.execute(delete(OnlineCa).where(OnlineCa.id == r.id))
-    dong_bo_bang(thong_tin["ngay"], phong, [acc], ai)
+    dong_bo_bang(thong_tin["ngay"], phong, [acc], ai, ep=True)
     return thong_tin
-
-
-def khong_ca(acc_norm: str, phong: list[str], ngay: date, co: bool, ai: str) -> None:
-    """Nhân viên báo hôm nay không có ca online (co=True) hoặc bỏ báo (co=False)."""
-    dam_bao_bang()
-    if acc_norm not in {x["a"] for x in nhan_vien(tuple(phong), ngay.isoformat())}:
-        raise LoiOnline("Không có nhân viên này trong phòng.")
-    with session_scope() as s:
-        r = s.execute(select(OnlineKhongCa).where(OnlineKhongCa.ngay == ngay,
-                                                  OnlineKhongCa.acc_norm == acc_norm)).scalars().first()
-        if co and r is None:
-            s.add(OnlineKhongCa(ngay=ngay, phong_code=phong[0], acc_norm=acc_norm, cap_nhat_luc=utc_bay_gio(), cap_nhat_boi=ai[:60]))
-        elif not co and r is not None:
-            s.delete(r)
