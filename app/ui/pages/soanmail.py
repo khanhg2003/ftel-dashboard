@@ -92,8 +92,7 @@ def _thu() -> html.Div:
                                       html.Div(dcc.Dropdown(id="sm-dv", options=[{"label": "Tự nhận từ địa chỉ", "value": TU_NHAN}],
                                                             value=TU_NHAN, clearable=False), className="sm-gy-dv")],
                                      className="sm-gy-chon"),
-                            html.Button("Dùng hết", id="sm-ap-het", className="btn nho", n_clicks=0)], className="sm-gy-dau"),
-                  html.Div(id="sm-goiy-khung", className="sm-goiy")], className="sm-gy-khoi"),
+                            html.Div(id="sm-goiy-khung", className="sm-goiy")], className="sm-gy-dau")], className="sm-gy-khoi"),
         html.Div([html.Span("Tiêu đề", className="sm-nhan"),
                   html.Div(id="sm-tieu", className="sm-tieu", contentEditable="true", spellCheck=False)], className="sm-dong-tieu"),
         html.Div([html.Span("Lời chào", className="sm-nhan"),
@@ -160,19 +159,22 @@ def _dong_chip(vt: str, ds: list[dict]) -> html.Div:
 
 
 def _goi_y_khung(g: dict) -> list:
-    if not (g["den"] or g["cc"]):
-        return [html.Div("Chưa có gợi ý.", className="desc")]
-    chips = []
+    """Gợi ý người nhận gói trong MỘT nút xổ xuống (chủ app muốn gọn): mỗi dòng một người, bấm Đến hoặc CC là thêm.
+    Dòng nào đã có trên thư thì assets/soan_mail.js tô xanh + hiện ✓ (thuộc tính data-trang)."""
+    dong = []
     for vt in ("den", "cc"):
         for i, p in enumerate(g[vt]):
             kia = "cc" if vt == "den" else "den"
-            chips.append(html.Div([
+            dong.append(html.Div([
                 html.Span([p["ten"], html.Span(p["chuc_vu"], className="sm-cv") if p["chuc_vu"] else None], className="sm-gy-ten",
                           title=p["email"]),
-                html.Button("+ " + VT[vt], id={"type": "sm-ap", "vt": vt, "i": i}, className="btn nho sm-ap-chinh", n_clicks=0),
-                html.Button("+ " + VT[kia], id={"type": "sm-ap", "vt": vt, "i": -1 - i}, className="btn nho", n_clicks=0)],
-                className="sm-gy"))
-    return [html.Div(chips, className="sm-gy-ds")]
+                html.Button(VT[vt], id={"type": "sm-ap", "vt": vt, "i": i}, className="btn nho sm-ap-chinh", n_clicks=0,
+                            **{"data-vt": vt}),
+                html.Button(VT[kia], id={"type": "sm-ap", "vt": vt, "i": -1 - i}, className="btn nho", n_clicks=0,
+                            **{"data-vt": kia})], className="sm-gy", **{"data-email": p["email"]}))
+    if not dong:
+        return [html.Span("Chưa có gợi ý", className="desc")]
+    return [html.Details([html.Summary(f"Chọn người gợi ý ({len(dong)})"), html.Div(dong, className="sm-gy-menu")], className="sm-gy-dd")]
 
 
 def _hanh_dong(loai: str, kq: dict, nguoi: dict) -> list:
@@ -229,24 +231,22 @@ def _dang_ky_goi_y(app):
 
 def _dang_ky_nguoi(app):
     @app.callback(Output("sm-nguoi", "data"), Output("sm-email-tay", "value"),
-                  Input({"type": "sm-ap", "vt": ALL, "i": ALL}, "n_clicks"), Input("sm-ap-het", "n_clicks"),
+                  Input({"type": "sm-ap", "vt": ALL, "i": ALL}, "n_clicks"),
                   Input({"type": "sm-go", "vt": ALL, "i": ALL}, "n_clicks"), Input("sm-sk-chon", "data"),
                   Input("sm-tay-den", "n_clicks"), Input("sm-tay-cc", "n_clicks"),
                   State("sm-nguoi", "data"), State("sm-goiy", "data"), State("sm-email-tay", "value"),
                   prevent_initial_call=True)
-    def _nguoi(_ap, _het, _go, chon, _den, _cc, nguoi, goi_y, tay):
+    def _nguoi(_ap, _go, chon, _den, _cc, nguoi, goi_y, tay):
         _vao()
         t, gia_tri = ctx.triggered_id, ctx.triggered[0]["value"]
         if not gia_tri:
             raise PreventUpdate                              # nút vừa dựng lại, chưa ai bấm
         nguoi = {"den": list((nguoi or {}).get("den") or []), "cc": list((nguoi or {}).get("cc") or [])}
         moi, chuyen = [], False                              # [(vị trí, người)]; chuyen: người đã có thì dời sang vị trí mới
-        if t == "sm-ap-het":
-            moi = [(vt, p) for vt in ("den", "cc") for p in (goi_y or {}).get(vt, [])]
-        elif isinstance(t, dict) and t["type"] == "sm-ap":
+        if isinstance(t, dict) and t["type"] == "sm-ap":
             i, ds = t["i"], (goi_y or {}).get(t["vt"], [])
-            doi = i < 0                                      # nút thứ hai của dòng gợi ý: đổi sang vị trí còn lại
-            moi = [(({"den": "cc", "cc": "den"})[t["vt"]] if doi else t["vt"], ds[-1 - i if doi else i])]
+            doi = i < 0                                      # nút thứ hai của dòng gợi ý: vị trí còn lại
+            moi, chuyen = [(({"den": "cc", "cc": "den"})[t["vt"]] if doi else t["vt"], ds[-1 - i if doi else i])], True
         elif isinstance(t, dict) and t["type"] == "sm-go":
             if t["i"] < len(nguoi[t["vt"]]):
                 nguoi[t["vt"]].pop(t["i"])

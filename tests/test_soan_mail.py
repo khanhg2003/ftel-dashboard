@@ -304,3 +304,16 @@ def test_cc_bat_buoc_ap_dung_voi_tai_khoan_that():
                                            session_version=0, scope=json.dumps(scope)))
     assert [p["email"] for p in sm.cc_bat_buoc(tk("nvkd", ["IBB7"]))] == ["PhucVHD@fpt.com"]
     assert sm.cc_bat_buoc(tk("nvkd", ["IBB2"])) == [] and sm.cc_bat_buoc(tk("admin", [])) == []
+
+
+def test_goi_y_gon_trong_mot_nut_xo_xuong_moi_nguoi_mot_dong_co_den_cc():
+    from app.ui.pages import soanmail
+    g = {"den": [{"ten": "A", "email": "a@fpt.com", "chuc_vu": "Đội trưởng"}], "cc": [{"ten": "B", "email": "b@fpt.com", "chuc_vu": ""}],
+         "don_vi": "Đà Nẵng", "khu_vuc_ro": True}
+    kq = soanmail._goi_y_khung(g)
+    assert len(kq) == 1 and kq[0].className == "sm-gy-dd"
+    dong = kq[0].children[1].children
+    assert [d.to_plotly_json()["props"]["data-email"] for d in dong] == ["a@fpt.com", "b@fpt.com"]
+    assert [b.to_plotly_json()["props"]["data-vt"] for b in dong[0].children[1:]] == ["den", "cc"]       # nút chính theo gợi ý, nút kia đổi vị trí
+    assert [b.to_plotly_json()["props"]["data-vt"] for b in dong[1].children[1:]] == ["cc", "den"]
+    assert "Chưa có gợi ý" in soanmail._goi_y_khung({"den": [], "cc": [], "don_vi": "X", "khu_vuc_ro": True})[0].children

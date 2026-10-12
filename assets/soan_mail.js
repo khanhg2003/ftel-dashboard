@@ -72,9 +72,12 @@
     }
 
     function danhDau() {
-        const kq = document.getElementById('sm-db-kq');
-        if (!kq) { return; }
         const co = daChon();
+        const kq = document.getElementById('sm-db-kq') || document.createElement('div');
+        document.querySelectorAll('.sm-gy-dd .sm-gy').forEach(function (dong) {       // gợi ý xổ xuống: dòng nào đã có trên thư
+            const vt = co[(dong.dataset.email || '').toLowerCase()] || '';
+            if ((dong.dataset.trang || '') !== vt) { dong.dataset.trang = vt; }
+        });
         kq.querySelectorAll('.db-the').forEach(function (the) {
             const vt = co[emailThe(the)] || '';
             if ((the.dataset.trang || '') === vt) { return; }
@@ -127,6 +130,21 @@
             tam[emailThe(the)] = b.dataset.chon;
             danhDau();
             bao('✓ ' + (truoc ? 'Đã chuyển ' : 'Đã thêm ') + (ten ? ten.textContent : '') + (truoc ? ' sang ' : ' vào ') + NHAN[b.dataset.chon]);
+        });
+        document.addEventListener('click', function (e) {           // nút Đến / CC trong gợi ý xổ xuống
+            const b = e.target && e.target.closest ? e.target.closest('.sm-gy-dd .sm-gy button[data-vt]') : null;
+            if (b) {
+                const dong = b.closest('.sm-gy'), ten = dong.querySelector('.sm-gy-ten'), truoc = dong.dataset.trang;
+                if (truoc === b.dataset.vt) { return; }
+                tam[(dong.dataset.email || '').toLowerCase()] = b.dataset.vt;
+                danhDau();
+                bao('✓ ' + (truoc ? 'Đã chuyển ' : 'Đã thêm ') + (ten ? ten.firstChild.textContent : '') + (truoc ? ' sang ' : ' vào ') + NHAN[b.dataset.vt]);
+            } else if (!(e.target.closest && e.target.closest('.sm-gy-dd'))) {   // bấm ra ngoài thì đóng
+                document.querySelectorAll('.sm-gy-dd[open]').forEach(function (d) { d.open = false; });
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { document.querySelectorAll('.sm-gy-dd[open]').forEach(function (d) { d.open = false; }); }
         });
         new MutationObserver(function (ms) {
             if (ms.some(function (m) { return m.target.closest && m.target.closest('#sm-chips'); })) {

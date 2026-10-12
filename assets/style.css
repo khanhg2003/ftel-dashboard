@@ -1316,7 +1316,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-chung .field { min-width: 0; }
 
 /* lá thư: đầu thư (Đến / CC / gợi ý / tiêu đề) rồi nội dung, giống cửa sổ soạn thư của Outlook */
-.card.sm-thu { padding: 0; overflow: hidden; }
+.card.sm-thu { padding: 0; }
+.sm-thu-dau { border-radius: 14px 14px 0 0; }
+.sm-hanh-dong { border-radius: 0 0 14px 14px; }
 .sm-thu-dau { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 14px 16px 10px; }
 .sm-thu-dau h3 { margin: 0; font-size: 14.5px; }
 .sm-chips { display: flex; flex-direction: column; }
@@ -1333,11 +1335,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-gy-dau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .sm-gy-dau label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .sm-gy-dv { width: 230px; max-width: 100%; }
-.sm-gy-ds { display: flex; flex-wrap: wrap; gap: 6px; }
-.sm-gy { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; background: #fff; border: 1px solid var(--border); border-radius: 999px; }
-.sm-gy-ten { font-size: 13px; margin-right: 2px; }
-.sm-gy .btn.nho { padding: 2px 9px; font-size: 12px; border-radius: 999px; }
-.sm-gy .sm-ap-chinh { background: #E6EEF8; border-color: #C9DBF0; color: var(--fpt-blue-700); font-weight: 600; }
 .sm-dong-tieu { display: flex; align-items: baseline; gap: 6px; padding: 9px 16px; border-top: 1px solid var(--border); }
 .sm-tieu { flex: 1; min-width: 0; min-height: 1.5em; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 14px; outline: none; overflow-wrap: anywhere; }
 .sm-sua-bao { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 16px;
@@ -1469,3 +1466,21 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-gy-chon label { font-size: 13px; font-weight: 500; color: #8A94A4; }
 .sm-gy-dv { width: 210px; }
 .sm-thu-dau { padding-bottom: 12px; }
+
+/* Soạn email: gợi ý người nhận là một nút xổ xuống (assets/soan_mail.js tô dòng đã chọn) */
+.sm-gy-khoi { position: relative; }
+.sm-gy-dd > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  font-size: 13px; font-weight: 600; color: var(--fpt-blue-700); background: #fff; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.sm-gy-dd > summary::-webkit-details-marker { display: none; }
+.sm-gy-dd > summary::after { content: "▾"; font-size: 11px; }
+.sm-gy-dd[open] > summary { border-color: var(--fpt-blue); box-shadow: 0 0 0 3px #0072bc1f; }
+.sm-gy-menu { position: absolute; left: 16px; right: 16px; top: calc(100% - 6px); z-index: 30; max-height: 320px; overflow-y: auto;
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px #0b3a6633; padding: 4px; }
+.sm-gy { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; }
+.sm-gy:hover { background: #F4F8FC; }
+.sm-gy-ten { flex: 1; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.sm-gy .btn.nho { padding: 3px 12px; font-size: 12.5px; border-radius: 999px; min-width: 52px; justify-content: center; }
+.sm-gy .sm-ap-chinh { background: #E6EEF8; border-color: #C9DBF0; color: var(--fpt-blue-700); font-weight: 600; }
+.sm-gy[data-trang="den"] .btn[data-vt="den"], .sm-gy[data-trang="cc"] .btn[data-vt="cc"] { background: #1E8E5A; border-color: #1E8E5A; color: #fff; pointer-events: none; }
+.sm-gy[data-trang="den"] .btn[data-vt="den"]::before, .sm-gy[data-trang="cc"] .btn[data-vt="cc"]::before { content: "✓"; }
+.sm-gy[data-trang="den"], .sm-gy[data-trang="cc"] { background: #F3FAF6; }
