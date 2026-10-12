@@ -26,6 +26,7 @@ def khung() -> list:
         html.Div([
             html.Div(id="onl-hero"),
             html.Div(id="onl-msg"),
+            html.Div(id="onl-them"),
             html.Div(id="onl-hen"),
             html.Div(id="onl-xuly"),
             html.Div(id="onl-bang"),
@@ -87,14 +88,14 @@ def register(app):
         act, accs, thong_bao, canh_bao, hoi = sk["act"], [acc], no_update, None, no_update
         try:
             if act == "them":
-                kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d, xac_nhan=bool(sk.get("xn")))
+                kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d, ghi_chu=sk.get("gc") or "", xac_nhan=bool(sk.get("xn")))
                 accs = [sk.get("acc")]
                 if kq["them"]:
                     ghi_log("online_them", f"{', '.join(kq['them'])} {d:%d/%m/%Y} {code} khung {sk.get('khung')}")
                     ten = kq["them"][0] if len(kq["them"]) == 1 else f"{len(kq['them'])} ca"
                     thong_bao = {"msg": f"✓ Đã thêm {ten} vào {oc._nhan_khung(sk.get('khung'))}", "t": gio_viet_nam().isoformat()}
                 if kq["hoi"]:                                   # Nhập tồn đang hẹn ngày khác: trình duyệt hỏi sale rồi gửi lại với xn=1
-                    hoi = {"acc": sk.get("acc"), "khung": sk.get("khung"), "ngay": d.isoformat(), "ds": kq["hoi"], "t": gio_viet_nam().isoformat()}
+                    hoi = {"acc": sk.get("acc"), "khung": sk.get("khung"), "gc": sk.get("gc") or "", "ngay": d.isoformat(), "ds": kq["hoi"], "t": gio_viet_nam().isoformat()}
                 if kq["bo_qua"]:
                     canh_bao = alert("Bỏ qua: " + "; ".join(f"{m} ({ly})" for m, ly in kq["bo_qua"]) + ".", "warn")
             elif act == "dong_bo_hen":
