@@ -216,6 +216,7 @@ def layout():
                       "Bấm đúp vào tên nhân sự để xem hồ sơ bán hàng chi tiết.", tip(GOI_Y)], className="goi-y-bam bn-laptop"),
         ], className="card"),
 
+        *_khung_online(),
         _khoi_chu(),
         modal("bn-md", html.Span(id="bn-md-tieu-de"), [
             dcc.Store(id="bn-md-acc"),
@@ -242,6 +243,12 @@ def _chon_dang():
     t = seg_control("bn-dang", [("bang", "Bảng"), ("the", "Thẻ")], "bang")
     t.persistence, t.persistence_type = True, "local"
     return t
+
+
+def _khung_online() -> list:
+    """Mục Theo dõi Online dưới bảng (xem `baocaongay_online.py`)."""
+    from app.ui.pages import baocaongay_online
+    return baocaongay_online.khung()
 
 
 def _khung_giong() -> list:
@@ -592,8 +599,9 @@ def register(app):
         return "", gio_viet_nam().isoformat()
 
     _dang_ky_chu(app)
-    from app.ui.pages import baocaongay_giong
+    from app.ui.pages import baocaongay_giong, baocaongay_online
     baocaongay_giong.register(app)
+    baocaongay_online.register(app)
 
     @app.callback(Output("bn-tai", "data"), Input("bn-png", "n_clicks"), State("bn-phong", "value"),
                   State("bn-ngay", "date"),

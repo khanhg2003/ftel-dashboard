@@ -415,3 +415,36 @@ class DanhBa(Base):
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
     cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # UTC
     cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class OnlineCa(Base):
+    """Một ca chờ online trong ngày (mục Theo dõi Online của trang Báo cáo ngày, chốt 12/10/2026). Mỗi mã hợp đồng là MỘT
+    phiếu riêng: gắn nhân viên, khung giờ dự kiến, trạng thái; mọi lần dời / đổi trạng thái ghi vào `lich_su` (JSON).
+    Không lưu tên khách hàng. Sale TỰ cập nhật trạng thái, không lấy từ file Internet."""
+    __tablename__ = "online_ca"
+    __table_args__ = (UniqueConstraint("ngay", "phong_code", "ma_hd", name="uq_online_ca"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ngay: Mapped[date] = mapped_column(Date, index=True)
+    phong_code: Mapped[str] = mapped_column(String(20), index=True)
+    ma_hd: Mapped[str] = mapped_column(String(30))
+    acc_norm: Mapped[str] = mapped_column(String(60), index=True)
+    khung: Mapped[str] = mapped_column(String(16))                              # mã khung giờ, xem online_ca.khung()
+    trang_thai: Mapped[str] = mapped_column(String(12), default="du_kien")      # du_kien | dang_lam | da_online
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lich_su: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tao_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC
+    tao_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class OnlineKhongCa(Base):
+    """Nhân viên báo "hôm nay không có ca online" để khỏi bị nhắc chưa khai khung giờ đầu ngày."""
+    __tablename__ = "online_khong_ca"
+    __table_args__ = (UniqueConstraint("ngay", "acc_norm", name="uq_online_khong_ca"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ngay: Mapped[date] = mapped_column(Date, index=True)
+    phong_code: Mapped[str] = mapped_column(String(20), index=True)
+    acc_norm: Mapped[str] = mapped_column(String(60))
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)

@@ -32,6 +32,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Kỳ báo cáo dùng chung giữa các trang | `app/ui/ky_chung.py` |
 | Ngăn chi tiết một nhân sự (mở từ mọi bảng nhân sự) | `app/ui/ngan_nhan_su.py` + `assets/nhan_su_bam.js`; nội dung hồ sơ ở `app/ho_so_nhan_su.py`, `app/ui/pages/phong_ho_so.py` |
 | Nhập Báo cáo ngày bằng giọng nói | `app/giong_noi.py` (tách số, khớp tên, quyền) + `app/ui/pages/baocaongay_giong.py` + `assets/ghi_am.js` |
+| Theo dõi Online trong ngày (phiếu ca theo mã HĐ + khung giờ, nối với bảng Báo cáo ngày) | `app/online_ca.py` + `app/ui/pages/baocaongay_online.py` + `assets/online.js` |
 | Danh bạ liên hệ (đọc hai file PNC / TIN, gộp trùng, tra cứu, người sale tự thêm) | `app/danh_ba.py` + `app/ui/pages/danhba.py` |
 | Soạn email (khuôn 3 loại mail, gợi ý người nhận, Fox viết đoạn tình huống) + nút copy dùng chung | `app/soan_mail.py` + `app/ui/pages/soanmail.py` + `assets/sao_chep.js` |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
@@ -151,6 +152,15 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      làm Vercel Hobby cạn 4 giờ CPU, thực tế 9 giờ trong một chu kỳ - 09/10/2026) và `assets/nhip_an.js` TẮT nhịp
      khi tab ẩn, bật lại + nạp ngay khi quay về. Chỉ dựng lại bảng khi `moc_cap_nhat()` đổi, để không cắt ngang ô
      người khác đang gõ. Thêm nhịp tự hỏi máy chủ ở trang khác thì phải tính CPU: mỗi lượt là một lần gọi hàm.
+     **Theo dõi Online trong ngày** (mục dưới bảng, cùng tab, chốt 12/10/2026; `app/online_ca.py`, khung giờ ở `rules.yml` →
+     `bao_cao_ngay.khung_online`): mỗi mã HĐ là MỘT phiếu (nhân viên + khung giờ + trạng thái Dự kiến → Đang triển khai → Đã online, sale
+     tự cập nhật, không lấy từ file; không lưu tên khách; dời khung / dời sang mai ghi lịch sử, huỷ ca = xoá phiếu). Sale PHẢI khai
+     khung giờ dự kiến đầu ngày: ai chưa khai (và chưa bấm "Không có ca") hiện cảnh báo đỏ, KHÔNG chặn phần nào khác. **Nối với bảng**
+     (chủ app muốn hai nơi thống nhất): mỗi lần phiếu của một người đổi, `dong_bo_bang` TÍNH LẠI và ghi vào ba ô ONL sáng (phiếu buổi sáng) /
+     ONL chiều (phiếu buổi chiều + Sau 17h30) / Đã online (phiếu đã online) của người đó, rồi bảng tự vá dòng đó; ca "Chưa hẹn giờ" chưa tính
+     vào ô nào. Ô trong bảng vẫn gõ tay được nhưng lần sau phiếu đổi sẽ ghi đè bằng số từ phiếu. Phiếu được GIỮ qua các ngày (khác báo cáo
+     đầu ngày). Giao diện vẽ ở trình duyệt (`assets/online.js`, thẻ đổi trạng thái / dời khung tức thì rồi mới báo máy chủ, giống Danh bạ);
+     `thongKe` bên JS phải giống `online_ca.thong_ke` (có test đối chiếu bằng Node).
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
      file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi
