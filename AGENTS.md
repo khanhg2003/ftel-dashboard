@@ -159,7 +159,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      là chưa khai giờ) - người dự kiến 0 ẨN HẲN (chủ app chốt 12/10/2026, đừng dựng lại nút "Không có ca"), cảnh báo KHÔNG chặn phần nào khác.
      **Nối với bảng** (chủ app muốn hai nơi thống nhất): mỗi lần phiếu của một người đổi, `dong_bo_bang` ghi "Đã online" = số phiếu đã
      online, còn ONL sáng (phiếu buổi sáng) / ONL chiều (phiếu buổi chiều + Sau 17h30) CHỈ ghi khi số phiếu đã đủ so với số sale gõ (không
-     thì số gõ bị thay bằng số nhỏ hơn và cảnh báo thiếu mất); huỷ ca / dời sang mai / đổi người là chủ ý bớt ca nên luôn ghi đúng số phiếu.
+     thì số gõ bị thay bằng số nhỏ hơn và cảnh báo thiếu mất); huỷ ca / dời sang ngày khác là chủ ý bớt ca nên luôn ghi đúng số phiếu.
      Khung phụ (`phu: true`: Sau 17h30, Chưa hẹn giờ) chỉ hiện cột khi đang có ca. Phiếu được GIỮ qua các ngày (khác báo cáo
      đầu ngày). Giao diện vẽ ở trình duyệt (`assets/online.js`, thẻ đổi trạng thái / dời khung tức thì rồi mới báo máy chủ, giống Danh bạ);
      `thongKe` bên JS phải giống `online_ca.thong_ke` (có test đối chiếu bằng Node).
@@ -176,7 +176,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      **Giao diện Theo dõi Online (làm lại 12/10/2026 vì chủ app báo bản trước "khó xài": khung giờ lặp hai lần, phải chọn 3 ô mới thêm được ca)**: chọn
      NHÂN VIÊN một lần ở đầu mục (đã chọn "Tôi là" thì tự chọn sẵn); mỗi khung giờ là MỘT cột (đã qua / đang diễn ra / sắp tới / quá giờ thể hiện ở
      viền đầu cột), gõ hoặc dán NHIỀU mã HĐ ngay ở cuối cột rồi Enter là thêm đúng khung đó (`them_nhieu`), "Từ HĐ tồn" ở cuối cột liệt kê HĐ tồn của người đang chọn
-     (`ton_tat_ca`, gửi cả phòng trong gói dữ liệu) bấm là thêm. Mỗi ca một THẺ (chủ app thấy bản dạng dòng chữ "không trực quan như ảnh mẫu"): mã HĐ + nhãn trạng thái màu ở góc, người phụ trách, nút "Đang lắp" / "✓ Đã online", ⋯ = dời khung / dời mai / sửa / huỷ; đầu mục là bốn ô số liệu lớn (ca dự kiến, chờ lắp, đang triển khai, đã online) + thanh tiến độ.
+     (`ton_tat_ca`, gửi cả phòng trong gói dữ liệu) bấm là thêm. Mỗi ca một THẺ (chủ app thấy bản dạng dòng chữ "không trực quan như ảnh mẫu"): mã HĐ + nhãn trạng thái màu ở góc, người phụ trách, nút "Đang lắp" / "✓ Đã online", ⋯ = dời khung / dời ngày / sửa ghi chú / huỷ (KHÔNG có đổi người phụ trách: mỗi HĐ gắn đúng người bán, chủ app chốt 12/10/2026); đầu mục là bốn ô số liệu lớn (ca dự kiến, chờ lắp, đang triển khai, đã online) + thanh tiến độ.
      Thanh đỏ "quá giờ" dời cả nhóm ca một cú bấm (`doi_nhieu`), cuối ngày hỏi dời hết ca chưa online sang mai; ca dời từ 3 lần có nhãn cảnh báo.
      Người chưa khai đủ giờ chỉ là MỘT dòng gập ("N người chưa khai đủ giờ online ▾"), đừng dựng lại hàng chip / tab / dải khung giờ riêng.
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,

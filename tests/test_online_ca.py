@@ -134,14 +134,17 @@ def test_ca_noi_voi_bang_bao_cao_ngay_sang_chieu_va_da_online(hai_nguoi):
     assert dong(b).onl_sang == 1                                                    # người khác không bị đụng
 
 
-def test_doi_nguoi_phu_trach_tinh_lai_ca_hai_nguoi(hai_nguoi):
-    a, b = hai_nguoi
+def test_sua_ghi_chu_khong_co_doi_nguoi_phu_trach(hai_nguoi):
+    """Chủ app (12/10/2026): mỗi HĐ gắn đúng người bán, không có chuyện chuyển HĐ nên chỉ sửa được ghi chú."""
+    a, _ = hai_nguoi
     i = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)
-    oc.sua(i, b, "  khách quen ", PHONG, "k")
+    oc.sua_ghi_chu(i, "  khách quen ", PHONG, "k")
     c = oc.ds_ca(PHONG, NGAY)[0]
-    assert c["acc"] == b and c["gc"] == "khách quen"
-    t = bc.bang(PHONG, NGAY).set_index("acc_norm")
-    assert t.loc[a].onl_sang == 0 and t.loc[b].onl_sang == 1
+    assert c["acc"] == a and c["gc"] == "khách quen" and not hasattr(oc, "sua")
+    oc.sua_ghi_chu(i, "   ", PHONG, "k")
+    assert oc.ds_ca(PHONG, NGAY)[0]["gc"] == ""
+    with pytest.raises(oc.LoiOnline, match="Không tìm thấy"):
+        oc.sua_ghi_chu(i, "x", ["IBB2"], "k")
 
 
 def test_doi_sang_ngay_mai_ve_du_kien_chua_hen_gio_va_tinh_lai_hai_ngay(hai_nguoi):

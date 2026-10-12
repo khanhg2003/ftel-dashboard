@@ -9,7 +9,7 @@ Quy tắc đã chốt với chủ app:
 - NỐI với bảng Báo cáo ngày: mỗi lần phiếu của một nhân viên đổi thì app TÍNH LẠI và ghi vào ba ô của người đó: ONL sáng (phiếu
   ở khung buổi sáng), ONL chiều (phiếu buổi chiều + sau 17h30), Đã online (phiếu đã online). "Đã online" luôn ghi đúng số phiếu. ONL
   sáng / chiều chỉ ghi khi số phiếu ĐỦ so với số sale đã gõ (không thì số gõ bị ghi đè nhỏ hơn và mất cảnh báo thiếu); riêng huỷ ca,
-  dời sang ngày mai, đổi người phụ trách là việc chủ ý bớt ca nên luôn ghi đúng số phiếu. Ca "Chưa hẹn giờ" chưa tính vào ô nào.
+  dời sang ngày mai là việc chủ ý bớt ca nên luôn ghi đúng số phiếu. Ca "Chưa hẹn giờ" chưa tính vào ô nào.
 - Phiếu giữ lại sau ngày (khác báo cáo đầu ngày bị xoá), để sau này xem lại tỷ lệ ca lên đúng giờ.
 """
 from __future__ import annotations
@@ -201,7 +201,7 @@ def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, ep: bool = False) 
     """Tính lại ONL sáng / ONL chiều / Đã online của các nhân viên từ phiếu rồi ghi vào bảng Báo cáo ngày.
 
     Số phiếu còn ÍT hơn số sale đã gõ ở ô dự kiến (chưa khai đủ) thì KHÔNG ghi đè ONL sáng / chiều, nếu không số gõ bị thay bằng số nhỏ
-    hơn và cảnh báo thiếu biến mất. `ep=True` (huỷ ca, dời sang ngày mai, đổi người) là chủ ý bớt ca nên luôn ghi đúng số phiếu."""
+    hơn và cảnh báo thiếu biến mất. `ep=True` (huỷ ca, dời sang ngày khác) là chủ ý bớt ca nên luôn ghi đúng số phiếu."""
     buoi = {k["ma"]: k["buoi"] for k in khung()}
     ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
     for a in dict.fromkeys(a for a in accs if a):
@@ -377,20 +377,13 @@ def doi_nhieu(ids, loai: str, khung_ma: str, phong: list[str], ai: str) -> dict:
     return {"xong": xong, "loi": loi}
 
 
-def sua(id_: int, acc_norm: str, ghi_chu: str, phong: list[str], ai: str) -> None:
-    """Đổi người phụ trách và ghi chú của ca."""
+def sua_ghi_chu(id_: int, ghi_chu: str, phong: list[str], ai: str) -> None:
+    """Sửa ghi chú của ca. KHÔNG có đổi người phụ trách: mỗi HĐ gắn đúng người bán, không có chuyện chuyển hay sai HĐ (chủ app chốt 12/10/2026)."""
     dam_bao_bang()
     with session_scope() as s:
         r = _tim(s, id_, phong)
-        if acc_norm not in {x["a"] for x in nhan_vien(tuple(phong), r.ngay.isoformat())}:
-            raise LoiOnline("Chọn nhân viên phụ trách ca này.")
-        cu = r.acc_norm
-        if acc_norm != cu:
-            _ghi_ls(r, ai, "Đổi người phụ trách")
-        r.acc_norm, r.ghi_chu = acc_norm, (ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None
+        r.ghi_chu = (ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None
         _dau(r, ai)
-        ngay = r.ngay
-    dong_bo_bang(ngay, phong, [cu, acc_norm], ai, ep=True)
 
 
 def xoa(id_: int, phong: list[str], ai: str) -> dict:

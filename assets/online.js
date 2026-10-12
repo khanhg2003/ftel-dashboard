@@ -5,7 +5,7 @@
    - Chọn NHÂN VIÊN một lần ở đầu mục (tài khoản dùng chung đã chọn "Tôi là" thì tự chọn sẵn người đó).
    - Mỗi KHUNG GIỜ là một cột; gõ hoặc dán mã hợp đồng ngay ở cuối cột đó rồi Enter = thêm ca vào đúng khung, không phải chọn gì nữa.
      "Từ HĐ tồn" ở cuối cột liệt kê HĐ tồn của người đang chọn, bấm là thêm vào cột đó.
-   - Mỗi ca một THẺ: nhãn màu góc phải là trạng thái, hai nút "Đang lắp" / "✓ Đã online" đổi trạng thái một cú bấm, ⋯ = dời khung / dời mai / sửa / huỷ.
+   - Mỗi ca một THẺ: nhãn màu góc phải là trạng thái, hai nút "Đang lắp" / "✓ Đã online" đổi trạng thái một cú bấm, ⋯ = dời khung / dời ngày / sửa ghi chú / huỷ.
    Máy chủ gửi MỘT gói dữ liệu vào dcc.Store `onl-du-lieu`; file này tự vẽ và đổi NGAY trên màn hình rồi mới báo máy chủ qua `onl-sk`
    (máy chủ kiểm quyền, ghi lịch sử, gửi lại số thật). Các khối #onl-* không có con do Dash dựng nên sửa trực tiếp.
    ===================================================================== */
@@ -212,11 +212,11 @@
             + (lech ? '<em class="onl-lech" title="Nhập tồn đang ghi ' + (lech.loai === 'tra_ve' ? 'trả về' : 'hẹn thi công') + ' ngày ' + ngayVn(lech.ngay) + ', khác ngày của ca">Nhập tồn: ' + ngayVn(lech.ngay) + '</em>' : '')
             + (c.gc ? '<small title="' + esc(c.gc) + '">' + esc(c.gc) + '</small>' : '') + '</div>'
             + '<div class="onl-c-nut">' + nut + '<span class="grow"></span>'
-            + '<details class="onl-mn"><summary title="Dời khung giờ, dời sang mai, sửa, huỷ">⋯</summary><div class="onl-mn-ds">'
+            + '<details class="onl-mn"><summary title="Dời khung giờ, dời ngày, sửa ghi chú, huỷ">⋯</summary><div class="onl-mn-ds">'
             + '<label>Dời sang khung giờ<select data-act="khung" data-id="' + c.id + '">' + khung + '</select></label>'
             + '<button type="button" data-act="mai" data-id="' + c.id + '">Dời sang ngày mai</button>'
             + '<label>Hoặc dời sang ngày khác<input type="date" data-act="ngay" data-id="' + c.id + '" min="' + esc(ngayKe(du.ngay)) + '" max="' + esc(du.xa_nhat || '') + '"></label>'
-            + '<button type="button" data-act="sua" data-id="' + c.id + '">Sửa ghi chú / người phụ trách</button>'
+            + '<button type="button" data-act="sua" data-id="' + c.id + '">Sửa ghi chú, xem lịch sử</button>'
             + (lech ? '<button type="button" data-act="dong-bo-hen" data-id="' + c.id + '">Cập nhật ngày hẹn ở Nhập tồn theo ngày này</button>' : '')
             + (ls ? '<div class="onl-mn-ls">' + esc(ls) + '</div>' : '')
             + '<button type="button" class="xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Huỷ ca này</button></div></details></div></article>';

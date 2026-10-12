@@ -32,12 +32,10 @@ def khung() -> list:
         ], className="card onl", id="onl-goc"),
         modal("onl-md", html.Span(id="onl-md-tieu-de"), [
             dcc.Store(id="onl-md-id"),
-            html.Div([html.Label("Người phụ trách"),
-                      dcc.Dropdown(id="onl-md-nv", options=[], clearable=False)], className="field rong"),
             html.Div([html.Label("Ghi chú"),
                       dcc.Textarea(id="onl-md-gc", className="inp", maxLength=oc.GHI_CHU_TOI_DA,
                                    placeholder="VD: khách chỉ rảnh sau 15h, đã gọi xác nhận",
-                                   style={"width": "100%", "minHeight": "72px"})], className="field rong", style={"marginTop": "12px"}),
+                                   style={"width": "100%", "minHeight": "72px"})], className="field rong"),
             html.Div(id="onl-md-ls", className="onl-md-ls"),
             html.Div(id="onl-md-msg"),
         ]),
@@ -67,10 +65,6 @@ def register(app):
                             Output("onl-hoi-xong", "data"), Input("onl-hoi", "data"), prevent_initial_call=True)
     app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_toi_la"),
                             Output("onl-toi-la-xong", "data"), Input("bn-toi-la", "value"))
-
-    @app.callback(Output("onl-md-nv", "options"), Input("bn-toi-la", "options"))
-    def _chon_nv(opts):
-        return opts or []
 
     @app.callback(Output("onl-du-lieu", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-nhip", "n_intervals"),
@@ -131,13 +125,12 @@ def register(app):
         return moi, canh_bao, thong_bao, hoi, (luu if accs else no_update), (tat if accs else no_update)
 
     @app.callback(Output("onl-md", "className"), Output("onl-md-tieu-de", "children"), Output("onl-md-id", "data"),
-                  Output("onl-md-nv", "value"), Output("onl-md-gc", "value"), Output("onl-md-ls", "children"),
-                  Output("onl-md-msg", "children"),
+                  Output("onl-md-gc", "value"), Output("onl-md-ls", "children"), Output("onl-md-msg", "children"),
                   Input("onl-sk", "data"), Input("onl-md-dong", "n_clicks"), Input("onl-md-huy", "n_clicks"),
                   State("bn-phong", "value"), State("bn-ngay", "date"), prevent_initial_call=True)
     def _mo_sua(sk, _d, _h, code, ngay):
         if ctx.triggered_id != "onl-sk":
-            return "modal", no_update, no_update, no_update, no_update, no_update, ""
+            return "modal", no_update, no_update, no_update, no_update, ""
         if not sk or sk.get("act") != "sua":
             raise PreventUpdate
         phong, d, _ = _ngu_canh(code, ngay, None)
@@ -146,21 +139,18 @@ def register(app):
             raise PreventUpdate
         ls = [html.Div("Lịch sử", className="onl-md-nhan"),
               *[html.Div([html.Span(x["luc"][11:16], className="onl-md-gio"), f"{x['ai']}: {x['viec']}"]) for x in reversed(c["ls"])]]
-        return "modal mo", f"Ca {c['ma']}", c["id"], c["acc"], c["gc"], ls, ""
+        return "modal mo", f"Ca {c['ma']}", c["id"], c["gc"], ls, ""
 
     @app.callback(Output("onl-md", "className", allow_duplicate=True), Output("onl-md-msg", "children", allow_duplicate=True),
-                  Output("onl-lam-moi", "data", allow_duplicate=True), Output("bn-da-luu", "data", allow_duplicate=True),
-                  Output("bn-nhip-va", "disabled", allow_duplicate=True),
-                  Input("onl-md-ok", "n_clicks"), State("onl-md-id", "data"), State("onl-md-nv", "value"), State("onl-md-gc", "value"),
+                  Output("onl-lam-moi", "data", allow_duplicate=True),
+                  Input("onl-md-ok", "n_clicks"), State("onl-md-id", "data"), State("onl-md-gc", "value"),
                   State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"), prevent_initial_call=True)
-    def _luu_sua(n, id_, nv, gc, code, ngay, toi_la):
+    def _luu_sua(n, id_, gc, code, ngay, toi_la):
         if not n or not id_:
             raise PreventUpdate
-        phong, d, ai = _ngu_canh(code, ngay, toi_la)
-        cu = {c["id"]: c["acc"] for c in oc.ds_ca(phong, d)}.get(id_)
+        phong, _, ai = _ngu_canh(code, ngay, toi_la)
         try:
-            oc.sua(id_, nv, gc, phong, ai)
+            oc.sua_ghi_chu(id_, gc, phong, ai)
         except oc.LoiOnline as e:
-            return no_update, alert(str(e), "bad"), no_update, no_update, no_update
-        moi, luu, tat = _sau_khi_ghi([cu, nv])
-        return "modal", "", moi, luu, tat
+            return no_update, alert(str(e), "bad"), no_update
+        return "modal", "", gio_viet_nam().isoformat()
