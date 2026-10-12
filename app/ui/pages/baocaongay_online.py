@@ -26,11 +26,12 @@ def khung() -> list:
         html.Div([
             html.Div(id="onl-hero"),
             html.Div(id="onl-msg"),
-            html.Div(id="onl-them"),
+            html.Div(id="onl-them-nut"),
             html.Div(id="onl-hen"),
             html.Div(id="onl-xuly"),
             html.Div(id="onl-bang"),
         ], className="card onl", id="onl-goc"),
+        modal("onl-tm", "Thêm ca phát sinh", [html.Div(id="onl-them")], nut_chinh="Thêm ca"),
         modal("onl-md", html.Span(id="onl-md-tieu-de"), [
             dcc.Store(id="onl-md-id"),
             html.Div([html.Label("Ghi chú"),
