@@ -159,7 +159,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      là chưa khai giờ) - người dự kiến 0 ẨN HẲN (chủ app chốt 12/10/2026, đừng dựng lại nút "Không có ca"), cảnh báo KHÔNG chặn phần nào khác.
      **Nối với bảng** (chủ app muốn hai nơi thống nhất): mỗi lần phiếu của một người đổi, `dong_bo_bang` ghi "Đã online" = số phiếu đã
      online, còn ONL sáng (phiếu buổi sáng) / ONL chiều (phiếu buổi chiều + Sau 17h30) CHỈ ghi khi số phiếu đã đủ so với số sale gõ (không
-     thì số gõ bị thay bằng số nhỏ hơn và cảnh báo thiếu mất); huỷ ca / dời sang ngày khác là chủ ý bớt ca nên luôn ghi đúng số phiếu.
+     thì số gõ bị thay bằng số nhỏ hơn và cảnh báo thiếu mất); huỷ ca / dời sang ngày khác là chủ ý bớt ĐÚNG MỘT ca nên ô buổi đó chỉ giảm 1 (không thấp hơn số phiếu còn lại), KHÔNG tụt về số phiếu (12/10/2026 chủ app mất số đã gõ vì huỷ ca test; đừng ghi đè bằng số phiếu).
      Khung phụ (`phu: true`: Sau 17h30, Chưa hẹn giờ) chỉ hiện cột khi đang có ca. Phiếu được GIỮ qua các ngày (khác báo cáo
      đầu ngày). Giao diện vẽ ở trình duyệt (`assets/online.js`, thẻ đổi trạng thái / dời khung tức thì rồi mới báo máy chủ, giống Danh bạ);
      `thongKe` bên JS phải giống `online_ca.thong_ke` (có test đối chiếu bằng Node).

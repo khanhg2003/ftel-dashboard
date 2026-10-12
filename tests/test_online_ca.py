@@ -247,9 +247,30 @@ def test_chua_khai_du_thi_khong_ghi_de_so_da_go_nhung_huy_ca_thi_ghi_dung(hai_ng
     assert (r.onl_sang, r.onl_chieu) == (3, 2)                                      # mới khai 2/5 ca: số gõ còn nguyên
     oc.doi_trang_thai(ids[0], "da_online", PHONG, "k")
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1         # "Đã online" luôn đúng số phiếu
-    oc.xoa(ids[1], PHONG, "k")                                                      # huỷ ca là chủ ý bớt ca: ghi đúng số phiếu
+    oc.xoa(ids[1], PHONG, "k")                                                      # huỷ 1 ca chiều: ô chiều chỉ giảm đúng 1
     r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
-    assert (r.onl_sang, r.onl_chieu) == (1, 0)
+    assert (r.onl_sang, r.onl_chieu) == (3, 1)
+
+
+def test_huy_het_ca_test_khong_xoa_so_sale_da_go(hai_nguoi):
+    """Chủ app báo 12/10/2026: huỷ 2 ca test thì ONL sáng / chiều đã gõ (dự kiến 5) tụt về 0. Nay mỗi ca bị huỷ hoặc dời chỉ trừ 1 ở đúng buổi."""
+    a, _ = hai_nguoi
+    bc.luu(a, {"onl_sang": 2, "onl_chieu": 3}, PHONG, "k", NGAY)
+    i1, i2 = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP0002", a, "1530-1730", PHONG, "k", NGAY)
+    oc.xoa(i1, PHONG, "k")
+    oc.doi_ngay(i2, PHONG, "k")
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
+    assert (r.onl_sang, r.onl_chieu) == (1, 2)                                      # 2/3 → 1/2, không phải 0/0
+    assert oc.du_lieu(PHONG, NGAY)["thieu"][a]["thieu"] == 3                        # và vẫn nhắc còn thiếu 3 ca chưa khai
+
+
+def test_huy_ca_chua_hen_gio_khong_dung_toi_o_onl(hai_nguoi):
+    a, _ = hai_nguoi
+    bc.luu(a, {"onl_sang": 1, "onl_chieu": 1}, PHONG, "k", NGAY)
+    i = oc.them("DAAAP0001", a, "chua", PHONG, "k", NGAY)
+    oc.xoa(i, PHONG, "k")
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
+    assert (r.onl_sang, r.onl_chieu) == (1, 1)
 
 
 def test_moc_doi_khi_co_nguoi_sua(hai_nguoi):
