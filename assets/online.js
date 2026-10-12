@@ -200,7 +200,6 @@
         const khung = du.khung.map(function (x) {
             return '<option value="' + esc(x.ma) + '"' + (x.ma === c.khung ? ' selected' : '') + '>' + esc(x.nhan) + '</option>';
         }).join('');
-        const ls = (c.ls || []).length > 1 ? c.ls.slice(-5).map(function (x) { return x.luc.slice(11, 16) + ' ' + x.ai + ': ' + x.viec; }).join('\n') : '';
         const nut = xong
             ? '<button type="button" class="onl-b" data-act="tt" data-id="' + c.id + '" data-val="du_kien" title="Bỏ trạng thái đã online">Bỏ đã online</button>'
             : '<button type="button" class="onl-b' + (dang ? ' on' : '') + '" data-act="tt" data-id="' + c.id + '" data-val="' + (dang ? 'du_kien' : 'dang_lam') + '" title="Đánh dấu đang triển khai (bấm lại để bỏ)">Đang lắp</button>'
@@ -213,13 +212,15 @@
             + (c.gc ? '<small title="' + esc(c.gc) + '">' + esc(c.gc) + '</small>' : '') + '</div>'
             + '<div class="onl-c-nut">' + nut + '<span class="grow"></span>'
             + '<details class="onl-mn"><summary title="Dời khung giờ, dời ngày, sửa ghi chú, huỷ">⋯</summary><div class="onl-mn-ds">'
-            + '<label>Dời sang khung giờ<select data-act="khung" data-id="' + c.id + '">' + khung + '</select></label>'
-            + '<button type="button" data-act="mai" data-id="' + c.id + '">Dời sang ngày mai</button>'
-            + '<label>Hoặc dời sang ngày khác<input type="date" data-act="ngay" data-id="' + c.id + '" min="' + esc(ngayKe(du.ngay)) + '" max="' + esc(du.xa_nhat || '') + '"></label>'
-            + '<button type="button" data-act="sua" data-id="' + c.id + '">Sửa ghi chú, xem lịch sử</button>'
-            + (lech ? '<button type="button" data-act="dong-bo-hen" data-id="' + c.id + '">Cập nhật ngày hẹn ở Nhập tồn theo ngày này</button>' : '')
-            + (ls ? '<div class="onl-mn-ls">' + esc(ls) + '</div>' : '')
-            + '<button type="button" class="xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Huỷ ca này</button></div></details></div></article>';
+            + '<div class="onl-mn-nhom"><div class="onl-mn-nhan">Dời ca</div>'
+            + '<label class="onl-mn-hang"><span>Khung</span><select data-act="khung" data-id="' + c.id + '">' + khung + '</select></label>'
+            + '<div class="onl-mn-hang"><span>Ngày</span><div class="onl-mn-ngay"><button type="button" data-act="mai" data-id="' + c.id + '">Ngày mai</button>'
+            + '<input type="date" title="Chọn ngày khác" data-act="ngay" data-id="' + c.id + '" min="' + esc(ngayKe(du.ngay)) + '" max="' + esc(du.xa_nhat || '') + '"></div></div></div>'
+            + '<div class="onl-mn-nhom">'
+            + '<button type="button" data-act="sua" data-id="' + c.id + '">' + (c.gc ? 'Sửa ghi chú' : 'Thêm ghi chú') + '<small>' + ((c.ls || []).length > 1 ? 'Lịch sử' : '') + '</small></button>'
+            + (lech ? '<button type="button" class="luu-y" data-act="dong-bo-hen" data-id="' + c.id + '">Đổi ngày hẹn ở Nhập tồn<small>→ ' + ngayVn(du.ngay) + '</small></button>' : '')
+            + '</div>'
+            + '<div class="onl-mn-nhom"><button type="button" class="xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Huỷ ca này</button></div></div></details></div></article>';
     }
 
     /* Chân mỗi cột: ô gõ / dán mã + danh sách HĐ tồn của người đang chọn. Chưa chọn người thì nhắc chọn. */
@@ -315,7 +316,16 @@
             bao('Đã huỷ ca ' + d.ma);
             gui('xoa', {id: c.id});
         }
-        else if (act === 'sua' && c) { gui('sua', {id: c.id}); return; }
+        else if (act === 'sua' && c) {
+            gui('sua', {id: c.id});
+            let lan = 0;                                          // cửa sổ mở sau khi máy chủ trả lời: chờ rồi đặt con trỏ vào ô ghi chú
+            const tim = setInterval(function () {
+                const md = document.getElementById('onl-md'), o = document.getElementById('onl-md-gc');
+                if (md && o && md.className.indexOf(' mo') >= 0) { o.focus(); o.setSelectionRange(o.value.length, o.value.length); clearInterval(tim); }
+                else if (++lan > 20) { clearInterval(tim); }
+            }, 100);
+            return;
+        }
         else if (act === 'them-ton') { themMa(loc, d.khung, d.ma); return; }
         else if (act === 'them-hen') { const k = e.parentElement.querySelector('select'); themMa(d.acc, k ? k.value : '', d.ma); return; }
         else if (act === 'dong-bo-hen' && c) { if (du.lech) { delete du.lech[c.ma]; } bao('Đang cập nhật ngày hẹn ở Nhập tồn...'); gui('dong_bo_hen', {id: c.id}); }
@@ -368,6 +378,12 @@
         });
         document.addEventListener('keydown', function (e) {
             const o = e.target && e.target.classList && e.target.classList.contains('onl-nhap') ? e.target : null;
+            if (e.target && e.target.id === 'onl-md-gc' && e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const ok = document.getElementById('onl-md-ok');
+                if (ok) { ok.click(); }
+                return;
+            }
             if (o && e.key === 'Enter') { e.preventDefault(); const v = o.value; o.value = ''; themMa(loc, o.dataset.khung, v); }
         });
         setInterval(function () {                                // đánh dấu "đang diễn ra" / "quá giờ" chạy theo đồng hồ

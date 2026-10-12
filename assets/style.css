@@ -1558,13 +1558,19 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-mn > summary { list-style: none; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 5px; color: #98A2B3; font-size: 16px; cursor: pointer; }
 .onl-mn > summary::-webkit-details-marker { display: none; }
 .onl-mn > summary:hover, .onl-mn[open] > summary { background: #EEF2F7; color: var(--onl-chu); }
-.onl-mn-ds { position: absolute; right: 0; top: calc(100% + 2px); z-index: 40; width: 236px; padding: 6px; background: #fff; border: 1px solid var(--onl-ke); border-radius: 8px; box-shadow: 0 8px 24px #0b3a6626; display: flex; flex-direction: column; gap: 2px; }
-.onl-mn-ds label { display: flex; flex-direction: column; gap: 3px; padding: 4px 6px; font-size: 12px; color: var(--onl-mo); }
-.onl-mn-ds select { padding: 5px 6px; font: inherit; font-size: 13px; border: 1px solid #D0D5DD; border-radius: 5px; background: #fff; color: var(--onl-chu); }
-.onl-mn-ds button { border: 0; background: none; text-align: left; padding: 7px 8px; border-radius: 5px; font: inherit; font-size: 13px; color: var(--onl-chu); cursor: pointer; }
-.onl-mn-ds button:hover { background: #F2F4F7; }
-.onl-mn-ds button.xoa { color: var(--onl-do); } .onl-mn-ds button.xoa:hover { background: #FDECEA; }
-.onl-mn-ls { margin: 2px 6px; padding: 4px 0; border-top: 1px solid var(--onl-ke); white-space: pre-line; font-size: 11.5px; color: #98A2B3; }
+.onl-mn-ds { position: absolute; right: 0; top: calc(100% + 2px); z-index: 40; width: 266px; padding: 4px 0; background: #fff; border: 1px solid var(--onl-ke); border-radius: 8px; box-shadow: 0 8px 24px #0b3a6626; }
+.onl-mn-nhom { padding: 6px 6px; } .onl-mn-nhom + .onl-mn-nhom { border-top: 1px solid var(--onl-ke); }
+.onl-mn-nhan { padding: 0 6px 4px; font-size: 11px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; color: #98A2B3; }
+.onl-mn-hang { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 6px; padding: 3px 6px; font-size: 12.5px; color: var(--onl-mo); }
+.onl-mn-ds select, .onl-mn-ds input[type=date] { width: 100%; min-width: 0; padding: 4px 6px; font: inherit; font-size: 12.5px; border: 1px solid #D0D5DD; border-radius: 5px; background: #fff; color: var(--onl-chu); }
+.onl-mn-ngay { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; }
+.onl-mn-ngay button { border: 1px solid #D0D5DD; background: #fff; border-radius: 5px; padding: 4px 8px; font: inherit; font-size: 12.5px; color: var(--onl-chu); cursor: pointer; white-space: nowrap; }
+.onl-mn-ngay button:hover { border-color: var(--fpt-blue); color: var(--fpt-blue); }
+.onl-mn-nhom > button { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; border: 0; background: none; text-align: left; padding: 7px 8px; border-radius: 5px; font: inherit; font-size: 13px; color: var(--onl-chu); cursor: pointer; }
+.onl-mn-nhom > button small { font-size: 11.5px; color: #98A2B3; }
+.onl-mn-nhom > button:hover { background: #F2F4F7; }
+.onl-mn-nhom > button.luu-y { color: #9A5B13; } .onl-mn-nhom > button.luu-y:hover { background: #FDF1DC; }
+.onl-mn-nhom > button.xoa { color: var(--onl-do); } .onl-mn-nhom > button.xoa:hover { background: #FDECEA; }
 
 /* chân cột: gõ / dán mã + HĐ tồn */
 .onl-chan { position: relative; padding: 8px 10px 10px; border-top: 1px solid #F0F2F5; }
@@ -1581,7 +1587,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-ton-ds button:first-child { border-top: 0; }
 .onl-ton-ds button:hover { background: #F1F6FD; }
 .onl-ton-ds b { font-variant-numeric: tabular-nums; } .onl-ton-ds span { font-size: 12px; color: var(--onl-mo); }
-.onl-md-ls { margin-top: 14px; font-size: 12.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; }
+.onl-md-ls { margin-top: 12px; font-size: 12.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 3px; max-height: 120px; overflow-y: auto; }
 .onl-md-nhan { font-size: 12px; font-weight: 650; color: var(--text); }
 .onl-md-gio { display: inline-block; width: 44px; color: #A8B2C0; }
 @media (max-width: 767px) { .onl-nv-chon { flex: 1 1 100%; } .onl-luoi { grid-template-columns: 1fr; } }
@@ -1626,3 +1632,5 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-lech { font-style: normal; font-size: 11.5px; font-weight: 600; color: #9A5B13; background: #FDF1DC; padding: 0 7px; border-radius: 999px; }
 .onl-ton-ds i { font-style: normal; font-weight: 600; color: #9A5B13; }
 @media (max-width: 767px) { .onl-hen-d { grid-template-columns: 1fr; gap: 4px; } }
+
+#onl-md .modal-hop { max-width: 400px; }

@@ -34,8 +34,8 @@ def khung() -> list:
             dcc.Store(id="onl-md-id"),
             html.Div([html.Label("Ghi chú"),
                       dcc.Textarea(id="onl-md-gc", className="inp", maxLength=oc.GHI_CHU_TOI_DA,
-                                   placeholder="VD: khách chỉ rảnh sau 15h, đã gọi xác nhận",
-                                   style={"width": "100%", "minHeight": "72px"})], className="field rong"),
+                                   placeholder="VD: khách chỉ rảnh sau 15h. Enter để lưu, Shift+Enter xuống dòng",
+                                   style={"width": "100%", "minHeight": "56px"})], className="field rong"),
             html.Div(id="onl-md-ls", className="onl-md-ls"),
             html.Div(id="onl-md-msg"),
         ]),
@@ -138,7 +138,7 @@ def register(app):
         if c is None:
             raise PreventUpdate
         ls = [html.Div("Lịch sử", className="onl-md-nhan"),
-              *[html.Div([html.Span(x["luc"][11:16], className="onl-md-gio"), f"{x['ai']}: {x['viec']}"]) for x in reversed(c["ls"])]]
+              *[html.Div([html.Span(x["luc"][11:16], className="onl-md-gio"), f"{x['ai']}: {x['viec']}"]) for x in reversed(c["ls"])]] if len(c["ls"]) > 1 else []
         return "modal mo", f"Ca {c['ma']}", c["id"], c["gc"], ls, ""
 
     @app.callback(Output("onl-md", "className", allow_duplicate=True), Output("onl-md-msg", "children", allow_duplicate=True),
