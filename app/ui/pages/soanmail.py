@@ -20,7 +20,7 @@ from app import danh_ba as db
 from app import soan_mail as sm
 from app import tro_ly as ai
 from app.auth import ghi_log
-from app.ui.components import alert, field, modal, tip
+from app.ui.components import alert, modal, tip
 from app.ui.icons import icon
 from app.ui.pages.danhba import chon_chi_nhanh
 
@@ -66,11 +66,6 @@ def layout():
             html.Div([
                 html.H3("1 · Điền thông tin", style={"margin": "0 0 12px"}),
                 html.Div([_o_form(loai) for loai in sm.LOAI], id="sm-form", className="sm-khung loai-ca_hot"),
-                html.Div([
-                    field("Người gửi (ký tên cuối mail)", dcc.Input(id="sm-gui", type="text", className="inp", debounce=True,
-                                                                    placeholder="VD: Rin", persistence=True,
-                                                                    persistence_type="local")),
-                ], className="sm-chung"),
             ], className="card sm-trai"),
             _thu(),
         ], className="sm-luoi"),
@@ -277,15 +272,15 @@ def _dang_ky_xem(app):
     @app.callback(Output("sm-kq", "data"), Output("sm-hanh-dong", "children"),
                   Input("sm-loai", "data"), Input({"type": F, "l": ALL, "k": ALL}, "value"),
                   Input({"type": FT, "l": ALL, "k": ALL}, "n_blur"), Input({"type": "sm-fox-msg", "l": ALL}, "children"),
-                  Input("sm-nguoi", "data"), Input("sm-chao", "value"), Input("sm-gui", "value"), Input("sm-dung-lai", "n_clicks"),
+                  Input("sm-nguoi", "data"), Input("sm-chao", "value"), Input("sm-dung-lai", "n_clicks"),
                   State({"type": F, "l": ALL, "k": ALL}, "id"), State({"type": FT, "l": ALL, "k": ALL}, "value"),
                   State({"type": FT, "l": ALL, "k": ALL}, "id"))
-    def _xem_truoc(loai, vals, _blur, _fox, nguoi, chao, gui, lam_lai, ids, vals_t, ids_t):
+    def _xem_truoc(loai, vals, _blur, _fox, nguoi, chao, lam_lai, ids, vals_t, ids_t):
         _vao()
         if loai not in sm.LOAI:
             raise PreventUpdate
         nguoi = sm.gop_cc_bat_buoc(nguoi or {}, current_user)
-        v = {**_cua_loai(loai, vals, ids), **_cua_loai(loai, vals_t, ids_t), "nguoi_gui": gui or "", "chao": chao or ""}
+        v = {**_cua_loai(loai, vals, ids), **_cua_loai(loai, vals_t, ids_t), "chao": chao or ""}
         kq = sm.dung(loai, v)
         # trình duyệt tự vẽ thư (assets/soan_mail.js) để giữ được phần sale sửa tay; `lam_lai` đổi là bỏ phần sửa tay
         return {"loai": loai, "tieu_de": kq["tieu_de"], "doan": kq["doan"], "lam_lai": lam_lai or 0}, _hanh_dong(loai, kq, nguoi)

@@ -15,7 +15,7 @@ from app import soan_mail as sm                                         # noqa: 
 from app import tro_ly as ai                                            # noqa: E402
 from app.config import DATA_DIR                                          # noqa: E402
 
-CHUNG = {"chao", "nguoi_gui", "tinh_huong", "y_them"}
+CHUNG = {"chao", "tinh_huong", "y_them"}
 CA_HOT = {"hop_dong": "DAAAP6381", "dia_chi": "K62/H75/17 Nguyễn Phan Vinh, Sơn Trà, Đà Nẵng", "han_lap": "17h chiều nay",
           "chao": "anh Bình", "tinh_huong": "Hiện case này khách cần lắp đặt trong 17h chiều nay."}
 
@@ -44,10 +44,9 @@ def test_o_trong_hien_trong_ngoac_va_liet_ke_o_thieu():
     assert "[Mã hợp đồng]" in kq["tieu_de"]
 
 
-def test_chu_ky_chi_hien_khi_co_nguoi_gui():
-    assert not sm.dung("ca_hot", CA_HOT)["text"].endswith("Rin")
-    kq = sm.dung("ca_hot", {**CA_HOT, "nguoi_gui": "Rin"})
-    assert kq["text"].endswith("cảm ơn ạ!\n\nRin")
+def test_mail_ket_thuc_bang_cau_cam_on_khong_co_chu_ky():
+    """Chủ app bỏ ô Người gửi (12/10/2026): sale ký tên bằng chữ ký có sẵn của Outlook."""
+    assert sm.dung("ca_hot", CA_HOT)["text"].endswith("Em xin chân thành cảm ơn ạ!")
 
 
 def test_mail_xin_hoa_don_dn_du_cac_dong_cua_mail_mau():
@@ -222,7 +221,7 @@ def test_hai_trang_dung_duoc_va_khong_trung_id():
             assert ids and not {i for i in ids if ids.count(i) > 1}, trang.__name__
             assert trang.topbar()
         ids = _cac_id(soanmail.layout())
-        assert {"sm-tieu", "sm-than", "sm-sua-bao", "sm-dung-lai", "sm-kq", "sm-chao", "sm-gui", "sm-dv"} <= set(ids)
+        assert {"sm-tieu", "sm-than", "sm-sua-bao", "sm-dung-lai", "sm-kq", "sm-chao", "sm-dv"} <= set(ids)
         assert {"sm-form", "sm-loai", "sm-db-kq", "sm-db-tim", "sm-db-dv-tim", "sm-db-dv-ds", "sm-db-dem", "sm-du-lieu", "sm-sk-chon"} <= set(ids)
         assert {"db-kq", "db-dem", "db-tim", "db-dv-tim", "db-dv-ds", "db-sk-sua", "db-du-lieu"} <= set(_cac_id(danhba.layout()))
         # cả ba biểu mẫu có mặt sẵn, mỗi ô mang tên loại để không trùng nhau

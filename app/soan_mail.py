@@ -40,7 +40,7 @@ LOAI = {
         "y_mau": "khách chỉ rảnh chiều nay vì tăng ca cả tuần, không kịp thì huỷ, sợ mất khách sang đối thủ",
         "tieu_de": "{hop_dong} - CA HOT CẦN HỖ TRỢ LẮP ĐẶT TRƯỚC {han_lap}",
         "than": ["Dear {chao},", "Em có HĐ: **{hop_dong}**\nĐịa chỉ: {dia_chi}", "{tinh_huong}",
-                 "{?y_them}", "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
+                 "{?y_them}", "Em xin chân thành cảm ơn ạ!"],
         "goi_y": {"den": [("doi_truong", "khu_vuc")], "cc": [("truong_phong_kt", "lap")]},
         "fox": ("Viết đoạn nêu ca hot: khách cần lắp gấp, hiện chưa có mốc hẹn phù hợp, sale đã care khách, và nhờ người nhận "
                 "hỗ trợ phương án phân công kỹ thuật kịp thời gian để tránh khách huỷ hoặc lắp mạng đối thủ."),
@@ -67,7 +67,7 @@ LOAI = {
                  "{tinh_huong}",
                  "D/c lắp đặt: {dia_chi}\nĐc xuất hóa đơn: **{dia_chi_hd}**\nMã số thuế: **{mst}**\nSố điện thoại: {sdt}\n"
                  "Gói cước: {goi_cuoc}",
-                 "{?y_them}", "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
+                 "{?y_them}", "Em xin chân thành cảm ơn ạ!"],
         "goi_y": {"den": [("pho_giam_doc", "lap")], "cc": [("giam_doc", "lap"), ("giam_doc", "nha")]},
         "nhac": "Nhớ đính kèm ảnh CCCD hai mặt của chủ hợp đồng vào mail trong Outlook (app không lưu ảnh).",
         "fox": ("Viết đoạn nói rõ khách chỉ muốn đăng ký gói gì, đứng tên doanh nghiệp và xuất hoá đơn, nhu cầu sử dụng, rồi "
@@ -97,7 +97,7 @@ LOAI = {
                  "Hiện kỹ thuật qua khảo sát báo lại nhà KH kéo về TD **{tap_diem}** hiện đang full {port_hien_tai} port cần "
                  "nâng cấp để có thể triển khai cho khách hàng, nhờ {chao} hỗ trợ phương án nâng cấp tập điểm **{tap_diem}** "
                  "từ {port_hien_tai} port lên {port_nang_cap} port để có thể sớm hỗ trợ cho khách hàng với ạ, {tinh_huong}",
-                 "{?y_them}", "Em xin chân thành cảm ơn ạ!", "{?nguoi_gui}"],
+                 "{?y_them}", "Em xin chân thành cảm ơn ạ!"],
         "goi_y": {"den": [("ha_tang", "lap")], "cc": [("giam_doc", "lap")]},
         "fox": ("Viết MỘT mệnh đề ngắn (không có chủ ngữ mở đầu, nối tiếp sau chữ 'với ạ,') nói vì sao khách cần sớm và có thể "
                 "đợi bao lâu nếu sale nhắc. Chỉ dùng ý sale đưa."),
