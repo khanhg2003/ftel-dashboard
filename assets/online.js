@@ -12,7 +12,7 @@
 (function () {
     const TT_DAI = {du_kien: 'Chờ lắp', dang_lam: 'Đang triển khai', da_online: 'Đã online'};
     const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false;
+    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false, moHen = false;
     const cuoi = {};                                            // id khối -> HTML đã vẽ lần trước (giống nhau thì khỏi vẽ lại)
 
     function esc(s) {
@@ -186,23 +186,27 @@
             + '<button type="button" data-act="bulk" data-loai="mai" data-ids="' + ids(qua) + '">Dời sang mai</button></div>';
     }
 
-    /* Nhập tồn có ca hẹn thi công đúng ngày đang xem mà chưa có ca ở đây: nhắc sale xếp khung giờ, một cú bấm là thêm. */
+    /* Nhập tồn có ca hẹn thi công đúng ngày đang xem mà chưa có ca ở đây: MỘT dòng gập (giống dòng "chưa khai đủ giờ"); mở ra thì gom theo người,
+       chọn khung giờ một lần rồi bấm từng mã hoặc "Thêm tất cả". */
     function veHen() {
         if (du.ngay < du.hom_nay || !du.hen) { return ''; }
-        const hn = du.ngay === du.hom_nay, ds = [];
-        Object.keys(du.hen).forEach(function (a) { if (!loc || a === loc) { du.hen[a].forEach(function (x) { ds.push({a: a, x: x}); }); } });
-        if (!ds.length) { return ''; }
+        const hn = du.ngay === du.hom_nay, nhom = [];
+        let tong = 0;
+        Object.keys(du.hen).forEach(function (a) { if (!loc || a === loc) { nhom.push(a); tong += du.hen[a].length; } });
+        if (!tong) { return ''; }
+        const tt = '<button type="button" class="onl-hen-tt" data-act="mo-hen">Nhập tồn hẹn ' + (hn ? 'hôm nay' : 'ngày này') + ': ' + tong + ' ca chưa xếp khung giờ <span>'
+            + (moHen ? '▴' : '▾') + '</span></button>';
+        if (!moHen) { return '<div class="onl-hen">' + tt + '</div>'; }
         const tiep = hn ? khungKeTiep(bayGio()) : null, macDinh = tiep || du.khung.filter(function (k) { return !k.phu; })[0];
         const chonKhung = du.khung.filter(function (k) { return k.ma !== 'chua'; }).map(function (k) {
             return '<option value="' + esc(k.ma) + '"' + (macDinh && k.ma === macDinh.ma ? ' selected' : '') + '>' + esc(k.nhan) + '</option>';
         }).join('');
-        const dong = ds.slice(0, 8).map(function (r) {
-            return '<div class="onl-hen-d"><b>' + esc(r.x.ma) + '</b><span>' + esc(tenCua(r.a)) + ' · tồn ' + r.x.ton + ' ngày</span><select>' + chonKhung
-                + '</select><button type="button" data-act="them-hen" data-acc="' + esc(r.a) + '" data-ma="' + esc(r.x.ma) + '">Thêm vào theo dõi</button></div>';
-        }).join('');
-        return '<div class="onl-hen"><div class="onl-hen-tt"><b>Nhập tồn có ' + ds.length + ' ca hẹn thi công ' + (hn ? 'hôm nay' : 'ngày này')
-            + ' chưa xếp khung giờ.</b> Chọn khung giờ rồi thêm vào để theo dõi.</div>' + dong
-            + (ds.length > 8 ? '<div class="onl-hen-them">và ' + (ds.length - 8) + ' ca nữa: chọn nhân viên ở ô trên để xem hết.</div>' : '') + '</div>';
+        return '<div class="onl-hen">' + tt + '<div class="onl-hen-ds"><div class="onl-hen-khung">Xếp vào khung <select>' + chonKhung + '</select><span>rồi bấm mã để thêm</span></div>'
+            + nhom.map(function (a) {
+                return '<div class="onl-hen-nguoi"><b>' + esc(tenCua(a)) + '</b><div class="onl-hen-ma">' + du.hen[a].map(function (x) {
+                    return '<button type="button" data-act="them-hen" data-acc="' + esc(a) + '" data-ma="' + esc(x.ma) + '" title="Tồn ' + x.ton + ' ngày">' + esc(x.ma) + '</button>';
+                }).join('') + (du.hen[a].length > 1 ? '<button type="button" class="tat" data-act="them-hen-tat" data-acc="' + esc(a) + '">Thêm tất cả (' + du.hen[a].length + ')</button>' : '') + '</div></div>';
+            }).join('') + '</div></div>';
     }
 
     function veDong(c, hn, now) {
@@ -331,7 +335,13 @@
             return;
         }
         else if (act === 'them-ton') { themMa(loc, d.khung, d.ma); return; }
-        else if (act === 'them-hen') { const k = e.parentElement.querySelector('select'); themMa(d.acc, k ? k.value : '', d.ma); return; }
+        else if (act === 'mo-hen') { moHen = !moHen; }
+        else if (act === 'them-hen' || act === 'them-hen-tat') {
+            const k = e.closest('.onl-hen').querySelector('select');
+            const ma = act === 'them-hen' ? d.ma : (du.hen[d.acc] || []).map(function (x) { return x.ma; }).join(' ');
+            themMa(d.acc, k ? k.value : '', ma);
+            return;
+        }
         else if (act === 'dong-bo-hen' && c) { if (du.lech) { delete du.lech[c.ma]; } bao('Đang cập nhật ngày hẹn ở Nhập tồn...'); gui('dong_bo_hen', {id: c.id}); }
         else if (act === 'mo-thieu') { moThieu = !moThieu; }
         else if (act === 'chon-nv') { loc = d.acc; chonTay = true; }
