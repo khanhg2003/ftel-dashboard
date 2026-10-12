@@ -5,11 +5,12 @@
    - Chọn NHÂN VIÊN một lần ở đầu mục (tài khoản dùng chung đã chọn "Tôi là" thì tự chọn sẵn người đó).
    - Mỗi KHUNG GIỜ là một cột; gõ hoặc dán mã hợp đồng ngay ở cuối cột đó rồi Enter = thêm ca vào đúng khung, không phải chọn gì nữa.
      "Từ HĐ tồn" ở cuối cột liệt kê HĐ tồn của người đang chọn, bấm là thêm vào cột đó.
-   - Mỗi ca một dòng: tròn bên trái = đã online (bấm lại là bỏ), "Đang lắp" = đang triển khai, ⋯ = dời khung / dời mai / sửa / huỷ.
+   - Mỗi ca một THẺ: nhãn màu góc phải là trạng thái, hai nút "Đang lắp" / "✓ Đã online" đổi trạng thái một cú bấm, ⋯ = dời khung / dời mai / sửa / huỷ.
    Máy chủ gửi MỘT gói dữ liệu vào dcc.Store `onl-du-lieu`; file này tự vẽ và đổi NGAY trên màn hình rồi mới báo máy chủ qua `onl-sk`
    (máy chủ kiểm quyền, ghi lịch sử, gửi lại số thật). Các khối #onl-* không có con do Dash dựng nên sửa trực tiếp.
    ===================================================================== */
 (function () {
+    const TT_DAI = {du_kien: 'Chờ lắp', dang_lam: 'Đang triển khai', da_online: 'Đã online'};
     const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
     let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false;
     const cuoi = {};                                            // id khối -> HTML đã vẽ lần trước (giống nhau thì khỏi vẽ lại)
@@ -115,13 +116,14 @@
             return '<option value="' + esc(n.a) + '"' + (n.a === loc ? ' selected' : '') + '>' + esc(n.t)
                 + (t ? ' · ' + t.khai + '/' + t.can + ' ca' + (t.thieu > 0 ? ' · thiếu ' + t.thieu : '') : '') + '</option>';
         };
+        const o = function (cls, n, nhanO, phu) { return '<div class="onl-k ' + cls + '"><span>' + nhanO + '</span><b>' + n + '</b><em>' + phu + '</em></div>'; };
         const chon = '<select class="onl-nv-chon" data-act="loc-nv-sel" title="Chọn nhân viên: chỉ xem ca của người đó và thêm ca cho người đó"><option value="">Cả phòng</option>'
             + (lienQuan.length ? '<optgroup label="Có ca hôm nay">' + lienQuan.map(opt).join('') + '</optgroup>' : '')
             + (khac.length ? '<optgroup label="Chưa có ca">' + khac.map(opt).join('') + '</optgroup>' : '') + '</select>';
         return '<div class="onl-tren"><h3>Theo dõi Online</h3><span class="onl-ngay">' + THU[d.getDay()] + ', ' + ('0' + d.getDate()).slice(-2) + '/'
             + ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' + nhan + '</span><span class="grow"></span><label class="onl-chon-nhan">Nhân viên</label>' + chon + '</div>'
-            + '<div class="onl-so"><span class="onl-lon"><b>' + tk.online + '</b>/' + tk.tong + ' ca đã online' + (tk.tong ? ' (' + Math.round(ph(tk.online)) + '%)' : '') + '</span>'
-            + '<span class="onl-p cho"><b>' + tk.cho + '</b> chờ lắp</span><span class="onl-p dang"><b>' + tk.dang + '</b> đang triển khai</span></div>'
+            + '<div class="onl-kpi">' + o('tong', tk.tong, 'Ca dự kiến', loc ? 'của ' + esc(tenCua(loc)) : 'cả phòng') + o('cho', tk.cho, 'Đang chờ lắp', 'chưa triển khai')
+            + o('dang', tk.dang, 'Đang triển khai', 'đang lắp đặt') + o('xong', tk.online, 'Đã online', tk.tong ? Math.round(ph(tk.online)) + '% số ca dự kiến' : 'chưa có ca') + '</div>'
             + '<div class="onl-thanh" title="Xanh lá: đã online · Xanh dương: đang triển khai · Vàng: chờ lắp"><i class="x" style="width:' + ph(tk.online) + '%"></i><i class="d" style="width:'
             + ph(tk.dang) + '%"></i><i class="c" style="width:' + ph(tk.cho) + '%"></i></div>'
             + (loc ? '' : '<div class="onl-goi">Chọn một nhân viên ở ô trên để thêm ca vào từng khung giờ.</div>');
@@ -171,21 +173,22 @@
             return '<option value="' + esc(x.ma) + '"' + (x.ma === c.khung ? ' selected' : '') + '>' + esc(x.nhan) + '</option>';
         }).join('');
         const ls = (c.ls || []).length > 1 ? c.ls.slice(-5).map(function (x) { return x.luc.slice(11, 16) + ' ' + x.ai + ': ' + x.viec; }).join('\n') : '';
-        return '<div class="onl-r ' + c.tt + (qua ? ' qua' : '') + '" data-id="' + c.id + '">'
-            + '<button type="button" class="onl-tron" data-act="tt" data-id="' + c.id + '" data-val="' + (xong ? 'du_kien' : 'da_online') + '" title="'
-            + (xong ? 'Đã online. Bấm để bỏ' : 'Bấm khi ca đã online') + '">' + (xong ? '✓' : '') + '</button>'
-            + '<span class="onl-r-gt"><span class="onl-ma">' + esc(c.ma) + '</span>'
-            + (loc ? '' : '<span class="onl-ten" title="' + esc(tenCua(c.acc)) + '">' + esc(tenNgan(c.acc)) + '</span>')
-            + (qua ? '<em class="onl-tre">quá giờ</em>' : '') + (c.doi >= 3 ? '<em class="onl-tre" title="Ca dời nhiều lần dễ bị huỷ">dời ' + c.doi + ' lần</em>' : '')
-            + (c.gc ? '<small title="' + esc(c.gc) + '">' + esc(c.gc) + '</small>' : '') + '</span>'
-            + (xong ? '' : '<button type="button" class="onl-lap' + (dang ? ' on' : '') + '" data-act="tt" data-id="' + c.id + '" data-val="' + (dang ? 'du_kien' : 'dang_lam')
-                + '" title="Đánh dấu đang triển khai (bấm lại để bỏ)">Đang lắp</button>')
+        const nut = xong
+            ? '<button type="button" class="onl-b" data-act="tt" data-id="' + c.id + '" data-val="du_kien" title="Bỏ trạng thái đã online">Bỏ đã online</button>'
+            : '<button type="button" class="onl-b' + (dang ? ' on' : '') + '" data-act="tt" data-id="' + c.id + '" data-val="' + (dang ? 'du_kien' : 'dang_lam') + '" title="Đánh dấu đang triển khai (bấm lại để bỏ)">Đang lắp</button>'
+                + '<button type="button" class="onl-b chinh" data-act="tt" data-id="' + c.id + '" data-val="da_online" title="Ca đã online">✓ Đã online</button>';
+        return '<article class="onl-c ' + c.tt + (qua ? ' qua' : '') + '" data-id="' + c.id + '">'
+            + '<div class="onl-c-dau"><span class="onl-ma">' + esc(c.ma) + '</span><span class="grow"></span><span class="onl-bg ' + c.tt + '">' + TT_DAI[c.tt] + '</span></div>'
+            + '<div class="onl-c-ai">' + (loc ? '' : '<span title="' + esc(tenCua(c.acc)) + '">' + esc(tenNgan(c.acc)) + '</span>')
+            + (qua ? '<em class="onl-tre">quá giờ</em>' : '') + (c.doi >= 3 ? '<em class="onl-tre" title="Ca dời nhiều lần dễ bị huỷ">đã dời ' + c.doi + ' lần</em>' : '')
+            + (c.gc ? '<small title="' + esc(c.gc) + '">' + esc(c.gc) + '</small>' : '') + '</div>'
+            + '<div class="onl-c-nut">' + nut + '<span class="grow"></span>'
             + '<details class="onl-mn"><summary title="Dời khung giờ, dời sang mai, sửa, huỷ">⋯</summary><div class="onl-mn-ds">'
             + '<label>Dời sang khung giờ<select data-act="khung" data-id="' + c.id + '">' + khung + '</select></label>'
             + '<button type="button" data-act="mai" data-id="' + c.id + '">Dời sang ngày mai</button>'
             + '<button type="button" data-act="sua" data-id="' + c.id + '">Sửa ghi chú / người phụ trách</button>'
             + (ls ? '<div class="onl-mn-ls">' + esc(ls) + '</div>' : '')
-            + '<button type="button" class="xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Huỷ ca này</button></div></details></div>';
+            + '<button type="button" class="xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Huỷ ca này</button></div></details></div></article>';
     }
 
     /* Chân mỗi cột: ô gõ / dán mã + danh sách HĐ tồn của người đang chọn. Chưa chọn người thì nhắc chọn. */

@@ -170,7 +170,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      ca mới ở ngày mai. **Giao diện Theo dõi Online (làm lại 12/10/2026 vì chủ app báo bản trước "khó xài": khung giờ lặp hai lần, phải chọn 3 ô mới thêm được ca)**: chọn
      NHÂN VIÊN một lần ở đầu mục (đã chọn "Tôi là" thì tự chọn sẵn); mỗi khung giờ là MỘT cột (đã qua / đang diễn ra / sắp tới / quá giờ thể hiện ở
      viền đầu cột), gõ hoặc dán NHIỀU mã HĐ ngay ở cuối cột rồi Enter là thêm đúng khung đó (`them_nhieu`), "Từ HĐ tồn" ở cuối cột liệt kê HĐ tồn của người đang chọn
-     (`ton_tat_ca`, gửi cả phòng trong gói dữ liệu) bấm là thêm. Mỗi ca một dòng: vòng tròn = đã online, nút "Đang lắp", ⋯ = dời khung / dời mai / sửa / huỷ.
+     (`ton_tat_ca`, gửi cả phòng trong gói dữ liệu) bấm là thêm. Mỗi ca một THẺ (chủ app thấy bản dạng dòng chữ "không trực quan như ảnh mẫu"): mã HĐ + nhãn trạng thái màu ở góc, người phụ trách, nút "Đang lắp" / "✓ Đã online", ⋯ = dời khung / dời mai / sửa / huỷ; đầu mục là bốn ô số liệu lớn (ca dự kiến, chờ lắp, đang triển khai, đã online) + thanh tiến độ.
      Thanh đỏ "quá giờ" dời cả nhóm ca một cú bấm (`doi_nhieu`), cuối ngày hỏi dời hết ca chưa online sang mai; ca dời từ 3 lần có nhãn cảnh báo.
      Người chưa khai đủ giờ chỉ là MỘT dòng gập ("N người chưa khai đủ giờ online ▾"), đừng dựng lại hàng chip / tab / dải khung giờ riêng.
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
