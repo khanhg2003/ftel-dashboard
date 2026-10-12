@@ -278,10 +278,15 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     # tổng dự kiến - tổng đã online (chủ app chốt 26/09/2026: mọi con số phải cộng được).
     df["con_phai_onl"] = df.dk_onl - df.thuc_hien
     df["da_nhap"] = df.acc_norm.isin(set(nhap.acc_norm))       # đã có bản ghi hôm nay hay chưa
+    from collections import Counter
+
+    from app import online_ca as oc
+    so_ca = Counter(c["acc"] for c in oc.ds_ca(phong, ngay))
+    df["co_ca"] = df.acc_norm.map(so_ca).fillna(0).astype(int)  # số ca ở Theo dõi Online: > 0 thì ô "Đã online" lấy từ ca, không gõ tay
     df["id"] = df.acc_norm
     cot = ["id", "acc_norm", "acc", "ho_ten", "phong_code", "muc_tieu", "khtn", "da_ban", "onl_sang",
            "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl", "pttb_thang", "mt_thang", "vvip_thang",
-           "ghi_chu", "da_nhap"]
+           "ghi_chu", "da_nhap", "co_ca"]
     return df[cot].sort_values(["pttb_thang", "ho_ten"], ascending=[False, True]).reset_index(drop=True)
 
 
@@ -327,8 +332,27 @@ def _so(v) -> int:
     return n
 
 
+def _kiem_voi_ca(acc_norm: str, d: dict, phong: list[str], ngay: date) -> None:
+    """Ô ONL sáng / ONL chiều / Đã online phải khớp mục Theo dõi Online (chủ app chốt 12/10/2026: hai nơi không được lệch nhau):
+    người đã có ca thì không đặt ONL sáng / chiều THẤP HƠN số ca buổi đó, và "Đã online" chỉ bằng đúng số ca đã online (sửa ở thẻ ca)."""
+    if not {"onl_sang", "onl_chieu", "da_online"} & set(d):
+        return
+    from app import online_ca as oc
+    ca = [c for c in oc.ds_ca(phong, ngay) if c["acc"] == acc_norm]
+    if not ca:
+        return
+    buoi = {k["ma"]: k["buoi"] for k in oc.khung()}
+    for cot, b, ten in (("onl_sang", "sang", "buổi sáng"), ("onl_chieu", "chieu", "buổi chiều")):
+        n = sum(buoi.get(c["khung"]) == b for c in ca)
+        if cot in d and d[cot] < n:
+            raise LoiBaoCao(f"Đã có {n} ca {ten} ở mục Theo dõi Online nên không đặt thấp hơn {n}. Muốn giảm thì huỷ hoặc dời ca ở mục đó.")
+    n_on = sum(c["tt"] == "da_online" for c in ca)
+    if "da_online" in d and d["da_online"] != n_on:
+        raise LoiBaoCao(f"Đã online của người này lấy từ mục Theo dõi Online ({n_on} ca). Muốn đổi thì bấm trạng thái ở thẻ ca.")
+
+
 def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | None = None,
-        ghi_ten: str | None = None) -> None:
+        ghi_ten: str | None = None, kiem_ca: bool = True) -> None:
     """Ghi phần sale nhập cho một người.
 
     Tài khoản sale dùng chung sửa được mọi dòng (chủ app chốt 24/09/2026); `ghi_ten` là tên người đang
@@ -342,6 +366,8 @@ def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | 
         d[k] = (str(v or "").strip()[:GHI_CHU_TOI_DA] or None) if k == "ghi_chu" else _so(v)
     if not d:
         return
+    if kiem_ca:
+        _kiem_voi_ca(acc_norm, d, phong, ngay)
     code = _phong_cua(acc_norm, phong)
     with session_scope() as s:
         r = s.execute(select(BaoCaoNgay).where(BaoCaoNgay.ngay == ngay,

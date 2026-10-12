@@ -167,7 +167,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      ngày nhập trước. **Cửa sổ "Hiệu quả & xu hướng"** (`baocaongay_hq.py`, quy tắc ở `app/online_ca_phan_tich.py`): tỷ lệ ca lên ĐÚNG hẹn = online khi còn trong
      hạn của khung giờ HẸN LÚC TẠO (`khung_dau`), theo giờ sale BẤM Đã online (`online_luc`); trễ / chưa lên / đã dời mai là các nhóm còn lại, ca "Chưa hẹn
      giờ" và ca chưa tới hạn không tính vào tỷ lệ. Dời sang ngày khác (`doi_ngay`; nút "Dời sang ngày mai" hoặc chọn một ngày, tối đa tới `bc.ngay_xa_nhat()` = 7 ngày như Báo cáo ngày cho nhập trước) KHÔNG xoá ca cũ mà đổi thành `doi_mai` (không hiện trên bảng, vẫn tính là chưa lên) và tạo
-     ca mới ở ngày mai. **Giao diện Theo dõi Online (làm lại 12/10/2026 vì chủ app báo bản trước "khó xài": khung giờ lặp hai lần, phải chọn 3 ô mới thêm được ca)**: chọn
+     ca mới ở ngày mai. **Liên kết với Nhập tồn và bảng** (chủ app yêu cầu 12/10/2026 để hai nơi cùng một sự thật; code ở `app/online_ton.py`): (1) Nhập tồn có mốc "Hẹn thi công" đúng ngày
+     đang xem mà chưa có ca thì hộp xanh nhắc xếp khung giờ (`hen_cho_ngay`, bỏ ca Huỷ / Đã triển khai) và số ca đó cộng vào "còn thiếu giờ" của người đó (`thieu_gio(..., hen)`);
+     (2) thêm ca mà Nhập tồn đang hẹn / trả về NGÀY KHÁC thì PHẢI hỏi sale trước (`them_nhieu` trả `hoi`, trình duyệt `confirm` rồi gửi lại `xn`), đồng ý thì ca được thêm và ngày hẹn
+     ở Nhập tồn tự đổi; chưa có mốc thì tự điền Hẹn thi công theo ngày ca; (3) dời ca sang ngày khác → Nhập tồn đổi ngày hẹn theo; (4) bấm Đã online → phương án Nhập tồn "Đã triển khai", bỏ Đã online
+     → "Đang chờ triển khai"; (5) thẻ ca mà ngày hẹn Nhập tồn lệch hiện nhãn "Nhập tồn: dd/mm" + nút cập nhật; (6) ở bảng, người đã có ca KHÔNG được gõ ONL sáng / chiều thấp hơn số ca buổi đó
+     và ô "Đã online" khoá, lấy từ ca (`bc._kiem_voi_ca`, tắt bằng `kiem_ca=False` chỉ cho đường đồng bộ nội bộ). HĐ không còn trong tồn thì bỏ qua, không báo lỗi.
+     **Giao diện Theo dõi Online (làm lại 12/10/2026 vì chủ app báo bản trước "khó xài": khung giờ lặp hai lần, phải chọn 3 ô mới thêm được ca)**: chọn
      NHÂN VIÊN một lần ở đầu mục (đã chọn "Tôi là" thì tự chọn sẵn); mỗi khung giờ là MỘT cột (đã qua / đang diễn ra / sắp tới / quá giờ thể hiện ở
      viền đầu cột), gõ hoặc dán NHIỀU mã HĐ ngay ở cuối cột rồi Enter là thêm đúng khung đó (`them_nhieu`), "Từ HĐ tồn" ở cuối cột liệt kê HĐ tồn của người đang chọn
      (`ton_tat_ca`, gửi cả phòng trong gói dữ liệu) bấm là thêm. Mỗi ca một THẺ (chủ app thấy bản dạng dòng chữ "không trực quan như ảnh mẫu"): mã HĐ + nhãn trạng thái màu ở góc, người phụ trách, nút "Đang lắp" / "✓ Đã online", ⋯ = dời khung / dời mai / sửa / huỷ; đầu mục là bốn ô số liệu lớn (ca dự kiến, chờ lắp, đang triển khai, đã online) + thanh tiến độ.

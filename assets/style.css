@@ -1613,3 +1613,16 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-hq-do { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .onl-hq-do .onl-hq-tde { margin-top: 4px; }
 @media (max-width: 900px) { .onl-hq-do { grid-template-columns: 1fr; } .onl-hq-bang { display: block; overflow-x: auto; } }
+
+/* liên kết với Nhập tồn: ca hẹn thi công hôm nay chưa xếp khung giờ + nhãn lệch ngày */
+.onl-hen { margin-top: 12px; padding: 10px 14px; border-left: 3px solid var(--fpt-blue); background: #F1F6FD; font-size: 13px; }
+.onl-hen-tt { margin-bottom: 6px; color: #344054; }
+.onl-hen-d { display: grid; grid-template-columns: 112px minmax(0, 1fr) 150px auto; align-items: center; gap: 10px; padding: 5px 0; border-top: 1px solid #DCE7F5; }
+.onl-hen-d b { font-variant-numeric: tabular-nums; } .onl-hen-d span { color: var(--onl-mo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onl-hen-d select { padding: 4px 6px; font: inherit; font-size: 12.5px; border: 1px solid #D0D5DD; border-radius: 5px; background: #fff; }
+.onl-hen-d button { border: 1px solid var(--fpt-blue); border-radius: 6px; background: #fff; padding: 4px 11px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--fpt-blue); cursor: pointer; white-space: nowrap; }
+.onl-hen-d button:hover { background: var(--fpt-blue); color: #fff; }
+.onl-hen-them { padding-top: 6px; font-size: 12px; color: var(--onl-mo); }
+.onl-lech { font-style: normal; font-size: 11.5px; font-weight: 600; color: #9A5B13; background: #FDF1DC; padding: 0 7px; border-radius: 999px; }
+.onl-ton-ds i { font-style: normal; font-weight: 600; color: #9A5B13; }
+@media (max-width: 767px) { .onl-hen-d { grid-template-columns: 1fr; gap: 4px; } }

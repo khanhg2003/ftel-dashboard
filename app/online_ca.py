@@ -158,16 +158,18 @@ def thong_ke(ca: list[dict]) -> dict:
     return out
 
 
-def thieu_gio(ca: list[dict], dk: dict) -> dict:
+def thieu_gio(ca: list[dict], dk: dict, hen: dict | None = None) -> dict:
     """Những người CÓ ca (đã gõ dự kiến online hoặc đã có phiếu): {acc: {can, khai, chua, thieu}}.
     can = số ca người đó cần khai = lớn hơn giữa số dự kiến đã gõ và số phiếu; khai = phiếu đã có khung giờ; chua = phiếu "Chưa hẹn giờ";
-    thieu = can - khai (số ca còn phải khai giờ). Người dự kiến 0 và chưa có phiếu không có mặt ở đây (ẩn hẳn khỏi mục theo dõi).
+    thieu = can - khai (số ca còn phải khai giờ). `hen` = {acc: số ca hẹn thi công đúng ngày theo Nhập tồn mà chưa có ca}: những ca đó cũng là ca người
+    đó phải khai giờ nên cộng vào `can`. Người dự kiến 0, chưa có phiếu và không có ca hẹn thì không có mặt ở đây (ẩn hẳn khỏi mục theo dõi).
     assets/online.js có bản tính y hệt để cập nhật tức thì (có test đối chiếu)."""
     out = {}
-    for a in dict.fromkeys([*dk, *(c["acc"] for c in ca)]):
+    hen = hen or {}
+    for a in dict.fromkeys([*dk, *hen, *(c["acc"] for c in ca)]):
         khai = sum(c["acc"] == a and c["khung"] != "chua" for c in ca)
         chua = sum(c["acc"] == a and c["khung"] == "chua" for c in ca)
-        can = max(int(dk.get(a, 0) or 0), khai + chua)
+        can = max(int(dk.get(a, 0) or 0), khai + chua + int(hen.get(a, 0) or 0))
         if can > 0:
             out[a] = {"can": can, "khai": khai, "chua": chua, "thieu": can - khai}
     return out
@@ -176,9 +178,12 @@ def thieu_gio(ca: list[dict], dk: dict) -> dict:
 def du_lieu(phong: list[str], ngay: date) -> dict:
     """Gói dữ liệu duy nhất gửi trình duyệt vẽ mục Theo dõi Online (assets/online.js)."""
     nv = nhan_vien(tuple(phong), ngay.isoformat())
+    from app import online_ton as ot
     ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
-    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "dk": dk,
-            "thieu": thieu_gio(ca, dk), "ton": ton_tat_ca(phong, ngay), "xa_nhat": bc.ngay_xa_nhat().isoformat(), "moc": moc(phong, ngay)}
+    hen = ot.hen_cho_ngay(phong, ngay)
+    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "dk": dk, "hen": hen,
+            "lech": ot.lech_ngay(ca, ngay, phong), "thieu": thieu_gio(ca, dk, {a: len(v) for a, v in hen.items()}),
+            "ton": ton_tat_ca(phong, ngay), "xa_nhat": bc.ngay_xa_nhat().isoformat(), "moc": moc(phong, ngay)}
 
 
 # ------------------------------------------------------------------ ghi
@@ -205,7 +210,7 @@ def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, ep: bool = False) 
         if ep or len(cua) >= dk.get(a, 0):
             so["onl_sang"] = sum(buoi.get(c["khung"]) == "sang" for c in cua)
             so["onl_chieu"] = sum(buoi.get(c["khung"]) == "chieu" for c in cua)
-        bc.luu(a, so, phong, ai, ngay, ghi_ten=ai)
+        bc.luu(a, so, phong, ai, ngay, ghi_ten=ai, kiem_ca=False)
 
 
 def _tim(s, id_: int, phong: list[str]) -> OnlineCa:
@@ -231,9 +236,10 @@ def tach_ma(chu) -> tuple[list[str], list[str]]:
     return dung, sai
 
 
-def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, ngay: date, ghi_chu: str = "") -> dict:
-    """Thêm một hoặc nhiều ca cùng nhân viên + khung giờ. Trả {"them": [mã], "bo_qua": [(mã hoặc chữ, lý do)]}.
-    Mã đã có trong ngày thì bỏ qua và báo lại, các mã còn lại vẫn thêm."""
+def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, ngay: date, ghi_chu: str = "", xac_nhan: bool = False) -> dict:
+    """Thêm một hoặc nhiều ca cùng nhân viên + khung giờ. Trả {"them": [mã], "bo_qua": [(mã hoặc chữ, lý do)], "hoi": [{ma, loai, ngay}]}.
+    Mã đã có trong ngày thì bỏ qua và báo lại, các mã còn lại vẫn thêm. Mã mà Nhập tồn đang hẹn / trả về NGÀY KHÁC thì KHÔNG thêm mà đưa vào "hoi"
+    để trang hỏi sale xác nhận; xác nhận rồi (`xac_nhan=True`) thì thêm và ngày hẹn ở Nhập tồn tự đổi theo (`online_ton`)."""
     dam_bao_bang()
     ma_ds, sai = tach_ma(chu)
     if not ma_ds:
@@ -241,12 +247,17 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
     if not acc_norm or acc_norm not in {x["a"] for x in nhan_vien(tuple(phong), ngay.isoformat())}:
         raise LoiOnline("Chọn nhân viên phụ trách ca này.")
     _khung_hop_le(khung_ma)
-    ket = {"them": [], "bo_qua": [(t, "mã không hợp lệ") for t in sai]}
+    from app import online_ton as ot
+    xd = {x["ma"]: x for x in ot.xung_dot(ma_ds, ngay, phong)}
+    ket = {"them": [], "bo_qua": [(t, "mã không hợp lệ") for t in sai], "hoi": []}
     with session_scope() as s:
         da = {r.ma_hd: r.trang_thai for r in s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0])).scalars()}
         for ma in ma_ds:
             if ma in da:
                 ket["bo_qua"].append((ma, "đã dời sang ngày mai" if da[ma] == "doi_mai" else "đã có trong ngày"))
+                continue
+            if ma in xd and not xac_nhan:
+                ket["hoi"].append(xd[ma])
                 continue
             r = OnlineCa(ngay=ngay, phong_code=phong[0], ma_hd=ma, acc_norm=acc_norm, khung=khung_ma, khung_dau=khung_ma,
                          trang_thai="du_kien", ghi_chu=(ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
@@ -254,16 +265,18 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
             _dau(r, ai)
             s.add(r)
             ket["them"].append(ma)
-    if not ket["them"]:
+    if not ket["them"] and not ket["hoi"]:
         raise LoiOnline("; ".join(f"{m}: {ly}" for m, ly in ket["bo_qua"]) + ".")
-    dong_bo_bang(ngay, phong, [acc_norm], ai)
+    if ket["them"]:
+        dong_bo_bang(ngay, phong, [acc_norm], ai)
+        ot.dong_bo_hen(ket["them"], ngay, phong, ai)
     return ket
 
 
 def them(ma_hd, acc_norm: str, khung_ma: str, phong: list[str], ai: str, ngay: date, ghi_chu: str = "") -> int:
     """Thêm đúng một ca (mã sai hoặc đã có thì báo lỗi). Trả id của ca."""
     ma = chuan_ma(ma_hd)
-    ket = them_nhieu(ma, acc_norm, khung_ma, phong, ai, ngay, ghi_chu)
+    ket = them_nhieu(ma, acc_norm, khung_ma, phong, ai, ngay, ghi_chu, xac_nhan=True)
     with session_scope() as s:
         return s.execute(select(OnlineCa.id).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0], OnlineCa.ma_hd == ket["them"][0])).scalar()
 
@@ -284,8 +297,10 @@ def doi_trang_thai(id_: int, tt: str, phong: list[str], ai: str) -> None:
         r.trang_thai = tt
         r.online_luc = utc_bay_gio() if tt == "da_online" else None
         _dau(r, ai)
-        ngay, acc = r.ngay, r.acc_norm
+        ngay, acc, ma = r.ngay, r.acc_norm, r.ma_hd
     dong_bo_bang(ngay, phong, [acc], ai)
+    from app import online_ton as ot
+    ot.dong_bo_tt(ma, tt, phong, ai)
 
 
 def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
@@ -322,7 +337,7 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None) -> date:
         if s.execute(select(OnlineCa.id).where(OnlineCa.ngay == moi, OnlineCa.phong_code == r.phong_code,
                                                OnlineCa.ma_hd == r.ma_hd)).first():
             raise LoiOnline(f"HĐ {r.ma_hd} đã có trong ngày {moi:%d/%m} rồi.")
-        cu, acc = r.ngay, r.acc_norm
+        cu, acc, ma = r.ngay, r.acc_norm, r.ma_hd
         _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}")
         r.trang_thai, r.online_luc = "doi_mai", None
         _dau(r, ai)
@@ -332,7 +347,19 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None) -> date:
         s.add(n)
     dong_bo_bang(cu, phong, [acc], ai, ep=True)
     dong_bo_bang(moi, phong, [acc], ai)
+    from app import online_ton as ot
+    ot.dong_bo_hen([ma], moi, phong, ai)
     return moi
+
+
+def dong_bo_ngay_hen(id_: int, phong: list[str], ai: str) -> int:
+    """Đặt ngày hẹn thi công ở Nhập tồn bằng đúng ngày của ca này (dùng khi thẻ báo Nhập tồn đang hẹn ngày khác)."""
+    from app import online_ton as ot
+    dam_bao_bang()
+    with session_scope() as s:
+        r = _tim(s, id_, phong)
+        ma, ngay = r.ma_hd, r.ngay
+    return ot.dong_bo_hen([ma], ngay, phong, ai)
 
 
 def doi_nhieu(ids, loai: str, khung_ma: str, phong: list[str], ai: str) -> dict:

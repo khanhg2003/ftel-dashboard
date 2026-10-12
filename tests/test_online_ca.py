@@ -22,6 +22,24 @@ NGAY = date(2026, 9, 10)          # nằm trong kỳ dữ liệu gốc 01-11/09/
 PHONG = ["IBB7"]
 
 
+_HEN_THAT = None
+
+
+@pytest.fixture(autouse=True)
+def _khong_hen_tu_nhap_ton(monkeypatch):
+    """Database kiểm thử có sẵn mốc hẹn thật ở Nhập tồn; các phép thử cũ không muốn bị nhắc thêm ca hẹn nên tắt đi, riêng phép thử liên kết bật lại bằng `hen_that`."""
+    from app import online_ton as ot
+    global _HEN_THAT
+    _HEN_THAT = _HEN_THAT or ot.hen_cho_ngay
+    monkeypatch.setattr(ot, "hen_cho_ngay", lambda *a, **k: {})
+
+
+@pytest.fixture()
+def hen_that(monkeypatch):
+    from app import online_ton as ot
+    monkeypatch.setattr(ot, "hen_cho_ngay", _HEN_THAT)
+
+
 @pytest.fixture(autouse=True)
 def _don():
     """Xoá phiếu và báo cáo của ngày kiểm thử trước / sau mỗi phép thử (database kiểm thử dùng lại qua nhiều lần chạy)."""
@@ -263,6 +281,7 @@ def test_khung_doc_tu_cau_hinh_co_sau_khung_va_chua_hen():
 
 # ------------------------------------------------------------------ phần vẽ trên trình duyệt (assets/online.js)
 DK = {"x": 4, "z": 2, "k": 0}
+HEN = {"w": 2, "x": 1}
 
 
 def test_ban_tinh_thong_ke_tren_trinh_duyet_khop_ban_python():
@@ -272,12 +291,13 @@ def test_ban_tinh_thong_ke_tren_trinh_duyet_khop_ban_python():
     ca = [{"id": 1, "ma": "A", "acc": "x", "khung": "08-10", "tt": "da_online"}, {"id": 2, "ma": "B", "acc": "x", "khung": "08-10", "tt": "dang_lam"},
           {"id": 3, "ma": "C", "acc": "y", "khung": "chua", "tt": "du_kien"}, {"id": 4, "ma": "D", "acc": "y", "khung": "sau", "tt": "du_kien"}]
     code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
-            "const j=JSON.parse(d);console.log(JSON.stringify({tk:m.thongKe(j.ca,j.khung),th:m.thieuGio(j.ca,j.dk)}));});")
+            "const j=JSON.parse(d);console.log(JSON.stringify({tk:m.thongKe(j.ca,j.khung),th:m.thieuGio(j.ca,j.dk,j.hen)}));});")
     js = Path(__file__).resolve().parent.parent / "assets" / "online.js"
-    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps({"ca": ca, "khung": oc.khung(), "dk": DK}), capture_output=True,
+    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps({"ca": ca, "khung": oc.khung(), "dk": DK, "hen": HEN}), capture_output=True,
                                    text=True, encoding="utf-8", check=True).stdout)
     assert kq["tk"] == oc.thong_ke(ca)
-    assert kq["th"] == oc.thieu_gio(ca, DK) and kq["th"]["x"] == {"can": 4, "khai": 2, "chua": 0, "thieu": 2}
+    assert kq["th"] == oc.thieu_gio(ca, DK, HEN) and kq["th"]["x"] == {"can": 4, "khai": 2, "chua": 0, "thieu": 2}
+    assert kq["th"]["w"] == {"can": 2, "khai": 0, "chua": 0, "thieu": 2}                 # chỉ có ca hẹn hôm nay ở Nhập tồn cũng phải khai giờ
 
 
 def test_trang_bao_cao_ngay_co_muc_theo_doi_online_va_khong_trung_id():
@@ -413,3 +433,129 @@ def test_doi_sang_ngay_tuy_chon_trong_gioi_han_nhap_truoc(hai_nguoi):
         with session_scope() as s:
             s.execute(delete(OnlineCa).where(OnlineCa.ngay == xa))
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == xa))
+
+
+# ------------------------------------------------------------------ liên kết với Nhập tồn và với bảng Báo cáo ngày (12/10/2026)
+AI = "kiemthu.lienket"
+
+
+@pytest.fixture()
+def ma_ton():
+    """Ba mã HĐ tồn THẬT của database kiểm thử, chưa có ghi chú nào ở Nhập tồn; dọn mốc và nhật ký sau khi thử."""
+    from sqlalchemy import delete, select
+
+    from app import nhap_ton as nt
+    from app import phan_tich as pt
+    from app.db import session_scope
+    from app.models import AuditLog, TonTheoDoi
+    nt.dam_bao_bang()
+    with session_scope() as s:
+        co = set(s.execute(select(TonTheoDoi.hop_dong)).scalars())
+    ds = [m for m in pt.hop_dong_ton(PHONG).hop_dong if m not in co][:3]
+    assert len(ds) == 3, "database kiểm thử phải có ít nhất 3 HĐ tồn chưa ghi chú"
+
+    def don():
+        with session_scope() as s:
+            s.execute(delete(TonTheoDoi).where(TonTheoDoi.hop_dong.in_(ds)))
+            s.execute(delete(AuditLog).where(AuditLog.username == AI))
+    don()
+    yield ds
+    don()
+
+
+def _moc_tt(ma):
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import TonTheoDoi
+    with session_scope() as s:
+        r = s.get(TonTheoDoi, ma)
+        return (r.loai_moc, r.ngay_moc, r.phuong_an) if r else (None, None, None)
+
+
+def test_them_ca_chua_co_moc_o_nhap_ton_thi_tu_dien_hen_thi_cong(hai_nguoi, ma_ton):
+    a, _ = hai_nguoi
+    kq = oc.them_nhieu(ma_ton[0], a, "08-10", PHONG, AI, NGAY)
+    assert kq["them"] == [ma_ton[0]] and kq["hoi"] == []
+    assert _moc_tt(ma_ton[0])[:2] == ("hen", NGAY)                                   # Nhập tồn tự có "Hẹn thi công" đúng ngày của ca
+
+
+def test_nhap_ton_dang_hen_ngay_khac_thi_hoi_lai_dong_y_moi_them_va_doi_ngay_hen(hai_nguoi, ma_ton):
+    from datetime import timedelta
+
+    from app import nhap_ton as nt
+    a, _ = hai_nguoi
+    ngay_khac = NGAY + timedelta(days=5)
+    nt.luu(ma_ton[1], {"loai_moc": "hen", "ngay_moc": ngay_khac.isoformat()}, PHONG, AI)
+    kq = oc.them_nhieu(f"{ma_ton[1]} {ma_ton[2]}", a, "10-12", PHONG, AI, NGAY)
+    assert kq["them"] == [ma_ton[2]] and kq["hoi"] == [{"ma": ma_ton[1], "loai": "hen", "ngay": ngay_khac.isoformat()}]    # ca xung đột chưa được thêm
+    assert [c["ma"] for c in oc.ds_ca(PHONG, NGAY)] == [ma_ton[2]] and _moc_tt(ma_ton[1])[1] == ngay_khac
+    kq = oc.them_nhieu(ma_ton[1], a, "10-12", PHONG, AI, NGAY, xac_nhan=True)         # sale đồng ý chuyển sang hôm nay
+    assert kq["them"] == [ma_ton[1]] and _moc_tt(ma_ton[1])[:2] == ("hen", NGAY)       # Nhập tồn tự đổi ngày hẹn
+
+
+def test_trang_thai_ca_dong_bo_phuong_an_va_doi_ngay_dong_bo_ngay_hen(hai_nguoi, ma_ton):
+    from datetime import timedelta
+    a, _ = hai_nguoi
+    i = oc.them(ma_ton[0], a, "08-10", PHONG, AI, NGAY)
+    oc.doi_trang_thai(i, "da_online", PHONG, AI)
+    assert _moc_tt(ma_ton[0])[2] == "Đã triển khai"                                   # sale báo online: Nhập tồn chuyển "Đã triển khai"
+    oc.doi_trang_thai(i, "dang_lam", PHONG, AI)
+    assert _moc_tt(ma_ton[0])[2] == "Đang chờ triển khai"                              # bỏ Đã online: về lại chờ triển khai
+    moi = oc.doi_ngay(i, PHONG, AI)
+    assert moi == NGAY + timedelta(days=1) and _moc_tt(ma_ton[0])[:2] == ("hen", moi)  # dời ngày: Nhập tồn đổi ngày hẹn theo
+
+
+def test_ca_hen_hom_nay_theo_nhap_ton_nhac_xep_khung_gio_va_tinh_vao_so_ca_con_thieu(hai_nguoi, ma_ton, hen_that):
+    from app import nhap_ton as nt
+    from app import online_ton as ot
+    a, _ = hai_nguoi
+    nt.luu(ma_ton[0], {"loai_moc": "hen", "ngay_moc": NGAY.isoformat()}, PHONG, AI)
+    nt.luu(ma_ton[1], {"loai_moc": "hen", "ngay_moc": NGAY.isoformat(), "phuong_an": "Huỷ"}, PHONG, AI)      # đã chọn Huỷ: không nhắc
+    hen = ot.hen_cho_ngay(PHONG, NGAY)
+    ds = {x["ma"] for v in hen.values() for x in v}
+    assert ma_ton[0] in ds and ma_ton[1] not in ds
+    acc = next(k for k, v in hen.items() if any(x["ma"] == ma_ton[0] for x in v))
+    assert oc.du_lieu(PHONG, NGAY)["thieu"][acc]["thieu"] >= 1                         # người đó còn ca phải khai giờ
+    nv = {x["a"] for x in oc.nhan_vien(tuple(PHONG), NGAY.isoformat())}
+    oc.them(ma_ton[0], a if acc not in nv else acc, "08-10", PHONG, AI, NGAY)
+    assert ma_ton[0] not in {x["ma"] for v in ot.hen_cho_ngay(PHONG, NGAY).values() for x in v}   # đã xếp khung giờ: hết nhắc
+
+
+def test_the_lech_ngay_voi_nhap_ton_va_nut_cap_nhat_ngay_hen(hai_nguoi, ma_ton):
+    from datetime import timedelta
+
+    from app import nhap_ton as nt
+    from app import online_ton as ot
+    a, _ = hai_nguoi
+    i = oc.them(ma_ton[0], a, "08-10", PHONG, AI, NGAY)
+    assert ot.lech_ngay(oc.ds_ca(PHONG, NGAY), NGAY, PHONG) == {}
+    ngay_khac = NGAY + timedelta(days=4)
+    nt.luu(ma_ton[0], {"loai_moc": "hen", "ngay_moc": ngay_khac.isoformat()}, PHONG, AI)             # ai đó sửa ngày hẹn ở trang Nhập tồn
+    assert ot.lech_ngay(oc.ds_ca(PHONG, NGAY), NGAY, PHONG) == {ma_ton[0]: {"loai": "hen", "ngay": ngay_khac.isoformat()}}
+    assert oc.dong_bo_ngay_hen(i, PHONG, AI) == 1 and _moc_tt(ma_ton[0])[1] == NGAY
+    assert oc.dong_bo_ngay_hen(i, PHONG, AI) == 0                                       # đã khớp: không ghi lại
+
+
+def test_ma_khong_con_ton_thi_bo_qua_khong_bao_loi_o_nhap_ton(hai_nguoi):
+    a, _ = hai_nguoi
+    kq = oc.them_nhieu("ZZZZZ9999", a, "08-10", PHONG, AI, NGAY)                          # mã lạ / đã online theo file: vẫn thêm ca bình thường
+    assert kq["them"] == ["ZZZZZ9999"] and kq["hoi"] == []
+
+
+def test_bang_khong_cho_go_lech_voi_ca_o_theo_doi_online(hai_nguoi):
+    """Chủ app (12/10/2026): hai nơi không được lệch nhau. Đã có ca thì ONL sáng / chiều không thấp hơn số ca, Đã online chỉ bằng số ca đã online."""
+    a, _ = hai_nguoi
+    i1, _i2 = oc.them("DAAAP8001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP8002", a, "1530-1730", PHONG, "k", NGAY)
+    oc.doi_trang_thai(i1, "da_online", PHONG, "k")
+    with pytest.raises(bc.LoiBaoCao, match="1 ca buổi sáng"):
+        bc.luu(a, {"onl_sang": 0}, PHONG, "k", NGAY)
+    with pytest.raises(bc.LoiBaoCao, match="buổi chiều"):
+        bc.luu(a, {"onl_chieu": 0}, PHONG, "k", NGAY)
+    with pytest.raises(bc.LoiBaoCao, match="Theo dõi Online"):
+        bc.luu(a, {"da_online": 5}, PHONG, "k", NGAY)
+    bc.luu(a, {"onl_sang": 3, "onl_chieu": 1, "da_online": 1}, PHONG, "k", NGAY)         # tăng hoặc bằng số ca: được
+    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
+    assert (r.onl_sang, r.onl_chieu, r.thuc_hien, r.co_ca) == (3, 1, 1, 2)
+    bc.luu(a, {"da_online": 0}, PHONG, "k", NGAY, kiem_ca=False)                         # đường nội bộ (đồng bộ từ ca) không bị chặn
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 0

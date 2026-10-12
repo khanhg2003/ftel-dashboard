@@ -22,10 +22,11 @@ def khung() -> list:
     oc.dam_bao_bang()
     return [
         dcc.Store(id="onl-du-lieu"), dcc.Store(id="onl-sk"), dcc.Store(id="onl-lam-moi"), dcc.Store(id="onl-ve"),
-        dcc.Store(id="onl-thong-bao"), dcc.Store(id="onl-bao-xong"), dcc.Store(id="onl-toi-la-xong"),
+        dcc.Store(id="onl-thong-bao"), dcc.Store(id="onl-bao-xong"), dcc.Store(id="onl-toi-la-xong"), dcc.Store(id="onl-hoi"), dcc.Store(id="onl-hoi-xong"),
         html.Div([
             html.Div(id="onl-hero"),
             html.Div(id="onl-msg"),
+            html.Div(id="onl-hen"),
             html.Div(id="onl-xuly"),
             html.Div(id="onl-bang"),
         ], className="card onl", id="onl-goc"),
@@ -62,6 +63,8 @@ def register(app):
                             Output("onl-ve", "data"), Input("onl-du-lieu", "data"))
     app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_bao"),
                             Output("onl-bao-xong", "data"), Input("onl-thong-bao", "data"), prevent_initial_call=True)
+    app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_hoi"),
+                            Output("onl-hoi-xong", "data"), Input("onl-hoi", "data"), prevent_initial_call=True)
     app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_toi_la"),
                             Output("onl-toi-la-xong", "data"), Input("bn-toi-la", "value"))
 
@@ -79,24 +82,30 @@ def register(app):
         return oc.du_lieu(phong, d)
 
     @app.callback(Output("onl-lam-moi", "data"), Output("onl-msg", "children"), Output("onl-thong-bao", "data"),
-                  Output("bn-da-luu", "data", allow_duplicate=True), Output("bn-nhip-va", "disabled", allow_duplicate=True),
-                  Input("onl-sk", "data"), State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
+                  Output("onl-hoi", "data"), Output("bn-da-luu", "data", allow_duplicate=True),
+                  Output("bn-nhip-va", "disabled", allow_duplicate=True), Input("onl-sk", "data"), State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
                   prevent_initial_call=True)
     def _su_kien(sk, code, ngay, toi_la):
         if not sk or sk.get("act") in (None, "sua"):
             raise PreventUpdate
         phong, d, ai = _ngu_canh(code, ngay, toi_la)
         acc = {c["id"]: c["acc"] for c in oc.ds_ca(phong, d)}.get(sk.get("id"))
-        act, accs, thong_bao, canh_bao = sk["act"], [acc], no_update, None
+        act, accs, thong_bao, canh_bao, hoi = sk["act"], [acc], no_update, None, no_update
         try:
             if act == "them":
-                kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d)
+                kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d, xac_nhan=bool(sk.get("xn")))
                 accs = [sk.get("acc")]
-                ghi_log("online_them", f"{', '.join(kq['them'])} {d:%d/%m/%Y} {code} khung {sk.get('khung')}")
-                ten = kq["them"][0] if len(kq["them"]) == 1 else f"{len(kq['them'])} ca"
-                thong_bao = {"msg": f"✓ Đã thêm {ten} vào {oc._nhan_khung(sk.get('khung'))}", "t": gio_viet_nam().isoformat()}
+                if kq["them"]:
+                    ghi_log("online_them", f"{', '.join(kq['them'])} {d:%d/%m/%Y} {code} khung {sk.get('khung')}")
+                    ten = kq["them"][0] if len(kq["them"]) == 1 else f"{len(kq['them'])} ca"
+                    thong_bao = {"msg": f"✓ Đã thêm {ten} vào {oc._nhan_khung(sk.get('khung'))}", "t": gio_viet_nam().isoformat()}
+                if kq["hoi"]:                                   # Nhập tồn đang hẹn ngày khác: trình duyệt hỏi sale rồi gửi lại với xn=1
+                    hoi = {"acc": sk.get("acc"), "khung": sk.get("khung"), "ngay": d.isoformat(), "ds": kq["hoi"], "t": gio_viet_nam().isoformat()}
                 if kq["bo_qua"]:
                     canh_bao = alert("Bỏ qua: " + "; ".join(f"{m} ({ly})" for m, ly in kq["bo_qua"]) + ".", "warn")
+            elif act == "dong_bo_hen":
+                n = oc.dong_bo_ngay_hen(sk["id"], phong, ai)
+                thong_bao = {"msg": f"✓ Nhập tồn đã cập nhật ngày hẹn {d:%d/%m}" if n else "Nhập tồn đã khớp ngày hẹn", "t": gio_viet_nam().isoformat()}
             elif act == "tt":
                 oc.doi_trang_thai(sk["id"], sk.get("val"), phong, ai)
             elif act == "khung":
@@ -107,7 +116,7 @@ def register(app):
                 kq = oc.doi_nhieu(ids, sk.get("loai"), sk.get("val") or "", phong, ai)
                 accs = [acc_cua[i] for i in ids]
                 if kq["loi"]:
-                    return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, *_sau_khi_ghi(accs)[1:])
+                    return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update, *_sau_khi_ghi(accs)[1:])
             elif act == "mai":
                 oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"))
             elif act == "xoa":
@@ -117,9 +126,9 @@ def register(app):
                 raise PreventUpdate
         except oc.LoiOnline as e:                              # trình duyệt đã đổi tạm trên màn hình: nạp lại số thật + báo lỗi
             moi, _, _ = _sau_khi_ghi([])
-            return moi, alert(str(e), "bad"), no_update, no_update, no_update
+            return moi, alert(str(e), "bad"), no_update, no_update, no_update, no_update
         moi, luu, tat = _sau_khi_ghi(accs)
-        return moi, canh_bao, thong_bao, (luu if accs else no_update), (tat if accs else no_update)
+        return moi, canh_bao, thong_bao, hoi, (luu if accs else no_update), (tat if accs else no_update)
 
     @app.callback(Output("onl-md", "className"), Output("onl-md-tieu-de", "children"), Output("onl-md-id", "data"),
                   Output("onl-md-nv", "value"), Output("onl-md-gc", "value"), Output("onl-md-ls", "children"),
