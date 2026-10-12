@@ -1643,8 +1643,13 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 @keyframes bn-msg-tat { to { opacity: 0; visibility: hidden; } }
 
 /* Theo dõi Online: thêm ca phát sinh bằng tay (mã HĐ, người phụ trách, khung giờ, ghi chú) */
-.onl-them-mo { margin-top: 10px; border: 1px dashed #98B6D9; border-radius: 6px; background: #fff; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 600; color: var(--fpt-blue); cursor: pointer; }
-.onl-them-mo:hover { background: #F1F6FD; border-style: solid; }
+.onl-them-mo { margin-left: 10px; border: 0; border-radius: 6px; background: var(--fpt-blue); color: #fff; padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.onl-them-mo:hover { filter: brightness(1.1); }
+/* hai dòng nhắc gập (chưa khai đủ giờ / Nhập tồn hẹn hôm nay): cùng một kiểu thanh, có mũi tên bên phải để biết bấm sẽ xổ xuống */
+.onl-nhac-tt, .onl-hen-tt { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; border-radius: 6px; text-align: left; }
+.onl-nhac-tt { background: #FDF6EC; } .onl-hen-tt { background: #F1F6FD; }
+.onl-nhac-tt:hover { background: #FBEED9; } .onl-hen-tt:hover { background: #E4EEFB; }
+.onl-nhac-tt span, .onl-hen-tt span { font-size: 12px; }
 .onl-them-f { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .onl-them-f label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); min-width: 0; }
 .onl-them-f label:first-child, .onl-them-f label:last-of-type { grid-column: 1 / -1; }

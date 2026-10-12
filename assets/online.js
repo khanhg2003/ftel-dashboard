@@ -140,12 +140,13 @@
             + (lienQuan.length ? '<optgroup label="Có ca hôm nay">' + lienQuan.map(opt).join('') + '</optgroup>' : '')
             + (khac.length ? '<optgroup label="Chưa có ca">' + khac.map(opt).join('') + '</optgroup>' : '') + '</select>';
         return '<div class="onl-tren"><h3>Theo dõi Online</h3><span class="onl-ngay">' + THU[d.getDay()] + ', ' + ('0' + d.getDate()).slice(-2) + '/'
-            + ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' + nhan + '</span><span class="grow"></span><label class="onl-chon-nhan">Nhân viên</label>' + chon + '</div>'
+            + ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' + nhan + '</span><span class="grow"></span><label class="onl-chon-nhan">Nhân viên</label>' + chon
+            + (du.ngay < du.hom_nay ? '' : '<button type="button" class="onl-them-mo" data-act="mo-them" title="Thêm ca phát sinh chưa có ở Nhập tồn">+ Thêm ca</button>') + '</div>'
             + '<div class="onl-kpi">' + o('tong', tk.tong, 'Ca dự kiến', loc ? 'của ' + esc(tenCua(loc)) : 'cả phòng') + o('cho', tk.cho, 'Đang chờ lắp', 'chưa triển khai')
             + o('dang', tk.dang, 'Đang triển khai', 'đang lắp đặt') + o('xong', tk.online, 'Đã online', tk.tong ? Math.round(ph(tk.online)) + '% số ca dự kiến' : 'chưa có ca') + '</div>'
             + '<div class="onl-thanh" title="Xanh lá: đã online · Xanh dương: đang triển khai · Vàng: chờ lắp"><i class="x" style="width:' + ph(tk.online) + '%"></i><i class="d" style="width:'
             + ph(tk.dang) + '%"></i><i class="c" style="width:' + ph(tk.cho) + '%"></i></div>'
-            + (loc ? '' : '<div class="onl-goi">Chọn một nhân viên ở ô trên để thêm ca vào từng khung giờ.</div>');
+            ;
     }
 
     /* Dòng nhắc gập sẵn: người đã gõ dự kiến online mà chưa khai đủ mã + khung giờ. Bấm tên là chọn người đó để khai. */
@@ -211,10 +212,6 @@
 
     /* Ca phát sinh trong ngày mà chưa kịp có ở Nhập tồn: ngoài trang chỉ có MỘT nút, bấm mới mở khung 4 ô (mã HĐ, người phụ trách, khung giờ, ghi chú).
        Khung nằm trong hộp thoại `onl-tm` (Python dựng), nội dung vẽ ở đây và không phụ thuộc bộ lọc đang chọn nên chữ đang gõ không bị xoá khi bảng vẽ lại. */
-    function veThemNut() {
-        return du.ngay < du.hom_nay ? '' : '<button type="button" class="onl-them-mo" data-act="mo-them">+ Thêm ca</button>';
-    }
-
     function veThem() {
         if (du.ngay < du.hom_nay) { return ''; }
         const macDinh = (du.ngay === du.hom_nay ? khungKeTiep(bayGio()) : null) || du.khung.filter(function (k) { return !k.phu; })[0];
@@ -305,7 +302,6 @@
         const giu = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('onl-nhap') ? document.activeElement : null;
         const giuGt = giu ? {khung: giu.dataset.khung, v: giu.value} : null;
         dat('onl-hero', veDau(ca, thongKe(ca, du.khung)) + veNhac());
-        dat('onl-them-nut', veThemNut());
         dat('onl-them', veThem());
         dat('onl-hen', veHen());
         dat('onl-xuly', veXuLy(goc));

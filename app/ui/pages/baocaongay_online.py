@@ -26,7 +26,6 @@ def khung() -> list:
         html.Div([
             html.Div(id="onl-hero"),
             html.Div(id="onl-msg"),
-            html.Div(id="onl-them-nut"),
             html.Div(id="onl-hen"),
             html.Div(id="onl-xuly"),
             html.Div(id="onl-bang"),
