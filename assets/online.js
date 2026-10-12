@@ -66,14 +66,6 @@
         }
     }
 
-    function avatar(ten) {                                      // chữ viết tắt + màu cố định theo tên
-        const t = String(ten || '?').trim().split(/\s+/);
-        const ch = (t.length >= 2 ? t[t.length - 2][0] + t[t.length - 1][0] : String(ten || '?').slice(0, 2)).toUpperCase();
-        let h = 0;
-        for (let i = 0; i < ten.length; i++) { h = (h * 31 + ten.charCodeAt(i)) % 360; }
-        return '<i class="onl-av" style="background:hsl(' + h + ',55%,92%);color:hsl(' + h + ',55%,32%)">' + esc(ch) + '</i>';
-    }
-
     function tenCua(acc) {
         const x = du.nv.filter(function (n) { return n.a === acc; })[0];
         return x ? x.t : acc;
@@ -111,50 +103,48 @@
     }
 
     // ------------------------------------------------------------------ vẽ
-    function veHero(ca, tk) {
+    /* Kiểu "sổ điều phối": một dòng tóm tắt + thanh tiến độ phẳng, tab lọc theo người, rồi mỗi khung giờ là một nhóm dòng (mã HĐ · người ·
+       trạng thái). Không thẻ, không màu pastel, không hoạt hình - để đọc nhanh và nhiều ca vẫn gọn. */
+    function veTom(ca, tk) {
         const d = new Date(du.ngay + 'T00:00:00');
         const hn = du.ngay === du.hom_nay;
         const nhan = hn ? 'Hôm nay' : (du.ngay > du.hom_nay ? 'Nhập trước' : 'Đã qua');
         const ph = function (n) { return tk.tong ? n * 100 / tk.tong : 0; };
-        const x = ph(tk.online), dd = x + ph(tk.dang), cc = dd + ph(tk.cho);
-        const vong = 'conic-gradient(var(--onl-xong) 0 ' + x + '%,var(--onl-dang) ' + x + '% ' + dd + '%,#F0C36B ' + dd + '% ' + cc + '%,#E3E9F1 ' + cc + '% 100%)';
         const o = function (tt, cls, n, nhanO) {
             return '<button type="button" class="onl-o ' + cls + (locTt === tt ? ' chon' : '') + '" data-act="loc-tt" data-tt="' + tt
-                + '"><b>' + n + '</b><span>' + nhanO + '</span></button>';
+                + '"><b>' + n + '</b> ' + nhanO + '</button>';
         };
-        const gt = loc ? ' · của ' + esc(tenCua(loc)) : '';
-        return '<div class="onl-hero"><div class="onl-vong" style="background:' + vong + '"><div><b>' + (tk.tong ? Math.round(x) : 0) + '<small>%</small></b>'
-            + '<span>online</span></div></div><div class="onl-hero-gt"><div class="onl-hero-tieu"><h3>Theo dõi Online</h3><span class="onl-nhan'
-            + (hn ? ' hn' : '') + '">' + nhan + '</span></div><div class="desc">' + THU[d.getDay()] + ', ' + ('0' + d.getDate()).slice(-2) + '/'
-            + ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' + (tk.tong ? '<b>' + tk.online + '</b> / ' + tk.tong + ' ca đã online' : 'Chưa có ca nào')
-            + gt + '</div><div class="onl-stat">' + o('du_kien', 'cho', tk.cho, 'Đang chờ lắp') + o('dang_lam', 'dang', tk.dang, 'Đang triển khai')
-            + o('da_online', 'xong', tk.online, 'Đã online') + '</div></div></div>';
+        const gt = loc ? ' · chỉ ' + esc(tenCua(loc)) : '';
+        return '<div class="onl-tren"><h3>Theo dõi Online</h3><span class="onl-ngay">' + THU[d.getDay()] + ', ' + ('0' + d.getDate()).slice(-2) + '/'
+            + ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' + nhan + esc(gt) + '</span></div>'
+            + '<div class="onl-so"><span class="onl-lon"><b>' + tk.online + '</b>/' + tk.tong + ' ca đã online' + (tk.tong ? ' (' + Math.round(ph(tk.online)) + '%)' : '') + '</span>'
+            + o('du_kien', 'cho', tk.cho, 'chờ lắp') + o('dang_lam', 'dang', tk.dang, 'đang triển khai') + o('da_online', 'xong', tk.online, 'đã online') + '</div>'
+            + '<div class="onl-thanh" title="Xanh lá: đã online · Xanh dương: đang triển khai · Vàng: chờ lắp"><i class="x" style="width:' + ph(tk.online) + '%"></i><i class="d" style="width:'
+            + ph(tk.dang) + '%"></i><i class="c" style="width:' + ph(tk.cho) + '%"></i></div>';
     }
 
     function veNguoi(goc) {
         const th = du.thieu, ds = du.nv.map(function (n) { return n.a; }).filter(function (a) { return th[a]; });
         if (!ds.length) { return ''; }
-        const chip = ds.map(function (a) {
-            const cua = goc.filter(function (c) { return c.acc === a; }), t = th[a];
-            const cham = cua.map(function (c) { return '<i class="' + c.tt + '"></i>'; }).join('');
-            return '<button type="button" class="onl-ch' + (a === loc ? ' chon' : '') + (t.thieu > 0 ? ' thieu' : '') + '" data-act="loc-nv" data-acc="' + esc(a)
-                + '" title="' + esc(tenCua(a)) + ' · ' + cua.length + ' ca đã khai, dự kiến ' + t.can + '">' + avatar(tenCua(a)) + '<span>' + esc(tenGoi(a, ds))
-                + '</span><span class="onl-cham">' + cham + '</span></button>';
+        const tab = ds.map(function (a) {
+            const t = th[a], n = goc.filter(function (c) { return c.acc === a; }).length;
+            return '<button type="button" class="onl-tab' + (a === loc ? ' chon' : '') + (t.thieu > 0 ? ' thieu' : '') + '" data-act="loc-nv" data-acc="' + esc(a)
+                + '" title="' + esc(tenCua(a)) + ' · đã khai ' + t.khai + '/' + t.can + ' ca có giờ">' + esc(tenGoi(a, ds)) + ' <small>' + n + '</small></button>';
         }).join('');
-        return '<div class="onl-nguoi"><button type="button" class="onl-ch tat-ca' + (loc ? '' : ' chon') + '" data-act="loc-nv" data-acc="">Cả phòng</button>' + chip + '</div>';
+        return '<div class="onl-tabs"><button type="button" class="onl-tab' + (loc ? '' : ' chon') + '" data-act="loc-nv" data-acc="">Cả phòng</button>' + tab + '</div>';
     }
 
     function veCanhBao() {
         const th = du.thieu, ds = du.nv.map(function (n) { return n.a; }).filter(function (a) { return th[a] && th[a].thieu > 0; });
         if (!ds.length || du.ngay < du.hom_nay) { return ''; }
-        return '<div class="onl-cb"><b>Chưa khai đủ giờ online:</b>' + ds.map(function (a) {
+        return '<div class="onl-cb"><b>Chưa khai đủ giờ online:</b> ' + ds.map(function (a) {
             const t = th[a];
             return '<button type="button" class="onl-cb-nv" data-act="them-nv" data-acc="' + esc(a) + '" title="Bấm để thêm ca cho người này">'
                 + esc(tenCua(a)) + ' <em>' + t.khai + '/' + t.can + '</em></button>';
-        }).join('') + '<span class="onl-cb-goi">Bấm tên để thêm ca. Cần mã hợp đồng và khung giờ cho từng ca đã dự kiến.</span></div>';
+        }).join('') + ' <span class="onl-cb-goi">Mỗi ca cần mã hợp đồng và khung giờ.</span></div>';
     }
 
-    function veThe(c, k, hn, now) {
+    function veDong(c, k, hn, now) {
         const ten = tenCua(c.acc);
         const qua = hn && c.tt !== 'da_online' && k && phut(k.den) !== null && now > phut(k.den);
         const nut = ['du_kien', 'dang_lam', 'da_online'].map(function (t) {
@@ -167,17 +157,15 @@
         const ls = (c.ls || []).length > 1 ? c.ls.slice(-4).map(function (x) {
             return x.luc.slice(11, 16) + ' ' + x.ai + ': ' + x.viec;
         }).join('\n') : '';
-        return '<article class="onl-ca ' + c.tt + (qua ? ' qua' : '') + (locTt && locTt !== c.tt ? ' mo' : '') + '" data-id="' + c.id + '">'
-            + '<div class="onl-ca-dau"><b class="onl-ma">' + esc(c.ma) + '</b>' + (qua ? '<span class="onl-qua">Quá giờ</span>' : '')
-            + '<span class="grow"></span><button type="button" class="onl-ic" data-act="sua" data-id="' + c.id
-            + '" title="Sửa ghi chú, đổi người phụ trách, xem lịch sử">✎</button></div>'
-            + '<div class="onl-ai" title="' + esc(c.acc) + '">' + avatar(ten) + '<span>' + esc(ten) + '</span></div>'
-            + (c.gc ? '<div class="onl-gc" title="' + esc(c.gc) + '">' + esc(c.gc) + '</div>' : '')
-            + '<div class="onl-tt">' + nut + '</div>'
-            + '<div class="onl-chan"><select data-act="khung" data-id="' + c.id + '" title="Dời sang khung giờ khác">' + khung + '</select>'
-            + '<button type="button" class="onl-mai" data-act="mai" data-id="' + c.id + '" title="Dời ca sang ngày mai">Mai ›</button>'
-            + '<button type="button" class="onl-ic xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '" title="Huỷ ca này">✕</button>'
-            + (ls ? '<span class="onl-ls" title="' + esc(ls) + '">⟲</span>' : '') + '</div></article>';
+        return '<div class="onl-dong ' + c.tt + (qua ? ' qua' : '') + (locTt && locTt !== c.tt ? ' mo' : '') + '" data-id="' + c.id + '">'
+            + '<span class="onl-ma">' + esc(c.ma) + (qua ? '<em class="onl-tre">quá giờ</em>' : '') + '</span>'
+            + '<span class="onl-giua"><span class="onl-ten" title="' + esc(c.acc) + '">' + esc(ten) + (c.gc ? '<small title="' + esc(c.gc) + '">' + esc(c.gc) + '</small>' : '') + '</span>'
+            + '<span class="onl-act"><select data-act="khung" data-id="' + c.id + '" title="Dời sang khung giờ khác">' + khung + '</select>'
+            + '<button type="button" class="onl-mai" data-act="mai" data-id="' + c.id + '" title="Dời ca sang ngày mai">Mai</button>'
+            + '<button type="button" class="onl-ic" data-act="sua" data-id="' + c.id + '" title="Sửa ghi chú, đổi người phụ trách, xem lịch sử">Sửa</button>'
+            + '<button type="button" class="onl-ic xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '" title="Huỷ ca này">Huỷ</button>'
+            + (ls ? '<span class="onl-ls" title="' + esc(ls) + '">Lịch sử</span>' : '') + '</span></span>'
+            + '<span class="onl-tt">' + nut + '</span></div>';
     }
 
     function veBang(ca, goc) {
@@ -189,21 +177,16 @@
         const cot = du.khung.filter(function (k) {              // khung phụ (Sau 17h30, Chưa hẹn giờ) chỉ hiện khi đang có ca
             return !k.phu || goc.some(function (c) { return c.khung === k.ma; });
         });
-        return '<div class="onl-luoi" style="--so-cot:' + cot.length + '">' + cot.map(function (k) {
+        return '<div class="onl-ds">' + cot.map(function (k) {
             const s = tk.khung[k.ma], ds = ca.filter(function (c) { return c.khung === k.ma; });
             const a = phut(k.tu), b = phut(k.den);
             const hienTai = hn && a !== null && b !== null && now >= a && now < b;
             const quaGio = hn && b !== null && now >= b && (s.cho + s.dang) > 0;
-            const ph = function (n) { return s.tong ? Math.round(n * 100 / s.tong) : 0; };
-            return '<section class="onl-cot' + (hienTai ? ' hien-tai' : '') + (quaGio ? ' qua-gio' : '') + (k.ma === 'chua' ? ' chua' : '') + (ds.length ? '' : ' trong') + '">'
-                + '<header><div class="onl-cot-ten"><b>' + esc(k.nhan) + '</b>'
-                + (hienTai ? '<span class="onl-now">Đang diễn ra</span>' : '') + (quaGio ? '<span class="onl-trehan">Quá giờ ' + (s.cho + s.dang) + '</span>' : '')
-                + '</div><div class="onl-cot-so"><b>' + s.tong + '</b> ca' + (s.tong ? ' · <span>' + s.online + ' online</span>' : '')
-                + '</div><div class="onl-mini"><i class="x" style="width:' + ph(s.online) + '%"></i><i class="d" style="width:' + ph(s.dang) + '%"></i>'
-                + '<i class="c" style="width:' + ph(s.cho) + '%"></i></div>'
-                + '<button type="button" class="onl-them" data-act="them" data-khung="' + esc(k.ma) + '" title="Thêm ca vào khung này">+</button></header>'
-                + '<div class="onl-ds">' + (ds.length ? ds.map(function (c) { return veThe(c, k, hn, now); }).join('')
-                    : '<div class="onl-trong">Chưa có ca</div>') + '</div></section>';
+            return '<section class="onl-nhom' + (hienTai ? ' hien-tai' : '') + (quaGio ? ' qua-gio' : '') + (k.ma === 'chua' ? ' chua' : '') + '">'
+                + '<header><span class="onl-gio">' + esc(k.nhan) + '</span><span class="onl-gio-so">' + (s.tong ? '<b>' + s.tong + '</b> ca · ' + s.online + ' online' : 'chưa có ca') + '</span>'
+                + (hienTai ? '<span class="onl-tag">đang diễn ra</span>' : '') + (quaGio ? '<span class="onl-tag tre">quá giờ ' + (s.cho + s.dang) + ' ca</span>' : '')
+                + '<span class="grow"></span><button type="button" class="onl-them" data-act="them" data-khung="' + esc(k.ma) + '" title="Thêm ca vào khung này">+ Thêm</button></header>'
+                + ds.map(function (c) { return veDong(c, k, hn, now); }).join('') + '</section>';
         }).join('') + '</div>';
     }
 
@@ -214,7 +197,7 @@
             return (i(a) - i(b)) || (a.id - b.id);
         });
         const ca = loc ? goc.filter(function (c) { return c.acc === loc; }) : goc;
-        dat('onl-hero', veHero(ca, thongKe(ca, du.khung)));
+        dat('onl-hero', veTom(ca, thongKe(ca, du.khung)));
         dat('onl-nguoi', veNguoi(goc));
         dat('onl-canh-bao', veCanhBao());
         dat('onl-bang', veBang(ca, goc));
