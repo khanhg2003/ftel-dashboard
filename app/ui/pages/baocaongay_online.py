@@ -109,7 +109,7 @@ def register(app):
                 if kq["loi"]:
                     return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, *_sau_khi_ghi(accs)[1:])
             elif act == "mai":
-                oc.doi_ngay_mai(sk["id"], phong, ai)
+                oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"))
             elif act == "xoa":
                 t = oc.xoa(sk["id"], phong, ai)
                 ghi_log("online_xoa", f"{t['ma_hd']} {t['ngay']:%d/%m/%Y} {code}")

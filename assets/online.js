@@ -69,6 +69,12 @@
         }
     }
 
+    function ngayKe(iso) {                                      // ngày kế tiếp của một ngày YYYY-MM-DD (không lệch múi giờ)
+        const d = new Date(iso + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+    }
+
     function tenCua(acc) {
         const x = du.nv.filter(function (n) { return n.a === acc; })[0];
         return x ? x.t : acc;
@@ -186,6 +192,7 @@
             + '<details class="onl-mn"><summary title="Dời khung giờ, dời sang mai, sửa, huỷ">⋯</summary><div class="onl-mn-ds">'
             + '<label>Dời sang khung giờ<select data-act="khung" data-id="' + c.id + '">' + khung + '</select></label>'
             + '<button type="button" data-act="mai" data-id="' + c.id + '">Dời sang ngày mai</button>'
+            + '<label>Hoặc dời sang ngày khác<input type="date" data-act="ngay" data-id="' + c.id + '" min="' + esc(ngayKe(du.ngay)) + '" max="' + esc(du.xa_nhat || '') + '"></label>'
             + '<button type="button" data-act="sua" data-id="' + c.id + '">Sửa ghi chú / người phụ trách</button>'
             + (ls ? '<div class="onl-mn-ls">' + esc(ls) + '</div>' : '')
             + '<button type="button" class="xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Huỷ ca này</button></div></details></div></article>';
@@ -262,6 +269,12 @@
             bao('Đã dời ' + c.ma + ' sang ngày mai');
             gui('mai', {id: c.id});
         }
+        else if (act === 'ngay' && c) {
+            if (!d.ngay) { return; }
+            du.ca = du.ca.filter(function (x) { return x !== c; });
+            bao('Đã dời ' + c.ma + ' sang ngày ' + d.ngay.slice(8, 10) + '/' + d.ngay.slice(5, 7));
+            gui('mai', {id: c.id, ngay: d.ngay});
+        }
         else if (act === 'xoa' && c) {
             if (!window.confirm('Huỷ ca ' + d.ma + '?')) { return; }
             du.ca = du.ca.filter(function (x) { return x !== c; });
@@ -304,6 +317,8 @@
             lenh(b.dataset.act, b);
         });
         document.addEventListener('change', function (e) {
+            const dt = e.target && e.target.closest ? e.target.closest('#onl-goc input[data-act="ngay"]') : null;
+            if (dt && du && dt.value) { dt.dataset.ngay = dt.value; lenh('ngay', dt); return; }
             const s = e.target && e.target.closest ? e.target.closest('#onl-goc select[data-act]') : null;
             if (!s || !du) { return; }
             if (s.dataset.act === 'loc-nv-sel') { chonNv(s.value); return; }

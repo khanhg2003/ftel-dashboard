@@ -166,7 +166,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      **Tiến độ nhập** (`_tien_do`): thanh đầu trang "x/y người đã nhập", tên người chưa nhập bấm là cuộn tới dòng + mở ô (`assets/tien_do_nhap.js`); chỉ hiện hôm nay và
      ngày nhập trước. **Cửa sổ "Hiệu quả & xu hướng"** (`baocaongay_hq.py`, quy tắc ở `app/online_ca_phan_tich.py`): tỷ lệ ca lên ĐÚNG hẹn = online khi còn trong
      hạn của khung giờ HẸN LÚC TẠO (`khung_dau`), theo giờ sale BẤM Đã online (`online_luc`); trễ / chưa lên / đã dời mai là các nhóm còn lại, ca "Chưa hẹn
-     giờ" và ca chưa tới hạn không tính vào tỷ lệ. Dời sang mai KHÔNG xoá ca cũ mà đổi thành `doi_mai` (không hiện trên bảng, vẫn tính là chưa lên) và tạo
+     giờ" và ca chưa tới hạn không tính vào tỷ lệ. Dời sang ngày khác (`doi_ngay`; nút "Dời sang ngày mai" hoặc chọn một ngày, tối đa tới `bc.ngay_xa_nhat()` = 7 ngày như Báo cáo ngày cho nhập trước) KHÔNG xoá ca cũ mà đổi thành `doi_mai` (không hiện trên bảng, vẫn tính là chưa lên) và tạo
      ca mới ở ngày mai. **Giao diện Theo dõi Online (làm lại 12/10/2026 vì chủ app báo bản trước "khó xài": khung giờ lặp hai lần, phải chọn 3 ô mới thêm được ca)**: chọn
      NHÂN VIÊN một lần ở đầu mục (đã chọn "Tôi là" thì tự chọn sẵn); mỗi khung giờ là MỘT cột (đã qua / đang diễn ra / sắp tới / quá giờ thể hiện ở
      viền đầu cột), gõ hoặc dán NHIỀU mã HĐ ngay ở cuối cột rồi Enter là thêm đúng khung đó (`them_nhieu`), "Từ HĐ tồn" ở cuối cột liệt kê HĐ tồn của người đang chọn

@@ -178,7 +178,7 @@ def du_lieu(phong: list[str], ngay: date) -> dict:
     nv = nhan_vien(tuple(phong), ngay.isoformat())
     ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
     return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "dk": dk,
-            "thieu": thieu_gio(ca, dk), "ton": ton_tat_ca(phong, ngay), "moc": moc(phong, ngay)}
+            "thieu": thieu_gio(ca, dk), "ton": ton_tat_ca(phong, ngay), "xa_nhat": bc.ngay_xa_nhat().isoformat(), "moc": moc(phong, ngay)}
 
 
 # ------------------------------------------------------------------ ghi
@@ -302,15 +302,23 @@ def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
     dong_bo_bang(ngay, phong, [acc], ai)
 
 
-def doi_ngay_mai(id_: int, phong: list[str], ai: str) -> date:
-    """Dời ca sang ngày kế tiếp: ca cũ giữ lại ở ngày hôm nay với trạng thái "doi_mai" (không hiện trên bảng, nhưng tính là ca không lên đúng
-    hẹn khi thống kê), ca mới ở ngày mai về Dự kiến + "Chưa hẹn giờ" để sáng mai sale chọn khung."""
+def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None) -> date:
+    """Dời ca sang một ngày SAU (mặc định ngày kế tiếp; `ngay_moi` là date hoặc chuỗi YYYY-MM-DD), tối đa tới ngày xa nhất Báo cáo ngày cho nhập
+    trước (`bc.ngay_xa_nhat`). Ca cũ giữ lại ở ngày của nó với trạng thái "doi_mai" (không hiện trên bảng, nhưng tính là ca không lên đúng
+    hẹn khi thống kê); ca mới ở ngày đích về Dự kiến + "Chưa hẹn giờ" để hôm đó sale chọn khung."""
     dam_bao_bang()
+    if isinstance(ngay_moi, str):
+        try:
+            ngay_moi = date.fromisoformat(ngay_moi[:10])
+        except ValueError:
+            raise LoiOnline("Ngày không hợp lệ.") from None
     with session_scope() as s:
         r = _tim(s, id_, phong)
-        moi = r.ngay + timedelta(days=1)
+        moi = ngay_moi or r.ngay + timedelta(days=1)
+        if moi <= r.ngay:
+            raise LoiOnline("Chọn một ngày sau ngày hiện tại của ca.")
         if moi > bc.ngay_xa_nhat():
-            raise LoiOnline("Chỉ dời được tới ngày xa nhất mà Báo cáo ngày cho nhập trước.")
+            raise LoiOnline(f"Chỉ dời được tới ngày {bc.ngay_xa_nhat():%d/%m} (xa nhất Báo cáo ngày cho nhập trước).")
         if s.execute(select(OnlineCa.id).where(OnlineCa.ngay == moi, OnlineCa.phong_code == r.phong_code,
                                                OnlineCa.ma_hd == r.ma_hd)).first():
             raise LoiOnline(f"HĐ {r.ma_hd} đã có trong ngày {moi:%d/%m} rồi.")
@@ -333,7 +341,7 @@ def doi_nhieu(ids, loai: str, khung_ma: str, phong: list[str], ai: str) -> dict:
     for i in ids or []:
         try:
             if loai == "mai":
-                doi_ngay_mai(i, phong, ai)
+                doi_ngay(i, phong, ai)
             else:
                 doi_khung(i, khung_ma, phong, ai)
             xong += 1

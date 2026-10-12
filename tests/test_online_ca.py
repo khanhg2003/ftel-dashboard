@@ -130,7 +130,7 @@ def test_doi_sang_ngay_mai_ve_du_kien_chua_hen_gio_va_tinh_lai_hai_ngay(hai_nguo
     a, _ = hai_nguoi
     i = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)
     oc.doi_trang_thai(i, "dang_lam", PHONG, "k")
-    mai = oc.doi_ngay_mai(i, PHONG, "k")
+    mai = oc.doi_ngay(i, PHONG, "k")
     assert mai == NGAY + timedelta(days=1) and oc.ds_ca(PHONG, NGAY) == []
     c = oc.ds_ca(PHONG, mai)[0]
     assert (c["khung"], c["tt"]) == ("chua", "du_kien") and "Dời sang ngày 11/09" in c["ls"][-1]["viec"]
@@ -140,7 +140,7 @@ def test_doi_sang_ngay_mai_ve_du_kien_chua_hen_gio_va_tinh_lai_hai_ngay(hai_nguo
     oc.them("DAAAP0002", a, "08-10", PHONG, "k", mai)                              # mã trùng sẵn ở ngày mai thì không dời được
     j = oc.them("DAAAP0002", a, "08-10", PHONG, "k", NGAY)
     with pytest.raises(oc.LoiOnline, match="đã có"):
-        oc.doi_ngay_mai(j, PHONG, "k")
+        oc.doi_ngay(j, PHONG, "k")
 
 
 def test_dan_nhieu_ma_mot_lan_bo_qua_ma_trung_va_ma_sai(hai_nguoi):
@@ -386,3 +386,30 @@ def test_cua_so_hieu_qua_va_thanh_tien_do_nhap_dung_duoc(hai_nguoi):
     assert td is not None and td.className in ("bn-td", "bn-td xong")
     assert baocaongay._tien_do(df, bc.hom_nay() - timedelta(days=1)) is None      # ngày đã qua: không nhắc
     assert baocaongay._tien_do(df.iloc[0:0], bc.hom_nay()) is None
+
+
+def test_doi_sang_ngay_tuy_chon_trong_gioi_han_nhap_truoc(hai_nguoi):
+    """Chủ app (12/10/2026): không chỉ dời sang ngày mai mà chọn được ngày khác (ngày mốt, tuần sau), tối đa tới ngày xa nhất Báo cáo ngày cho nhập trước."""
+    a, _ = hai_nguoi
+    i = oc.them("DAAAP6001", a, "08-10", PHONG, "k", NGAY)
+    xa = bc.ngay_xa_nhat()
+    with pytest.raises(oc.LoiOnline, match="sau ngày hiện tại"):
+        oc.doi_ngay(i, PHONG, "k", NGAY)                                          # không dời về chính ngày đó
+    with pytest.raises(oc.LoiOnline, match="Ngày không hợp lệ"):
+        oc.doi_ngay(i, PHONG, "k", "abc")
+    with pytest.raises(oc.LoiOnline, match="xa nhất"):
+        oc.doi_ngay(i, PHONG, "k", (xa + timedelta(days=1)).isoformat())          # quá giới hạn nhập trước
+    moi = oc.doi_ngay(i, PHONG, "k", xa.isoformat())                              # dời tới ngày xa nhất (chuỗi YYYY-MM-DD)
+    assert moi == xa and oc.ds_ca(PHONG, NGAY) == []
+    try:
+        c = oc.ds_ca(PHONG, xa)[0]
+        assert c["ma"] == "DAAAP6001" and c["khung"] == "chua" and f"Dời sang ngày {xa:%d/%m}" in c["ls"][-1]["viec"]
+        assert oc.du_lieu(PHONG, NGAY)["xa_nhat"] == xa.isoformat()
+    finally:
+        from sqlalchemy import delete
+
+        from app.db import session_scope
+        from app.models import BaoCaoNgay, OnlineCa
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ngay == xa))
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == xa))
