@@ -9,7 +9,7 @@
     const TT_NGAN = {du_kien: 'Chờ', dang_lam: 'Đang lắp', da_online: 'Online'};
     const TT_DAI = {du_kien: 'Dự kiến', dang_lam: 'Đang triển khai', da_online: 'Đã online'};
     const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-    let du = null, loc = '', locTt = '';
+    let du = null, loc = '', locTt = '', locKhung = '';
     const cuoi = {};                                            // id khối -> HTML đã vẽ lần trước (giống nhau thì khỏi vẽ lại)
 
     function esc(s) {
@@ -123,6 +123,56 @@
             + ph(tk.dang) + '%"></i><i class="c" style="width:' + ph(tk.cho) + '%"></i></div>';
     }
 
+    /* Dải "giai đoạn trong ngày": mỗi khung giờ một ô (số ca, số đã online, đã qua / đang diễn ra / sắp tới). Bấm ô để chỉ xem khung đó. */
+    function veGiaiDoan(ca, goc) {
+        const hn = du.ngay === du.hom_nay, now = hn ? bayGio() : null, tk = thongKe(ca, du.khung);
+        const cot = du.khung.filter(function (k) { return !k.phu || goc.some(function (c) { return c.khung === k.ma; }); });
+        if (!goc.length) { return ''; }
+        return '<div class="onl-gd">' + cot.map(function (k) {
+            const s = tk.khung[k.ma], a = phut(k.tu), b = phut(k.den), ph = function (n) { return s.tong ? Math.round(n * 100 / s.tong) : 0; };
+            let gd = '', nhan = '';
+            if (hn && a !== null && b !== null) {
+                if (now >= b) { gd = (s.cho + s.dang) > 0 ? 'tre' : 'qua'; nhan = gd === 'tre' ? 'Quá giờ ' + (s.cho + s.dang) + ' ca' : 'Đã qua'; }
+                else if (now >= a) { gd = 'nay'; nhan = 'Đang diễn ra'; }
+                else { gd = 'sau'; nhan = 'Sắp tới'; }
+            }
+            return '<button type="button" class="onl-gd-o ' + gd + (locKhung === k.ma ? ' chon' : '') + '" data-act="loc-khung" data-khung="' + esc(k.ma) + '">'
+                + '<span class="onl-gd-gio">' + esc(k.nhan) + '</span><span class="onl-gd-so"><b>' + s.tong + '</b> ca</span>'
+                + '<span class="onl-gd-ph">' + (s.tong ? s.online + ' đã online' : 'chưa có ca') + '</span>'
+                + '<span class="onl-gd-thanh"><i class="x" style="width:' + ph(s.online) + '%"></i><i class="d" style="width:' + ph(s.dang) + '%"></i><i class="c" style="width:'
+                + ph(s.cho) + '%"></i></span><em>' + nhan + '</em></button>';
+        }).join('') + '</div>';
+    }
+
+    function quaGio(c, now) {
+        const k = du.khung.filter(function (x) { return x.ma === c.khung; })[0];
+        return c.tt !== 'da_online' && c.khung !== 'chua' && k && phut(k.den) !== null && now > phut(k.den);
+    }
+
+    function khungKeTiep(now) {                                 // khung đang diễn ra hoặc sắp tới gần nhất (không tính Chưa hẹn giờ)
+        const k = du.khung.filter(function (x) { return x.ma !== 'chua' && phut(x.den) !== null && phut(x.den) > now; })[0];
+        return k || null;
+    }
+
+    /* Thanh "cần xử lý ngay": ca quá giờ chưa online, hoặc cuối ngày còn ca chưa online. Dời cả nhóm bằng một cú bấm. */
+    function veXuLy(goc) {
+        if (du.ngay !== du.hom_nay) { return ''; }
+        const now = bayGio(), chuaXong = goc.filter(function (c) { return c.tt !== 'da_online'; });
+        const chinh = du.khung.filter(function (k) { return !k.phu && phut(k.den) !== null; });
+        const cuoi = chinh.length ? Math.max.apply(null, chinh.map(function (k) { return phut(k.den); })) : null;
+        const ids = function (ds) { return ds.map(function (c) { return c.id; }).join(','); };
+        if (cuoi !== null && now >= cuoi && chuaXong.length) {
+            return '<div class="onl-xl"><span><b>Hết giờ làm việc, còn ' + chuaXong.length + ' ca chưa online.</b></span>'
+                + '<button type="button" data-act="bulk" data-loai="mai" data-ids="' + ids(chuaXong) + '">Dời hết sang mai</button></div>';
+        }
+        const qua = goc.filter(function (c) { return quaGio(c, now); });
+        if (!qua.length) { return ''; }
+        const tiep = khungKeTiep(now);
+        return '<div class="onl-xl"><span><b>' + qua.length + ' ca quá giờ</b> mà chưa online.</span>'
+            + (tiep ? '<button type="button" data-act="bulk" data-loai="khung" data-val="' + esc(tiep.ma) + '" data-ids="' + ids(qua) + '">Dời sang ' + esc(tiep.nhan) + '</button>' : '')
+            + '<button type="button" data-act="bulk" data-loai="mai" data-ids="' + ids(qua) + '">Dời sang mai</button></div>';
+    }
+
     function veNguoi(goc) {
         const th = du.thieu, ds = du.nv.map(function (n) { return n.a; }).filter(function (a) { return th[a]; });
         if (!ds.length) { return ''; }
@@ -158,7 +208,7 @@
             return x.luc.slice(11, 16) + ' ' + x.ai + ': ' + x.viec;
         }).join('\n') : '';
         return '<div class="onl-dong ' + c.tt + (qua ? ' qua' : '') + (locTt && locTt !== c.tt ? ' mo' : '') + '" data-id="' + c.id + '">'
-            + '<span class="onl-ma">' + esc(c.ma) + (qua ? '<em class="onl-tre">quá giờ</em>' : '') + '</span>'
+            + '<span class="onl-ma">' + esc(c.ma) + (qua ? '<em class="onl-tre">quá giờ</em>' : '') + (c.doi >= 3 ? '<em class="onl-tre" title="Ca dời nhiều lần dễ bị huỷ">đã dời ' + c.doi + ' lần</em>' : '') + '</span>'
             + '<span class="onl-giua"><span class="onl-ten" title="' + esc(c.acc) + '">' + esc(ten) + (c.gc ? '<small title="' + esc(c.gc) + '">' + esc(c.gc) + '</small>' : '') + '</span>'
             + '<span class="onl-act"><select data-act="khung" data-id="' + c.id + '" title="Dời sang khung giờ khác">' + khung + '</select>'
             + '<button type="button" class="onl-mai" data-act="mai" data-id="' + c.id + '" title="Dời ca sang ngày mai">Mai</button>'
@@ -175,7 +225,7 @@
             return '<div class="onl-rong"><b>Chưa có ca nào trong ngày</b><span>Nhập mã hợp đồng, chọn nhân viên và khung giờ ở ô phía trên để bắt đầu theo dõi.</span></div>';
         }
         const cot = du.khung.filter(function (k) {              // khung phụ (Sau 17h30, Chưa hẹn giờ) chỉ hiện khi đang có ca
-            return !k.phu || goc.some(function (c) { return c.khung === k.ma; });
+            return locKhung ? k.ma === locKhung : (!k.phu || goc.some(function (c) { return c.khung === k.ma; }));
         });
         return '<div class="onl-ds">' + cot.map(function (k) {
             const s = tk.khung[k.ma], ds = ca.filter(function (c) { return c.khung === k.ma; });
@@ -199,6 +249,8 @@
         const ca = loc ? goc.filter(function (c) { return c.acc === loc; }) : goc;
         dat('onl-hero', veTom(ca, thongKe(ca, du.khung)));
         dat('onl-nguoi', veNguoi(goc));
+        dat('onl-gd', veGiaiDoan(ca, goc));
+        dat('onl-xuly', veXuLy(goc));
         dat('onl-canh-bao', veCanhBao());
         dat('onl-bang', veBang(ca, goc));
     }
@@ -233,6 +285,13 @@
         else if (act === 'sua' && c) { gui('sua', {id: c.id}); return; }
         else if (act === 'them') { batDauThem('', d.khung); return; }
         else if (act === 'them-nv') { batDauThem(d.acc, ''); return; }
+        else if (act === 'loc-khung') { locKhung = locKhung === d.khung ? '' : d.khung; }
+        else if (act === 'bulk') {
+            const ids = String(d.ids || '').split(',').filter(Boolean).map(Number);
+            if (d.loai === 'mai') { du.ca = du.ca.filter(function (x) { return ids.indexOf(x.id) < 0; }); bao('Đã dời ' + ids.length + ' ca sang ngày mai'); }
+            else { du.ca.forEach(function (x) { if (ids.indexOf(x.id) >= 0) { x.khung = d.val; } }); bao('Đã dời ' + ids.length + ' ca sang khung mới'); }
+            gui('bulk', {loai: d.loai, val: d.val || '', ids: ids});
+        }
         else if (act === 'loc-tt') { locTt = locTt === d.tt ? '' : d.tt; }
         else if (act === 'loc-nv') { loc = loc === d.acc ? '' : d.acc; }
         else { return; }
@@ -243,6 +302,7 @@
     function nap(goi) {
         du = goi && goi.ca ? goi : null;
         if (du && loc && !du.thieu[loc] && !du.ca.some(function (c) { return c.acc === loc; })) { loc = ''; }
+        if (du && locKhung && !du.khung.some(function (k) { return k.ma === locKhung; })) { locKhung = ''; }
         ve();
         return Date.now();
     }

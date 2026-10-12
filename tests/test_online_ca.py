@@ -135,9 +135,65 @@ def test_doi_sang_ngay_mai_ve_du_kien_chua_hen_gio_va_tinh_lai_hai_ngay(hai_nguo
     c = oc.ds_ca(PHONG, mai)[0]
     assert (c["khung"], c["tt"]) == ("chua", "du_kien") and "Dời sang ngày 11/09" in c["ls"][-1]["viec"]
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].onl_sang == 0
-    j = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)                         # mã này đã nằm ở ngày mai
+    with pytest.raises(oc.LoiOnline, match="dời sang ngày mai"):                   # mã đã dời đi thì không thêm lại ở hôm nay
+        oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)
+    oc.them("DAAAP0002", a, "08-10", PHONG, "k", mai)                              # mã trùng sẵn ở ngày mai thì không dời được
+    j = oc.them("DAAAP0002", a, "08-10", PHONG, "k", NGAY)
     with pytest.raises(oc.LoiOnline, match="đã có"):
         oc.doi_ngay_mai(j, PHONG, "k")
+
+
+def test_dan_nhieu_ma_mot_lan_bo_qua_ma_trung_va_ma_sai(hai_nguoi):
+    a, _ = hai_nguoi
+    assert oc.tach_ma("daaap1001, DAAAP1002;daaap-1001  xx\nDAAAP1003") == (["DAAAP1001", "DAAAP1002", "DAAAP1003"], ["xx"])
+    oc.them("DAAAP1002", a, "08-10", PHONG, "k", NGAY)
+    kq = oc.them_nhieu("DAAAP1001 DAAAP1002 DAAAP1003 xx", a, "10-12", PHONG, "k", NGAY)
+    assert kq["them"] == ["DAAAP1001", "DAAAP1003"]
+    assert ("DAAAP1002", "đã có trong ngày") in kq["bo_qua"] and ("xx", "mã không hợp lệ") in kq["bo_qua"]
+    assert [c["khung"] for c in oc.ds_ca(PHONG, NGAY)] == ["08-10", "10-12", "10-12"]
+    with pytest.raises(oc.LoiOnline):                                               # toàn mã đã có: báo lỗi chứ không im lặng
+        oc.them_nhieu("DAAAP1001", a, "10-12", PHONG, "k", NGAY)
+
+
+def test_doi_nhieu_ca_mot_lan_sang_khung_khac_hoac_sang_mai(hai_nguoi):
+    a, _ = hai_nguoi
+    ids = [oc.them(f"DAAAP200{i}", a, "08-10", PHONG, "k", NGAY) for i in range(3)]
+    kq = oc.doi_nhieu(ids[:2], "khung", "1530-1730", PHONG, "k")
+    assert kq == {"xong": 2, "loi": []} and [c["khung"] for c in oc.ds_ca(PHONG, NGAY)] == ["08-10", "1530-1730", "1530-1730"]
+    kq = oc.doi_nhieu(ids[1:], "mai", "", PHONG, "k")
+    assert kq["xong"] == 2 and len(oc.ds_ca(PHONG, NGAY)) == 1 and len(oc.ds_ca(PHONG, NGAY + timedelta(days=1))) == 2
+    assert [c["doi"] for c in oc.ds_ca(PHONG, NGAY + timedelta(days=1))] == [2, 1]      # ca dời khung rồi dời mai: 2 lần; ca chỉ dời mai: 1
+
+
+def test_online_luc_va_khung_dau_de_tinh_dung_hen(hai_nguoi):
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import OnlineCa
+    a, _ = hai_nguoi
+    i = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)
+    oc.doi_khung(i, "10-12", PHONG, "k")
+    oc.doi_trang_thai(i, "da_online", PHONG, "k")
+    with session_scope() as s:
+        r = s.get(OnlineCa, i)
+        assert (r.khung, r.khung_dau) == ("10-12", "08-10") and r.online_luc is not None
+    oc.doi_trang_thai(i, "dang_lam", PHONG, "k")
+    with session_scope() as s:
+        assert s.get(OnlineCa, i).online_luc is None
+
+
+def test_ton_cua_chi_goi_y_hd_chua_co_ca_trong_ngay(hai_nguoi):
+    a, b = hai_nguoi
+    from app import phan_tich as pt
+    ton = pt.hop_dong_ton(PHONG)
+    acc = ton.acc_norm.value_counts().index[0]
+    ds = oc.ton_cua(acc, PHONG, NGAY)
+    assert ds and all(set(x) == {"ma", "ton", "goi"} for x in ds) and ds == sorted(ds, key=lambda x: -x["ton"])
+    nv = {x["a"] for x in oc.nhan_vien(tuple(PHONG), NGAY.isoformat())}
+    if acc in nv:
+        oc.them(ds[0]["ma"], acc, "08-10", PHONG, "k", NGAY)
+        assert ds[0]["ma"] not in {x["ma"] for x in oc.ton_cua(acc, PHONG, NGAY)}
+    assert oc.ton_cua("", PHONG, NGAY) == [] and oc.ton_cua(a, ["IBB2"], NGAY) is not None
 
 
 def test_chi_nhac_nguoi_da_nhap_du_kien_ma_chua_khai_du_gio_nguoi_du_kien_0_an_han(hai_nguoi):
@@ -249,3 +305,82 @@ def test_trang_bao_cao_ngay_co_muc_theo_doi_online_va_khong_trung_id():
         tat = ids(baocaongay.layout())
         assert not {i for i in tat if tat.count(i) > 1}
         assert {"onl-du-lieu", "onl-sk", "onl-hero", "onl-nguoi", "onl-bang", "onl-f-hd", "onl-f-nv", "onl-f-khung", "onl-md"} <= set(tat)
+
+
+# ------------------------------------------------------------------ tỷ lệ đúng hẹn + xu hướng
+def _ca_gia(tt, khung_dau, luc_vn=None, ngay=NGAY, khung=None):
+    """Ca giả để thử `ket_qua`: luc_vn là giờ Việt Nam lúc bấm Đã online (đổi sang UTC như database)."""
+    from datetime import datetime
+    return {"ngay": ngay, "tt": tt, "khung": khung or khung_dau, "khung_dau": khung_dau,
+            "online_luc": (luc_vn - timedelta(hours=7)) if luc_vn else None}
+
+
+def test_ket_qua_dung_hen_tre_chua_len_cho_va_khong_hen():
+    from datetime import datetime
+
+    from app import online_ca_phan_tich as pa
+    hn = date(2026, 10, 12)
+    at = lambda h, m, d=hn: datetime(d.year, d.month, d.day, h, m)           # noqa: E731
+    assert pa.ket_qua(_ca_gia("da_online", "08-10", at(9, 59), hn), hn, 600) == "dung"          # còn trong hạn 10h
+    assert pa.ket_qua(_ca_gia("da_online", "08-10", at(10, 5), hn), hn, 700) == "tre"           # muộn hơn hạn
+    assert pa.ket_qua(_ca_gia("da_online", "08-10", at(9, 0, date(2026, 10, 13)), hn), hn, 700) == "tre"   # online sang ngày khác
+    assert pa.ket_qua(_ca_gia("da_online", "08-10", at(11, 0), hn, khung="10-12"), hn, 700) == "tre"        # dời khung rồi mới online: xét hẹn ban đầu
+    assert pa.ket_qua(_ca_gia("dang_lam", "08-10", ngay=hn), hn, 601) == "chua_len"             # hôm nay quá hạn mà chưa online
+    assert pa.ket_qua(_ca_gia("dang_lam", "1330-1530", ngay=hn), hn, 600) == "cho"            # chưa tới hạn: chưa tính
+    assert pa.ket_qua(_ca_gia("du_kien", "08-10", ngay=hn - timedelta(days=1)), hn, 0) == "chua_len"        # ngày đã qua
+    assert pa.ket_qua(_ca_gia("doi_mai", "08-10", ngay=hn), hn, 0) == "chua_len"
+    assert pa.ket_qua(_ca_gia("da_online", "chua", at(9, 0), hn), hn, 700) == "khong_hen"       # chưa hẹn giờ: không có hẹn để so
+
+
+def test_hieu_qua_theo_nhan_vien_va_khung_hen(hai_nguoi):
+    from datetime import datetime
+
+    from sqlalchemy import update
+
+    from app import online_ca_phan_tich as pa
+    from app.db import session_scope
+    from app.models import OnlineCa
+    a, b = hai_nguoi
+    ids = [oc.them("DAAAP3001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP3002", a, "08-10", PHONG, "k", NGAY),
+           oc.them("DAAAP3003", b, "10-12", PHONG, "k", NGAY), oc.them("DAAAP3004", b, "chua", PHONG, "k", NGAY)]
+    for i in ids[:3]:
+        oc.doi_trang_thai(i, "da_online", PHONG, "k")
+    with session_scope() as s:                                                     # giờ bấm: ca 1 đúng hạn, ca 3 muộn
+        s.execute(update(OnlineCa).where(OnlineCa.id == ids[0]).values(online_luc=datetime(2026, 9, 10, 2, 30)))     # 09:30 VN
+        s.execute(update(OnlineCa).where(OnlineCa.id == ids[2]).values(online_luc=datetime(2026, 9, 10, 6, 0)))      # 13:00 VN, hẹn 10-12
+    r = pa.hieu_qua(PHONG, NGAY, NGAY, now=0)
+    nv = {x["acc"]: x for x in r["nv"]}
+    assert nv[a]["ca"] == 2
+    assert nv[a]["dung"] == 1 and nv[a]["tre"] == 1                                # ca 2 online lúc thật (khác ngày): muộn
+    assert nv[b]["tre"] == 1 and nv[b]["khong_hen"] == 1 and nv[b]["ty_le"] == 0
+    kh = {k["ma"]: k for k in r["khung"]}
+    assert kh["08-10"]["ca"] == 2 and kh["10-12"]["ca"] == 1 and kh["chua"]["ca"] == 1 and "1330-1530" not in kh
+    assert r["tong"]["ca"] == 4 and r["tong"]["ty_le"] == 33
+    assert pa.khoang("7", date(2026, 10, 12)) == (date(2026, 10, 6), date(2026, 10, 12))
+    assert pa.khoang("thang", date(2026, 10, 12)) == (date(2026, 10, 1), date(2026, 10, 12))
+
+
+def test_xu_huong_gom_so_bao_cao_ngay_theo_ngay_va_theo_nguoi(hai_nguoi):
+    from app import online_ca_phan_tich as pa
+    a, b = hai_nguoi
+    bc.luu(a, {"muc_tieu": 3, "da_ban": 2, "onl_sang": 2, "onl_chieu": 1, "da_online": 2}, PHONG, "k", NGAY)
+    bc.luu(b, {"muc_tieu": 1, "da_ban": 1, "onl_sang": 1, "da_online": 1}, PHONG, "k", NGAY)
+    x = pa.xu_huong(PHONG, NGAY, NGAY)
+    assert x["ngay"] == [{"ngay": NGAY, "mt": 4, "ban": 3, "dk": 4, "onl": 3, "nguoi": 2}] and x["tu_ngay_co"] == NGAY
+    nv = {r["acc"]: r for r in x["nv"]}
+    assert (nv[a]["mt"], nv[a]["ban"], nv[a]["dk"], nv[a]["onl"], nv[a]["so_ngay"]) == (3, 2, 3, 2, 1)
+    assert pa.xu_huong(PHONG, NGAY + timedelta(days=30), NGAY + timedelta(days=31)) == {"ngay": [], "nv": [], "tu_ngay_co": None}
+
+
+def test_cua_so_hieu_qua_va_thanh_tien_do_nhap_dung_duoc(hai_nguoi):
+    from app.ui.pages import baocaongay, baocaongay_hq
+    a, b = hai_nguoi
+    oc.them("DAAAP5001", a, "08-10", PHONG, "k", NGAY)
+    bc.luu(a, {"onl_sang": 1, "muc_tieu": 2}, PHONG, "k", NGAY)
+    ndung = baocaongay_hq.noi_dung(PHONG, "hn")
+    assert ndung and ndung[0].className == "onl-hq-tom"
+    df = bc.bang(PHONG, NGAY)
+    td = baocaongay._tien_do(df, bc.hom_nay())                                    # hôm nay: có thanh, bấm tên nhảy tới dòng
+    assert td is not None and td.className in ("bn-td", "bn-td xong")
+    assert baocaongay._tien_do(df, bc.hom_nay() - timedelta(days=1)) is None      # ngày đã qua: không nhắc
+    assert baocaongay._tien_do(df.iloc[0:0], bc.hom_nay()) is None

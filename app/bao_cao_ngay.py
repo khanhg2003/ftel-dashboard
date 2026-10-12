@@ -40,7 +40,6 @@ COT_THEM = {"da_online": "INTEGER", "da_ban": "INTEGER"}
 GHI_CHU_TOI_DA = 400
 TOI_DA = 999                       # chặn gõ nhầm 9999
 TRUOC_TOI_DA = 7                   # số ngày tương lai được phép nhập trước (chốt 26/09/2026)
-_ngay_don: date | None = None      # ngày đã dọn báo cáo cũ, để mỗi ngày chỉ dọn một lần
 _da_tao = False
 
 
@@ -361,29 +360,6 @@ def _phong_cua(acc_norm: str, phong: list[str]) -> str:
                                  AND phong_code IS NOT NULL ORDER BY ngay_online DESC LIMIT 1"""),
                          {"a": acc_norm}).scalar()
     return code if code in set(phong) else phong[0]
-
-
-def don_ngay_cu() -> int:
-    """Xoá báo cáo của các ngày ĐÃ QUA, chỉ giữ hôm nay và các ngày nhập trước (chốt 26/09/2026).
-
-    Báo cáo đầu ngày chỉ dùng trong đúng ngày đó rồi kết lại bằng ảnh PNG gửi nhóm, nên giữ lại
-    chỉ làm phình bảng. Gọi từ `layout()` của trang - KHÔNG gọi trong `dam_bao_bang()` để database
-    kiểm thử (dữ liệu tháng 9) không bị dọn mất khi chạy test.
-    """
-    global _ngay_don
-    hn = hom_nay()
-    if _ngay_don == hn:
-        return 0
-    dam_bao_bang()
-    with engine.begin() as c:
-        n = c.execute(text("DELETE FROM bao_cao_ngay WHERE ngay < :n"), {"n": hn.isoformat()}).rowcount
-        c.execute(text("DELETE FROM bao_cao_ngay_chu WHERE ngay < :n"), {"n": hn.isoformat()})
-    _ngay_don = hn
-    if n:
-        with session_scope() as s:
-            s.add(AuditLog(username="he_thong", action="don_bao_cao_ngay",
-                           detail=f"xoá {n} dòng của các ngày trước {hn:%d/%m/%Y}"))
-    return n or 0
 
 
 def moc_cap_nhat(phong: list[str], ngay: date | None = None) -> str:

@@ -156,7 +156,6 @@ def layout():
     if not ds:
         return alert("Tài khoản này không dùng mục Báo cáo ngày.", "bad")
     bc.dam_bao_bang()
-    bc.don_ngay_cu()                          # xoá báo cáo của các ngày đã qua cho nhẹ bảng
     ten = {p["code"]: p["ten"] for p in phong_order()}
     hom = bc.hom_nay()
     return html.Div([
@@ -173,6 +172,8 @@ def layout():
                                                   style={"minWidth": "220px"})),
                      style={} if _dung_chung() else AN),
             html.Div(className="grow"),
+            html.Button([icon("trend", 14), html.Span("Hiệu quả & xu hướng")], id="onl-hq-mo", className="btn", n_clicks=0,
+                        title="Tỷ lệ ca lên đúng dự kiến và xu hướng theo ngày"),
             html.Button([icon("camera", 14), html.Span("Tạo ảnh báo cáo", id="bn-png-chu")], id="bn-png",
                         className="btn primary", n_clicks=0, title="Vẽ ảnh PNG để gửi nhóm Zalo"),
         ], className="toolbar loc-trang"),
@@ -191,6 +192,7 @@ def layout():
         # chỉ chạy vài giây sau khi mình vừa sửa, bình thường tắt hẳn để không bắn request rỗng
         dcc.Interval(id="bn-nhip-va", interval=NHIP_VA_MS, disabled=True),
         html.Div(id="bn-msg"),
+        html.Div(id="bn-tien-do"),
         html.Div(id="bn-tom-tat", className="kpi-row kpi-3"),
 
         html.Div([
@@ -247,8 +249,8 @@ def _chon_dang():
 
 def _khung_online() -> list:
     """Mục Theo dõi Online dưới bảng (xem `baocaongay_online.py`)."""
-    from app.ui.pages import baocaongay_online
-    return baocaongay_online.khung()
+    from app.ui.pages import baocaongay_hq, baocaongay_online
+    return [*baocaongay_online.khung(), baocaongay_hq.khung()]
 
 
 def _khung_giong() -> list:
@@ -341,6 +343,23 @@ def _tom_tat(t: dict) -> list:
     ]
 
 
+def _tien_do(df: pd.DataFrame, d: date):
+    """Thanh tiến độ nhập báo cáo đầu ngày: bao nhiêu người đã nhập, ai chưa (bấm tên là nhảy tới dòng đó, assets/tien_do_nhap.js).
+    Chỉ hiện cho hôm nay và ngày nhập trước: ngày đã qua nhắc thì vô nghĩa."""
+    if df.empty or d < bc.hom_nay():
+        return None
+    chua = df[~df.da_nhap]
+    tong, xong = len(df), len(df) - len(chua)
+    if chua.empty:
+        return html.Div(f"✓ Cả phòng đã nhập báo cáo ({tong}/{tong})", className="bn-td xong")
+    ten = [html.Button(r.ho_ten, className="bn-td-nv", **{"data-bn-acc": r.acc_norm}) for r in chua.head(10).itertuples()]
+    them = [html.Span(f"và {len(chua) - 10} người nữa trong bảng", className="bn-td-them")] if len(chua) > 10 else []
+    return html.Div([html.Div([html.B(f"{xong}/{tong}"), " người đã nhập báo cáo", html.Span(className="bn-td-thanh",
+                                                                                          children=html.I(style={"width": f"{xong * 100 // tong}%"}))],
+                              className="bn-td-so"),
+                     html.Div(["Chưa nhập: ", *ten, *them], className="bn-td-ds")], className="bn-td")
+
+
 def _dong_luoi(df: pd.DataFrame) -> list[dict]:
     """Dòng cho bảng. Người CHƯA nhập thì bốn ô sale để trống hẳn (None) chứ không phải số 0:
     ag-grid chỉ báo `cellValueChanged` khi giá trị thay đổi, nên nếu ô sẵn là 0 thì gõ 0 vào
@@ -416,7 +435,7 @@ def register(app):
                   Output("bn-luoi", "rowData"), Output("bn-luoi", "rowTransaction"),
                   Output("bn-ghim", "data"),
                   Output("bn-the", "children"), Output("bn-tieu-de", "children"), Output("bn-mo-ta", "children"),
-                  Output("bn-moc", "data"),
+                  Output("bn-moc", "data"), Output("bn-tien-do", "children"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-toi-la", "value"),
                   Input("bn-da-luu", "data"), Input("bn-nhip", "n_intervals"),
                   State("ui-vw", "data"), State("bn-moc", "data"))
@@ -436,7 +455,7 @@ def register(app):
         t = bc.tom_tat(phong, d)
         if df.empty:
             return [], _tom_tat(t), [], no_update, no_update, [], "Bảng chỉ số toàn bộ nhân sự", \
-                "Phòng chưa có số liệu (chưa nạp file Internet của tháng này).", moc
+                "Phòng chưa có số liệu (chưa nạp file Internet của tháng này).", moc, None
         chon = [{"label": r.ho_ten, "value": r.acc_norm} for r in df.itertuples()]
         df = df.assign(sua_duoc=True)             # sale sửa được mọi dòng (chốt 24/09/2026)
         if vua_sua:
@@ -444,7 +463,7 @@ def register(app):
             # duyệt tự tính - nhờ vậy cộng dọc cột luôn ra đúng dòng TỔNG. Riêng dòng vừa sửa để
             # `_va_dong` vá sau: vá ngay là ag-grid xoá undo stack, Ctrl+Z hết tác dụng.
             return (chon, _tom_tat(t), no_update, no_update, _ghim(df),
-                    no_update, no_update, no_update, moc)
+                    no_update, no_update, no_update, moc, _tien_do(df, d))
         dien_thoai = (vw or {}).get("w", 1440) < 768
         tieu_de = [f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"]
         if d > bc.hom_nay():                      # điền trước cho hôm sau: phải nói rõ kẻo đọc nhầm
@@ -457,7 +476,7 @@ def register(app):
         if _dung_chung() and not toi_la:
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
         return (chon, _tom_tat(t), _dong_luoi(df), no_update, _ghim(df),
-                _the(df) if dien_thoai else [], tieu_de, mo_ta, moc)
+                _the(df) if dien_thoai else [], tieu_de, mo_ta, moc, _tien_do(df, d))
 
     @app.callback(Output("bn-luoi", "rowTransaction", allow_duplicate=True),
                   Output("bn-da-va", "data"), Output("bn-nhip-va", "disabled", allow_duplicate=True),
@@ -599,9 +618,10 @@ def register(app):
         return "", gio_viet_nam().isoformat()
 
     _dang_ky_chu(app)
-    from app.ui.pages import baocaongay_giong, baocaongay_online
+    from app.ui.pages import baocaongay_giong, baocaongay_hq, baocaongay_online
     baocaongay_giong.register(app)
     baocaongay_online.register(app)
+    baocaongay_hq.register(app)
 
     @app.callback(Output("bn-tai", "data"), Input("bn-png", "n_clicks"), State("bn-phong", "value"),
                   State("bn-ngay", "date"),

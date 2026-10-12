@@ -428,8 +428,10 @@ class OnlineCa(Base):
     phong_code: Mapped[str] = mapped_column(String(20), index=True)
     ma_hd: Mapped[str] = mapped_column(String(30))
     acc_norm: Mapped[str] = mapped_column(String(60), index=True)
-    khung: Mapped[str] = mapped_column(String(16))                              # mã khung giờ, xem online_ca.khung()
-    trang_thai: Mapped[str] = mapped_column(String(12), default="du_kien")      # du_kien | dang_lam | da_online
+    khung: Mapped[str] = mapped_column(String(16))                              # mã khung giờ HIỆN TẠI, xem online_ca.khung()
+    khung_dau: Mapped[str | None] = mapped_column(String(16), nullable=True)    # khung giờ sale hẹn LÚC TẠO (để tính tỷ lệ đúng hẹn)
+    trang_thai: Mapped[str] = mapped_column(String(12), default="du_kien")      # du_kien | dang_lam | da_online | doi_mai
+    online_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # UTC, lúc sale bấm Đã online
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
     lich_su: Mapped[str | None] = mapped_column(Text, nullable=True)
     tao_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC

@@ -28,7 +28,8 @@ from app.db import engine, session_scope
 from app.models import OnlineCa
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
-TRANG_THAI = ("du_kien", "dang_lam", "da_online")
+TRANG_THAI = ("du_kien", "dang_lam", "da_online")        # sale tự đặt; "doi_mai" là trạng thái app đặt khi dời sang ngày kế
+COT_THEM = {"khung_dau": "VARCHAR(16)", "online_luc": "TIMESTAMP"}
 NHAN_TT = {"du_kien": "Dự kiến", "dang_lam": "Đang triển khai", "da_online": "Đã online"}
 GHI_CHU_TOI_DA = 300
 LS_TOI_DA = 30                                  # số dòng lịch sử giữ lại cho mỗi phiếu
@@ -53,6 +54,12 @@ def dam_bao_bang() -> None:
     global _da_tao
     if not _da_tao:
         OnlineCa.__table__.create(engine, checkfirst=True)
+        from sqlalchemy import inspect
+        co = {c["name"] for c in inspect(engine).get_columns("online_ca")}
+        for ten, kieu in COT_THEM.items():
+            if ten not in co:
+                with engine.begin() as c:
+                    c.execute(text(f"ALTER TABLE online_ca ADD COLUMN {ten} {kieu}"))
         _da_tao = True
 
 
@@ -101,15 +108,17 @@ def _ls(r) -> list[dict]:
 
 
 def _dict(r: OnlineCa) -> dict:
+    ls = _ls(r)
     return {"id": r.id, "ma": r.ma_hd, "acc": r.acc_norm, "khung": r.khung, "tt": r.trang_thai, "gc": r.ghi_chu or "",
-            "ls": _ls(r), "ai": r.cap_nhat_boi or r.tao_boi or ""}
+            "ls": ls, "ai": r.cap_nhat_boi or r.tao_boi or "", "doi": sum(x.get("viec", "").startswith("Dời") for x in ls)}
 
 
 def ds_ca(phong: list[str], ngay: date) -> list[dict]:
     dam_bao_bang()
     thu_tu = {k["ma"]: i for i, k in enumerate(khung())}
     with session_scope() as s:
-        rows = s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong))).scalars().all()
+        rows = s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong),
+                                                OnlineCa.trang_thai != "doi_mai")).scalars().all()       # ca đã dời sang mai không còn trên bảng
         ca = [_dict(r) for r in rows]
     return sorted(ca, key=lambda c: (thu_tu.get(c["khung"], 99), c["id"]))
 
@@ -206,26 +215,57 @@ def _tim(s, id_: int, phong: list[str]) -> OnlineCa:
     return r
 
 
-def them(ma_hd, acc_norm: str, khung_ma: str, phong: list[str], ai: str, ngay: date, ghi_chu: str = "") -> int:
+def tach_ma(chu) -> tuple[list[str], list[str]]:
+    """Tách nhiều mã hợp đồng dán một lần (cách nhau dấu cách, phẩy, chấm phẩy, xuống dòng): (mã hợp lệ không trùng, chữ sai)."""
+    dung, sai = [], []
+    for t in re.split(r"[\s,;]+", str(chu or "")):
+        if not t:
+            continue
+        try:
+            ma = chuan_ma(t)
+        except LoiOnline:
+            sai.append(t[:20])
+            continue
+        if ma not in dung:
+            dung.append(ma)
+    return dung, sai
+
+
+def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, ngay: date, ghi_chu: str = "") -> dict:
+    """Thêm một hoặc nhiều ca cùng nhân viên + khung giờ. Trả {"them": [mã], "bo_qua": [(mã hoặc chữ, lý do)]}.
+    Mã đã có trong ngày thì bỏ qua và báo lại, các mã còn lại vẫn thêm."""
     dam_bao_bang()
-    ma = chuan_ma(ma_hd)
+    ma_ds, sai = tach_ma(chu)
+    if not ma_ds:
+        raise LoiOnline("Mã hợp đồng gồm chữ và số, VD: DAAAP6381." if not sai else f"Mã không hợp lệ: {', '.join(sai)}.")
     if not acc_norm or acc_norm not in {x["a"] for x in nhan_vien(tuple(phong), ngay.isoformat())}:
         raise LoiOnline("Chọn nhân viên phụ trách ca này.")
     _khung_hop_le(khung_ma)
+    ket = {"them": [], "bo_qua": [(t, "mã không hợp lệ") for t in sai]}
     with session_scope() as s:
-        da = s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0],
-                                              OnlineCa.ma_hd == ma)).scalars().first()
-        if da is not None:
-            raise LoiOnline(f"HĐ {ma} đã có trong ngày {ngay:%d/%m} rồi.")
-        r = OnlineCa(ngay=ngay, phong_code=phong[0], ma_hd=ma, acc_norm=acc_norm, khung=khung_ma, trang_thai="du_kien",
-                     ghi_chu=(ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
-        _ghi_ls(r, ai, f"Tạo ca, khung {_nhan_khung(khung_ma)}")
-        _dau(r, ai)
-        s.add(r)
-        s.flush()
-        id_ = r.id
+        da = {r.ma_hd: r.trang_thai for r in s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0])).scalars()}
+        for ma in ma_ds:
+            if ma in da:
+                ket["bo_qua"].append((ma, "đã dời sang ngày mai" if da[ma] == "doi_mai" else "đã có trong ngày"))
+                continue
+            r = OnlineCa(ngay=ngay, phong_code=phong[0], ma_hd=ma, acc_norm=acc_norm, khung=khung_ma, khung_dau=khung_ma,
+                         trang_thai="du_kien", ghi_chu=(ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
+            _ghi_ls(r, ai, f"Tạo ca, khung {_nhan_khung(khung_ma)}")
+            _dau(r, ai)
+            s.add(r)
+            ket["them"].append(ma)
+    if not ket["them"]:
+        raise LoiOnline("; ".join(f"{m}: {ly}" for m, ly in ket["bo_qua"]) + ".")
     dong_bo_bang(ngay, phong, [acc_norm], ai)
-    return id_
+    return ket
+
+
+def them(ma_hd, acc_norm: str, khung_ma: str, phong: list[str], ai: str, ngay: date, ghi_chu: str = "") -> int:
+    """Thêm đúng một ca (mã sai hoặc đã có thì báo lỗi). Trả id của ca."""
+    ma = chuan_ma(ma_hd)
+    ket = them_nhieu(ma, acc_norm, khung_ma, phong, ai, ngay, ghi_chu)
+    with session_scope() as s:
+        return s.execute(select(OnlineCa.id).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0], OnlineCa.ma_hd == ket["them"][0])).scalar()
 
 
 def _nhan_khung(ma: str) -> str:
@@ -242,6 +282,7 @@ def doi_trang_thai(id_: int, tt: str, phong: list[str], ai: str) -> None:
             return
         _ghi_ls(r, ai, f"{NHAN_TT[r.trang_thai]} → {NHAN_TT[tt]}")
         r.trang_thai = tt
+        r.online_luc = utc_bay_gio() if tt == "da_online" else None
         _dau(r, ai)
         ngay, acc = r.ngay, r.acc_norm
     dong_bo_bang(ngay, phong, [acc], ai)
@@ -262,7 +303,8 @@ def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
 
 
 def doi_ngay_mai(id_: int, phong: list[str], ai: str) -> date:
-    """Dời ca sang ngày kế tiếp, về trạng thái Dự kiến và "Chưa hẹn giờ" để sáng mai sale chọn khung."""
+    """Dời ca sang ngày kế tiếp: ca cũ giữ lại ở ngày hôm nay với trạng thái "doi_mai" (không hiện trên bảng, nhưng tính là ca không lên đúng
+    hẹn khi thống kê), ca mới ở ngày mai về Dự kiến + "Chưa hẹn giờ" để sáng mai sale chọn khung."""
     dam_bao_bang()
     with session_scope() as s:
         r = _tim(s, id_, phong)
@@ -274,11 +316,30 @@ def doi_ngay_mai(id_: int, phong: list[str], ai: str) -> date:
             raise LoiOnline(f"HĐ {r.ma_hd} đã có trong ngày {moi:%d/%m} rồi.")
         cu, acc = r.ngay, r.acc_norm
         _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}")
-        r.ngay, r.khung, r.trang_thai = moi, "chua", "du_kien"
+        r.trang_thai, r.online_luc = "doi_mai", None
         _dau(r, ai)
+        n = OnlineCa(ngay=moi, phong_code=r.phong_code, ma_hd=r.ma_hd, acc_norm=acc, khung="chua", khung_dau="chua", trang_thai="du_kien",
+                     ghi_chu=r.ghi_chu, lich_su=r.lich_su, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
+        _dau(n, ai)
+        s.add(n)
     dong_bo_bang(cu, phong, [acc], ai, ep=True)
     dong_bo_bang(moi, phong, [acc], ai)
     return moi
+
+
+def doi_nhieu(ids, loai: str, khung_ma: str, phong: list[str], ai: str) -> dict:
+    """Dời nhiều ca một lần: loai = "khung" (sang khung_ma) hoặc "mai". Trả {"xong": số ca, "loi": [chữ lỗi]}."""
+    xong, loi = 0, []
+    for i in ids or []:
+        try:
+            if loai == "mai":
+                doi_ngay_mai(i, phong, ai)
+            else:
+                doi_khung(i, khung_ma, phong, ai)
+            xong += 1
+        except LoiOnline as e:
+            loi.append(str(e))
+    return {"xong": xong, "loi": loi}
 
 
 def sua(id_: int, acc_norm: str, ghi_chu: str, phong: list[str], ai: str) -> None:
@@ -307,3 +368,20 @@ def xoa(id_: int, phong: list[str], ai: str) -> dict:
         s.execute(delete(OnlineCa).where(OnlineCa.id == r.id))
     dong_bo_bang(thong_tin["ngay"], phong, [acc], ai, ep=True)
     return thong_tin
+
+
+def ton_cua(acc_norm: str, phong: list[str], ngay: date) -> list[dict]:
+    """Hợp đồng TỒN (đã ký, chưa online, xem trang Nhập tồn) của một nhân viên mà hôm nay chưa có ca: [{ma, ton: số ngày chờ, goi}].
+    Dùng để sale chọn mã thay vì gõ. Không lấy tên khách hàng."""
+    from app import phan_tich as pt
+    if not acc_norm:
+        return []
+    ton = pt.hop_dong_ton(list(phong))
+    if ton.empty:
+        return []
+    ton = ton[ton.acc_norm == acc_norm]
+    co = {c["ma"] for c in ds_ca(phong, ngay)}
+    with session_scope() as s:
+        co |= set(s.execute(select(OnlineCa.ma_hd).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong))).scalars())
+    ton = ton[~ton.hop_dong.isin(co)].sort_values("so_ngay_cho", ascending=False)
+    return [{"ma": r.hop_dong, "ton": int(r.so_ngay_cho or 0), "goi": str(r.goi_dich_vu or "")} for r in ton.itertuples()][:40]

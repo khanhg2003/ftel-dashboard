@@ -301,31 +301,25 @@ def test_con_phai_onl_cong_doc_va_cong_ngang_deu_khop(mot_nguoi):
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == NGAY))
 
 
-def test_don_ngay_cu_giu_hom_nay_va_ngay_nhap_truoc(mot_nguoi):
-    """Chốt 26/09/2026: báo cáo của ngày đã qua xoá đi cho nhẹ bảng, chỉ giữ hôm nay và ngày
-    nhập trước. Dọn theo NGÀY nên phải giữ nguyên các dòng của hôm nay."""
+def test_bao_cao_cac_ngay_da_qua_duoc_giu_lai_de_xem_xu_huong(mot_nguoi):
+    """Đổi 12/10/2026 (chủ app chọn "giữ lịch sử từng ngày"): trước đây báo cáo ngày đã qua bị xoá, nay giữ lại để vẽ xu hướng."""
     from datetime import timedelta
+
     from sqlalchemy import delete, select
+
     from app.db import session_scope
     from app.models import BaoCaoNgay
-
-    hn, hqua = bc.hom_nay(), bc.hom_nay() - timedelta(days=1)
-    mai = bc.hom_nay() + timedelta(days=1)
+    assert not hasattr(bc, "don_ngay_cu")
+    hqua = bc.hom_nay() - timedelta(days=3)
     try:
-        for d in (hqua, hn, mai):
-            bc.luu(mot_nguoi, {"khtn": 1}, PHONG, "kiemthu.tp", d)
-        bc._ngay_don = None                      # ép dọn lại trong cùng lần chạy
-        bc.don_ngay_cu()
+        bc.luu(mot_nguoi, {"khtn": 4}, PHONG, "kiemthu.tp", hqua)
         with session_scope() as s:
-            con = {r.ngay for r in s.execute(select(BaoCaoNgay)).scalars()
-                   if r.acc_norm == mot_nguoi}
-        assert hqua not in con                   # ngày đã qua: xoá
-        assert hn in con and mai in con          # hôm nay và ngày nhập trước: giữ
+            con = [r.khtn for r in s.execute(select(BaoCaoNgay)).scalars() if r.acc_norm == mot_nguoi and r.ngay == hqua]
+        assert con == [4]
     finally:
-        bc._ngay_don = None
         with session_scope() as s:
-            for d in (hqua, hn, mai):
-                s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == d))
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == hqua))
+
 
 
 def test_chan_so_vo_ly(mot_nguoi):

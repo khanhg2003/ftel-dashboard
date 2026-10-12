@@ -146,9 +146,8 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      vượt dự kiến để SỐ ÂM (tô xanh). Chủ app chốt 26/09/2026 là mọi con số phải cộng được cả hai
      chiều - kẹp ở 0 thì cộng dọc cột ra số lớn hơn dòng TỔNG, còn ép dòng TỔNG bằng tổng trừ tổng
      thì cộng dọc lại không khớp. Để số âm là cách duy nhất khớp cả hai. `tom_tat` (ảnh báo cáo) cũng
-     bỏ `max(..., 0)` cho cùng một số. **Báo cáo của ngày ĐÃ QUA bị xoá** (`don_ngay_cu()`, gọi từ `layout()` chứ
-     KHÔNG gọi trong `dam_bao_bang()` - gọi ở đó thì database kiểm thử tháng 9 bị dọn mất khi chạy
-     test); chỉ giữ hôm nay và các ngày nhập trước. **Trang tự nạp lại** mỗi `NHIP_MS` (60 giây; 15 giây
+     bỏ `max(..., 0)` cho cùng một số. **Báo cáo của các ngày đã qua được GIỮ LẠI** (đổi 12/10/2026, chủ app chọn "giữ lịch sử từng ngày"; trước đó `don_ngay_cu()` xoá
+     ngày đã qua, đã bỏ hẳn - đừng dựng lại) để vẽ xu hướng ở cửa sổ "Hiệu quả & xu hướng". **Trang tự nạp lại** mỗi `NHIP_MS` (60 giây; 15 giây
      làm Vercel Hobby cạn 4 giờ CPU, thực tế 9 giờ trong một chu kỳ - 09/10/2026) và `assets/nhip_an.js` TẮT nhịp
      khi tab ẩn, bật lại + nạp ngay khi quay về. Chỉ dựng lại bảng khi `moc_cap_nhat()` đổi, để không cắt ngang ô
      người khác đang gõ. Thêm nhịp tự hỏi máy chủ ở trang khác thì phải tính CPU: mỗi lượt là một lần gọi hàm.
@@ -164,6 +163,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      Khung phụ (`phu: true`: Sau 17h30, Chưa hẹn giờ) chỉ hiện cột khi đang có ca. Phiếu được GIỮ qua các ngày (khác báo cáo
      đầu ngày). Giao diện vẽ ở trình duyệt (`assets/online.js`, thẻ đổi trạng thái / dời khung tức thì rồi mới báo máy chủ, giống Danh bạ);
      `thongKe` bên JS phải giống `online_ca.thong_ke` (có test đối chiếu bằng Node).
+     **Tiến độ nhập** (`_tien_do`): thanh đầu trang "x/y người đã nhập", tên người chưa nhập bấm là cuộn tới dòng + mở ô (`assets/tien_do_nhap.js`); chỉ hiện hôm nay và
+     ngày nhập trước. **Cửa sổ "Hiệu quả & xu hướng"** (`baocaongay_hq.py`, quy tắc ở `app/online_ca_phan_tich.py`): tỷ lệ ca lên ĐÚNG hẹn = online khi còn trong
+     hạn của khung giờ HẸN LÚC TẠO (`khung_dau`), theo giờ sale BẤM Đã online (`online_luc`); trễ / chưa lên / đã dời mai là các nhóm còn lại, ca "Chưa hẹn
+     giờ" và ca chưa tới hạn không tính vào tỷ lệ. Dời sang mai KHÔNG xoá ca cũ mà đổi thành `doi_mai` (không hiện trên bảng, vẫn tính là chưa lên) và tạo
+     ca mới ở ngày mai. Thêm ca có 3 đường: gõ / dán NHIỀU mã một lần (`them_nhieu`), chọn từ HĐ tồn của người đó (`ton_cua`, lấy `hop_dong_ton`, bấm là thêm),
+     nút "+ Thêm" ở đầu mỗi khung. Dải "giai đoạn trong ngày" (`onl-gd`) cho xem tổng quan từng khung và bấm để lọc; thanh "quá giờ" dời cả nhóm ca một
+     cú bấm (`doi_nhieu`), cuối ngày hỏi dời hết ca chưa online sang mai; ca dời từ 3 lần có nhãn cảnh báo.
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
      file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi

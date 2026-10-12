@@ -7,7 +7,7 @@ ONL chiều / Đã online trong bảng phía trên được tính lại từ phi
 """
 from __future__ import annotations
 
-from dash import ClientsideFunction, Input, Output, State, ctx, dcc, html, no_update
+from dash import ALL, ClientsideFunction, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
@@ -28,15 +28,18 @@ def khung() -> list:
         html.Div([
             html.Div(id="onl-hero"),
             html.Div(id="onl-nguoi"),
+            html.Div(id="onl-gd"),
             html.Div([
-                dcc.Input(id="onl-f-hd", type="text", className="inp onl-f-hd", maxLength=24, autoComplete="off",
-                          placeholder="Mã hợp đồng, VD: DAAAP6381"),
+                dcc.Input(id="onl-f-hd", type="text", className="inp onl-f-hd", maxLength=400, autoComplete="off",
+                          placeholder="Mã hợp đồng (dán nhiều mã cách nhau dấu cách)"),
                 html.Div(dcc.Dropdown(id="onl-f-nv", options=[], placeholder="Nhân viên phụ trách", clearable=False), className="onl-f-nv"),
                 html.Div(dcc.Dropdown(id="onl-f-khung", options=[{"label": k["nhan"], "value": k["ma"]} for k in khungs],
                                       value=khungs[0]["ma"], clearable=False, searchable=False), className="onl-f-khung"),
                 html.Button([icon("plus", 14), html.Span("Thêm ca")], id="onl-f-them", className="btn primary", n_clicks=0),
             ], className="onl-them-bar"),
+            html.Div(id="onl-ton", className="onl-ton"),
             html.Div(id="onl-msg"),
+            html.Div(id="onl-xuly"),
             html.Div(id="onl-canh-bao"),
             html.Div(id="onl-bang"),
         ], className="card onl", id="onl-goc"),
@@ -103,13 +106,14 @@ def register(app):
             raise PreventUpdate
         phong, d, ai = _ngu_canh(code, ngay, toi_la)
         try:
-            oc.them(hd, nv, khung_ma, phong, ai, d)
+            kq = oc.them_nhieu(hd, nv, khung_ma, phong, ai, d)
         except oc.LoiOnline as e:
             return no_update, alert(str(e), "bad"), no_update, no_update, no_update, no_update
-        ma = oc.chuan_ma(hd)
-        ghi_log("online_them", f"{ma} {d:%d/%m/%Y} {code} khung {khung_ma}")
+        ghi_log("online_them", f"{', '.join(kq['them'])} {d:%d/%m/%Y} {code} khung {khung_ma}")
         moi, luu, tat = _sau_khi_ghi([nv])
-        return "", None, moi, {"msg": f"✓ Đã thêm {ma} vào {oc._nhan_khung(khung_ma)}", "t": moi}, luu, tat
+        ten = kq["them"][0] if len(kq["them"]) == 1 else f"{len(kq['them'])} ca"
+        bo = alert("Bỏ qua: " + "; ".join(f"{m} ({ly})" for m, ly in kq["bo_qua"]) + ".", "warn") if kq["bo_qua"] else None
+        return "", bo, moi, {"msg": f"✓ Đã thêm {ten} vào {oc._nhan_khung(khung_ma)}", "t": moi}, luu, tat
 
     @app.callback(Output("onl-lam-moi", "data", allow_duplicate=True), Output("onl-msg", "children", allow_duplicate=True),
                   Output("bn-da-luu", "data", allow_duplicate=True), Output("bn-nhip-va", "disabled", allow_duplicate=True),
@@ -126,6 +130,13 @@ def register(app):
                 oc.doi_trang_thai(sk["id"], sk.get("val"), phong, ai)
             elif act == "khung":
                 oc.doi_khung(sk["id"], sk.get("val"), phong, ai)
+            elif act == "bulk":
+                acc_cua = {c["id"]: c["acc"] for c in oc.ds_ca(phong, d)}
+                ids = [i for i in (sk.get("ids") or []) if i in acc_cua]
+                kq = oc.doi_nhieu(ids, sk.get("loai"), sk.get("val") or "", phong, ai)
+                accs = [acc_cua[i] for i in ids]
+                if kq["loi"]:
+                    return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), *_sau_khi_ghi(accs)[1:])
             elif act == "mai":
                 oc.doi_ngay_mai(sk["id"], phong, ai)
             elif act == "xoa":
@@ -138,6 +149,42 @@ def register(app):
             return moi, alert(str(e), "bad"), no_update, no_update
         moi, luu, tat = _sau_khi_ghi(accs)
         return moi, None, (luu if accs else no_update), (tat if accs else no_update)
+
+    @app.callback(Output("onl-ton", "children"),
+                  Input("onl-f-nv", "value"), Input("onl-lam-moi", "data"), Input("onl-du-lieu", "data"),
+                  State("bn-phong", "value"), State("bn-ngay", "date"))
+    def _ton(nv, _moi, _du, code, ngay):
+        """Danh sách HĐ tồn của người đang chọn (chưa có ca hôm nay): bấm một dòng là thêm ca vào khung đang chọn."""
+        if not nv:
+            return None
+        phong, d, _ = _ngu_canh(code, ngay, None)
+        ds = oc.ton_cua(nv, phong, d)
+        if not ds:
+            return None
+        dong = [html.Button([html.Span(x["ma"], className="onl-ton-ma"), html.Span(f"tồn {x['ton']} ngày", className="onl-ton-n"),
+                             html.Span(x["goi"], className="onl-ton-goi"), html.Span("+ Thêm", className="onl-ton-them")],
+                            id={"type": "onl-ton", "ma": x["ma"]}, n_clicks=0, className="onl-ton-dong") for x in ds]
+        return html.Details([html.Summary(f"Chọn từ HĐ tồn của người này ({len(ds)})"), html.Div(dong, className="onl-ton-menu")],
+                            className="onl-ton-dd")
+
+    @app.callback(Output("onl-msg", "children", allow_duplicate=True), Output("onl-lam-moi", "data", allow_duplicate=True),
+                  Output("onl-thong-bao", "data", allow_duplicate=True), Output("bn-da-luu", "data", allow_duplicate=True),
+                  Output("bn-nhip-va", "disabled", allow_duplicate=True),
+                  Input({"type": "onl-ton", "ma": ALL}, "n_clicks"),
+                  State("onl-f-nv", "value"), State("onl-f-khung", "value"), State("bn-phong", "value"), State("bn-ngay", "date"),
+                  State("bn-toi-la", "value"), prevent_initial_call=True)
+    def _them_ton(_n, nv, khung_ma, code, ngay, toi_la):
+        t = ctx.triggered_id
+        if not isinstance(t, dict) or not ctx.triggered[0]["value"]:
+            raise PreventUpdate                                # nút vừa dựng lại, chưa ai bấm
+        phong, d, ai = _ngu_canh(code, ngay, toi_la)
+        try:
+            oc.them(t["ma"], nv, khung_ma, phong, ai, d)
+        except oc.LoiOnline as e:
+            return alert(str(e), "bad"), no_update, no_update, no_update, no_update
+        ghi_log("online_them", f"{t['ma']} {d:%d/%m/%Y} {code} khung {khung_ma} (từ tồn)")
+        moi, luu, tat = _sau_khi_ghi([nv])
+        return None, moi, {"msg": f"✓ Đã thêm {t['ma']} vào {oc._nhan_khung(khung_ma)}", "t": moi}, luu, tat
 
     @app.callback(Output("onl-md", "className"), Output("onl-md-tieu-de", "children"), Output("onl-md-id", "data"),
                   Output("onl-md-nv", "value"), Output("onl-md-gc", "value"), Output("onl-md-ls", "children"),
