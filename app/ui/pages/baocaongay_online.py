@@ -1,13 +1,13 @@
 """Mục "Theo dõi Online" nằm dưới bảng của trang Báo cáo ngày (quy tắc: app/online_ca.py; giao diện vẽ ở assets/online.js).
 
 Máy chủ chỉ làm ba việc: nạp gói dữ liệu của ngày (`onl-du-lieu`), nhận sự kiện từ trình duyệt qua `onl-sk` (đổi trạng thái, dời
-khung, dời mai, huỷ) và nhận form thêm ca / sửa ca. Phòng và ngày lấy từ chính bộ lọc của trang Báo cáo ngày
+khung, dời mai, huỷ, thêm ca) và nhận form sửa ca. Phòng và ngày lấy từ chính bộ lọc của trang Báo cáo ngày
 (`bn-phong`, `bn-ngay`); ai được xem / sửa thì theo đúng quyền của Báo cáo ngày (`bn._phong_hop_le`). Mỗi lần ca đổi, số ONL sáng /
 ONL chiều / Đã online trong bảng phía trên được tính lại từ phiếu (`online_ca.dong_bo_bang`) và dòng đó tự cập nhật.
 """
 from __future__ import annotations
 
-from dash import ALL, ClientsideFunction, Input, Output, State, ctx, dcc, html, no_update
+from dash import ClientsideFunction, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
@@ -15,32 +15,18 @@ from app import online_ca as oc
 from app.auth import ghi_log
 from app.thoi_gian import gio_viet_nam
 from app.ui.components import alert, modal
-from app.ui.icons import icon
 
 
 def khung() -> list:
     """Thẻ Theo dõi Online + hộp sửa ca, đặt ngay dưới bảng Báo cáo ngày."""
     oc.dam_bao_bang()
-    khungs = oc.khung()
     return [
         dcc.Store(id="onl-du-lieu"), dcc.Store(id="onl-sk"), dcc.Store(id="onl-lam-moi"), dcc.Store(id="onl-ve"),
-        dcc.Store(id="onl-thong-bao"), dcc.Store(id="onl-bao-xong"),
+        dcc.Store(id="onl-thong-bao"), dcc.Store(id="onl-bao-xong"), dcc.Store(id="onl-toi-la-xong"),
         html.Div([
             html.Div(id="onl-hero"),
-            html.Div(id="onl-nguoi"),
-            html.Div(id="onl-gd"),
-            html.Div([
-                dcc.Input(id="onl-f-hd", type="text", className="inp onl-f-hd", maxLength=400, autoComplete="off",
-                          placeholder="Mã hợp đồng (dán nhiều mã cách nhau dấu cách)"),
-                html.Div(dcc.Dropdown(id="onl-f-nv", options=[], placeholder="Nhân viên phụ trách", clearable=False), className="onl-f-nv"),
-                html.Div(dcc.Dropdown(id="onl-f-khung", options=[{"label": k["nhan"], "value": k["ma"]} for k in khungs],
-                                      value=khungs[0]["ma"], clearable=False, searchable=False), className="onl-f-khung"),
-                html.Button([icon("plus", 14), html.Span("Thêm ca")], id="onl-f-them", className="btn primary", n_clicks=0),
-            ], className="onl-them-bar"),
-            html.Div(id="onl-ton", className="onl-ton"),
             html.Div(id="onl-msg"),
             html.Div(id="onl-xuly"),
-            html.Div(id="onl-canh-bao"),
             html.Div(id="onl-bang"),
         ], className="card onl", id="onl-goc"),
         modal("onl-md", html.Span(id="onl-md-tieu-de"), [
@@ -76,14 +62,12 @@ def register(app):
                             Output("onl-ve", "data"), Input("onl-du-lieu", "data"))
     app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_bao"),
                             Output("onl-bao-xong", "data"), Input("onl-thong-bao", "data"), prevent_initial_call=True)
+    app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_toi_la"),
+                            Output("onl-toi-la-xong", "data"), Input("bn-toi-la", "value"))
 
-    @app.callback(Output("onl-f-nv", "options"), Output("onl-md-nv", "options"), Input("bn-toi-la", "options"))
+    @app.callback(Output("onl-md-nv", "options"), Input("bn-toi-la", "options"))
     def _chon_nv(opts):
-        return opts or [], opts or []
-
-    @app.callback(Output("onl-f-nv", "value"), Input("bn-toi-la", "value"), prevent_initial_call=True)
-    def _nv_mac_dinh(toi_la):
-        return toi_la if toi_la else no_update                 # tài khoản dùng chung: chọn "Tôi là" thì ô nhân viên tự điền theo
+        return opts or []
 
     @app.callback(Output("onl-du-lieu", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-nhip", "n_intervals"),
@@ -94,28 +78,7 @@ def register(app):
             raise PreventUpdate                                # nhịp tự động: chỉ nạp lại khi có người vừa sửa
         return oc.du_lieu(phong, d)
 
-    @app.callback(Output("onl-f-hd", "value"), Output("onl-msg", "children"), Output("onl-lam-moi", "data"),
-                  Output("onl-thong-bao", "data"), Output("bn-da-luu", "data", allow_duplicate=True),
-                  Output("bn-nhip-va", "disabled", allow_duplicate=True),
-                  Input("onl-f-them", "n_clicks"), Input("onl-f-hd", "n_submit"),
-                  State("onl-f-hd", "value"), State("onl-f-nv", "value"), State("onl-f-khung", "value"),
-                  State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
-                  prevent_initial_call=True)
-    def _them(n, sub, hd, nv, khung_ma, code, ngay, toi_la):
-        if not (n or sub):
-            raise PreventUpdate
-        phong, d, ai = _ngu_canh(code, ngay, toi_la)
-        try:
-            kq = oc.them_nhieu(hd, nv, khung_ma, phong, ai, d)
-        except oc.LoiOnline as e:
-            return no_update, alert(str(e), "bad"), no_update, no_update, no_update, no_update
-        ghi_log("online_them", f"{', '.join(kq['them'])} {d:%d/%m/%Y} {code} khung {khung_ma}")
-        moi, luu, tat = _sau_khi_ghi([nv])
-        ten = kq["them"][0] if len(kq["them"]) == 1 else f"{len(kq['them'])} ca"
-        bo = alert("Bỏ qua: " + "; ".join(f"{m} ({ly})" for m, ly in kq["bo_qua"]) + ".", "warn") if kq["bo_qua"] else None
-        return "", bo, moi, {"msg": f"✓ Đã thêm {ten} vào {oc._nhan_khung(khung_ma)}", "t": moi}, luu, tat
-
-    @app.callback(Output("onl-lam-moi", "data", allow_duplicate=True), Output("onl-msg", "children", allow_duplicate=True),
+    @app.callback(Output("onl-lam-moi", "data"), Output("onl-msg", "children"), Output("onl-thong-bao", "data"),
                   Output("bn-da-luu", "data", allow_duplicate=True), Output("bn-nhip-va", "disabled", allow_duplicate=True),
                   Input("onl-sk", "data"), State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
                   prevent_initial_call=True)
@@ -124,9 +87,17 @@ def register(app):
             raise PreventUpdate
         phong, d, ai = _ngu_canh(code, ngay, toi_la)
         acc = {c["id"]: c["acc"] for c in oc.ds_ca(phong, d)}.get(sk.get("id"))
-        act, accs = sk["act"], [acc]
+        act, accs, thong_bao, canh_bao = sk["act"], [acc], no_update, None
         try:
-            if act == "tt":
+            if act == "them":
+                kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d)
+                accs = [sk.get("acc")]
+                ghi_log("online_them", f"{', '.join(kq['them'])} {d:%d/%m/%Y} {code} khung {sk.get('khung')}")
+                ten = kq["them"][0] if len(kq["them"]) == 1 else f"{len(kq['them'])} ca"
+                thong_bao = {"msg": f"✓ Đã thêm {ten} vào {oc._nhan_khung(sk.get('khung'))}", "t": gio_viet_nam().isoformat()}
+                if kq["bo_qua"]:
+                    canh_bao = alert("Bỏ qua: " + "; ".join(f"{m} ({ly})" for m, ly in kq["bo_qua"]) + ".", "warn")
+            elif act == "tt":
                 oc.doi_trang_thai(sk["id"], sk.get("val"), phong, ai)
             elif act == "khung":
                 oc.doi_khung(sk["id"], sk.get("val"), phong, ai)
@@ -136,7 +107,7 @@ def register(app):
                 kq = oc.doi_nhieu(ids, sk.get("loai"), sk.get("val") or "", phong, ai)
                 accs = [acc_cua[i] for i in ids]
                 if kq["loi"]:
-                    return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), *_sau_khi_ghi(accs)[1:])
+                    return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, *_sau_khi_ghi(accs)[1:])
             elif act == "mai":
                 oc.doi_ngay_mai(sk["id"], phong, ai)
             elif act == "xoa":
@@ -146,45 +117,9 @@ def register(app):
                 raise PreventUpdate
         except oc.LoiOnline as e:                              # trình duyệt đã đổi tạm trên màn hình: nạp lại số thật + báo lỗi
             moi, _, _ = _sau_khi_ghi([])
-            return moi, alert(str(e), "bad"), no_update, no_update
+            return moi, alert(str(e), "bad"), no_update, no_update, no_update
         moi, luu, tat = _sau_khi_ghi(accs)
-        return moi, None, (luu if accs else no_update), (tat if accs else no_update)
-
-    @app.callback(Output("onl-ton", "children"),
-                  Input("onl-f-nv", "value"), Input("onl-lam-moi", "data"), Input("onl-du-lieu", "data"),
-                  State("bn-phong", "value"), State("bn-ngay", "date"))
-    def _ton(nv, _moi, _du, code, ngay):
-        """Danh sách HĐ tồn của người đang chọn (chưa có ca hôm nay): bấm một dòng là thêm ca vào khung đang chọn."""
-        if not nv:
-            return None
-        phong, d, _ = _ngu_canh(code, ngay, None)
-        ds = oc.ton_cua(nv, phong, d)
-        if not ds:
-            return None
-        dong = [html.Button([html.Span(x["ma"], className="onl-ton-ma"), html.Span(f"tồn {x['ton']} ngày", className="onl-ton-n"),
-                             html.Span(x["goi"], className="onl-ton-goi"), html.Span("+ Thêm", className="onl-ton-them")],
-                            id={"type": "onl-ton", "ma": x["ma"]}, n_clicks=0, className="onl-ton-dong") for x in ds]
-        return html.Details([html.Summary(f"Chọn từ HĐ tồn của người này ({len(ds)})"), html.Div(dong, className="onl-ton-menu")],
-                            className="onl-ton-dd")
-
-    @app.callback(Output("onl-msg", "children", allow_duplicate=True), Output("onl-lam-moi", "data", allow_duplicate=True),
-                  Output("onl-thong-bao", "data", allow_duplicate=True), Output("bn-da-luu", "data", allow_duplicate=True),
-                  Output("bn-nhip-va", "disabled", allow_duplicate=True),
-                  Input({"type": "onl-ton", "ma": ALL}, "n_clicks"),
-                  State("onl-f-nv", "value"), State("onl-f-khung", "value"), State("bn-phong", "value"), State("bn-ngay", "date"),
-                  State("bn-toi-la", "value"), prevent_initial_call=True)
-    def _them_ton(_n, nv, khung_ma, code, ngay, toi_la):
-        t = ctx.triggered_id
-        if not isinstance(t, dict) or not ctx.triggered[0]["value"]:
-            raise PreventUpdate                                # nút vừa dựng lại, chưa ai bấm
-        phong, d, ai = _ngu_canh(code, ngay, toi_la)
-        try:
-            oc.them(t["ma"], nv, khung_ma, phong, ai, d)
-        except oc.LoiOnline as e:
-            return alert(str(e), "bad"), no_update, no_update, no_update, no_update
-        ghi_log("online_them", f"{t['ma']} {d:%d/%m/%Y} {code} khung {khung_ma} (từ tồn)")
-        moi, luu, tat = _sau_khi_ghi([nv])
-        return None, moi, {"msg": f"✓ Đã thêm {t['ma']} vào {oc._nhan_khung(khung_ma)}", "t": moi}, luu, tat
+        return moi, canh_bao, thong_bao, (luu if accs else no_update), (tat if accs else no_update)
 
     @app.callback(Output("onl-md", "className"), Output("onl-md-tieu-de", "children"), Output("onl-md-id", "data"),
                   Output("onl-md-nv", "value"), Output("onl-md-gc", "value"), Output("onl-md-ls", "children"),

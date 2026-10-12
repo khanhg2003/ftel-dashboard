@@ -178,7 +178,7 @@ def du_lieu(phong: list[str], ngay: date) -> dict:
     nv = nhan_vien(tuple(phong), ngay.isoformat())
     ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
     return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "dk": dk,
-            "thieu": thieu_gio(ca, dk), "moc": moc(phong, ngay)}
+            "thieu": thieu_gio(ca, dk), "ton": ton_tat_ca(phong, ngay), "moc": moc(phong, ngay)}
 
 
 # ------------------------------------------------------------------ ghi
@@ -370,18 +370,23 @@ def xoa(id_: int, phong: list[str], ai: str) -> dict:
     return thong_tin
 
 
-def ton_cua(acc_norm: str, phong: list[str], ngay: date) -> list[dict]:
-    """Hợp đồng TỒN (đã ký, chưa online, xem trang Nhập tồn) của một nhân viên mà hôm nay chưa có ca: [{ma, ton: số ngày chờ, goi}].
-    Dùng để sale chọn mã thay vì gõ. Không lấy tên khách hàng."""
+def ton_tat_ca(phong: list[str], ngay: date) -> dict[str, list[dict]]:
+    """Hợp đồng TỒN (đã ký, chưa online, xem trang Nhập tồn) của từng nhân viên mà hôm nay chưa có ca: {acc: [{ma, ton: số ngày chờ, goi}]}.
+    Gửi cả phòng một lần cùng gói dữ liệu để sale chọn mã thay vì gõ. Không lấy tên khách hàng."""
     from app import phan_tich as pt
-    if not acc_norm:
-        return []
     ton = pt.hop_dong_ton(list(phong))
     if ton.empty:
-        return []
-    ton = ton[ton.acc_norm == acc_norm]
-    co = {c["ma"] for c in ds_ca(phong, ngay)}
+        return {}
     with session_scope() as s:
-        co |= set(s.execute(select(OnlineCa.ma_hd).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong))).scalars())
+        co = set(s.execute(select(OnlineCa.ma_hd).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong))).scalars())
     ton = ton[~ton.hop_dong.isin(co)].sort_values("so_ngay_cho", ascending=False)
-    return [{"ma": r.hop_dong, "ton": int(r.so_ngay_cho or 0), "goi": str(r.goi_dich_vu or "")} for r in ton.itertuples()][:40]
+    out: dict[str, list[dict]] = {}
+    for r in ton.itertuples():
+        ds = out.setdefault(r.acc_norm, [])
+        if len(ds) < 40:
+            ds.append({"ma": r.hop_dong, "ton": int(r.so_ngay_cho or 0), "goi": str(r.goi_dich_vu or "")})
+    return out
+
+
+def ton_cua(acc_norm: str, phong: list[str], ngay: date) -> list[dict]:
+    return ton_tat_ca(phong, ngay).get(acc_norm, []) if acc_norm else []

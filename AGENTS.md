@@ -167,9 +167,12 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      ngày nhập trước. **Cửa sổ "Hiệu quả & xu hướng"** (`baocaongay_hq.py`, quy tắc ở `app/online_ca_phan_tich.py`): tỷ lệ ca lên ĐÚNG hẹn = online khi còn trong
      hạn của khung giờ HẸN LÚC TẠO (`khung_dau`), theo giờ sale BẤM Đã online (`online_luc`); trễ / chưa lên / đã dời mai là các nhóm còn lại, ca "Chưa hẹn
      giờ" và ca chưa tới hạn không tính vào tỷ lệ. Dời sang mai KHÔNG xoá ca cũ mà đổi thành `doi_mai` (không hiện trên bảng, vẫn tính là chưa lên) và tạo
-     ca mới ở ngày mai. Thêm ca có 3 đường: gõ / dán NHIỀU mã một lần (`them_nhieu`), chọn từ HĐ tồn của người đó (`ton_cua`, lấy `hop_dong_ton`, bấm là thêm),
-     nút "+ Thêm" ở đầu mỗi khung. Dải "giai đoạn trong ngày" (`onl-gd`) cho xem tổng quan từng khung và bấm để lọc; thanh "quá giờ" dời cả nhóm ca một
-     cú bấm (`doi_nhieu`), cuối ngày hỏi dời hết ca chưa online sang mai; ca dời từ 3 lần có nhãn cảnh báo.
+     ca mới ở ngày mai. **Giao diện Theo dõi Online (làm lại 12/10/2026 vì chủ app báo bản trước "khó xài": khung giờ lặp hai lần, phải chọn 3 ô mới thêm được ca)**: chọn
+     NHÂN VIÊN một lần ở đầu mục (đã chọn "Tôi là" thì tự chọn sẵn); mỗi khung giờ là MỘT cột (đã qua / đang diễn ra / sắp tới / quá giờ thể hiện ở
+     viền đầu cột), gõ hoặc dán NHIỀU mã HĐ ngay ở cuối cột rồi Enter là thêm đúng khung đó (`them_nhieu`), "Từ HĐ tồn" ở cuối cột liệt kê HĐ tồn của người đang chọn
+     (`ton_tat_ca`, gửi cả phòng trong gói dữ liệu) bấm là thêm. Mỗi ca một dòng: vòng tròn = đã online, nút "Đang lắp", ⋯ = dời khung / dời mai / sửa / huỷ.
+     Thanh đỏ "quá giờ" dời cả nhóm ca một cú bấm (`doi_nhieu`), cuối ngày hỏi dời hết ca chưa online sang mai; ca dời từ 3 lần có nhãn cảnh báo.
+     Người chưa khai đủ giờ chỉ là MỘT dòng gập ("N người chưa khai đủ giờ online ▾"), đừng dựng lại hàng chip / tab / dải khung giờ riêng.
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ
      file nhưng đó là số của hôm nay, nên tiêu đề phải có nhãn "Nhập trước" và một dòng nói rõ - bỏ đi

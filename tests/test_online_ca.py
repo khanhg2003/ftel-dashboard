@@ -194,6 +194,8 @@ def test_ton_cua_chi_goi_y_hd_chua_co_ca_trong_ngay(hai_nguoi):
         oc.them(ds[0]["ma"], acc, "08-10", PHONG, "k", NGAY)
         assert ds[0]["ma"] not in {x["ma"] for x in oc.ton_cua(acc, PHONG, NGAY)}
     assert oc.ton_cua("", PHONG, NGAY) == [] and oc.ton_cua(a, ["IBB2"], NGAY) is not None
+    tat = oc.ton_tat_ca(PHONG, NGAY)                                                # gói cả phòng gửi cùng dữ liệu để chọn mã ngay trong cột
+    assert acc in tat and oc.du_lieu(PHONG, NGAY)["ton"].keys() == tat.keys()
 
 
 def test_chi_nhac_nguoi_da_nhap_du_kien_ma_chua_khai_du_gio_nguoi_du_kien_0_an_han(hai_nguoi):
@@ -304,7 +306,7 @@ def test_trang_bao_cao_ngay_co_muc_theo_doi_online_va_khong_trung_id():
             return kq
         tat = ids(baocaongay.layout())
         assert not {i for i in tat if tat.count(i) > 1}
-        assert {"onl-du-lieu", "onl-sk", "onl-hero", "onl-nguoi", "onl-bang", "onl-f-hd", "onl-f-nv", "onl-f-khung", "onl-md"} <= set(tat)
+        assert {"onl-du-lieu", "onl-sk", "onl-hero", "onl-xuly", "onl-bang", "onl-md", "onl-hq", "bn-tien-do"} <= set(tat)
 
 
 # ------------------------------------------------------------------ tỷ lệ đúng hẹn + xu hướng
