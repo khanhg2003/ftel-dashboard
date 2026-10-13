@@ -520,13 +520,13 @@ def register(app):
         return ({"rows": _dong_luoi(dong), "t": gio_viet_nam().isoformat()} if not dong.empty else no_update), luu["luc"], True
 
     @app.callback(Output("bn-da-luu", "data"), Output("bn-msg", "children"),
-                  Output("bn-nhip-va", "disabled"),
+                  Output("bn-nhip-va", "disabled"), Output("bn-cap-nhat", "data", allow_duplicate=True),
                   Input("bn-luoi", "cellValueChanged"), State("bn-phong", "value"), State("bn-ngay", "date"),
                   State("bn-toi-la", "value"), prevent_initial_call=True)
     def _luu_o(doi, code, ngay, toi_la):
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
         ten = nt_ten(toi_la) if _dung_chung() else None
-        loi, da_sua, xong = [], [], []              # `xong` = các ô đã xử lý xong (kể cả bị từ chối theo luật) để trình duyệt bỏ khỏi sổ chờ lưu
+        loi, da_sua, xong, tu_choi = [], [], [], []   # `xong` = các ô đã xử lý xong (kể cả bị từ chối theo luật) để trình duyệt bỏ khỏi sổ chờ lưu
         for x in (doi if isinstance(doi, list) else [doi] if doi else []):
             r, cot = x.get("data") or {}, x.get("colId")
             ma = [r.get("acc_norm"), cot, x.get("value")]
@@ -545,16 +545,25 @@ def register(app):
                 da_sua.append(r.get("acc_norm"))
                 xong.append(ma)
             except bc.LoiBaoCao as e:
-                loi.append(str(e))
-                da_sua.append(r.get("acc_norm"))           # vá lại dòng để ô bị từ chối quay về số đã lưu
+                loi.append(f"{r['ho_ten']}: {e}" if r.get("ho_ten") else str(e))
+                da_sua.append(r.get("acc_norm"))
                 xong.append(ma)
+                tu_choi.append(ma)
             except Exception:                              # database chập chờn...: KHÔNG báo xong, trình duyệt giữ số vừa gõ và tự gửi lại
                 logging.getLogger(__name__).exception("Không lưu được ô %s của %s", cot, r.get("acc_norm"))
                 loi.append("Chưa lưu được một ô (lỗi tạm thời). App đang tự thử lại, số anh/chị vừa gõ vẫn còn trên màn hình.")
                 da_sua.append(r.get("acc_norm"))
+        # Ô bị từ chối theo luật (vd thấp hơn số ca ở Theo dõi Online) phải QUAY VỀ số đã lưu NGAY, không đợi nhịp vá sau vài giây: chủ app 13/10/2026 thấy số gõ
+        # "tự nhảy về" sau vài giây mà không hiểu vì sao. Ô ĐÃ lưu thì vẫn vá muộn như cũ để Ctrl+Z còn dùng được.
+        ve_ngay = no_update
+        if tu_choi:
+            df = bc.bang(phong, d)
+            dong = df[df.acc_norm.isin({m[0] for m in tu_choi})].assign(sua_duoc=True) if not df.empty else df
+            if not dong.empty:
+                ve_ngay = {"rows": _dong_luoi(dong), "bo_cho": tu_choi, "t": gio_viet_nam().isoformat()}
         # kèm acc vừa sửa, và bật nhịp để `_va_dong` làm mới dòng đó khi sale ngừng gõ
         return ({"luc": gio_viet_nam().isoformat(), "acc": da_sua, "xong": xong},
-                alert(" ".join(loi), "bad") if loi else None, not da_sua)
+                alert([html.Div(x) for x in loi], "bad") if loi else None, not da_sua, ve_ngay)
 
     @app.callback(Output("bn-md", "className"), Output("bn-md-tieu-de", "children"),
                   Output("bn-md-acc", "data"), Output("bn-md-dau", "children"), Output("bn-f-mt", "value"),

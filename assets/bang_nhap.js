@@ -41,7 +41,8 @@
         Object.keys(cho).forEach(function (a) {
             Object.keys(cho[a]).forEach(function (c) {
                 const p = cho[a][c];
-                if (bay - p.gui_luc > CHO_GIAY * (p.lan + 1) && p.lan < TOI_DA_LAN) { p.lan += 1; guiLai(p); }
+                if (p.co_bao_khac && !p.nhanh && bay - p.gui_luc > 600) { p.nhanh = true; guiLai(p); }
+                else if (bay - p.gui_luc > CHO_GIAY * (p.lan + 1) && p.lan < TOI_DA_LAN) { p.lan += 1; guiLai(p); }
             });
         });
         hienChip();
@@ -76,7 +77,7 @@
             (Array.isArray(ev) ? ev : ev ? [ev] : []).forEach(function (x) {
                 const acc = x.data && x.data.acc_norm;
                 if (x.gui_lai || !acc || COT.indexOf(x.colId) < 0) { return; }
-                (cho[acc] = cho[acc] || {})[x.colId] = {ev: {colId: x.colId, value: x.value, data: {acc_norm: acc}}, gui_luc: Date.now(), lan: 0};
+                (cho[acc] = cho[acc] || {})[x.colId] = {ev: {colId: x.colId, value: x.value, data: {acc_norm: acc, ho_ten: x.data.ho_ten}}, gui_luc: Date.now(), lan: 0};
             });
             batNhip();
             hienChip();
@@ -91,12 +92,22 @@
                     if (!Object.keys(cho[x[0]]).length) { delete cho[x[0]]; }
                 }
             });
-            if (xong.length) { daLuu = Date.now(); batNhip(); }
+            if (xong.length) {
+                daLuu = Date.now(); batNhip();
+                // Dash BỎ phản hồi của lượt gửi cũ khi đã có lượt gửi mới cho cùng callback (gõ hai ô liên tiếp): máy chủ vẫn lưu nhưng ta không nhận được lời báo.
+                // Có phản hồi mới về mà ô gõ trước đó vẫn chưa được báo: đánh dấu để nhịp kế tiếp (<= 1,5 giây) gửi lại MỘT lần (cùng số, không sợ lưu đôi)
+                // thay vì ngồi chờ hết 8 giây.
+                Object.keys(cho).forEach(function (a) { Object.keys(cho[a]).forEach(function (c) { cho[a][c].co_bao_khac = true; }); });
+            }
             hienChip();
             return window.dash_clientside.no_update;
         },
         bn_ap_dung: function (d) {                    // làm mới các dòng máy chủ gửi về, trừ dòng đang chờ lưu / đang gõ
             if (!d || !d.rows || !d.rows.length) { return window.dash_clientside.no_update; }
+            const huy = d.bo_cho || [];
+            huy.forEach(function (x) {                // ô bị từ chối theo luật: bỏ khỏi sổ chờ lưu
+                if (cho[x[0]] && cho[x[0]][x[1]]) { delete cho[x[0]][x[1]]; if (!Object.keys(cho[x[0]]).length) { delete cho[x[0]]; } }
+            });
             let con = 40;
             const lam = function () {
                 let api = null;
@@ -104,6 +115,17 @@
                 if (!api) { if (con-- > 0) { setTimeout(lam, 100); } return; }
                 const sua = dangSua(api);
                 const doi = d.rows.filter(function (r) { return !cho[r.acc_norm] && !sua[r.acc_norm]; });
+                // Ô bị từ chối quay về số đã lưu NGAY, kể cả khi dòng còn ô khác đang chờ lưu: chỉ thay đúng ô đó, giữ nguyên các ô còn lại của dòng
+                const gop = {};
+                huy.forEach(function (x) {
+                    const goc = d.rows.filter(function (r) { return r.acc_norm === x[0]; })[0];
+                    if (!goc || doi.some(function (r) { return r.acc_norm === x[0]; })) { return; }
+                    const node = api.getRowNode(x[0]);
+                    if (!node) { return; }
+                    gop[x[0]] = gop[x[0]] || Object.assign({}, node.data);
+                    gop[x[0]][x[1]] = goc[x[1]];
+                });
+                Object.keys(gop).forEach(function (a) { doi.push(gop[a]); });
                 if (doi.length) { api.applyTransaction({update: doi}); }
             };
             lam();

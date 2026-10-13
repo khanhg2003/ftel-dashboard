@@ -842,3 +842,28 @@ def test_nap_muc_online_keo_ghi_chu_ca_cu_ve_khop_nhap_ton(hai_nguoi, ma_ton):
         with session_scope() as s:
             s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_(ma_ton)))
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == hom_nay, BaoCaoNgay.acc_norm == a))
+
+
+def test_o_bi_tu_choi_vi_it_hon_so_ca_quay_ve_ngay_kem_ten_nguoi(hai_nguoi):
+    """Chủ app báo 13/10/2026: gõ ONL thấp hơn số ca thì vài giây sau số tự nhảy về mà không hiểu vì sao. Nay máy chủ trả NGAY dòng đã lưu cho ô bị từ chối
+    (`bo_cho`) và câu báo ghi rõ tên người."""
+    import json
+    from types import SimpleNamespace
+
+    from flask_login import login_user
+
+    from app.auth import SessionUser
+    from app.ui.app import app, server
+    a, _ = hai_nguoi
+    oc.them("DAAAP7601", a, "08-10", PHONG, "k", NGAY)
+    oc.them("DAAAP7602", a, "08-10", PHONG, "k", NGAY)
+    bc.luu(a, {"onl_sang": 2, "onl_chieu": 0}, PHONG, "k", NGAY)
+    luu_o = next(getattr(v["callback"], "__wrapped__", v["callback"]) for k, v in app.callback_map.items()
+                 if "callback" in v and "bn-da-luu.data" in k and "bn-msg.children" in k and "bn-cap-nhat.data" in k)
+    ev = {"colId": "onl_sang", "value": 0, "data": {"acc_norm": a, "ho_ten": "Người Thử"}}
+    with server.test_request_context("/"):
+        login_user(SessionUser(SimpleNamespace(id=1, username="kiemthu.nvkd", ho_ten="Kiểm thử", role="nvkd", ma_nv=None, session_version=0, scope=json.dumps(PHONG))))
+        da_luu, msg, _tat, ve = luu_o([ev], "IBB7", NGAY.isoformat(), None)
+    assert da_luu["xong"] == [[a, "onl_sang", 0]]                                  # đã xử lý (từ chối theo luật) nên trình duyệt không gửi lại
+    assert ve["bo_cho"] == [[a, "onl_sang", 0]] and next(r for r in ve["rows"] if r["acc_norm"] == a)["onl_sang"] == 2
+    assert "Người Thử: Chưa sửa được" in json.dumps(msg, default=lambda o: o.to_plotly_json(), ensure_ascii=False)
