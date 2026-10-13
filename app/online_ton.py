@@ -1,7 +1,7 @@
 """Liên kết Theo dõi Online (app/online_ca.py) với Nhập tồn (app/nhap_ton.py) - chủ app chốt 12/10/2026, để hai nơi cùng một sự thật:
 
 - Ca có mốc "Hẹn thi công" đúng NGÀY đang xem (theo Nhập tồn) mà chưa có ca trong Theo dõi Online thì phải nhắc sale xếp khung giờ (`hen_cho_ngay`),
-  và tính vào số ca còn thiếu giờ của người đó (`online_ca.thieu_gio`).
+  (chỉ nhắc, không còn tính vào số ca "thiếu giờ": cảnh báo đó đã bỏ cùng liên kết với bảng số, 13/10/2026).
 - Sale thêm ca vào một ngày nhưng Nhập tồn đang hẹn / trả về NGÀY KHÁC thì PHẢI hỏi lại trước (`xung_dot`); đồng ý thì ca được thêm và ngày hẹn
   ở Nhập tồn tự đổi theo (`dong_bo_hen`). Chưa có mốc nào ở Nhập tồn thì tự điền Hẹn thi công theo ngày của ca (không cần hỏi).
 - GHI CHÚ liên kết HAI CHIỀU (chủ app 13/10/2026, để sale khỏi nhập lại): ghi chú của ca ở Theo dõi Online và "Ghi chú tình trạng" ở Nhập tồn là CÙNG MỘT chữ.

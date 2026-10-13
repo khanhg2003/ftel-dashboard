@@ -112,28 +112,6 @@ def test_doi_trang_thai_va_doi_khung_ghi_lich_su(hai_nguoi):
         oc.doi_trang_thai(i, "bay_mau", PHONG, "k")
 
 
-def test_ca_noi_voi_bang_bao_cao_ngay_sang_chieu_va_da_online(hai_nguoi):
-    """Mỗi lần phiếu đổi, ba ô ONL sáng / ONL chiều / Đã online của đúng người đó được tính lại từ phiếu."""
-    a, b = hai_nguoi
-    ids = [oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP0002", a, "10-12", PHONG, "k", NGAY),
-           oc.them("DAAAP0003", a, "1530-1730", PHONG, "k", NGAY), oc.them("DAAAP0004", a, "sau", PHONG, "k", NGAY),
-           oc.them("DAAAP0005", a, "chua", PHONG, "k", NGAY)]
-    oc.them("DAAAP0006", b, "08-10", PHONG, "k", NGAY)
-
-    def dong(acc):
-        return bc.bang(PHONG, NGAY).set_index("acc_norm").loc[acc]
-    r = dong(a)
-    assert (r.onl_sang, r.onl_chieu, r.thuc_hien, r.dk_onl) == (2, 2, 0, 4)       # ca "Chưa hẹn giờ" chưa tính vào ô nào
-    assert dong(b).onl_sang == 1
-    oc.doi_trang_thai(ids[0], "da_online", PHONG, "k")
-    assert dong(a).thuc_hien == 1 and dong(a).con_phai_onl == 3
-    oc.doi_khung(ids[4], "1330-1530", PHONG, "k")                                # chọn khung cho ca chưa hẹn giờ
-    assert dong(a).onl_chieu == 3
-    oc.xoa(ids[1], PHONG, "k")
-    assert dong(a).onl_sang == 1 and dong(a).dk_onl == 4
-    assert dong(b).onl_sang == 1                                                    # người khác không bị đụng
-
-
 def test_sua_ghi_chu_khong_co_doi_nguoi_phu_trach(hai_nguoi):
     """Chủ app (12/10/2026): mỗi HĐ gắn đúng người bán, không có chuyện chuyển HĐ nên chỉ sửa được ghi chú."""
     a, _ = hai_nguoi
@@ -233,51 +211,6 @@ def test_ton_cua_chi_goi_y_hd_chua_co_ca_trong_ngay(hai_nguoi):
     assert acc in tat and oc.du_lieu(PHONG, NGAY)["ton"].keys() == tat.keys()
 
 
-def test_chi_nhac_nguoi_da_nhap_du_kien_ma_chua_khai_du_gio_nguoi_du_kien_0_an_han(hai_nguoi):
-    """Chủ app (12/10/2026): người dự kiến online 0 không hiện; chỉ người đã gõ dự kiến mà chưa khai đủ giờ mới bị nhắc."""
-    a, b = hai_nguoi
-    d = oc.du_lieu(PHONG, NGAY)
-    assert d["thieu"] == {} and d["dk"] == {}                                       # đầu ngày chưa ai gõ gì: không ai bị nhắc
-    bc.luu(a, {"onl_sang": 2, "onl_chieu": 1}, PHONG, "k", NGAY)                    # a gõ dự kiến 3 ca, chưa khai ca nào
-    bc.luu(b, {"onl_sang": 0, "onl_chieu": 0}, PHONG, "k", NGAY)                    # b gõ 0
-    d = oc.du_lieu(PHONG, NGAY)
-    assert d["thieu"] == {a: {"can": 3, "khai": 0, "chua": 0, "thieu": 3}} and b not in d["thieu"]
-    oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY)
-    oc.them("DAAAP0002", a, "chua", PHONG, "k", NGAY)                               # "Chưa hẹn giờ" vẫn là chưa khai giờ
-    assert oc.du_lieu(PHONG, NGAY)["thieu"][a] == {"can": 3, "khai": 1, "chua": 1, "thieu": 2}
-    oc.them("DAAAP0003", a, "10-12", PHONG, "k", NGAY)
-    i = oc.ds_ca(PHONG, NGAY)
-    oc.doi_khung(next(c["id"] for c in i if c["khung"] == "chua"), "1330-1530", PHONG, "k")
-    assert oc.du_lieu(PHONG, NGAY)["thieu"][a]["thieu"] == 0                        # khai đủ 3 ca có giờ: hết nhắc
-    oc.them("DAAAP0004", b, "08-10", PHONG, "k", NGAY)                              # b có phiếu thì có mặt, không thiếu
-    assert oc.du_lieu(PHONG, NGAY)["thieu"][b] == {"can": 1, "khai": 1, "chua": 0, "thieu": 0}
-
-
-def test_chua_khai_du_thi_khong_ghi_de_so_da_go_nhung_huy_ca_thi_ghi_dung(hai_nguoi):
-    a, _ = hai_nguoi
-    bc.luu(a, {"onl_sang": 3, "onl_chieu": 2}, PHONG, "k", NGAY)                    # gõ dự kiến 5
-    ids = [oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP0002", a, "1530-1730", PHONG, "k", NGAY)]
-    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
-    assert (r.onl_sang, r.onl_chieu) == (3, 2)                                      # mới khai 2/5 ca: số gõ còn nguyên
-    oc.doi_trang_thai(ids[0], "da_online", PHONG, "k")
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1         # "Đã online" luôn đúng số phiếu
-    oc.xoa(ids[1], PHONG, "k")                                                      # huỷ 1 ca chiều: ô chiều chỉ giảm đúng 1
-    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
-    assert (r.onl_sang, r.onl_chieu) == (3, 1)
-
-
-def test_huy_het_ca_test_khong_xoa_so_sale_da_go(hai_nguoi):
-    """Chủ app báo 12/10/2026: huỷ 2 ca test thì ONL sáng / chiều đã gõ (dự kiến 5) tụt về 0. Nay mỗi ca bị huỷ hoặc dời chỉ trừ 1 ở đúng buổi."""
-    a, _ = hai_nguoi
-    bc.luu(a, {"onl_sang": 2, "onl_chieu": 3}, PHONG, "k", NGAY)
-    i1, i2 = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP0002", a, "1530-1730", PHONG, "k", NGAY)
-    oc.xoa(i1, PHONG, "k")
-    oc.doi_ngay(i2, PHONG, "k")
-    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
-    assert (r.onl_sang, r.onl_chieu) == (1, 2)                                      # 2/3 → 1/2, không phải 0/0
-    assert oc.du_lieu(PHONG, NGAY)["thieu"][a]["thieu"] == 3                        # và vẫn nhắc còn thiếu 3 ca chưa khai
-
-
 def test_huy_ca_chua_hen_gio_khong_dung_toi_o_onl(hai_nguoi):
     a, _ = hai_nguoi
     bc.luu(a, {"onl_sang": 1, "onl_chieu": 1}, PHONG, "k", NGAY)
@@ -329,13 +262,11 @@ def test_ban_tinh_thong_ke_tren_trinh_duyet_khop_ban_python():
     ca = [{"id": 1, "ma": "A", "acc": "x", "khung": "08-10", "tt": "da_online"}, {"id": 2, "ma": "B", "acc": "x", "khung": "08-10", "tt": "dang_lam"},
           {"id": 3, "ma": "C", "acc": "y", "khung": "chua", "tt": "du_kien"}, {"id": 4, "ma": "D", "acc": "y", "khung": "sau", "tt": "du_kien"}]
     code = ("const m=require(process.argv[1]);let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
-            "const j=JSON.parse(d);console.log(JSON.stringify({tk:m.thongKe(j.ca,j.khung),th:m.thieuGio(j.ca,j.dk,j.hen)}));});")
+            "const j=JSON.parse(d);console.log(JSON.stringify({tk:m.thongKe(j.ca,j.khung)}));});")
     js = Path(__file__).resolve().parent.parent / "assets" / "online.js"
-    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps({"ca": ca, "khung": oc.khung(), "dk": DK, "hen": HEN}), capture_output=True,
+    kq = json.loads(subprocess.run([node, "-e", code, str(js)], input=json.dumps({"ca": ca, "khung": oc.khung()}), capture_output=True,
                                    text=True, encoding="utf-8", check=True).stdout)
     assert kq["tk"] == oc.thong_ke(ca)
-    assert kq["th"] == oc.thieu_gio(ca, DK, HEN) and kq["th"]["x"] == {"can": 4, "khai": 2, "chua": 0, "thieu": 2}
-    assert kq["th"]["w"] == {"can": 2, "khai": 0, "chua": 0, "thieu": 2}                 # chỉ có ca hẹn hôm nay ở Nhập tồn cũng phải khai giờ
 
 
 def test_trang_bao_cao_ngay_co_muc_theo_doi_online_va_khong_trung_id():
@@ -615,7 +546,6 @@ def test_doi_ve_lai_ngay_cu_giu_dung_trang_thai_cu(hai_nguoi):
         oc.doi_ngay(c["id"], PHONG, "k", NGAY)
     ca = {c["ma"]: c for c in oc.ds_ca(PHONG, NGAY)}
     assert (ca["DAAAP7101"]["tt"], ca["DAAAP7102"]["tt"], ca["DAAAP7103"]["tt"]) == ("dang_lam", "da_online", "du_kien")
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1         # "Đã online" tính lại đúng 1 ca
 
 
 def test_thong_ke_ca_doi_di_va_den_theo_ngay(hai_nguoi):
@@ -657,7 +587,7 @@ def test_trang_thai_ca_dong_bo_phuong_an_va_doi_ngay_dong_bo_ngay_hen(hai_nguoi,
     assert moi == NGAY + timedelta(days=1) and _moc_tt(ma_ton[0])[:2] == ("hen", moi)  # dời ngày: Nhập tồn đổi ngày hẹn theo
 
 
-def test_ca_hen_hom_nay_theo_nhap_ton_nhac_xep_khung_gio_va_tinh_vao_so_ca_con_thieu(hai_nguoi, ma_ton, hen_that):
+def test_ca_hen_hom_nay_theo_nhap_ton_nhac_xep_khung_gio(hai_nguoi, ma_ton, hen_that):
     from app import nhap_ton as nt
     from app import online_ton as ot
     a, _ = hai_nguoi
@@ -667,7 +597,6 @@ def test_ca_hen_hom_nay_theo_nhap_ton_nhac_xep_khung_gio_va_tinh_vao_so_ca_con_t
     ds = {x["ma"] for v in hen.values() for x in v}
     assert ma_ton[0] in ds and ma_ton[1] not in ds
     acc = next(k for k, v in hen.items() if any(x["ma"] == ma_ton[0] for x in v))
-    assert oc.du_lieu(PHONG, NGAY)["thieu"][acc]["thieu"] >= 1                         # người đó còn ca phải khai giờ
     nv = {x["a"] for x in oc.nhan_vien(tuple(PHONG), NGAY.isoformat())}
     oc.them(ma_ton[0], a if acc not in nv else acc, "08-10", PHONG, AI, NGAY)
     assert ma_ton[0] not in {x["ma"] for v in ot.hen_cho_ngay(PHONG, NGAY).values() for x in v}   # đã xếp khung giờ: hết nhắc
@@ -692,39 +621,6 @@ def test_ma_khong_con_ton_thi_bo_qua_khong_bao_loi_o_nhap_ton(hai_nguoi):
     a, _ = hai_nguoi
     kq = oc.them_nhieu("ZZZZZ9999", a, "08-10", PHONG, AI, NGAY)                          # mã lạ / đã online theo file: vẫn thêm ca bình thường
     assert kq["them"] == ["ZZZZZ9999"] and kq["hoi"] == []
-
-
-def test_bang_khong_cho_go_lech_voi_ca_o_theo_doi_online(hai_nguoi):
-    """Chủ app (12/10/2026): hai nơi không được lệch nhau. Đã có ca thì ONL sáng / chiều không thấp hơn số ca, Đã online chỉ bằng số ca đã online."""
-    a, _ = hai_nguoi
-    i1, _i2 = oc.them("DAAAP8001", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP8002", a, "1530-1730", PHONG, "k", NGAY)
-    oc.doi_trang_thai(i1, "da_online", PHONG, "k")
-    with pytest.raises(bc.LoiBaoCao, match="1 ca buổi sáng"):
-        bc.luu(a, {"onl_sang": 0}, PHONG, "k", NGAY)
-    with pytest.raises(bc.LoiBaoCao, match="buổi chiều"):
-        bc.luu(a, {"onl_chieu": 0}, PHONG, "k", NGAY)
-    with pytest.raises(bc.LoiBaoCao, match="1 ca bấm Đã online"):
-        bc.luu(a, {"da_online": 0}, PHONG, "k", NGAY)                                    # thấp hơn số ca đã online: chặn
-    bc.luu(a, {"da_online": 5}, PHONG, "k", NGAY)                                       # cao hơn số ca (ca online chưa kịp vào Theo dõi Online): được
-    bc.luu(a, {"onl_sang": 3, "onl_chieu": 1, "da_online": 1}, PHONG, "k", NGAY)         # tăng hoặc bằng số ca: được
-    r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
-    assert (r.onl_sang, r.onl_chieu, r.thuc_hien, r.co_ca) == (3, 1, 1, 2)
-    bc.luu(a, {"da_online": 0}, PHONG, "k", NGAY, kiem_ca=False)                         # đường nội bộ (đồng bộ từ ca) không bị chặn
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 0
-
-
-def test_them_ca_va_doi_khung_khong_xoa_so_da_online_sale_da_go(hai_nguoi):
-    """Rà soát 13/10/2026 "nhập rồi nhảy về 0": người chưa có ca gõ Đã online = 2 ở bảng, sau đó thêm một ca (hoặc đổi khung) thì số này KHÔNG bị ghi đè bằng số phiếu (0)."""
-    a, _ = hai_nguoi
-    bc.luu(a, {"da_online": 2, "onl_sang": 3}, PHONG, "k", NGAY)
-    i = oc.them("DAAAP7301", a, "08-10", PHONG, "k", NGAY)
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 2                  # thêm ca: giữ nguyên
-    oc.doi_khung(i, "10-12", PHONG, "k")
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 2                  # đổi khung: giữ nguyên
-    oc.doi_trang_thai(i, "da_online", PHONG, "k")
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 2                  # bấm Đã online: số gõ (2) đã gồm ca này, KHÔNG cộng đôi
-    oc.doi_trang_thai(i, "du_kien", PHONG, "k")
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1                  # bỏ Đã online: giảm đúng 1, không xoá số gõ
 
 
 def test_dua_ve_tim_noi_ca_dang_o_va_thong_ke_doi_di_theo_dung_noi(hai_nguoi):
@@ -845,8 +741,8 @@ def test_nap_muc_online_keo_ghi_chu_ca_cu_ve_khop_nhap_ton(hai_nguoi, ma_ton):
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == hom_nay, BaoCaoNgay.acc_norm == a))
 
 
-def test_o_bi_tu_choi_vi_it_hon_so_ca_quay_ve_ngay_kem_ten_nguoi(hai_nguoi):
-    """Chủ app báo 13/10/2026: gõ ONL thấp hơn số ca thì vài giây sau số tự nhảy về mà không hiểu vì sao. Nay máy chủ trả NGAY dòng đã lưu cho ô bị từ chối
+def test_o_bi_tu_choi_vi_gia_tri_sai_quay_ve_ngay_kem_ten_nguoi(hai_nguoi):
+    """Chủ app báo 13/10/2026: gõ giá trị bị từ chối thì vài giây sau số tự nhảy về mà không hiểu vì sao. Nay máy chủ trả NGAY dòng đã lưu cho ô bị từ chối
     (`bo_cho`) và câu báo ghi rõ tên người."""
     import json
     from types import SimpleNamespace
@@ -856,15 +752,13 @@ def test_o_bi_tu_choi_vi_it_hon_so_ca_quay_ve_ngay_kem_ten_nguoi(hai_nguoi):
     from app.auth import SessionUser
     from app.ui.app import app, server
     a, _ = hai_nguoi
-    oc.them("DAAAP7601", a, "08-10", PHONG, "k", NGAY)
-    oc.them("DAAAP7602", a, "08-10", PHONG, "k", NGAY)
-    bc.luu(a, {"onl_sang": 2, "onl_chieu": 0}, PHONG, "k", NGAY)
+    bc.luu(a, {"onl_sang": 2}, PHONG, "k", NGAY)
     luu_o = next(getattr(v["callback"], "__wrapped__", v["callback"]) for k, v in app.callback_map.items()
                  if "callback" in v and "bn-da-luu.data" in k and "bn-msg.children" in k and "bn-cap-nhat.data" in k)
-    ev = {"colId": "onl_sang", "value": 0, "data": {"acc_norm": a, "ho_ten": "Người Thử"}}
+    ev = {"colId": "onl_sang", "value": "abc", "data": {"acc_norm": a, "ho_ten": "Người Thử"}}
     with server.test_request_context("/"):
         login_user(SessionUser(SimpleNamespace(id=1, username="kiemthu.nvkd", ho_ten="Kiểm thử", role="nvkd", ma_nv=None, session_version=0, scope=json.dumps(PHONG))))
         da_luu, msg, _tat, ve = luu_o([ev], "IBB7", NGAY.isoformat(), None)
-    assert da_luu["xong"] == [[a, "onl_sang", 0]]                                  # đã xử lý (từ chối theo luật) nên trình duyệt không gửi lại
-    assert ve["bo_cho"] == [[a, "onl_sang", 0]] and next(r for r in ve["rows"] if r["acc_norm"] == a)["onl_sang"] == 2
-    assert "Người Thử: Chưa sửa được" in json.dumps(msg, default=lambda o: o.to_plotly_json(), ensure_ascii=False)
+    assert da_luu["xong"] == [[a, "onl_sang", "abc"]]                                  # đã xử lý (từ chối theo luật) nên trình duyệt không gửi lại
+    assert ve["bo_cho"] == [[a, "onl_sang", "abc"]] and next(r for r in ve["rows"] if r["acc_norm"] == a)["onl_sang"] == 2
+    assert "Người Thử: Chỉ được nhập số" in json.dumps(msg, default=lambda o: o.to_plotly_json(), ensure_ascii=False)

@@ -2,8 +2,8 @@
 
 Máy chủ chỉ làm ba việc: nạp gói dữ liệu của ngày (`onl-du-lieu`), nhận sự kiện từ trình duyệt qua `onl-sk` (đổi trạng thái, dời
 khung, dời mai, huỷ, thêm ca) và nhận form sửa ca. Phòng và ngày lấy từ chính bộ lọc của trang Báo cáo ngày
-(`bn-phong`, `bn-ngay`); ai được xem / sửa thì theo đúng quyền của Báo cáo ngày (`bn._phong_hop_le`). Mỗi lần ca đổi, số ONL sáng /
-ONL chiều / Đã online trong bảng phía trên được tính lại từ phiếu (`online_ca.dong_bo_bang`) và dòng đó tự cập nhật.
+(`bn-phong`, `bn-ngay`); ai được xem / sửa thì theo đúng quyền của Báo cáo ngày (`bn._phong_hop_le`).
+Mục này TÁCH RỜI với các ô số của bảng phía trên (chủ app chốt 13/10/2026): không đọc, không ghi, không kiểm số ONL / Đã online của bảng.
 """
 from __future__ import annotations
 
@@ -54,12 +54,6 @@ def _ngu_canh(code, ngay, toi_la):
     return phong, d, (ten or current_user.username)
 
 
-def _sau_khi_ghi(accs):
-    """Đầu ra chung sau mỗi lần ghi: nạp lại gói dữ liệu + báo bảng phía trên vá lại dòng của các nhân viên vừa đổi."""
-    return (gio_viet_nam().isoformat(), {"luc": gio_viet_nam().isoformat(), "acc": sorted({a for a in accs if a})},
-            not accs)
-
-
 def register(app):
     app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="ve_online"),
                             Output("onl-ve", "data"), Input("onl-du-lieu", "data"))
@@ -72,27 +66,24 @@ def register(app):
 
     @app.callback(Output("onl-du-lieu", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-nhip", "n_intervals"),
-                  Input("onl-lam-moi", "data"), Input("bn-da-luu", "data"), State("onl-du-lieu", "data"))
-    def _nap(code, ngay, _nhip, _moi, _luu, cu):
+                  Input("onl-lam-moi", "data"), State("onl-du-lieu", "data"))
+    def _nap(code, ngay, _nhip, _moi, cu):
         phong, d, _ = _ngu_canh(code, ngay, None)
         if ctx.triggered_id == "bn-nhip" and cu and cu.get("moc") == oc.moc(phong, d) and cu.get("ngay") == d.isoformat():
             raise PreventUpdate                                # nhịp tự động: chỉ nạp lại khi có người vừa sửa
         return oc.du_lieu(phong, d)
 
     @app.callback(Output("onl-lam-moi", "data"), Output("onl-msg", "children"), Output("onl-thong-bao", "data"),
-                  Output("onl-hoi", "data"), Output("bn-da-luu", "data", allow_duplicate=True),
-                  Output("bn-nhip-va", "disabled", allow_duplicate=True), Input("onl-sk", "data"), State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
+                  Output("onl-hoi", "data"), Input("onl-sk", "data"), State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
                   prevent_initial_call=True)
     def _su_kien(sk, code, ngay, toi_la):
         if not sk or sk.get("act") in (None, "sua"):
             raise PreventUpdate
         phong, d, ai = _ngu_canh(code, ngay, toi_la)
-        acc = {c["id"]: c["acc"] for c in oc.ds_ca(phong, d)}.get(sk.get("id"))
-        act, accs, thong_bao, canh_bao, hoi = sk["act"], [acc], no_update, None, no_update
+        act, thong_bao, canh_bao, hoi = sk["act"], no_update, None, no_update
         try:
             if act == "them":
                 kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d, ghi_chu=sk.get("gc") or "", xac_nhan=bool(sk.get("xn")))
-                accs = [sk.get("acc")]
                 if kq["them"]:
                     ghi_log("online_them", f"{', '.join(kq['them'])} {d:%d/%m/%Y} {code} khung {sk.get('khung')}")
                     ten = kq["them"][0] if len(kq["them"]) == 1 else f"{len(kq['them'])} ca"
@@ -109,12 +100,11 @@ def register(app):
             elif act == "khung":
                 oc.doi_khung(sk["id"], sk.get("val"), phong, ai)
             elif act == "bulk":
-                acc_cua = {c["id"]: c["acc"] for c in oc.ds_ca(phong, d)}
-                ids = [i for i in (sk.get("ids") or []) if i in acc_cua]
+                ids_hien = {c["id"] for c in oc.ds_ca(phong, d)}
+                ids = [i for i in (sk.get("ids") or []) if i in ids_hien]
                 kq = oc.doi_nhieu(ids, sk.get("loai"), sk.get("val") or "", phong, ai)
-                accs = [acc_cua[i] for i in ids]
                 if kq["loi"]:
-                    return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update, *_sau_khi_ghi(accs)[1:])
+                    return gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update
             elif act == "mai":
                 oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"), sk.get("khung") or None)
             elif act == "ve_ngay":                             # hoàn tác một lần dời ngày: đưa ca (đang ở ngày `tu`) về lại ngày cũ
@@ -133,7 +123,6 @@ def register(app):
                         xong.append(ca)
                 if not xong and not da_o:
                     raise oc.LoiOnline("Không đưa về được: ca đã bị huỷ.")
-                accs = [c["acc"] for c in xong]
                 nhat = f"✓ Đã đưa {len(xong)} ca về lại {ve:%d/%m}" if xong else f"Ca đã ở ngày {ve:%d/%m} rồi"
                 if huy:
                     canh_bao = alert(f"Bỏ qua {', '.join(huy)}: ca đã bị huỷ.", "warn")
@@ -144,10 +133,8 @@ def register(app):
             else:
                 raise PreventUpdate
         except oc.LoiOnline as e:                              # trình duyệt đã đổi tạm trên màn hình: nạp lại số thật + báo lỗi
-            moi, _, _ = _sau_khi_ghi([])
-            return moi, alert(str(e), "bad"), no_update, no_update, no_update, no_update
-        moi, luu, tat = _sau_khi_ghi(accs)
-        return moi, canh_bao, thong_bao, hoi, (luu if accs else no_update), (tat if accs else no_update)
+            return gio_viet_nam().isoformat(), alert(str(e), "bad"), no_update, no_update
+        return gio_viet_nam().isoformat(), canh_bao, thong_bao, hoi
 
     @app.callback(Output("onl-md", "className"), Output("onl-md-tieu-de", "children"), Output("onl-md-id", "data"),
                   Output("onl-md-gc", "value"), Output("onl-md-ls", "children"), Output("onl-md-msg", "children"),

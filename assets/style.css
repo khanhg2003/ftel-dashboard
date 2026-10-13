@@ -1504,13 +1504,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-thanh { display: flex; height: 6px; margin-top: 12px; overflow: hidden; border-radius: 3px; background: #EEF0F3; }
 .onl-thanh i { display: block; height: 100%; transition: width .3s ease; }
 .onl-thanh .x { background: var(--onl-xong); } .onl-thanh .d { background: var(--onl-dang); } .onl-thanh .c { background: #E9B872; }
-.onl-nhac { margin-top: 10px; }
-.onl-nhac-tt { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: #9A5B13; cursor: pointer; }
-.onl-nhac-tt span { font-size: 11px; }
-.onl-nhac-ds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; padding: 8px 12px; border-left: 3px solid #D9822B; background: #FDF6EC; font-size: 13px; }
-.onl-nhac-ds button { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: #6B3E0A; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.onl-nhac-ds em { font-style: normal; color: var(--onl-do); font-variant-numeric: tabular-nums; }
-.onl-nhac-ds span { flex-basis: 100%; font-size: 12px; color: #8A6A3A; }
+.onl-hen-tt span { font-size: 12px; }
 #onl-msg:not(:empty) { margin-top: 8px; }
 .onl-xl { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; padding: 9px 14px; border-left: 3px solid var(--onl-do); background: #FEF3F2; color: #7A271A; font-size: 13px; }
 .onl-xl:empty { display: none; }
@@ -1679,10 +1673,10 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-them-mo { margin-left: 10px; border: 0; border-radius: 6px; background: var(--fpt-blue); color: #fff; padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .onl-them-mo:hover { filter: brightness(1.1); }
 /* hai dòng nhắc gập (chưa khai đủ giờ / Nhập tồn hẹn hôm nay): cùng một kiểu thanh, có mũi tên bên phải để biết bấm sẽ xổ xuống */
-.onl-nhac-tt, .onl-hen-tt { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; border-radius: 6px; text-align: left; }
-.onl-nhac-tt { background: #FDF6EC; } .onl-hen-tt { background: #F1F6FD; }
-.onl-nhac-tt:hover { background: #FBEED9; } .onl-hen-tt:hover { background: #E4EEFB; }
-.onl-nhac-tt span, .onl-hen-tt span { font-size: 12px; }
+.onl-hen-tt { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; border-radius: 6px; text-align: left; }
+.onl-hen-tt { background: #F1F6FD; }
+.onl-hen-tt:hover { background: #E4EEFB; }
+.onl-hen-tt span { font-size: 12px; }
 .onl-them-f { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .onl-them-f label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); min-width: 0; }
 .onl-them-f label:first-child, .onl-them-f label:last-of-type { grid-column: 1 / -1; }

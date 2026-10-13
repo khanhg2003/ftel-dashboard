@@ -118,7 +118,7 @@ def _cot() -> list[dict]:
          **sua},
         # ô sale tự gõ như Google Sheet, không liên quan tới file Internet (chốt 06/10/2026)
         {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **sua_doc,
-         "headerTooltip": "Số đã online hôm nay của người này.\nGõ được cả khi người đó đã có ca ở Theo dõi Online, nhưng không thấp hơn số ca đã bấm Đã online.\nKhông lấy từ file Internet."},
+         "headerTooltip": "Số đã online hôm nay của người này.\nSale tự gõ, không lấy từ file Internet và không liên quan mục Theo dõi Online."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
          "valueGetter": CON_PHAI_ONL,
          "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "
