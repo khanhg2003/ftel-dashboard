@@ -353,6 +353,22 @@ def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
         _dau(r, ai)
 
 
+def doi_nguoi(id_: int, acc_moi: str, phong: list[str], ai: str) -> None:
+    """Chuyển ca cho SALE PHỤ TRÁCH khác (chủ app 13/10/2026: một acc có thể gồm ca của hai người, vd 6 ca của Ngọc Khái có 4 ca là của DNG.Tu).
+    Chỉ đổi người của phiếu này (ngày này); người nhận phải thuộc danh sách nhân sự của phòng. Ghi lịch sử "Chuyển phụ trách A → B"."""
+    dam_bao_bang()
+    with session_scope() as s:
+        r = _tim(s, id_, phong)
+        if r.acc_norm == acc_moi:
+            return
+        ten = {x["a"]: x["t"] for x in nhan_vien(tuple(phong), r.ngay.isoformat())}
+        if acc_moi not in ten:
+            raise LoiOnline("Chọn một nhân viên của phòng.")
+        _ghi_ls(r, ai, f"Chuyển phụ trách {ten.get(r.acc_norm, r.acc_norm)} → {ten[acc_moi]}")
+        r.acc_norm = acc_moi
+        _dau(r, ai)
+
+
 def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str | None = None) -> date:
     """Dời ca sang một ngày KHÁC (mặc định ngày kế tiếp; `ngay_moi` là date hoặc chuỗi YYYY-MM-DD), tối đa tới ngày xa nhất Báo cáo ngày cho nhập
     trước (`bc.ngay_xa_nhat`). Ca cũ giữ lại ở ngày của nó với trạng thái "doi_mai" (không hiện trên bảng, nhưng tính là ca không lên đúng

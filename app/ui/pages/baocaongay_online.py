@@ -98,6 +98,9 @@ def register(app):
             elif act == "tt":
                 oc.doi_trang_thai(sk["id"], sk.get("val"), phong, ai)
             elif act == "khung":
+                if sk.get("acc"):
+                    oc.doi_nguoi(sk["id"], sk["acc"], phong, ai)
+                    ghi_log("online_chuyen", f"{sk['id']} {d:%d/%m/%Y} {code} → {sk['acc']}")
                 oc.doi_khung(sk["id"], sk.get("val"), phong, ai)
             elif act == "bulk":
                 ids_hien = {c["id"] for c in oc.ds_ca(phong, d)}
@@ -106,6 +109,9 @@ def register(app):
                 if kq["loi"]:
                     return gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update
             elif act == "mai":
+                if sk.get("acc"):                              # đổi sale phụ trách TRƯỚC khi dời để phiếu mới ở ngày đích đã mang đúng người
+                    oc.doi_nguoi(sk["id"], sk["acc"], phong, ai)
+                    ghi_log("online_chuyen", f"{sk['id']} {d:%d/%m/%Y} {code} → {sk['acc']}")
                 oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"), sk.get("khung") or None)
             elif act == "ve_ngay":                             # hoàn tác một lần dời ngày: đưa ca (đang ở ngày `tu`) về lại ngày cũ
                 ve = date.fromisoformat(str(sk.get("ve"))[:10])
@@ -120,6 +126,8 @@ def register(app):
                         da_o.append(m)
                     else:
                         oc.doi_ngay(ca["id"], phong, ai, ve, sk.get("khung") or None)
+                        if sk.get("acc"):                      # hoàn tác một lần dời kèm đổi người: trả luôn người cũ
+                            oc.doi_nguoi(oc.ca_dang_o(phong, m, ve)["id"], sk["acc"], phong, ai)
                         xong.append(ca)
                 if not xong and not da_o:
                     raise oc.LoiOnline("Không đưa về được: ca đã bị huỷ.")

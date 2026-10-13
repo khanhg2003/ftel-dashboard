@@ -222,32 +222,43 @@
     function ngayDai(iso) { return THU[new Date(iso + 'T00:00:00').getDay()] + ' ' + ngayVn(iso); }
 
     function capNhatNutDoi(m) {
-        const c = tim(m.dataset.id), kh = m.querySelector('[data-act="dm-kh"]'), ng = m.querySelector('[data-act="dm-ngay"]'), nut = m.querySelector('[data-act="dm-ok"]');
-        if (!c || !kh || !ng || !nut) { return; }
-        nut.disabled = !ng.value && kh.value === c.khung;
-        nut.title = nut.disabled ? 'Chọn khung giờ hoặc ngày mới để dời' : (ng.value ? 'Dời sang ' + ngayDai(ng.value) + ' · ' + nhanKhung(kh.value) : 'Chuyển sang ' + nhanKhung(kh.value));
+        const c = tim(m.dataset.id), kh = m.querySelector('[data-act="dm-kh"]'), ng = m.querySelector('[data-act="dm-ngay"]'), nv = m.querySelector('[data-act="dm-nv"]');
+        const nut = m.querySelector('[data-act="dm-ok"]');
+        if (!c || !kh || !ng || !nv || !nut) { return; }
+        nut.disabled = !ng.value && kh.value === c.khung && nv.value === c.acc;
+        nut.title = nut.disabled ? 'Chọn khung giờ, ngày hoặc sale mới để đổi' : tomTatDoi(c, kh.value, ng.value, nv.value);
     }
 
-    function xacNhanDoi(m) {                                    // hỏi lại trước khi dời, dời xong có nút Hoàn tác
+    function tomTatDoi(c, kh, ng, nv) {                         // một câu nói rõ sẽ đổi những gì (dùng cho nút và hộp xác nhận)
+        const ph = [];
+        if (ng) { ph.push('dời sang ' + ngayDai(ng) + ' · ' + nhanKhung(kh)); } else if (kh !== c.khung) { ph.push('chuyển sang ' + nhanKhung(kh)); }
+        if (nv !== c.acc) { ph.push('giao cho ' + tenCua(nv)); }
+        return ph.join(', ').replace(/^./, function (x) { return x.toUpperCase(); });
+    }
+
+    function xacNhanDoi(m) {                                    // hỏi lại trước khi đổi, đổi xong có nút Hoàn tác
         const c = tim(m.dataset.id), kh = m.querySelector('[data-act="dm-kh"]').value, ng = m.querySelector('[data-act="dm-ngay"]').value;
+        const nv = m.querySelector('[data-act="dm-nv"]').value;
         if (!c) { return; }
+        const doiNv = nv !== c.acc, nvCu = c.acc, khCu = c.khung;
+        const tt = tomTatDoi(c, kh, ng, nv);
+        const hoi = 'Ca ' + c.ma + ': ' + tt + '?' + (ng ? String.fromCharCode(10) + 'Ngày hẹn thi công ở Nhập tồn sẽ đổi theo.' : '');
+        if (!window.confirm(hoi)) { return; }
         if (ng) {
-            if (!window.confirm('Dời ca ' + c.ma + ' sang ' + ngayDai(ng) + ' · ' + nhanKhung(kh) + '?\nNgày hẹn thi công ở Nhập tồn sẽ đổi theo.')) { return; }
-            const goc = du.ngay, khCu = c.khung;
+            const goc = du.ngay;
             du.ca = du.ca.filter(function (x) { return x !== c; });
-            gui('mai', {id: c.id, ngay: ng, khung: kh});
-            baoHoanTac('Đã dời ' + c.ma + ' sang ' + ngayDai(ng), function () {
-                gui('ve_ngay', {ma: c.ma, tu: ng, ve: goc, khung: khCu});
+            gui('mai', {id: c.id, ngay: ng, khung: kh, acc: doiNv ? nv : ''});
+            baoHoanTac('Ca ' + c.ma + ': ' + tt.charAt(0).toLowerCase() + tt.slice(1), function () {
+                gui('ve_ngay', {ma: c.ma, tu: ng, ve: goc, khung: khCu, acc: doiNv ? nvCu : ''});
                 bao('Đang đưa ' + c.ma + ' về lại ' + ngayDai(goc) + '...');
             });
-        } else if (kh !== c.khung) {
-            if (!window.confirm('Chuyển ca ' + c.ma + ' sang ' + nhanKhung(kh) + '?')) { return; }
-            const khCu = c.khung;
+        } else {
             c.khung = kh;
-            gui('khung', {id: c.id, val: kh});
-            baoHoanTac('Đã chuyển ' + c.ma + ' sang ' + nhanKhung(kh), function () {
+            c.acc = nv;
+            gui('khung', {id: c.id, val: kh, acc: doiNv ? nv : ''});
+            baoHoanTac('Ca ' + c.ma + ': ' + tt.charAt(0).toLowerCase() + tt.slice(1), function () {
                 const x = tim(c.id);
-                if (x) { x.khung = khCu; gui('khung', {id: x.id, val: khCu}); ve(); }
+                if (x) { x.khung = khCu; x.acc = nvCu; gui('khung', {id: x.id, val: khCu, acc: doiNv ? nvCu : ''}); ve(); }
                 bao('Đã hoàn tác ' + c.ma);
             });
         }
@@ -311,7 +322,10 @@
             + '</div>'
             + '<div class="onl-mn-form" data-id="' + c.id + '"><div class="onl-mn-nhom"><div class="onl-mn-nhan">Dời ca</div>'
             + '<label class="onl-mn-hang"><span>Khung</span><select data-act="dm-kh">' + khung + '</select></label>'
-            + '<label class="onl-mn-hang"><span>Ngày</span><select data-act="dm-ngay">' + chonNgay() + '</select></label></div>'
+            + '<label class="onl-mn-hang"><span>Ngày</span><select data-act="dm-ngay">' + chonNgay() + '</select></label>'
+            + '<label class="onl-mn-hang"><span>Sale</span><select data-act="dm-nv" title="Sale phụ trách ca này">' + du.nv.map(function (n) {
+                return '<option value="' + esc(n.a) + '"' + (n.a === c.acc ? ' selected' : '') + '>' + esc(n.t) + '</option>';
+            }).join('') + '</select></label></div>'
             + '<div class="onl-mn-chan"><button type="button" class="onl-mn-ok" data-act="dm-ok" disabled title="Chọn khung giờ hoặc ngày mới để dời">Dời ca</button>'
             + '<button type="button" class="onl-mn-huy" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Hủy ca</button></div></div></div></details></div></article>';
     }
@@ -473,7 +487,7 @@
             const s = e.target && e.target.closest ? e.target.closest('#onl-goc select[data-act], #onl-tm select[data-act]') : null;
             if (!s || !du) { return; }
             if (s.dataset.act === 'loc-nv-sel') { chonNv(s.value); return; }
-            if (s.dataset.act === 'dm-kh' || s.dataset.act === 'dm-ngay') { capNhatNutDoi(s.closest('.onl-mn-form')); return; }
+            if (s.dataset.act === 'dm-kh' || s.dataset.act === 'dm-ngay' || s.dataset.act === 'dm-nv') { capNhatNutDoi(s.closest('.onl-mn-form')); return; }
             if (s.dataset.act === 'them-nv') { themNv = s.value; return; }
             if (s.dataset.act === 'them-kh') { themKhung = s.value; return; }
             const c = tim(s.dataset.id);

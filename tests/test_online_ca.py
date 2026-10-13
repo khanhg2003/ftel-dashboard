@@ -762,3 +762,23 @@ def test_o_bi_tu_choi_vi_gia_tri_sai_quay_ve_ngay_kem_ten_nguoi(hai_nguoi):
     assert da_luu["xong"] == [[a, "onl_sang", "abc"]]                                  # đã xử lý (từ chối theo luật) nên trình duyệt không gửi lại
     assert ve["bo_cho"] == [[a, "onl_sang", "abc"]] and next(r for r in ve["rows"] if r["acc_norm"] == a)["onl_sang"] == 2
     assert "Người Thử: Chỉ được nhập số" in json.dumps(msg, default=lambda o: o.to_plotly_json(), ensure_ascii=False)
+
+
+def test_chuyen_ca_cho_sale_phu_trach_khac_ghi_lich_su_va_mang_theo_khi_doi_ngay(hai_nguoi):
+    """Chủ app 13/10/2026: một acc có ca của hai người (6 ca của Ngọc Khái thì 4 ca là của DNG.Tu) nên phải chuyển được ca sang sale khác."""
+    a, b = hai_nguoi
+    i = oc.them("DAAAP7701", a, "08-10", PHONG, "k", NGAY)
+    j = oc.them("DAAAP7702", a, "08-10", PHONG, "k", NGAY)
+    oc.doi_nguoi(i, b, PHONG, "k")
+    ca = {c["ma"]: c for c in oc.ds_ca(PHONG, NGAY)}
+    assert ca["DAAAP7701"]["acc"] == b and ca["DAAAP7702"]["acc"] == a                 # chỉ đổi đúng phiếu được chọn
+    assert "Chuyển phụ trách" in ca["DAAAP7701"]["ls"][-1]["viec"] and " → " in ca["DAAAP7701"]["ls"][-1]["viec"]
+    oc.doi_nguoi(i, b, PHONG, "k")                                                      # cùng người: không ghi thêm gì
+    assert len(next(c for c in oc.ds_ca(PHONG, NGAY) if c["ma"] == "DAAAP7701")["ls"]) == len(ca["DAAAP7701"]["ls"])
+    with pytest.raises(oc.LoiOnline, match="nhân viên của phòng"):
+        oc.doi_nguoi(j, "nguoi.la.khong.co", PHONG, "k")
+    with pytest.raises(oc.LoiOnline, match="Không tìm thấy"):
+        oc.doi_nguoi(i, a, ["IBB2"], "k")                                              # phòng khác không đụng được
+    moi = oc.doi_ngay(i, PHONG, "k", NGAY + timedelta(days=1))
+    assert oc.ds_ca(PHONG, moi)[0]["acc"] == b                                         # dời ngày vẫn mang theo người phụ trách mới
+    assert oc.ca_dang_o(PHONG, "DAAAP7702", NGAY)["acc"] == a
