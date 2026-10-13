@@ -326,6 +326,10 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
             if ma in da and da[ma].trang_thai != "doi_mai":
                 ket["bo_qua"].append((ma, "đã có trong ngày"))
                 continue
+            if ma in da and s.execute(select(OnlineCa.id).where(OnlineCa.ma_hd == ma, OnlineCa.phong_code == phong[0], OnlineCa.ngay != ngay,
+                                                                OnlineCa.trang_thai != "doi_mai")).first():
+                ket["bo_qua"].append((ma, "đã dời sang ngày mai"))      # ca đang sống ở ngày khác: muốn đưa về thì dời ca đó, không tạo phiếu thứ hai
+                continue
             if ma in xd and not xac_nhan:
                 ket["hoi"].append(xd[ma])
                 continue
