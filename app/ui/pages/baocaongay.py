@@ -5,10 +5,11 @@ bấm thẻ mở form. Nút "Tạo ảnh báo cáo" vẽ PNG gửi nhóm. Mọi 
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 
 import pandas as pd
-from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
+from dash import ALL, ClientsideFunction, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
@@ -190,6 +191,9 @@ def layout():
         # stack - đo 27/09/2026: đổi riêng dòng ghim bằng setGridOption thì undo còn nguyên.
         dcc.Store(id="bn-ghim"),
         dcc.Store(id="bn-ghim-xong"),
+        # Số máy chủ gửi về để làm mới dòng (nhịp tự nạp, vá sau khi lưu) đi qua Store này chứ không ghi thẳng vào bảng: `assets/bang_nhap.js` bỏ qua dòng
+        # còn ô đang chờ lưu / đang gõ, kẻo số cũ trong database đè mất số vừa gõ (chủ app báo 13/10/2026 "nhập rồi nhảy về 0").
+        dcc.Store(id="bn-cap-nhat"), dcc.Store(id="bn-ap-dung-xong"), dcc.Store(id="bn-ghi-nho"), dcc.Store(id="bn-xac-nhan-xong"),
         # chỉ chạy vài giây sau khi mình vừa sửa, bình thường tắt hẳn để không bắn request rỗng
         dcc.Interval(id="bn-nhip-va", interval=NHIP_VA_MS, disabled=True),
         html.Div(id="bn-msg"),
@@ -200,6 +204,7 @@ def layout():
             html.Div([html.Div([html.H3(id="bn-tieu-de", style={"margin": 0}),
                                 html.Div(id="bn-mo-ta", className="desc", style={"margin": "2px 0 0"})]),
                       html.Div(className="grow"),
+                      html.Span(id="bn-luu-tt", className="bn-luu-tt"),
                       html.Div(_chon_dang(), className="bn-chi-dt")],
                      className="the-thanh"),
             html.Div(bang("bn-luoi", _cot(), cao=560, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
@@ -432,11 +437,19 @@ def register(app):
         }""",
         Output("bn-ghim-xong", "data"), Input("bn-ghim", "data"), prevent_initial_call=True)
 
+    # Sổ chờ lưu + làm mới dòng có bảo vệ ô đang chờ (xem assets/bang_nhap.js)
+    app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="bn_ghi_nho"),
+                            Output("bn-ghi-nho", "data"), Input("bn-luoi", "cellValueChanged"), prevent_initial_call=True)
+    app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="bn_xac_nhan"),
+                            Output("bn-xac-nhan-xong", "data"), Input("bn-da-luu", "data"), prevent_initial_call=True)
+    app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="bn_ap_dung"),
+                            Output("bn-ap-dung-xong", "data"), Input("bn-cap-nhat", "data"), prevent_initial_call=True)
+
     @app.callback(Output("bn-toi-la", "options"), Output("bn-tom-tat", "children"),
                   Output("bn-luoi", "rowData"), Output("bn-luoi", "rowTransaction"),
                   Output("bn-ghim", "data"),
                   Output("bn-the", "children"), Output("bn-tieu-de", "children"), Output("bn-mo-ta", "children"),
-                  Output("bn-moc", "data"), Output("bn-tien-do", "children"),
+                  Output("bn-moc", "data"), Output("bn-tien-do", "children"), Output("bn-cap-nhat", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-toi-la", "value"),
                   Input("bn-da-luu", "data"), Input("bn-nhip", "n_intervals"),
                   State("ui-vw", "data"), State("bn-moc", "data"))
@@ -456,15 +469,17 @@ def register(app):
         t = bc.tom_tat(phong, d)
         if df.empty:
             return [], _tom_tat(t), [], no_update, no_update, [], "Bảng chỉ số toàn bộ nhân sự", \
-                "Phòng chưa có số liệu (chưa nạp file Internet của tháng này).", moc, None
+                "Phòng chưa có số liệu (chưa nạp file Internet của tháng này).", moc, None, no_update
         chon = [{"label": r.ho_ten, "value": r.acc_norm} for r in df.itertuples()]
         df = df.assign(sua_duoc=True)             # sale sửa được mọi dòng (chốt 24/09/2026)
         if vua_sua:
             # Dòng TỔNG và khối tóm tắt cập nhật NGAY, cùng nhịp với DK ONL / Còn phải ONL mà trình
             # duyệt tự tính - nhờ vậy cộng dọc cột luôn ra đúng dòng TỔNG. Riêng dòng vừa sửa để
             # `_va_dong` vá sau: vá ngay là ag-grid xoá undo stack, Ctrl+Z hết tác dụng.
+            # KHÔNG cập nhật `bn-moc` ở đây: moc lúc này đã gồm cả lần sửa của NGƯỜI KHÁC xen giữa mà dòng đó chưa được đẩy về bảng. Nhớ moc mới là
+            # nhịp tự nạp kế tiếp tưởng "không ai sửa gì" và bỏ qua mãi - bảng giữ số cũ của người ta trong khi dòng TỔNG đã tính số mới.
             return (chon, _tom_tat(t), no_update, no_update, _ghim(df),
-                    no_update, no_update, no_update, moc, _tien_do(df, d))
+                    no_update, no_update, no_update, no_update, _tien_do(df, d), no_update)
         dien_thoai = (vw or {}).get("w", 1440) < 768
         tieu_de = [f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"]
         if d > bc.hom_nay():                      # điền trước cho hôm sau: phải nói rõ kẻo đọc nhầm
@@ -476,10 +491,14 @@ def register(app):
                      + mo_ta)
         if _dung_chung() and not toi_la:
             mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
+        if ctx.triggered_id == "bn-nhip":
+            # nhịp tự nạp: KHÔNG ghi đè cả bảng, chỉ gửi số mới để trình duyệt cập nhật các dòng (trừ dòng đang chờ lưu / đang gõ)
+            return (chon, _tom_tat(t), no_update, no_update, _ghim(df), _the(df) if dien_thoai else [], tieu_de, mo_ta, moc, _tien_do(df, d),
+                    {"rows": _dong_luoi(df), "t": gio_viet_nam().isoformat()})
         return (chon, _tom_tat(t), _dong_luoi(df), no_update, _ghim(df),
-                _the(df) if dien_thoai else [], tieu_de, mo_ta, moc, _tien_do(df, d))
+                _the(df) if dien_thoai else [], tieu_de, mo_ta, moc, _tien_do(df, d), no_update)
 
-    @app.callback(Output("bn-luoi", "rowTransaction", allow_duplicate=True),
+    @app.callback(Output("bn-cap-nhat", "data", allow_duplicate=True),
                   Output("bn-da-va", "data"), Output("bn-nhip-va", "disabled", allow_duplicate=True),
                   Input("bn-nhip-va", "n_intervals"), State("bn-da-luu", "data"), State("bn-da-va", "data"),
                   State("bn-phong", "value"), State("bn-ngay", "date"), prevent_initial_call=True)
@@ -498,7 +517,7 @@ def register(app):
         if df.empty:
             return no_update, luu["luc"], True
         dong = df[df.acc_norm.isin(acc)].assign(sua_duoc=True)
-        return ({"update": _dong_luoi(dong)} if not dong.empty else no_update), luu["luc"], True
+        return ({"rows": _dong_luoi(dong), "t": gio_viet_nam().isoformat()} if not dong.empty else no_update), luu["luc"], True
 
     @app.callback(Output("bn-da-luu", "data"), Output("bn-msg", "children"),
                   Output("bn-nhip-va", "disabled"),
@@ -507,9 +526,10 @@ def register(app):
     def _luu_o(doi, code, ngay, toi_la):
         phong, d = _phong_hop_le(code), _ngay_hop_le(ngay)
         ten = nt_ten(toi_la) if _dung_chung() else None
-        loi, da_sua = [], []
+        loi, da_sua, xong = [], [], []              # `xong` = các ô đã xử lý xong (kể cả bị từ chối theo luật) để trình duyệt bỏ khỏi sổ chờ lưu
         for x in (doi if isinstance(doi, list) else [doi] if doi else []):
             r, cot = x.get("data") or {}, x.get("colId")
+            ma = [r.get("acc_norm"), cot, x.get("value")]
             try:
                 if cot == "mt_thang":
                     bc.dat_muc_tieu(f"{d:%Y-%m}", "NHAN_VIEN", r.get("acc_norm"), "internet",
@@ -520,13 +540,20 @@ def register(app):
                     bc.luu(r.get("acc_norm"), {o: x.get("value")}, phong, current_user.username, d,
                            ghi_ten=ten)
                 else:
+                    xong.append(ma)
                     continue
                 da_sua.append(r.get("acc_norm"))
+                xong.append(ma)
             except bc.LoiBaoCao as e:
                 loi.append(str(e))
                 da_sua.append(r.get("acc_norm"))           # vá lại dòng để ô bị từ chối quay về số đã lưu
+                xong.append(ma)
+            except Exception:                              # database chập chờn...: KHÔNG báo xong, trình duyệt giữ số vừa gõ và tự gửi lại
+                logging.getLogger(__name__).exception("Không lưu được ô %s của %s", cot, r.get("acc_norm"))
+                loi.append("Chưa lưu được một ô (lỗi tạm thời). App đang tự thử lại, số anh/chị vừa gõ vẫn còn trên màn hình.")
+                da_sua.append(r.get("acc_norm"))
         # kèm acc vừa sửa, và bật nhịp để `_va_dong` làm mới dòng đó khi sale ngừng gõ
-        return ({"luc": gio_viet_nam().isoformat(), "acc": da_sua},
+        return ({"luc": gio_viet_nam().isoformat(), "acc": da_sua, "xong": xong},
                 alert(" ".join(loi), "bad") if loi else None, not da_sua)
 
     @app.callback(Output("bn-md", "className"), Output("bn-md-tieu-de", "children"),

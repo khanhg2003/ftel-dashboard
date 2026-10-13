@@ -233,20 +233,22 @@ def _dau(r: OnlineCa, ai: str) -> None:
     r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), ai[:60]
 
 
-def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, bo: str | None = None) -> None:
+def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, bo: str | None = None, dong_online: bool = True) -> None:
     """Tính lại ONL sáng / ONL chiều / Đã online của các nhân viên từ phiếu rồi ghi vào bảng Báo cáo ngày.
 
     Số phiếu còn ÍT hơn số sale đã gõ ở ô dự kiến (chưa khai đủ) thì KHÔNG ghi đè ONL sáng / chiều, nếu không số gõ bị thay bằng số nhỏ
     hơn và cảnh báo thiếu biến mất. `bo` = buổi ("sang" / "chieu") của MỘT ca vừa bị huỷ hoặc dời sang ngày khác: đó là chủ ý bớt đúng một ca,
     nên ô buổi đó chỉ GIẢM 1 (không thấp hơn số ca còn lại), KHÔNG tụt về số phiếu - nếu không huỷ vài ca test là mất cả số sale đã gõ
-    (chủ app báo 12/10/2026: dự kiến 5 còn 0 sau khi huỷ 2 ca)."""
+    (chủ app báo 12/10/2026: dự kiến 5 còn 0 sau khi huỷ 2 ca).
+    `dong_online=False` (thêm ca, đổi khung, ca đến ngày mới) thì KHÔNG ghi "Đã online": thao tác đó không làm đổi số ca đã online, mà ghi số phiếu (thường 0)
+    sẽ xoá số "Đã online" sale đã gõ tay ở bảng cho người chưa có ca (13/10/2026 rà soát "nhập rồi nhảy về 0")."""
     buoi = {k["ma"]: k["buoi"] for k in khung()}
     ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
     g_buoi = _dk_theo_buoi(phong, ngay) if bo else {}
     for a in dict.fromkeys(a for a in accs if a):
         cua = [c for c in ca if c["acc"] == a]
         n = {b: sum(buoi.get(c["khung"]) == b for c in cua) for b in ("sang", "chieu")}
-        so = {"da_online": sum(c["tt"] == "da_online" for c in cua)}
+        so = {"da_online": sum(c["tt"] == "da_online" for c in cua)} if dong_online else {}
         if bo in n:
             for b in n:
                 g = g_buoi.get(a, {}).get(b, 0)
@@ -328,7 +330,7 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
     if not ket["them"] and not ket["hoi"]:
         raise LoiOnline("; ".join(f"{m}: {ly}" for m, ly in ket["bo_qua"]) + ".")
     if ket["them"]:
-        dong_bo_bang(ngay, phong, [acc_norm], ai)
+        dong_bo_bang(ngay, phong, [acc_norm], ai, dong_online=False)
         ot.dong_bo_hen(ket["them"], ngay, phong, ai)
     return ket
 
@@ -374,7 +376,7 @@ def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
         r.khung = khung_ma
         _dau(r, ai)
         ngay, acc = r.ngay, r.acc_norm
-    dong_bo_bang(ngay, phong, [acc], ai)
+    dong_bo_bang(ngay, phong, [acc], ai, dong_online=False)
 
 
 def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str | None = None) -> date:
@@ -408,12 +410,14 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str 
         if cu_row is None and moi < r.ngay and moi < bc.hom_nay():
             raise LoiOnline("Chỉ dời được từ hôm nay trở đi.")
         cu, acc, ma, buoi_cu = r.ngay, r.acc_norm, r.ma_hd, _buoi_cua(r.khung)
+        da_on, moi_da_on = r.trang_thai == "da_online", False
         _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}", {"tt": r.trang_thai, "onl": r.online_luc.isoformat() if r.online_luc else None, "den": moi.isoformat()})   # nhớ trạng thái để dời về lại thì trả đúng
         r.trang_thai, r.online_luc = "doi_mai", None
         _dau(r, ai)
         if cu_row is not None:
             nho = next((x for x in reversed(_ls(cu_row)) if x.get("tt") in TRANG_THAI), {})
             tt_cu = nho.get("tt", "du_kien")
+            moi_da_on = tt_cu == "da_online"
             _ghi_ls(cu_row, ai, f"Dời về lại ngày {moi:%d/%m}")
             cu_row.trang_thai, cu_row.ghi_chu = tt_cu, r.ghi_chu
             try:
@@ -428,8 +432,8 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str 
                          trang_thai="du_kien", ghi_chu=r.ghi_chu, lich_su=r.lich_su, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
             _dau(n, ai)
             s.add(n)
-    dong_bo_bang(cu, phong, [acc], ai, bo=buoi_cu)
-    dong_bo_bang(moi, phong, [acc], ai)
+    dong_bo_bang(cu, phong, [acc], ai, bo=buoi_cu, dong_online=da_on)
+    dong_bo_bang(moi, phong, [acc], ai, dong_online=moi_da_on)
     from app import online_ton as ot
     ot.dong_bo_hen([ma], moi, phong, ai)
     return moi
@@ -475,9 +479,9 @@ def xoa(id_: int, phong: list[str], ai: str) -> dict:
     with session_scope() as s:
         r = _tim(s, id_, phong)
         thong_tin = {"ma_hd": r.ma_hd, "ngay": r.ngay}
-        acc, buoi_cu = r.acc_norm, _buoi_cua(r.khung)
+        acc, buoi_cu, da_on = r.acc_norm, _buoi_cua(r.khung), r.trang_thai == "da_online"
         s.execute(delete(OnlineCa).where(OnlineCa.id == r.id))
-    dong_bo_bang(thong_tin["ngay"], phong, [acc], ai, bo=buoi_cu)
+    dong_bo_bang(thong_tin["ngay"], phong, [acc], ai, bo=buoi_cu, dong_online=da_on)
     return thong_tin
 
 

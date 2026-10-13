@@ -25,6 +25,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import delete, select, text
 
 from app import phan_tich as pt
@@ -369,15 +370,23 @@ def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | 
     if kiem_ca:
         _kiem_voi_ca(acc_norm, d, phong, ngay)
     code = _phong_cua(acc_norm, phong)
-    with session_scope() as s:
-        r = s.execute(select(BaoCaoNgay).where(BaoCaoNgay.ngay == ngay,
-                                               BaoCaoNgay.acc_norm == acc_norm)).scalars().first()
-        if r is None:
-            r = BaoCaoNgay(ngay=ngay, acc_norm=acc_norm, phong_code=code)
-            s.add(r)
-        for k, v in d.items():
-            setattr(r, k, v)
-        r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), (ghi_ten or nguoi)[:60]
+    for lan in (1, 2):
+        try:
+            with session_scope() as s:
+                r = s.execute(select(BaoCaoNgay).where(BaoCaoNgay.ngay == ngay,
+                                                       BaoCaoNgay.acc_norm == acc_norm)).scalars().first()
+                if r is None:
+                    r = BaoCaoNgay(ngay=ngay, acc_norm=acc_norm, phong_code=code)
+                    s.add(r)
+                for k, v in d.items():
+                    setattr(r, k, v)
+                r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), (ghi_ten or nguoi)[:60]
+            return
+        except IntegrityError:
+            # Hai ô đầu tiên của cùng một người được lưu cùng lúc (Tab nhanh, hoặc hai máy chủ): cả hai thấy "chưa có dòng" và cùng chèn,
+            # ràng buộc duy nhất chặn lần thứ hai nên ô đó MẤT. Đọc lại và cập nhật vào dòng đã có.
+            if lan == 2:
+                raise
 
 
 def _phong_cua(acc_norm: str, phong: list[str]) -> str:

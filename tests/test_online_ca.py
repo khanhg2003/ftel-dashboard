@@ -710,3 +710,17 @@ def test_bang_khong_cho_go_lech_voi_ca_o_theo_doi_online(hai_nguoi):
     assert (r.onl_sang, r.onl_chieu, r.thuc_hien, r.co_ca) == (3, 1, 1, 2)
     bc.luu(a, {"da_online": 0}, PHONG, "k", NGAY, kiem_ca=False)                         # đường nội bộ (đồng bộ từ ca) không bị chặn
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 0
+
+
+def test_them_ca_va_doi_khung_khong_xoa_so_da_online_sale_da_go(hai_nguoi):
+    """Rà soát 13/10/2026 "nhập rồi nhảy về 0": người chưa có ca gõ Đã online = 2 ở bảng, sau đó thêm một ca (hoặc đổi khung) thì số này KHÔNG bị ghi đè bằng số phiếu (0)."""
+    a, _ = hai_nguoi
+    bc.luu(a, {"da_online": 2, "onl_sang": 3}, PHONG, "k", NGAY)
+    i = oc.them("DAAAP7301", a, "08-10", PHONG, "k", NGAY)
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 2                  # thêm ca: giữ nguyên
+    oc.doi_khung(i, "10-12", PHONG, "k")
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 2                  # đổi khung: giữ nguyên
+    oc.doi_trang_thai(i, "da_online", PHONG, "k")
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1                  # bấm Đã online: lấy đúng số phiếu đã online
+    oc.doi_trang_thai(i, "du_kien", PHONG, "k")
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 0                  # bỏ Đã online: về 0

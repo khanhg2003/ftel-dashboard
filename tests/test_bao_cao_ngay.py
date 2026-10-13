@@ -610,3 +610,47 @@ def test_nhip_tu_nap_thua_va_tat_khi_tab_an():
     assert trang.NHIP_MS >= 45_000
     js = (Path(__file__).resolve().parents[1] / "assets" / "nhip_an.js").read_text(encoding="utf-8")
     assert "bn-nhip" in js and "visibilitychange" in js and "disabled" in js
+
+
+# ------------------------------------------------------------------ rà soát "nhập rồi nhảy về 0" (13/10/2026)
+def test_hai_lan_luu_dau_tien_cung_luc_khong_mat_o_nao(mot_nguoi):
+    """Hai ô đầu tiên của một người lưu cùng lúc đều thấy "chưa có dòng" và cùng chèn: ràng buộc duy nhất làm một ô MẤT. Nay đọc lại và cập nhật."""
+    import threading
+    for lan in range(8):
+        nguoi = f"kiemthu.dua.{lan}"
+        loi, rao = [], threading.Barrier(2)
+
+        def luu(cot, v):
+            try:
+                rao.wait(timeout=5)
+                bc.luu(nguoi, {cot: v}, PHONG, "kiemthu.tp", NGAY)
+            except Exception as e:                               # noqa: BLE001
+                loi.append(repr(e))
+        ts = [threading.Thread(target=luu, args=("muc_tieu", 5)), threading.Thread(target=luu, args=("khtn", 7))]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        assert not loi, loi
+        df = bc._da_nhap(NGAY, PHONG)
+        dong = df[df.acc_norm == nguoi]
+        assert len(dong) == 1 and (int(dong.iloc[0].muc_tieu), int(dong.iloc[0].khtn)) == (5, 7)
+
+
+def test_trang_bao_cao_ngay_co_so_cho_luu_va_bao_ve_o_dang_cho():
+    """Số máy chủ gửi về đi qua Store `bn-cap-nhat` để trình duyệt bỏ qua dòng đang chờ lưu; mỗi lần lưu báo lại danh sách ô đã xử lý."""
+    from flask_login import login_user
+
+    from app.ui.app import server
+    from app.ui.pages import baocaongay as bn
+    with server.test_request_context("/"):
+        login_user(_tk("nvkd", ["IBB7"]))
+        chu = json.dumps(bn.layout(), default=lambda o: o.to_plotly_json() if hasattr(o, "to_plotly_json") else str(o))
+    for id_ in ("bn-cap-nhat", "bn-luu-tt", "bn-ghi-nho", "bn-xac-nhan-xong"):
+        assert f'"{id_}"' in chu
+    js = (Path(__file__).resolve().parent.parent / "assets" / "bang_nhap.js").read_text(encoding="utf-8")
+    for tu in ("bn_ghi_nho", "bn_xac_nhan", "bn_ap_dung", "applyTransaction", "getEditingCells", "beforeunload"):
+        assert tu in js
+    src = (Path(__file__).resolve().parent.parent / "app" / "ui" / "pages" / "baocaongay.py").read_text(encoding="utf-8")
+    assert '"xong": xong' in src and 'Output("bn-cap-nhat", "data"' in src
+    assert 'Output("bn-luoi", "rowTransaction", allow_duplicate=True)' not in src          # vá dòng đi qua Store, không ghi thẳng vào bảng
