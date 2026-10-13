@@ -118,16 +118,26 @@ def register(app):
             elif act == "mai":
                 oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"), sk.get("khung") or None)
             elif act == "ve_ngay":                             # hoàn tác một lần dời ngày: đưa ca (đang ở ngày `tu`) về lại ngày cũ
-                tu = date.fromisoformat(str(sk.get("tu"))[:10])
-                dang_o = {c["ma"]: c for c in oc.ds_ca(phong, tu)}
+                ve = date.fromisoformat(str(sk.get("ve"))[:10])
                 mas = [m for m in (sk.get("mas") or [sk.get("ma")]) if m]
-                con = [dang_o[m] for m in mas if m in dang_o]
-                if not con:
-                    raise oc.LoiOnline("Không đưa về được: ca không còn ở ngày đã dời tới (có thể đã được dời tiếp).")
-                for ca in con:
-                    oc.doi_ngay(ca["id"], phong, ai, sk.get("ve"), sk.get("khung") or None)
-                accs = [ca["acc"] for ca in con]
-                thong_bao = {"msg": f"✓ Đã đưa {len(con)} ca về lại {date.fromisoformat(str(sk.get('ve'))[:10]):%d/%m}", "t": gio_viet_nam().isoformat()}
+                xong, da_o, huy = [], [], []
+                for m in mas:
+                    # tìm nơi ca ĐANG Ở (có thể đã dời tiếp, hoặc đã về rồi do bấm hai lần) chứ không tin ngày trình duyệt gửi
+                    ca = oc.ca_dang_o(phong, m, ve)
+                    if ca is None:
+                        huy.append(m)
+                    elif ca["ngay"] == ve:
+                        da_o.append(m)
+                    else:
+                        oc.doi_ngay(ca["id"], phong, ai, ve, sk.get("khung") or None)
+                        xong.append(ca)
+                if not xong and not da_o:
+                    raise oc.LoiOnline("Không đưa về được: ca đã bị huỷ.")
+                accs = [c["acc"] for c in xong]
+                nhat = f"✓ Đã đưa {len(xong)} ca về lại {ve:%d/%m}" if xong else f"Ca đã ở ngày {ve:%d/%m} rồi"
+                if huy:
+                    canh_bao = alert(f"Bỏ qua {', '.join(huy)}: ca đã bị huỷ.", "warn")
+                thong_bao = {"msg": nhat, "t": gio_viet_nam().isoformat()}
             elif act == "xoa":
                 t = oc.xoa(sk["id"], phong, ai)
                 ghi_log("online_xoa", f"{t['ma_hd']} {t['ngay']:%d/%m/%Y} {code}")

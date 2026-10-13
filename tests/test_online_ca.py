@@ -724,3 +724,23 @@ def test_them_ca_va_doi_khung_khong_xoa_so_da_online_sale_da_go(hai_nguoi):
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1                  # bấm Đã online: lấy đúng số phiếu đã online
     oc.doi_trang_thai(i, "du_kien", PHONG, "k")
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 0                  # bỏ Đã online: về 0
+
+
+def test_dua_ve_tim_noi_ca_dang_o_va_thong_ke_doi_di_theo_dung_noi(hai_nguoi):
+    """Chủ app báo 13/10/2026: bấm "Đưa về hôm nay" mà báo "ca không còn ở ngày đã dời tới". Ca có thể đã dời tiếp (A -> B -> C), đã huỷ, hoặc đã về rồi."""
+    a, _ = hai_nguoi
+    d1, d2, d3 = NGAY + timedelta(days=1), NGAY + timedelta(days=2), NGAY + timedelta(days=3)
+    i = oc.them("DAAAP7401", a, "08-10", PHONG, "k", NGAY)
+    j = oc.them("DAAAP7402", a, "08-10", PHONG, "k", NGAY)
+    oc.doi_ngay(i, PHONG, "k", d1)
+    oc.doi_ngay(oc.ds_ca(PHONG, d1)[0]["id"], PHONG, "k", d3)                      # A (NGAY) -> B (d1) -> C (d3)
+    oc.doi_ngay(j, PHONG, "k", d2)
+    oc.xoa(oc.ds_ca(PHONG, d2)[0]["id"], PHONG, "k")                               # ca thứ hai bị huỷ ở ngày đích
+    di = oc.ca_doi(PHONG, NGAY)["di"]
+    assert [(x["ma"], x["den"]) for x in di] == [("DAAAP7401", d3.isoformat())]    # chỉ ca còn sống, ghi đúng nơi nó đang ở
+    ca = oc.ca_dang_o(PHONG, "DAAAP7401", NGAY)
+    assert ca["ngay"] == d3 and ca["acc"] == a
+    assert oc.ca_dang_o(PHONG, "DAAAP7402", NGAY) is None                          # đã huỷ
+    oc.doi_ngay(ca["id"], PHONG, "k", NGAY)                                        # đưa về: từ nơi nó đang ở, không cần biết ngày đích cũ
+    assert [c["ma"] for c in oc.ds_ca(PHONG, NGAY)] == ["DAAAP7401"] and oc.ca_dang_o(PHONG, "DAAAP7401", NGAY)["ngay"] == NGAY
+    assert oc.ca_doi(PHONG, NGAY)["di"] == []

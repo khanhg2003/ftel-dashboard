@@ -148,15 +148,31 @@ def ca_doi(phong: list[str], ngay: date) -> dict[str, list[dict]]:
     with session_scope() as s:
         rows = s.execute(select(OnlineCa).where(OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai == "doi_mai",
                                                 OnlineCa.ngay.between(ngay - timedelta(days=45), ngay + timedelta(days=45)))).scalars().all()
-        dang_co = set(s.execute(select(OnlineCa.ma_hd).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai")).scalars())
+        song = {}                                          # mã -> các ngày mà phiếu đang HOẠT ĐỘNG (không phải doi_mai) trong khoảng đang xét
+        for ma, d in s.execute(select(OnlineCa.ma_hd, OnlineCa.ngay).where(OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai",
+                                                                          OnlineCa.ngay.between(ngay - timedelta(days=45), ngay + timedelta(days=45)))).all():
+            song.setdefault(ma, []).append(d)
         di, den = [], []
         for r in rows:
             dich = _den_cua(r)
             if r.ngay == ngay and dich:
-                di.append({"ma": r.ma_hd, "a": r.acc_norm, "den": dich.isoformat()})
-            elif r.ngay != ngay and dich == ngay and r.ma_hd in dang_co:
+                # ca có thể đã được dời tiếp (A -> B -> C) hoặc đã huỷ: lấy nơi ca ĐANG Ở, huỷ rồi thì không còn là "dời đi"
+                hien = sorted(d for d in song.get(r.ma_hd, []) if d != ngay)
+                if hien:
+                    di.append({"ma": r.ma_hd, "a": r.acc_norm, "den": (dich if dich in hien else hien[0]).isoformat()})
+            elif r.ngay != ngay and dich == ngay and ngay in song.get(r.ma_hd, []):
                 den.append({"ma": r.ma_hd, "a": r.acc_norm, "tu": r.ngay.isoformat()})
     return {"di": sorted(di, key=lambda x: (x["den"], x["ma"])), "den": sorted(den, key=lambda x: (x["tu"], x["ma"]))}
+
+
+def ca_dang_o(phong: list[str], ma: str, quanh: date) -> dict | None:
+    """Phiếu đang HOẠT ĐỘNG (không phải doi_mai) của một mã trong khoảng 45 ngày quanh `quanh`, gần `quanh` nhất; không có (đã huỷ) thì None."""
+    dam_bao_bang()
+    with session_scope() as s:
+        rows = s.execute(select(OnlineCa).where(OnlineCa.phong_code.in_(phong), OnlineCa.ma_hd == ma, OnlineCa.trang_thai != "doi_mai",
+                                                OnlineCa.ngay.between(quanh - timedelta(days=45), quanh + timedelta(days=45)))).scalars().all()
+        rows.sort(key=lambda r: abs((r.ngay - quanh).days))
+        return _dict(rows[0]) | {"ngay": rows[0].ngay} if rows else None
 
 
 def dk_nhap(phong: list[str], ngay: date) -> dict[str, int]:
