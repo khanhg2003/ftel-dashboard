@@ -1,100 +1,108 @@
-"""Cửa sổ "Hiệu quả & xu hướng" của trang Báo cáo ngày (chốt 12/10/2026): tỷ lệ ca lên ĐÚNG dự kiến theo nhân viên / khung giờ và
-xu hướng theo ngày (mục tiêu - bán, dự kiến - đã online). Quy tắc tính ở `app/online_ca_phan_tich.py`; trang này chỉ dựng giao diện."""
+"""Cửa sổ "Hiệu quả & xu hướng" của trang Báo cáo ngày (chốt 12/10/2026, thiết kế lại 13/10/2026): ngoài là TỔNG QUAN CẢ PHÒNG (bốn năm ô chỉ số so với khoảng
+trước, thanh kết quả các ca, nhận định, biểu đồ, bảng nhân viên); bấm vào một người thì xem CHI TIẾT người đó (`baocaongay_hq_nv.py`). Quy tắc tính và nhận định ở
+`app/online_ca_phan_tich.py`; trang này chỉ dựng giao diện (thành phần dùng chung ở `baocaongay_hq_ve.py`)."""
 from __future__ import annotations
 
-from dash import Input, Output, State, ctx, dcc, html, no_update
+from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
-from plotly import graph_objects as go
 
 from app import online_ca_phan_tich as pa
 from app.ui.components import cua_so, seg_control
-
-XANH, XAM, LA = "#0072BC", "#B8C4D2", "#067647"
+from app.ui.pages import baocaongay_hq_ve as ve
 
 
 def khung() -> html.Div:
-    return cua_so("onl-hq", None, nut=seg_control("onl-hq-ky", list(pa.KY.items()), "7"))
+    return html.Div([dcc.Store(id="onl-hq-nv"), cua_so("onl-hq", None, nut=seg_control("onl-hq-ky", list(pa.KY.items()), "7"))])
 
 
-def _lop(ty_le) -> str:
-    return "" if ty_le is None else ("tot" if ty_le >= 80 else "tb" if ty_le >= 50 else "xau")
+def cac_the_chung(t: dict, t0: dict, xh: dict, xh0: dict, so: dict | None = None) -> html.Div:
+    """Năm ô chỉ số + so với khoảng trước. `so` = số của cả phòng để đặt cạnh khi xem một người."""
+    so = so or {}
+    ty_chot, ty_chot0 = ve.pc(xh["tong"]["onl"], xh["tong"]["dk"]), ve.pc(xh0["tong"]["onl"], xh0["tong"]["dk"])
+    ty_ban, ty_ban0 = ve.pc(xh["tong"]["ban"], xh["tong"]["mt"]), ve.pc(xh0["tong"]["ban"], xh0["tong"]["mt"])
+    pt = so.get("ty_le")
+    muc, _ = pa.danh_gia(t["ty_le"], t["xet"])
+    return ve.luoi_the([
+        ve.the("Đúng hẹn", "–" if t["ty_le"] is None else f"{t['ty_le']}%", f"{t['dung']}/{t['xet']} ca đã xét" + (f" · cả phòng {pt}%" if pt is not None else ""),
+               ve.chenh(t["ty_le"], t0["ty_le"]), muc, "Ca lên online khi còn trong hạn khung giờ sale hẹn lúc tạo ca."),
+        ve.the("Online / dự kiến", "–" if ty_chot is None else f"{ty_chot}%", f"{xh['tong']['onl']}/{xh['tong']['dk']} ca", ve.chenh(ty_chot, ty_chot0), "",
+               "Số 'Đã online' chia số dự kiến sale gõ ở bảng Báo cáo ngày."),
+        ve.the("Ca bị dời ngày", str(t["doi"]), "–" if t["ty_doi"] is None else f"{t['ty_doi']}% số ca" + (f" · cả phòng {so['ty_doi']}%" if so.get("ty_doi") is not None else ""),
+               ve.chenh(t["ty_doi"], t0["ty_doi"], tot_khi_giam=True), "", "Ca đã dời sang ngày khác. Càng ít càng tốt."),
+        ve.the("Bán / mục tiêu", "–" if ty_ban is None else f"{ty_ban}%", f"{xh['tong']['ban']}/{xh['tong']['mt']} HĐ", ve.chenh(ty_ban, ty_ban0), "",
+               "Số bán sale tự nhập chia mục tiêu ngày."),
+        ve.the("Số ca theo dõi", str(t["ca"]), f"chưa tới hạn {t['cho']} · không hẹn giờ {t['khong_hen']}", None, "",
+               "Mỗi ca dời tính ở cả ngày cũ và ngày mới."),
+    ])
 
 
-def _bang(cot: list[str], dong: list[list]) -> html.Table:
-    return html.Table([html.Thead(html.Tr([html.Th(c) for c in cot])),
-                       html.Tbody([html.Tr([html.Td(v[0] if isinstance(v, tuple) else v, className=(v[1] if isinstance(v, tuple) else ""))
-                                            for v in r]) for r in dong])], className="onl-hq-bang")
-
-
-def _pc(a: int, b: int) -> str:
-    return f"{a} / {b} ({round(a * 100 / b)}%)" if b else f"{a}"
-
-
-def _hinh(ngay: list[dict]):
-    x = [r["ngay"].strftime("%d/%m") for r in ngay]
-    kieu = dict(margin=dict(l=34, r=10, t=34, b=28), height=250, plot_bgcolor="#fff", paper_bgcolor="#fff", font=dict(size=12, color="#475467"),
-                legend=dict(orientation="h", y=1.18, x=0), xaxis=dict(type="category", showgrid=False), yaxis=dict(gridcolor="#EEF0F3", rangemode="tozero"))
-    ban = go.Figure([go.Bar(x=x, y=[r["mt"] for r in ngay], name="Mục tiêu ngày", marker_color=XAM),
-                     go.Bar(x=x, y=[r["ban"] for r in ngay], name="Thực hiện", marker_color=XANH)], layout=dict(barmode="group", **kieu))
-    onl = go.Figure([go.Scatter(x=x, y=[r["dk"] for r in ngay], name="Dự kiến online", mode="lines+markers", line=dict(color=XAM, dash="dot")),
-                     go.Scatter(x=x, y=[r["onl"] for r in ngay], name="Đã online", mode="lines+markers", line=dict(color=LA))], layout=kieu)
-    cau = {"displayModeBar": False}
-    return html.Div([html.Div([html.Div("Bán so với mục tiêu ngày", className="onl-hq-tde"), dcc.Graph(figure=ban, config=cau)]),
-                     html.Div([html.Div("Online: dự kiến và thực tế", className="onl-hq-tde"), dcc.Graph(figure=onl, config=cau)])], className="onl-hq-do")
-
-
-def noi_dung(phong: list[str], ky: str) -> list:
-    tu, den = pa.khoang(ky)
-    hq, xh = pa.hieu_qua(phong, tu, den), pa.xu_huong(phong, tu, den)
-    t = hq["tong"]
-    khoang = f"{tu:%d/%m/%Y}" if tu == den else f"{tu:%d/%m} – {den:%d/%m/%Y}"
-    ghi = [html.Div(f"Số liệu Báo cáo ngày chỉ có từ {xh['tu_ngay_co']:%d/%m/%Y} (trước đó báo cáo ngày đã qua bị xoá).", className="onl-hq-ghi")
-           ] if xh["tu_ngay_co"] and xh["tu_ngay_co"] > tu else []
-    tom = html.Div([html.Span(khoang, className="onl-hq-ky"),
-                    html.Span([html.B(_pc(t["dung"], t["dung"] + t["tre"] + t["chua_len"])), " ca lên đúng hẹn"]) if t["ty_le"] is not None
-                    else html.Span("Chưa có ca nào đến hạn để tính"),
-                    html.Span(f"trễ {t['tre']}"), html.Span(f"chưa lên {t['chua_len']}"), html.Span(f"chưa tới hạn {t['cho']}"),
-                    html.Span(f"không hẹn giờ {t['khong_hen']}")], className="onl-hq-tom")
+def _bang_nv(hq: dict, xh: dict) -> html.Div:
     nv_xh = {r["acc"]: r for r in xh["nv"]}
-    acc = list(dict.fromkeys([r["acc"] for r in hq["nv"]] + [r["acc"] for r in xh["nv"]]))
-    nv_hq = {r["acc"]: r for r in hq["nv"]}
     dong = []
-    for a in acc:
-        h, x = nv_hq.get(a), nv_xh.get(a)
-        if not ((h and h["ca"]) or (x and (x["dk"] or x["ban"] or x["mt"]))):
-            continue                                         # người không có ca và không có số nào: ẩn, đỡ rối
-        dong.append([(h or x)["ten"], h["ca"] if h else 0, h["dung"] if h else 0, h["tre"] if h else 0, h["chua_len"] if h else 0,
-                     ("–" if not h or h["ty_le"] is None else f"{h['ty_le']}%", _lop(h["ty_le"] if h else None)),
-                     x["so_ngay"] if x else 0, _pc(x["ban"], x["mt"]) if x else "–", _pc(x["onl"], x["dk"]) if x else "–"])
-    dong.sort(key=lambda r: (r[5][0] == "–", -int(r[5][0].rstrip("%")) if r[5][0] != "–" else 0, r[0]))
-    if not dong:
-        return [tom, html.Div("Chưa có ca hoặc báo cáo nào trong khoảng này.", className="onl-hq-ghi")]
-    kh = [[k["nhan"], k["ca"], k["dung"], k["tre"], k["chua_len"], ("–" if k["ty_le"] is None else f"{k['ty_le']}%", _lop(k["ty_le"]))] for k in hq["khung"]]
-    out = [tom, *ghi,
-           html.Div("Theo nhân viên", className="onl-hq-tde"),
-           _bang(["Nhân viên", "Ca", "Đúng hẹn", "Trễ", "Chưa lên", "Tỷ lệ đúng hẹn", "Ngày có báo cáo", "Bán / mục tiêu", "Online / dự kiến"], dong)]
-    if kh:
-        out += [html.Div("Theo khung giờ HẸN (khung giờ sale khai lúc tạo ca)", className="onl-hq-tde"),
-                _bang(["Khung giờ", "Ca", "Đúng hẹn", "Trễ", "Chưa lên", "Tỷ lệ đúng hẹn"], kh)]
-    if len(xh["ngay"]) >= 2:
-        out += [html.Div("Xu hướng theo ngày", className="onl-hq-tde"), _hinh(xh["ngay"])]
-    out.append(html.Div(["Đúng hẹn: ca đã online khi còn trong hạn khung giờ hẹn. Trễ: online muộn hơn hạn. Chưa lên: quá hạn mà chưa online hoặc đã dời sang mai. ",
-                         "Giờ online là giờ sale bấm nút nên có thể muộn hơn giờ thật."], className="onl-hq-ghi"))
-    return out
+    for h in hq["nv"]:
+        x = nv_xh.get(h["acc"], {})
+        muc, nhan = pa.danh_gia(h["ty_le"], h["xet"])
+        ty = h["ty_le"]
+        dong.append(html.Tr([
+            html.Td(h["ten"], className="ten"),
+            html.Td(h["ca"]),
+            html.Td([html.Span(html.I(style={"width": f"{ty or 0}%"}), className=f"hq-mini {muc}"), html.B("–" if ty is None else f"{ty}%")], className="hq-td-tl"),
+            html.Td(h["tre"]), html.Td(h["chua_len"]), html.Td(h["doi"]),
+            html.Td("–" if not x or not x["dk"] else f"{x['onl']}/{x['dk']}"),
+            html.Td("–" if not x or not x["mt"] else f"{x['ban']}/{x['mt']}"),
+            html.Td(ve.huy_hieu(muc, nhan)),
+        ], id={"type": "hq-nv", "acc": h["acc"]}, n_clicks=0, className="hq-hang"))
+    cot = ["Nhân viên", "Ca", "Đúng hẹn", "Trễ", "Chưa lên", "Dời", "Online / dự kiến", "Bán / mục tiêu", "Đánh giá"]
+    return html.Div([html.Div(["Theo nhân viên ", html.Span("· bấm vào một người để xem chi tiết", className="hq-ghi-nho")], className="hq-tde"),
+                     html.Table([html.Thead(html.Tr([html.Th(c) for c in cot])), html.Tbody(dong)], className="hq-bang")], className="hq-khoi")
+
+
+def tong_quan(phong: list[str], ky: str) -> list:
+    tu, den = pa.khoang(ky)
+    tu0, den0 = pa.ky_truoc(tu, den)
+    hq, hq0 = pa.hieu_qua(phong, tu, den), pa.hieu_qua(phong, tu0, den0)
+    xh, xh0 = pa.xu_huong(phong, tu, den), pa.xu_huong(phong, tu0, den0)
+    t = hq["tong"]
+    if not t["ca"] and not xh["ngay"]:
+        return [html.Div(f"{ve.khoang_chu(tu, den)}: chưa có ca hoặc báo cáo nào.", className="hq-ghi")]
+    dau = html.Div([html.B(ve.khoang_chu(tu, den)), f" · so với {ve.khoang_chu(tu0, den0)}"], className="hq-dau")
+    ghi = [html.Div(f"Số liệu Báo cáo ngày chỉ có từ {xh['tu_ngay_co']:%d/%m/%Y} (trước đó báo cáo ngày đã qua bị xoá).", className="hq-ghi")
+           ] if xh["tu_ngay_co"] and xh["tu_ngay_co"] > tu else []
+    nhieu_ngay = len(hq["ngay"]) >= 2 or len(xh["ngay"]) >= 2
+    hinh = ve.cac_hinh(ve.hinh_dung_hen(hq["ngay"]) if len(hq["ngay"]) >= 2 else None, ve.hinh_khung(hq["khung"]) if hq["khung"] else None,
+                       ve.hinh_online(xh["ngay"]) if len(xh["ngay"]) >= 2 else None, ve.hinh_ban(xh["ngay"]) if len(xh["ngay"]) >= 2 else None)
+    return [dau, *ghi, cac_the_chung(t, hq0["tong"], xh, xh0), ve.thanh_ket_qua(t), ve.nhan_dinh(pa.nhan_dinh_phong(hq, hq0, xh)),
+            hinh if nhieu_ngay or hq["khung"] else None, _bang_nv(hq, xh), ve.ghi_cuoi()]
+
+
+def noi_dung(phong: list[str], ky: str, acc: str | None = None) -> list:
+    if acc:
+        from app.ui.pages import baocaongay_hq_nv
+        return baocaongay_hq_nv.chi_tiet(phong, ky, acc)
+    return tong_quan(phong, ky)
 
 
 def register(app):
-    @app.callback(Output("onl-hq", "className"), Output("onl-hq-tieu-de", "children"), Output("onl-hq-than", "children"),
+    @app.callback(Output("onl-hq", "className"), Output("onl-hq-tieu-de", "children"), Output("onl-hq-than", "children"), Output("onl-hq-nv", "data"),
                   Input("onl-hq-mo", "n_clicks"), Input("onl-hq-dong", "n_clicks"), Input("onl-hq-nen", "n_clicks"), Input("onl-hq-ky", "value"),
-                  State("bn-phong", "value"), State("onl-hq", "className"), prevent_initial_call=True)
-    def _hq(mo, _dong, _nen, ky, code, lop):
+                  Input({"type": "hq-nv", "acc": ALL}, "n_clicks"), Input({"type": "hq-ve", "i": ALL}, "n_clicks"),
+                  State("bn-phong", "value"), State("onl-hq", "className"), State("onl-hq-nv", "data"), prevent_initial_call=True)
+    def _hq(mo, _dong, _nen, ky, _nv, _ve, code, lop, nv_cu):
         from app.ui.pages import baocaongay as bn
         t = ctx.triggered_id
+        nv = nv_cu
         if t in ("onl-hq-dong", "onl-hq-nen"):
-            return "modal", no_update, no_update
-        if t == "onl-hq-mo" and not mo:
-            raise PreventUpdate
-        if t == "onl-hq-ky" and "mo" not in (lop or ""):
-            raise PreventUpdate                                # đổi kỳ khi cửa sổ đang đóng: không dựng gì
+            return "modal", no_update, no_update, None
+        if isinstance(t, dict):                              # bấm một dòng nhân viên / nút "Cả phòng"; thành phần mới dựng ra cũng bắn một lần với giá trị rỗng
+            if not ctx.triggered[0]["value"]:
+                raise PreventUpdate
+            nv = t["acc"] if t["type"] == "hq-nv" else None
+        elif t == "onl-hq-mo":
+            if not mo:
+                raise PreventUpdate
+            nv = None
+        elif t == "onl-hq-ky" and "mo" not in (lop or ""):
+            raise PreventUpdate                              # đổi kỳ khi cửa sổ đang đóng: không dựng gì
         phong = bn._phong_hop_le(code)
-        return "modal mo", f"Hiệu quả & xu hướng · {code}", noi_dung(phong, ky or "7")
+        than = noi_dung(phong, ky or "7", nv)
+        return "modal mo", f"Hiệu quả & xu hướng · {code}", than, nv

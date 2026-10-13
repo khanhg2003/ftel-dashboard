@@ -388,7 +388,7 @@ def test_ket_qua_dung_hen_tre_chua_len_cho_va_khong_hen():
     assert pa.ket_qua(_ca_gia("dang_lam", "08-10", ngay=hn), hn, 601) == "chua_len"             # hôm nay quá hạn mà chưa online
     assert pa.ket_qua(_ca_gia("dang_lam", "1330-1530", ngay=hn), hn, 600) == "cho"            # chưa tới hạn: chưa tính
     assert pa.ket_qua(_ca_gia("du_kien", "08-10", ngay=hn - timedelta(days=1)), hn, 0) == "chua_len"        # ngày đã qua
-    assert pa.ket_qua(_ca_gia("doi_mai", "08-10", ngay=hn), hn, 0) == "chua_len"
+    assert pa.ket_qua(_ca_gia("doi_mai", "08-10", ngay=hn), hn, 0) == "doi"                    # đã dời ngày: tách riêng, vẫn không tính là đúng hẹn
     assert pa.ket_qua(_ca_gia("da_online", "chua", at(9, 0), hn), hn, 700) == "khong_hen"       # chưa hẹn giờ: không có hẹn để so
 
 
@@ -420,6 +420,46 @@ def test_hieu_qua_theo_nhan_vien_va_khung_hen(hai_nguoi):
     assert pa.khoang("thang", date(2026, 10, 12)) == (date(2026, 10, 1), date(2026, 10, 12))
 
 
+def test_phan_tich_hieu_qua_tach_ca_doi_so_sanh_ky_truoc_va_nhan_dinh(hai_nguoi):
+    """Chủ app 13/10/2026: phân tích hiệu quả chi tiết cả phòng và từng người (đúng hẹn, dời ngày, trễ, so với khoảng trước, nhận định)."""
+    from datetime import datetime
+
+    from sqlalchemy import update
+
+    from app import online_ca_phan_tich as pa
+    from app.db import session_scope
+    from app.models import OnlineCa
+    a, b = hai_nguoi
+    ids = [oc.them(f"DAAAP80{i}", a, "08-10", PHONG, "k", NGAY) for i in range(1, 5)] + [oc.them("DAAAP8099", b, "08-10", PHONG, "k", NGAY)]
+    for i in ids[:2]:
+        oc.doi_trang_thai(i, "da_online", PHONG, "k")
+    with session_scope() as s:
+        s.execute(update(OnlineCa).where(OnlineCa.id == ids[0]).values(online_luc=datetime(2026, 9, 10, 2, 30)))     # 09:30 VN: đúng hạn 10h
+        s.execute(update(OnlineCa).where(OnlineCa.id == ids[1]).values(online_luc=datetime(2026, 9, 10, 3, 30)))     # 10:30 VN: muộn 30 phút
+    oc.doi_ngay(ids[2], PHONG, "k", NGAY + timedelta(days=1))
+    oc.doi_ngay(oc.ds_ca(PHONG, NGAY + timedelta(days=1))[0]["id"], PHONG, "k", NGAY + timedelta(days=2))
+    r = pa.hieu_qua(PHONG, NGAY, NGAY, now=0)
+    t = r["tong"]
+    assert (t["dung"], t["tre"], t["doi"], t["chua_len"]) == (1, 1, 1, 2) and t["xet"] == 5 and t["ty_le"] == 20
+    assert t["tre_tb"] == 30 and t["ty_doi"] == 20
+    na = next(x for x in r["nv"] if x["acc"] == a)
+    assert (na["ca"], na["doi"], na["chua_len"]) == (4, 1, 1) and pa.danh_gia(na["ty_le"], na["xet"]) == ("xau", "Cần hỗ trợ")
+    assert pa.danh_gia(80, 2)[0] == "it" and pa.danh_gia(85, 4)[0] == "tot" and pa.danh_gia(60, 4)[0] == "luu_y"
+    rieng = pa.hieu_qua(PHONG, NGAY, NGAY, now=0, acc=b)                           # lọc một người
+    assert rieng["tong"]["ca"] == 1 and [x["acc"] for x in rieng["nv"]] == [b]
+    assert [d["ngay"] for d in r["ngay"]] == [NGAY]
+    ca_dung = next(c for c in r["ca"] if c["ma"] == "DAAAP8099")
+    assert ca_dung["kq"] == "chua_len" and ca_dung["so_doi"] == 0
+    chuoi_doi = next(c for c in pa.hieu_qua(PHONG, NGAY + timedelta(days=2), NGAY + timedelta(days=2), now=0)["ca"] if c["ma"] == "DAAAP803")
+    assert chuoi_doi["so_doi"] == 2                                                # dời hai lần liên tiếp
+    assert pa.ky_truoc(date(2026, 10, 8), date(2026, 10, 14)) == (date(2026, 10, 1), date(2026, 10, 7))
+    xh = pa.xu_huong(PHONG, NGAY, NGAY)
+    nd = pa.nhan_dinh_phong(r, pa.hieu_qua(PHONG, NGAY - timedelta(days=1), NGAY - timedelta(days=1), now=0), xh)
+    assert nd and nd[0][0] == "xau" and "1/5" in nd[0][1] and any("bị dời" in c for _, c in nd)
+    nd_nv = pa.nhan_dinh_nv({**na, "ten": "A"}, pa.hieu_qua(PHONG, NGAY, NGAY, now=0, acc=a), t, pa.xu_huong(PHONG, NGAY, NGAY, a))
+    assert nd_nv[0][0] == "xau" and any("quá hạn mà chưa online" in c for _, c in nd_nv)
+
+
 def test_xu_huong_gom_so_bao_cao_ngay_theo_ngay_va_theo_nguoi(hai_nguoi):
     from app import online_ca_phan_tich as pa
     a, b = hai_nguoi
@@ -429,16 +469,20 @@ def test_xu_huong_gom_so_bao_cao_ngay_theo_ngay_va_theo_nguoi(hai_nguoi):
     assert x["ngay"] == [{"ngay": NGAY, "mt": 4, "ban": 3, "dk": 4, "onl": 3, "nguoi": 2}] and x["tu_ngay_co"] == NGAY
     nv = {r["acc"]: r for r in x["nv"]}
     assert (nv[a]["mt"], nv[a]["ban"], nv[a]["dk"], nv[a]["onl"], nv[a]["so_ngay"]) == (3, 2, 3, 2, 1)
-    assert pa.xu_huong(PHONG, NGAY + timedelta(days=30), NGAY + timedelta(days=31)) == {"ngay": [], "nv": [], "tu_ngay_co": None}
+    assert pa.xu_huong(PHONG, NGAY + timedelta(days=30), NGAY + timedelta(days=31)) == {"ngay": [], "nv": [], "tong": dict(mt=0, ban=0, dk=0, onl=0), "tu_ngay_co": None}
+    assert pa.xu_huong(PHONG, NGAY, NGAY, acc=a)["tong"] == dict(mt=3, ban=2, dk=3, onl=2)                   # lọc riêng một người
 
 
-def test_cua_so_hieu_qua_va_thanh_tien_do_nhap_dung_duoc(hai_nguoi):
+def test_cua_so_hieu_qua_va_thanh_tien_do_nhap_dung_duoc(hai_nguoi, monkeypatch):
+    from app import online_ca_phan_tich as pa
     from app.ui.pages import baocaongay, baocaongay_hq
+    monkeypatch.setattr(pa, "khoang", lambda ky, hom=None: (NGAY, NGAY))                  # dữ liệu thử nằm ở ngày kiểm thử, không phải hôm nay
     a, b = hai_nguoi
     oc.them("DAAAP5001", a, "08-10", PHONG, "k", NGAY)
     bc.luu(a, {"onl_sang": 1, "muc_tieu": 2}, PHONG, "k", NGAY)
     ndung = baocaongay_hq.noi_dung(PHONG, "hn")
-    assert ndung and ndung[0].className == "onl-hq-tom"
+    assert ndung and ndung[0].className == "hq-dau"
+    assert baocaongay_hq.noi_dung(PHONG, "hn", a)[0].className == "hq-nv-dau"                  # bấm một người: xem chi tiết
     df = bc.bang(PHONG, NGAY)
     td = baocaongay._tien_do(df, bc.hom_nay())                                    # hôm nay: có thanh, bấm tên nhảy tới dòng
     assert td is not None and td.className in ("bn-td", "bn-td xong")
