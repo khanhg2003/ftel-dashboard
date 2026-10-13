@@ -15,6 +15,7 @@ Quy tắc đã chốt với chủ app:
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import date, datetime, timedelta
 
@@ -227,8 +228,37 @@ def thieu_gio(ca: list[dict], dk: dict, hen: dict | None = None) -> dict:
     return out
 
 
+def dong_bo_ghi_chu_ngay(phong: list[str], ngay: date, ai: str = "tự đồng bộ") -> int:
+    """Kéo ghi chú các ca của `ngay` về KHỚP Nhập tồn (chủ app 13/10/2026: "đang có như nào thì đồng bộ luôn", chạy mỗi lần nạp mục này nên ca cũ
+    tạo trước khi có liên kết hai chiều cũng tự khớp): HĐ có "Ghi chú tình trạng" ở Nhập tồn thì ca lấy đúng chữ đó; Nhập tồn trống mà ca có chữ
+    thì chép chữ của ca sang Nhập tồn. Trả số ca đã đổi. Chỉ ghi khi có chỗ lệch nên bình thường là một câu đọc."""
+    dam_bao_bang()
+    from app import online_ton as ot
+    with session_scope() as s:
+        rows = s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai")).scalars().all()
+        if not rows:
+            return 0
+        gc_ton = ot.ghi_chu_ton({r.ma_hd for r in rows})
+        n, sang_ton = 0, {}
+        for r in rows:
+            ton = gc_ton.get(r.ma_hd, "")
+            if ton and (r.ghi_chu or "") != ton[:GHI_CHU_TOI_DA]:
+                r.ghi_chu = ton[:GHI_CHU_TOI_DA]
+                _dau(r, ai)
+                n += 1
+            elif not ton and r.ghi_chu:
+                sang_ton[r.ma_hd] = r.ghi_chu
+    for ma, gc in sang_ton.items():
+        ot.ca_sang_ton(ma, gc, phong, ai)
+    return n
+
+
 def du_lieu(phong: list[str], ngay: date) -> dict:
     """Gói dữ liệu duy nhất gửi trình duyệt vẽ mục Theo dõi Online (assets/online.js)."""
+    try:
+        dong_bo_ghi_chu_ngay(phong, ngay)
+    except Exception:                                      # noqa: BLE001 - đồng bộ ghi chú hỏng cũng không được làm mất cả mục
+        logging.getLogger(__name__).exception("Không đồng bộ được ghi chú Nhập tồn")
     nv = nhan_vien(tuple(phong), ngay.isoformat())
     from app import online_ton as ot
     ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)

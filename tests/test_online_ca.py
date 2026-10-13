@@ -815,3 +815,30 @@ def test_trang_nhap_ton_chep_ghi_chu_sang_ca_theo_doi_online(hai_nguoi, ma_ton):
         with session_scope() as s:
             s.execute(delete(OnlineCa).where(OnlineCa.ma_hd == ma_ton[0]))
             s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == hom_nay, BaoCaoNgay.acc_norm == a))
+
+
+def test_nap_muc_online_keo_ghi_chu_ca_cu_ve_khop_nhap_ton(hai_nguoi, ma_ton):
+    """Ca tạo TRƯỚC khi có liên kết ghi chú: nạp mục Theo dõi Online là tự khớp - Nhập tồn có chữ thì ca lấy chữ đó; Nhập tồn trống mà ca có chữ thì chép sang Nhập tồn."""
+    from sqlalchemy import delete, update
+
+    from app import nhap_ton as nt
+    from app import online_ton as ot
+    from app.db import session_scope
+    from app.models import BaoCaoNgay, OnlineCa
+    a, _ = hai_nguoi
+    hom_nay = bc.hom_nay()
+    try:
+        i, j = oc.them(ma_ton[0], a, "08-10", PHONG, AI, hom_nay), oc.them(ma_ton[1], a, "08-10", PHONG, AI, hom_nay)
+        with session_scope() as s:                                                    # giả lập ca cũ: ghi chú riêng, chưa liên kết
+            s.execute(update(OnlineCa).where(OnlineCa.id == i).values(ghi_chu="chữ riêng của ca"))
+            s.execute(update(OnlineCa).where(OnlineCa.id == j).values(ghi_chu="chỉ ca có chữ"))
+        nt.luu(ma_ton[0], {"ghi_chu": "Tình trạng đang có ở Nhập tồn"}, PHONG, AI)
+        du = oc.du_lieu(PHONG, hom_nay)
+        gc = {c["ma"]: c["gc"] for c in du["ca"]}
+        assert gc[ma_ton[0]] == "Tình trạng đang có ở Nhập tồn"                        # Nhập tồn thắng
+        assert gc[ma_ton[1]] == "chỉ ca có chữ" and ot.ghi_chu_ton([ma_ton[1]])[ma_ton[1]] == "chỉ ca có chữ"   # Nhập tồn trống: lấy chữ của ca
+        assert oc.dong_bo_ghi_chu_ngay(PHONG, hom_nay) == 0                            # lần sau không còn gì lệch, không ghi lại
+    finally:
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_(ma_ton)))
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == hom_nay, BaoCaoNgay.acc_norm == a))
