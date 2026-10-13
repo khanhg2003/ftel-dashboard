@@ -1661,8 +1661,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 #onl-tm .modal-hop { max-width: 460px; }
 
 /* Dời ca sang ngày khác (hộp chọn khung giờ + ghi chú) và ô xếp khung giờ ngay trên thẻ ca "Chưa hẹn giờ" */
-.onl-dn-tt { margin-bottom: 12px; font-size: 13.5px; color: #1F2933; }
-#onl-dn .modal-hop { max-width: 440px; }
 .onl-xep { width: 100%; margin: 2px 0 8px; padding: 6px 8px; font: inherit; font-size: 12.5px; font-weight: 600; color: #9A5B13; border: 1px dashed #D9822B; border-radius: 6px; background: #FFF9F0; cursor: pointer; }
 .onl-xep:hover { background: #FDF1DC; }
 .onl-them-f select option { color: #1F2933; }
+.onl-mn-ok { display: block; width: calc(100% - 12px); margin: 6px 6px 2px; padding: 7px 8px; border: 0; border-radius: 6px; background: var(--fpt-blue); color: #fff; font: inherit; font-size: 12.5px; font-weight: 600; text-align: center; cursor: pointer; }
+.onl-mn-ok:hover:not(:disabled) { filter: brightness(1.1); }
+.onl-mn-ok:disabled { background: #EEF2F7; color: #98A2B3; cursor: default; }

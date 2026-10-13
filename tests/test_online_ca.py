@@ -147,18 +147,16 @@ def test_sua_ghi_chu_khong_co_doi_nguoi_phu_trach(hai_nguoi):
         oc.sua_ghi_chu(i, "x", ["IBB2"], "k")
 
 
-def test_doi_ngay_chon_khung_gio_va_ghi_chu_cho_ngay_moi(hai_nguoi):
-    """Dời sang ngày khác thì sale chọn luôn khung giờ + ghi chú của ngày đó (chủ app yêu cầu 13/10/2026); bỏ trống thì "Chưa hẹn giờ", giữ ghi chú cũ."""
+def test_doi_ngay_chon_khung_gio_cho_ngay_moi_va_giu_ghi_chu(hai_nguoi):
+    """Dời sang ngày khác thì chọn luôn khung giờ của ngày đó (chủ app 13/10/2026); bỏ trống thì "Chưa hẹn giờ". Ghi chú luôn giữ nguyên."""
     a, _ = hai_nguoi
     i = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY, ghi_chu="gọi trước")
     j = oc.them("DAAAP0002", a, "08-10", PHONG, "k", NGAY)
-    moi = oc.doi_ngay(i, PHONG, "k", NGAY + timedelta(days=2), "1330-1530", "  khách hẹn sau 14h ")
+    moi = oc.doi_ngay(i, PHONG, "k", NGAY + timedelta(days=2), "1330-1530")
     c = oc.ds_ca(PHONG, moi)[0]
-    assert (c["khung"], c["gc"]) == ("1330-1530", "khách hẹn sau 14h")
+    assert (c["khung"], c["gc"]) == ("1330-1530", "gọi trước")
     moi2 = oc.doi_ngay(j, PHONG, "k", NGAY + timedelta(days=1))
     assert oc.ds_ca(PHONG, moi2)[0]["khung"] == "chua"
-    k = oc.them("DAAAP0003", a, "08-10", PHONG, "k", NGAY, ghi_chu="giữ")
-    assert oc.ds_ca(PHONG, oc.doi_ngay(k, PHONG, "k", NGAY + timedelta(days=1), None, None))[-1]["gc"] == "giữ"
     with pytest.raises(oc.LoiOnline):
         oc.doi_ngay(oc.them("DAAAP0004", a, "08-10", PHONG, "k", NGAY), PHONG, "k", NGAY + timedelta(days=1), "khong-co")
 

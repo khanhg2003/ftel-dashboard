@@ -12,7 +12,7 @@
 (function () {
     const TT_DAI = {du_kien: 'Chờ lắp', dang_lam: 'Đang triển khai', da_online: 'Đã online'};
     const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false, moHen = false, moThem = false, themNv = '', themKhung = '', doi = null;
+    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false, moHen = false, moThem = false, themNv = '', themKhung = '';
     const cuoi = {};                                            // id khối -> HTML đã vẽ lần trước (giống nhau thì khỏi vẽ lại)
 
     function esc(s) {
@@ -78,7 +78,7 @@
 
 
     function chonNgay() {                                       // các ngày ca được dời tới (ngày mai → ngày xa nhất cho nhập trước), mỗi ngày một dòng
-        let o = '<option value="">Chọn ngày…</option>', n = ngayKe(du.ngay), i = 0;
+        let o = '<option value="">' + (du.ngay === du.hom_nay ? 'Hôm nay (giữ nguyên)' : 'Ngày này (giữ nguyên)') + '</option>', n = ngayKe(du.ngay), i = 0;
         while (n <= (du.xa_nhat || '') && i < 8) {
             o += '<option value="' + n + '">' + (i === 0 ? 'Ngày mai · ' : '') + THU[new Date(n + 'T00:00:00').getDay()] + ' ' + ngayVn(n) + '</option>';
             n = ngayKe(n); i++;
@@ -226,38 +226,31 @@
             + '<div class="onl-them-loi"></div></div>';
     }
 
-    /* Dời ca sang ngày khác: chọn ngày ở menu ⋯ chưa dời ngay mà mở hộp hỏi khung giờ (+ ghi chú) của ngày đó; để "Chưa hẹn giờ" thì hôm đó xếp sau. */
-    function moHopDoi(c, ngay) {
-        doi = {id: c.id, ngay: ngay};
-        const d = new Date(ngay + 'T00:00:00'), cur = c.khung;
-        document.querySelectorAll('.onl-mn[open]').forEach(function (m) { m.open = false; });
-        document.getElementById('onl-dn-than').innerHTML = '<div class="onl-dn-tt">Ca <b>' + esc(c.ma) + '</b> sẽ dời sang <b>' + THU[d.getDay()] + ' ' + ngayVn(ngay) + '</b></div><div class="onl-them-f">'
-            + '<label>Khung giờ<select class="d-kh">' + du.khung.map(function (k) {
-                return '<option value="' + esc(k.ma) + '"' + (k.ma === cur ? ' selected' : '') + '>' + esc(k.ma === 'chua' ? 'Chưa hẹn giờ (xếp sau)' : k.nhan) + '</option>';
-            }).join('') + '</select></label>'
-            + '<label>Ghi chú<input class="d-gc" type="text" maxlength="200" value="' + esc(c.gc || '') + '" placeholder="Không bắt buộc" autocomplete="off"></label></div>';
-        window.dash_clientside.set_props('onl-dn', {className: 'modal mo'});
-        setTimeout(function () { const o = document.querySelector('#onl-dn-than .d-kh'); if (o) { o.focus(); } }, 80);
+    /* Menu ⋯ → "Dời ca": chọn khung giờ + ngày rồi bấm MỘT nút xác nhận (nút nói rõ sẽ dời tới đâu), nên bấm nhầm một ô không làm ca đi đâu cả. */
+    function capNhatNutDoi(m) {
+        const c = tim(m.dataset.id), kh = m.querySelector('[data-act="dm-kh"]'), ng = m.querySelector('[data-act="dm-ngay"]'), nut = m.querySelector('[data-act="dm-ok"]');
+        if (!c || !kh || !ng || !nut) { return; }
+        const nhanKh = (du.khung.filter(function (k) { return k.ma === kh.value; })[0] || {}).nhan || '';
+        const doiNgay = !!ng.value, doiKhung = kh.value !== c.khung;
+        nut.disabled = !doiNgay && !doiKhung;
+        nut.textContent = doiNgay ? 'Dời sang ' + THU[new Date(ng.value + 'T00:00:00').getDay()] + ' ' + ngayVn(ng.value) + ' · ' + nhanKh
+            : doiKhung ? 'Chuyển sang ' + nhanKh : 'Chọn khung giờ hoặc ngày mới';
     }
 
-    function dongHopDoi(huy) {
-        window.dash_clientside.set_props('onl-dn', {className: 'modal'});
-        if (huy) { document.querySelectorAll('#onl-goc select[data-act="ngay"]').forEach(function (x) { x.value = ''; }); }
-        doi = null;
-    }
-
-    function xacNhanDoi() {
-        const f = document.getElementById('onl-dn-than');
-        if (!doi || !f || !du) { return; }
-        const c = tim(doi.id), kh = f.querySelector('.d-kh').value, gc = f.querySelector('.d-gc').value;
-        if (c) {
+    function xacNhanDoi(m) {
+        const c = tim(m.dataset.id), kh = m.querySelector('[data-act="dm-kh"]').value, ng = m.querySelector('[data-act="dm-ngay"]').value;
+        if (!c) { return; }
+        if (ng) {
             du.ca = du.ca.filter(function (x) { return x !== c; });
-            bao('Đã dời ' + c.ma + ' sang ngày ' + ngayVn(doi.ngay));
-            gui('mai', {id: c.id, ngay: doi.ngay, khung: kh, gc: gc});
-            capNhatThieu();
-            ve();
+            bao('Đã dời ' + c.ma + ' sang ' + THU[new Date(ng + 'T00:00:00').getDay()] + ' ' + ngayVn(ng));
+            gui('mai', {id: c.id, ngay: ng, khung: kh});
+        } else if (kh !== c.khung) {
+            c.khung = kh;
+            bao('Đã chuyển ' + c.ma + ' sang ' + ((du.khung.filter(function (k) { return k.ma === kh; })[0] || {}).nhan || ''));
+            gui('khung', {id: c.id, val: kh});
         }
-        dongHopDoi(false);
+        capNhatThieu();
+        ve();
     }
 
     function moHopThem(mo) {
@@ -285,8 +278,9 @@
             + '<div class="onl-c-nut">' + nut + '<span class="grow"></span>'
             + '<details class="onl-mn"><summary title="Dời khung giờ, dời ngày, sửa ghi chú, huỷ">⋯</summary><div class="onl-mn-ds">'
             + '<div class="onl-mn-nhom"><div class="onl-mn-nhan">Dời ca</div>'
-            + '<label class="onl-mn-hang"><span>Khung</span><select data-act="khung" data-id="' + c.id + '">' + khung + '</select></label>'
-            + '<label class="onl-mn-hang"><span>Ngày</span><select data-act="ngay" data-id="' + c.id + '">' + chonNgay() + '</select></label></div>'
+            + '<div class="onl-mn-form" data-id="' + c.id + '"><label class="onl-mn-hang"><span>Khung</span><select data-act="dm-kh">' + khung + '</select></label>'
+            + '<label class="onl-mn-hang"><span>Ngày</span><select data-act="dm-ngay">' + chonNgay() + '</select></label>'
+            + '<button type="button" class="onl-mn-ok" data-act="dm-ok" disabled>Chọn khung giờ hoặc ngày mới</button></div></div>'
             + '<div class="onl-mn-nhom">'
             + '<button type="button" data-act="sua" data-id="' + c.id + '">' + (c.gc ? 'Sửa ghi chú' : 'Thêm ghi chú') + '<small>' + ((c.ls || []).length > 1 ? 'Lịch sử' : '') + '</small></button>'
             + (lech ? '<button type="button" class="luu-y" data-act="dong-bo-hen" data-id="' + c.id + '">Đổi ngày hẹn ở Nhập tồn<small>→ ' + ngayVn(du.ngay) + '</small></button>' : '')
@@ -386,10 +380,6 @@
         if (!du) { return; }
         const d = e.dataset, c = d.id ? tim(d.id) : null;
         if (act === 'tt' && c) { if (c.tt === d.val) { return; } c.tt = d.val; gui('tt', {id: c.id, val: d.val}); }
-        else if (act === 'ngay' && c) {
-            if (d.ngay) { moHopDoi(c, d.ngay); }
-            return;
-        }
         else if (act === 'xoa' && c) {
             if (!window.confirm('Huỷ ca ' + d.ma + '?')) { return; }
             du.ca = du.ca.filter(function (x) { return x !== c; });
@@ -407,6 +397,7 @@
             return;
         }
         else if (act === 'them-ton') { themMa(loc, d.khung, d.ma); return; }
+        else if (act === 'dm-ok') { xacNhanDoi(e.closest('.onl-mn-form')); return; }
         else if (act === 'mo-hen') { moHen = !moHen; }
         else if (act === 'mo-them') { themNv = themNv || loc || toiLa || ''; ve(); moHopThem(true); return; }
         else if (act === 'them-hen' || act === 'them-hen-tat') {
@@ -443,8 +434,6 @@
         document.addEventListener('click', function (e) {
             const t = e.target && e.target.closest ? e.target : null;
             if (!t) { return; }
-            if (t.closest('#onl-dn-ok')) { xacNhanDoi(); return; }
-            if (t.closest('#onl-dn-dong, #onl-dn-huy')) { dongHopDoi(true); return; }
             if (t.closest('#onl-tm-ok')) { themTay(); return; }
             if (t.closest('#onl-tm-dong, #onl-tm-huy')) { moHopThem(false); return; }
             const b = t.closest('#onl-goc [data-act]');
@@ -457,12 +446,13 @@
             const s = e.target && e.target.closest ? e.target.closest('#onl-goc select[data-act], #onl-tm select[data-act]') : null;
             if (!s || !du) { return; }
             if (s.dataset.act === 'loc-nv-sel') { chonNv(s.value); return; }
+            if (s.dataset.act === 'dm-kh' || s.dataset.act === 'dm-ngay') { capNhatNutDoi(s.closest('.onl-mn-form')); return; }
             if (s.dataset.act === 'them-nv') { themNv = s.value; return; }
             if (s.dataset.act === 'them-kh') { themKhung = s.value; return; }
             const c = tim(s.dataset.id);
-            if (s.dataset.act === 'ngay') { if (s.value) { s.dataset.ngay = s.value; lenh('ngay', s); } return; }
             if (s.dataset.act === 'khung' && c && c.khung !== s.value) {
                 c.khung = s.value;
+                bao('Đã xếp ' + c.ma + ' vào ' + ((du.khung.filter(function (k) { return k.ma === s.value; })[0] || {}).nhan || ''));
                 gui('khung', {id: c.id, val: s.value});
                 capNhatThieu();
                 ve();
@@ -470,7 +460,6 @@
         });
         document.addEventListener('keydown', function (e) {
             const o = e.target && e.target.classList && e.target.classList.contains('onl-nhap') ? e.target : null;
-            if (e.target && e.target.closest && e.target.closest('#onl-dn') && e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); xacNhanDoi(); return; }
             if (e.target && e.target.closest && e.target.closest('#onl-them') && e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); themTay(); return; }
             if (e.target && e.target.id === 'onl-md-gc' && e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
