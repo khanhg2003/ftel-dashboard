@@ -81,7 +81,8 @@ def hen_cho_ngay(phong: list[str], ngay: date) -> dict[str, list[dict]]:
     nt.dam_bao_bang()
     with session_scope() as s:
         hen = {r.hop_dong: r.phuong_an for r in s.execute(select(TonTheoDoi).where(TonTheoDoi.loai_moc == "hen", TonTheoDoi.ngay_moc == ngay)).scalars()}
-        co = set(s.execute(select(OnlineCa.ma_hd).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong))).scalars())
+        # ca đã dời sang ngày khác (doi_mai) không còn trên bảng nên KHÔNG tính là "đã có ca": Nhập tồn hẹn lại đúng ngày đó thì phải nhắc (chủ app 13/10/2026)
+        co = set(s.execute(select(OnlineCa.ma_hd).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai")).scalars())
     ton = ton[ton.hop_dong.isin([m for m, pa in hen.items() if pa not in (nt.PA_HUY, nt.PA_DA_TRIEN_KHAI)]) & ~ton.hop_dong.isin(co)]
     ton = ton.assign(acc=nt._acc(ton)[1]) if len(ton) else ton
     out: dict[str, list[dict]] = {}

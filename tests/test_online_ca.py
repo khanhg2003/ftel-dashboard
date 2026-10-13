@@ -938,3 +938,38 @@ def test_doi_moc_hen_o_nhap_ton_keo_ca_ve_ngay_moi_vao_chua_hen_gio(hai_nguoi, m
     finally:
         with session_scope() as s:
             s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_(ma_ton)))
+
+
+def test_nhap_ton_hen_hom_nay_ma_ca_da_doi_di_thi_tu_keo_ve_khi_nap_va_nhac_khi_chua_con_ca(hai_nguoi, ma_ton, hen_that):
+    """Chủ app 13/10/2026 (ca của Lưu Quốc Trường Sơn): Nhập tồn hẹn hôm nay mà Theo dõi Online không có - do phiếu hôm nay đã bị dời đi (doi_mai) hoặc ca còn nằm ngày khác."""
+    from sqlalchemy import delete
+
+    from app import nhap_ton as nt
+    from app import online_ton as ot
+    from app.db import session_scope
+    from app.models import OnlineCa
+    a, _ = hai_nguoi
+    hn = bc.hom_nay()
+    try:
+        i = oc.them(ma_ton[0], a, "10-12", PHONG, AI, hn)
+        oc.doi_ngay(i, PHONG, AI, hn + timedelta(days=1))                                       # dời sang mai: phiếu hôm nay thành doi_mai
+        nt.luu(ma_ton[0], {"loai_moc": "hen", "ngay_moc": hn.isoformat()}, PHONG, AI, ghi_ten=AI)   # ai đó sửa mốc về hôm nay ở Nhập tồn (không qua trang)
+        assert oc.ds_ca(PHONG, hn) == []
+        oc.du_lieu(PHONG, hn)                                                                   # mở / nạp mục Theo dõi Online
+        c = oc.ds_ca(PHONG, hn)
+        assert [x["ma"] for x in c] == [ma_ton[0]] and oc.ds_ca(PHONG, hn + timedelta(days=1)) == []   # ca về lại hôm nay, không nhân đôi
+        # Nhập tồn Huỷ thì không kéo nữa
+        oc.doi_ngay(c[0]["id"], PHONG, AI, hn + timedelta(days=1))
+        nt.luu(ma_ton[0], {"loai_moc": "hen", "ngay_moc": hn.isoformat(), "phuong_an": nt.PA_HUY}, PHONG, AI, ghi_ten=AI)
+        assert oc.keo_ca_ve_ngay(PHONG, hn) == 0 and oc.ds_ca(PHONG, hn) == []
+        # phiếu hôm nay chỉ còn là doi_mai, không còn ca sống nơi nào: hộp nhắc phải hiện, thêm lại thì phiếu cũ sống lại
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ma_hd == ma_ton[0], OnlineCa.ngay == hn + timedelta(days=1)))
+        nt.luu(ma_ton[0], {"phuong_an": "Đang chờ triển khai"}, PHONG, AI, ghi_ten=AI)
+        assert [x["ma"] for v in ot.hen_cho_ngay(PHONG, hn).values() for x in v] == [ma_ton[0]]
+        kq = oc.them_nhieu(ma_ton[0], a, "1330-1530", PHONG, AI, hn)
+        assert kq["them"] == [ma_ton[0]] and [(x["ma"], x["khung"], x["tt"]) for x in oc.ds_ca(PHONG, hn)] == [(ma_ton[0], "1330-1530", "du_kien")]
+        assert ot.hen_cho_ngay(PHONG, hn) == {}
+    finally:
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_(ma_ton)))

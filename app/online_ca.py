@@ -22,7 +22,7 @@ from app import bao_cao_ngay as bc
 from app.bo_nho import nho
 from app.config import rules_config
 from app.db import engine, session_scope
-from app.models import OnlineCa
+from app.models import OnlineCa, TonTheoDoi
 from app.thoi_gian import gio_viet_nam, sang_gio_vn, utc_bay_gio
 
 TRANG_THAI = ("du_kien", "dang_lam", "da_online")        # sale tự đặt; "doi_mai" là trạng thái app đặt khi dời sang ngày kế
@@ -255,6 +255,10 @@ def dong_bo_ghi_chu_ngay(phong: list[str], ngay: date, ai: str = "tự đồng b
 def du_lieu(phong: list[str], ngay: date) -> dict:
     """Gói dữ liệu duy nhất gửi trình duyệt vẽ mục Theo dõi Online (assets/online.js)."""
     try:
+        keo_ca_ve_ngay(phong, ngay)
+    except Exception:                                      # noqa: BLE001 - kéo ca hỏng cũng không được làm mất cả mục
+        logging.getLogger(__name__).exception("Không kéo được ca về ngày hẹn Nhập tồn")
+    try:
         dong_bo_ghi_chu_ngay(phong, ngay)
     except Exception:                                      # noqa: BLE001 - đồng bộ ghi chú hỏng cũng không được làm mất cả mục
         logging.getLogger(__name__).exception("Không đồng bộ được ghi chú Nhập tồn")
@@ -317,10 +321,10 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
     ket = {"them": [], "bo_qua": [(t, "mã không hợp lệ") for t in sai], "hoi": []}
     sang_ton = {}                                           # mã -> ghi chú mới cần chép sang Nhập tồn
     with session_scope() as s:
-        da = {r.ma_hd: r.trang_thai for r in s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0])).scalars()}
+        da = {r.ma_hd: r for r in s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0])).scalars()}
         for ma in ma_ds:
-            if ma in da:
-                ket["bo_qua"].append((ma, "đã dời sang ngày mai" if da[ma] == "doi_mai" else "đã có trong ngày"))
+            if ma in da and da[ma].trang_thai != "doi_mai":
+                ket["bo_qua"].append((ma, "đã có trong ngày"))
                 continue
             if ma in xd and not xac_nhan:
                 ket["hoi"].append(xd[ma])
@@ -328,6 +332,14 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
             gc = ot.gop_ghi_chu(gc_ton.get(ma, ""), ghi_chu)
             if gc != gc_ton.get(ma, "") and (ghi_chu or "").strip() in gc:
                 sang_ton[ma] = gc
+            if ma in da:                                    # phiếu đã dời đi ngày này rồi nay được hẹn lại đúng ngày: sống lại, không tạo phiếu thứ hai
+                r = da[ma]
+                r.trang_thai, r.online_luc, r.acc_norm, r.khung, r.khung_dau = "du_kien", None, acc_norm, khung_ma, khung_ma
+                r.ghi_chu = gc[:GHI_CHU_TOI_DA] or None
+                _ghi_ls(r, ai, f"Thêm lại vào ngày này, khung {_nhan_khung(khung_ma)}")
+                _dau(r, ai)
+                ket["them"].append(ma)
+                continue
             r = OnlineCa(ngay=ngay, phong_code=phong[0], ma_hd=ma, acc_norm=acc_norm, khung=khung_ma, khung_dau=khung_ma,
                          trang_thai="du_kien", ghi_chu=gc[:GHI_CHU_TOI_DA] or None, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
             _ghi_ls(r, ai, f"Tạo ca, khung {_nhan_khung(khung_ma)}")
@@ -460,10 +472,13 @@ def keo_ca_theo_ton(ma: str, phong: list[str], ai: str) -> bool:
     """Sale đổi mốc "Hẹn thi công" của HĐ ở Nhập tồn sang ngày D (chủ app 13/10/2026: đang hẹn 15/10, sửa thành 13/10) thì ca còn sống của HĐ đó
     (Dự kiến / Đang triển khai, từ hôm nay trở đi) được DỜI về D, vào "Chưa hẹn giờ" để sale xếp lại khung giờ - ngày cũ giữ phiếu `doi_mai` nên Hiệu quả vẫn
     tính đúng. HĐ chưa có ca thì không làm gì (hộp "Nhập tồn hẹn hôm nay" nhắc xếp ca). Trả True nếu đã dời. Lỗi (ngày quá xa, đã có ca ở D...) thì bỏ qua."""
+    from app import nhap_ton as nt
     from app import online_ton as ot
     dam_bao_bang()
     x = ot._moc([ma]).get(ma)
     if not x or x["loai"] != "hen" or x["ngay"] is None or not bc.hom_nay() <= x["ngay"] <= bc.ngay_xa_nhat():
+        return False
+    if x["pa"] in (nt.PA_HUY, nt.PA_DA_TRIEN_KHAI):               # đã chốt hướng xử lý: không kéo ca về nữa (giống hộp nhắc `hen_cho_ngay`)
         return False
     d = x["ngay"]
     with session_scope() as s:
@@ -477,6 +492,19 @@ def keo_ca_theo_ton(ma: str, phong: list[str], ai: str) -> bool:
     except LoiOnline:
         return False
     return True
+
+
+def keo_ca_ve_ngay(phong: list[str], ngay: date, ai: str = "tự đồng bộ") -> int:
+    """Mỗi lần nạp mục Theo dõi Online của `ngay` (từ hôm nay trở đi): HĐ mà Nhập tồn đang hẹn đúng `ngay` nhưng ca còn sống đang nằm ở ngày khác thì dời về
+    (xem `keo_ca_theo_ton`). Bắt cả ca đã lệch từ trước khi có liên kết hoặc lúc trang Nhập tồn chưa kịp dời. Trả số ca đã dời."""
+    if ngay < bc.hom_nay():
+        return 0
+    from app import nhap_ton as nt
+    from app import online_ton as ot
+    nt.dam_bao_bang()
+    with session_scope() as s:
+        hen = [r.hop_dong for r in s.execute(select(TonTheoDoi).where(TonTheoDoi.loai_moc == "hen", TonTheoDoi.ngay_moc == ngay)).scalars()]
+    return sum(keo_ca_theo_ton(m, phong, ai) for m in hen) if hen and not ot._ton(phong).empty else 0
 
 
 def dong_bo_ngay_hen(id_: int, phong: list[str], ai: str) -> int:
