@@ -7,6 +7,8 @@ ONL chiều / Đã online trong bảng phía trên được tính lại từ phi
 """
 from __future__ import annotations
 
+from datetime import date
+
 from dash import ClientsideFunction, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
@@ -114,6 +116,13 @@ def register(app):
                     return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update, *_sau_khi_ghi(accs)[1:])
             elif act == "mai":
                 oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"), sk.get("khung") or None)
+            elif act == "ve_ngay":                             # hoàn tác một lần dời ngày: đưa ca (đang ở ngày `tu`) về lại ngày cũ
+                tu = date.fromisoformat(str(sk.get("tu"))[:10])
+                ca = next((c for c in oc.ds_ca(phong, tu) if c["ma"] == sk.get("ma")), None)
+                if ca is None:
+                    raise oc.LoiOnline("Không hoàn tác được: ca không còn ở ngày đã dời tới (có thể đã được dời tiếp).")
+                oc.doi_ngay(ca["id"], phong, ai, sk.get("ve"), sk.get("khung") or None)
+                accs = [ca["acc"]]
             elif act == "xoa":
                 t = oc.xoa(sk["id"], phong, ai)
                 ghi_log("online_xoa", f"{t['ma_hd']} {t['ngay']:%d/%m/%Y} {code}")

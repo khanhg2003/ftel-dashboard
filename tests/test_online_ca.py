@@ -451,7 +451,7 @@ def test_doi_sang_ngay_tuy_chon_trong_gioi_han_nhap_truoc(hai_nguoi):
     a, _ = hai_nguoi
     i = oc.them("DAAAP6001", a, "08-10", PHONG, "k", NGAY)
     xa = bc.ngay_xa_nhat()
-    with pytest.raises(oc.LoiOnline, match="sau ngày hiện tại"):
+    with pytest.raises(oc.LoiOnline, match="khác ngày hiện tại"):
         oc.doi_ngay(i, PHONG, "k", NGAY)                                          # không dời về chính ngày đó
     with pytest.raises(oc.LoiOnline, match="Ngày không hợp lệ"):
         oc.doi_ngay(i, PHONG, "k", "abc")
@@ -530,6 +530,36 @@ def test_nhap_ton_dang_hen_ngay_khac_thi_hoi_lai_dong_y_moi_them_va_doi_ngay_hen
     assert [c["ma"] for c in oc.ds_ca(PHONG, NGAY)] == [ma_ton[2]] and _moc_tt(ma_ton[1])[1] == ngay_khac
     kq = oc.them_nhieu(ma_ton[1], a, "10-12", PHONG, AI, NGAY, xac_nhan=True)         # sale đồng ý chuyển sang hôm nay
     assert kq["them"] == [ma_ton[1]] and _moc_tt(ma_ton[1])[:2] == ("hen", NGAY)       # Nhập tồn tự đổi ngày hẹn
+
+
+def test_doi_nham_roi_doi_ve_lai_ngay_cu_phieu_hoi_sinh_va_nhap_ton_khop_lai(hai_nguoi, ma_ton):
+    """Chủ app 13/10/2026: dời ca nhầm sang ngày khác rồi dời VỀ LẠI thì không tạo phiếu thứ hai, phiếu cũ sống lại và ngày hẹn Nhập tồn về đúng ngày cũ."""
+    from sqlalchemy import func, select
+
+    from app.db import session_scope
+    from app.models import OnlineCa
+    a, _ = hai_nguoi
+    bc.luu(a, {"onl_sang": 1}, PHONG, "k", NGAY)
+    i = oc.them(ma_ton[0], a, "08-10", PHONG, AI, NGAY)
+    moi = oc.doi_ngay(i, PHONG, AI, NGAY + timedelta(days=1), "10-12")
+    assert _moc_tt(ma_ton[0])[:2] == ("hen", moi)                                  # sang ngày mới: Nhập tồn theo
+    ca_moi = oc.ds_ca(PHONG, moi)[0]
+    assert ca_moi["khung"] == "10-12"
+    ve = oc.doi_ngay(ca_moi["id"], PHONG, AI, NGAY)                                # dời về lại ngày cũ (đã qua hôm nay, nhưng là hồi sinh)
+    assert ve == NGAY and oc.ds_ca(PHONG, moi) == []
+    c = oc.ds_ca(PHONG, NGAY)
+    assert len(c) == 1 and (c[0]["khung"], c[0]["tt"]) == ("08-10", "du_kien") and "Dời về lại" in c[0]["ls"][-1]["viec"]
+    assert _moc_tt(ma_ton[0])[:2] == ("hen", NGAY)                                 # Nhập tồn về đúng ngày cũ
+    with session_scope() as s:
+        assert s.execute(select(func.count()).select_from(OnlineCa).where(OnlineCa.ma_hd == ma_ton[0], OnlineCa.ngay == NGAY)).scalar() == 1
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].onl_sang == 1         # ONL sáng đã gõ không mất qua một vòng dời đi dời về
+
+
+def test_khong_lui_ve_ngay_da_qua_neu_day_khong_phai_ngay_cu_cua_ca(hai_nguoi):
+    a, _ = hai_nguoi
+    i = oc.them("DAAAP7001", a, "08-10", PHONG, "k", NGAY + timedelta(days=1))
+    with pytest.raises(oc.LoiOnline, match="hôm nay trở đi"):
+        oc.doi_ngay(i, PHONG, "k", NGAY)
 
 
 def test_trang_thai_ca_dong_bo_phuong_an_va_doi_ngay_dong_bo_ngay_hen(hai_nguoi, ma_ton):

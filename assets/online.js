@@ -77,13 +77,16 @@
     }
 
 
-    function chonNgay() {                                       // các ngày ca được dời tới (ngày mai → ngày xa nhất cho nhập trước), mỗi ngày một dòng
-        let o = '<option value="">' + (du.ngay === du.hom_nay ? 'Hôm nay (giữ nguyên)' : 'Ngày này (giữ nguyên)') + '</option>', n = ngayKe(du.ngay), i = 0;
-        while (n <= (du.xa_nhat || '') && i < 8) {
-            o += '<option value="' + n + '">' + (i === 0 ? 'Ngày mai · ' : '') + THU[new Date(n + 'T00:00:00').getDay()] + ' ' + ngayVn(n) + '</option>';
+    function chonNgay() {                                       // các ngày ca được dời tới: từ hôm nay tới ngày xa nhất cho nhập trước, trừ ngày đang xem (dời nhầm thì dời về lại được)
+        let o = '<option value="">' + (du.ngay === du.hom_nay ? 'Hôm nay (giữ nguyên)' : 'Ngày này (giữ nguyên)') + '</option>', n = du.hom_nay, i = 0, dem = 0;
+        while (n <= (du.xa_nhat || '') && i < 9) {
+            if (n !== du.ngay) {
+                o += '<option value="' + n + '">' + (i === 0 ? 'Hôm nay · ' : i === 1 ? 'Ngày mai · ' : '') + THU[new Date(n + 'T00:00:00').getDay()] + ' ' + ngayVn(n) + '</option>';
+                dem++;
+            }
             n = ngayKe(n); i++;
         }
-        return i ? o : '<option value="">Chưa có ngày để dời</option>';
+        return dem ? o : '<option value="">Chưa có ngày để dời</option>';
     }
 
     function ngayVn(iso) { return String(iso || '').slice(8, 10) + '/' + String(iso || '').slice(5, 7); }
@@ -118,9 +121,22 @@
             document.body.appendChild(t);
         }
         t.textContent = chu;
+        t._ht = null;
         t.classList.add('hien');
         clearTimeout(t._h);
         t._h = setTimeout(function () { t.classList.remove('hien'); }, 2400);
+    }
+
+    function baoHoanTac(chu, ham) {                              // thông báo kèm nút "Hoàn tác" (12 giây), bấm là chạy `ham`
+        bao(chu);
+        const t = document.getElementById('onl-toast');
+        t._ht = ham;
+        t.appendChild(document.createTextNode(' '));
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'onl-ht'; b.textContent = 'Hoàn tác';
+        t.appendChild(b);
+        clearTimeout(t._h);
+        t._h = setTimeout(function () { t.classList.remove('hien'); t._ht = null; }, 12000);
     }
 
     // ------------------------------------------------------------------ vẽ
@@ -227,27 +243,38 @@
     }
 
     /* Menu ⋯ → "Dời ca": chọn khung giờ + ngày rồi bấm MỘT nút xác nhận (nút nói rõ sẽ dời tới đâu), nên bấm nhầm một ô không làm ca đi đâu cả. */
+    function nhanKhung(ma) { return (du.khung.filter(function (k) { return k.ma === ma; })[0] || {}).nhan || ''; }
+    function ngayDai(iso) { return THU[new Date(iso + 'T00:00:00').getDay()] + ' ' + ngayVn(iso); }
+
     function capNhatNutDoi(m) {
         const c = tim(m.dataset.id), kh = m.querySelector('[data-act="dm-kh"]'), ng = m.querySelector('[data-act="dm-ngay"]'), nut = m.querySelector('[data-act="dm-ok"]');
         if (!c || !kh || !ng || !nut) { return; }
-        const nhanKh = (du.khung.filter(function (k) { return k.ma === kh.value; })[0] || {}).nhan || '';
-        const doiNgay = !!ng.value, doiKhung = kh.value !== c.khung;
-        nut.disabled = !doiNgay && !doiKhung;
-        nut.textContent = doiNgay ? 'Dời sang ' + THU[new Date(ng.value + 'T00:00:00').getDay()] + ' ' + ngayVn(ng.value) + ' · ' + nhanKh
-            : doiKhung ? 'Chuyển sang ' + nhanKh : 'Chọn khung giờ hoặc ngày mới';
+        nut.disabled = !ng.value && kh.value === c.khung;
+        nut.title = nut.disabled ? 'Chọn khung giờ hoặc ngày mới để dời' : (ng.value ? 'Dời sang ' + ngayDai(ng.value) + ' · ' + nhanKhung(kh.value) : 'Chuyển sang ' + nhanKhung(kh.value));
     }
 
-    function xacNhanDoi(m) {
+    function xacNhanDoi(m) {                                    // hỏi lại trước khi dời, dời xong có nút Hoàn tác
         const c = tim(m.dataset.id), kh = m.querySelector('[data-act="dm-kh"]').value, ng = m.querySelector('[data-act="dm-ngay"]').value;
         if (!c) { return; }
         if (ng) {
+            if (!window.confirm('Dời ca ' + c.ma + ' sang ' + ngayDai(ng) + ' · ' + nhanKhung(kh) + '?\nNgày hẹn thi công ở Nhập tồn sẽ đổi theo.')) { return; }
+            const goc = du.ngay, khCu = c.khung;
             du.ca = du.ca.filter(function (x) { return x !== c; });
-            bao('Đã dời ' + c.ma + ' sang ' + THU[new Date(ng + 'T00:00:00').getDay()] + ' ' + ngayVn(ng));
             gui('mai', {id: c.id, ngay: ng, khung: kh});
+            baoHoanTac('Đã dời ' + c.ma + ' sang ' + ngayDai(ng), function () {
+                gui('ve_ngay', {ma: c.ma, tu: ng, ve: goc, khung: khCu});
+                bao('Đang đưa ' + c.ma + ' về lại ' + ngayDai(goc) + '...');
+            });
         } else if (kh !== c.khung) {
+            if (!window.confirm('Chuyển ca ' + c.ma + ' sang ' + nhanKhung(kh) + '?')) { return; }
+            const khCu = c.khung;
             c.khung = kh;
-            bao('Đã chuyển ' + c.ma + ' sang ' + ((du.khung.filter(function (k) { return k.ma === kh; })[0] || {}).nhan || ''));
             gui('khung', {id: c.id, val: kh});
+            baoHoanTac('Đã chuyển ' + c.ma + ' sang ' + nhanKhung(kh), function () {
+                const x = tim(c.id);
+                if (x) { x.khung = khCu; gui('khung', {id: x.id, val: khCu}); capNhatThieu(); ve(); }
+                bao('Đã hoàn tác ' + c.ma);
+            });
         }
         capNhatThieu();
         ve();
@@ -277,15 +304,15 @@
                 + du.khung.filter(function (k) { return k.ma !== 'chua'; }).map(function (k) { return '<option value="' + esc(k.ma) + '">' + esc(k.nhan) + '</option>'; }).join('') + '</select>' : '')
             + '<div class="onl-c-nut">' + nut + '<span class="grow"></span>'
             + '<details class="onl-mn"><summary title="Dời khung giờ, dời ngày, sửa ghi chú, huỷ">⋯</summary><div class="onl-mn-ds">'
-            + '<div class="onl-mn-nhom"><div class="onl-mn-nhan">Dời ca</div>'
-            + '<div class="onl-mn-form" data-id="' + c.id + '"><label class="onl-mn-hang"><span>Khung</span><select data-act="dm-kh">' + khung + '</select></label>'
-            + '<label class="onl-mn-hang"><span>Ngày</span><select data-act="dm-ngay">' + chonNgay() + '</select></label>'
-            + '<button type="button" class="onl-mn-ok" data-act="dm-ok" disabled>Chọn khung giờ hoặc ngày mới</button></div></div>'
             + '<div class="onl-mn-nhom">'
             + '<button type="button" data-act="sua" data-id="' + c.id + '">' + (c.gc ? 'Sửa ghi chú' : 'Thêm ghi chú') + '<small>' + ((c.ls || []).length > 1 ? 'Lịch sử' : '') + '</small></button>'
             + (lech ? '<button type="button" class="luu-y" data-act="dong-bo-hen" data-id="' + c.id + '">Đổi ngày hẹn ở Nhập tồn<small>→ ' + ngayVn(du.ngay) + '</small></button>' : '')
             + '</div>'
-            + '<div class="onl-mn-nhom"><button type="button" class="xoa" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Huỷ ca này</button></div></div></details></div></article>';
+            + '<div class="onl-mn-form" data-id="' + c.id + '"><div class="onl-mn-nhom"><div class="onl-mn-nhan">Dời ca</div>'
+            + '<label class="onl-mn-hang"><span>Khung</span><select data-act="dm-kh">' + khung + '</select></label>'
+            + '<label class="onl-mn-hang"><span>Ngày</span><select data-act="dm-ngay">' + chonNgay() + '</select></label></div>'
+            + '<div class="onl-mn-chan"><button type="button" class="onl-mn-ok" data-act="dm-ok" disabled title="Chọn khung giờ hoặc ngày mới để dời">Dời ca</button>'
+            + '<button type="button" class="onl-mn-huy" data-act="xoa" data-id="' + c.id + '" data-ma="' + esc(c.ma) + '">Hủy ca</button></div></div></div></details></div></article>';
     }
 
     /* Chân mỗi cột: ô gõ / dán mã + danh sách HĐ tồn của người đang chọn. Chưa chọn người thì nhắc chọn. */
@@ -434,6 +461,7 @@
         document.addEventListener('click', function (e) {
             const t = e.target && e.target.closest ? e.target : null;
             if (!t) { return; }
+            if (t.closest('#onl-toast .onl-ht')) { const tb = document.getElementById('onl-toast'), h = tb._ht; if (h) { tb._ht = null; h(); } return; }
             if (t.closest('#onl-tm-ok')) { themTay(); return; }
             if (t.closest('#onl-tm-dong, #onl-tm-huy')) { moHopThem(false); return; }
             const b = t.closest('#onl-goc [data-act]');

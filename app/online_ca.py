@@ -342,13 +342,18 @@ def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
 
 
 def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str | None = None) -> date:
-    """Dời ca sang một ngày SAU (mặc định ngày kế tiếp; `ngay_moi` là date hoặc chuỗi YYYY-MM-DD), tối đa tới ngày xa nhất Báo cáo ngày cho nhập
+    """Dời ca sang một ngày KHÁC (mặc định ngày kế tiếp; `ngay_moi` là date hoặc chuỗi YYYY-MM-DD), tối đa tới ngày xa nhất Báo cáo ngày cho nhập
     trước (`bc.ngay_xa_nhat`). Ca cũ giữ lại ở ngày của nó với trạng thái "doi_mai" (không hiện trên bảng, nhưng tính là ca không lên đúng
     hẹn khi thống kê); ca mới ở ngày đích về Dự kiến, khung giờ do sale chọn lúc dời (`khung_moi`, bỏ trống = "Chưa hẹn giờ" để hôm đó xếp sau),
-    ghi chú giữ nguyên."""
+    ghi chú giữ nguyên.
+
+    Dời NHẦM rồi dời VỀ LẠI ngày cũ (chủ app 13/10/2026): ngày đó còn phiếu "doi_mai" của chính mã này nên phiếu ấy được hồi sinh (về Dự kiến,
+    giữ khung cũ nếu không chọn khung mới) thay vì tạo phiếu thứ hai; chỉ được lùi về ngày chưa tới hạn khi đó là hồi sinh. Ngày hẹn ở Nhập tồn
+    luôn đổi theo ngày đích, nên hai bên khớp nhau cả khi dời qua dời lại."""
     dam_bao_bang()
-    khung_moi = khung_moi or "chua"
-    _khung_hop_le(khung_moi)
+    khung_moi = khung_moi or None
+    if khung_moi:
+        _khung_hop_le(khung_moi)
     if isinstance(ngay_moi, str):
         try:
             ngay_moi = date.fromisoformat(ngay_moi[:10])
@@ -357,21 +362,30 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str 
     with session_scope() as s:
         r = _tim(s, id_, phong)
         moi = ngay_moi or r.ngay + timedelta(days=1)
-        if moi <= r.ngay:
-            raise LoiOnline("Chọn một ngày sau ngày hiện tại của ca.")
+        if moi == r.ngay:
+            raise LoiOnline("Chọn một ngày khác ngày hiện tại của ca.")
         if moi > bc.ngay_xa_nhat():
             raise LoiOnline(f"Chỉ dời được tới ngày {bc.ngay_xa_nhat():%d/%m} (xa nhất Báo cáo ngày cho nhập trước).")
-        if s.execute(select(OnlineCa.id).where(OnlineCa.ngay == moi, OnlineCa.phong_code == r.phong_code,
-                                               OnlineCa.ma_hd == r.ma_hd)).first():
+        cu_row = s.execute(select(OnlineCa).where(OnlineCa.ngay == moi, OnlineCa.phong_code == r.phong_code, OnlineCa.ma_hd == r.ma_hd)).scalars().first()
+        if cu_row is not None and cu_row.trang_thai != "doi_mai":
             raise LoiOnline(f"HĐ {r.ma_hd} đã có trong ngày {moi:%d/%m} rồi.")
+        if cu_row is None and moi < r.ngay and moi < bc.hom_nay():
+            raise LoiOnline("Chỉ dời được từ hôm nay trở đi.")
         cu, acc, ma, buoi_cu = r.ngay, r.acc_norm, r.ma_hd, _buoi_cua(r.khung)
         _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}")
         r.trang_thai, r.online_luc = "doi_mai", None
         _dau(r, ai)
-        n = OnlineCa(ngay=moi, phong_code=r.phong_code, ma_hd=r.ma_hd, acc_norm=acc, khung=khung_moi, khung_dau=khung_moi, trang_thai="du_kien",
-                     ghi_chu=r.ghi_chu, lich_su=r.lich_su, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
-        _dau(n, ai)
-        s.add(n)
+        if cu_row is not None:
+            _ghi_ls(cu_row, ai, f"Dời về lại ngày {moi:%d/%m}")
+            cu_row.trang_thai, cu_row.online_luc, cu_row.ghi_chu = "du_kien", None, r.ghi_chu
+            if khung_moi:
+                cu_row.khung = khung_moi
+            _dau(cu_row, ai)
+        else:
+            n = OnlineCa(ngay=moi, phong_code=r.phong_code, ma_hd=r.ma_hd, acc_norm=acc, khung=khung_moi or "chua", khung_dau=khung_moi or "chua",
+                         trang_thai="du_kien", ghi_chu=r.ghi_chu, lich_su=r.lich_su, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
+            _dau(n, ai)
+            s.add(n)
     dong_bo_bang(cu, phong, [acc], ai, bo=buoi_cu)
     dong_bo_bang(moi, phong, [acc], ai)
     from app import online_ton as ot
