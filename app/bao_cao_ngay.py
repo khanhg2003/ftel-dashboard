@@ -335,7 +335,7 @@ def _so(v) -> int:
 
 def _kiem_voi_ca(acc_norm: str, d: dict, phong: list[str], ngay: date) -> None:
     """Ô ONL sáng / ONL chiều / Đã online phải khớp mục Theo dõi Online (chủ app chốt 12/10/2026: hai nơi không được lệch nhau):
-    người đã có ca thì không đặt ONL sáng / chiều THẤP HƠN số ca buổi đó, và "Đã online" chỉ bằng đúng số ca đã online (sửa ở thẻ ca)."""
+    người đã có ca thì không đặt ONL sáng / chiều THẤP HƠN số ca buổi đó, và "Đã online" không THẤP HƠN số ca đã online (được cao hơn: ca đã online mà chưa kịp vào Theo dõi Online, chủ app 13/10/2026)."""
     if not {"onl_sang", "onl_chieu", "da_online"} & set(d):
         return
     from app import online_ca as oc
@@ -348,8 +348,8 @@ def _kiem_voi_ca(acc_norm: str, d: dict, phong: list[str], ngay: date) -> None:
         if cot in d and d[cot] < n:
             raise LoiBaoCao(f"Chưa sửa được: đã có {n} ca {ten} ở mục Theo dõi Online nên ô không thể thấp hơn {n} (ô đã quay về số cũ). Muốn giảm thì huỷ hoặc dời ca ở mục đó.")
     n_on = sum(c["tt"] == "da_online" for c in ca)
-    if "da_online" in d and d["da_online"] != n_on:
-        raise LoiBaoCao(f"Đã online của người này lấy từ mục Theo dõi Online ({n_on} ca). Muốn đổi thì bấm trạng thái ở thẻ ca.")
+    if "da_online" in d and d["da_online"] < n_on:
+        raise LoiBaoCao(f"Chưa sửa được: đã có {n_on} ca bấm Đã online ở mục Theo dõi Online nên ô không thể thấp hơn {n_on} (ô đã quay về số cũ). Muốn giảm thì bỏ Đã online ở thẻ ca.")
 
 
 def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | None = None,

@@ -703,8 +703,9 @@ def test_bang_khong_cho_go_lech_voi_ca_o_theo_doi_online(hai_nguoi):
         bc.luu(a, {"onl_sang": 0}, PHONG, "k", NGAY)
     with pytest.raises(bc.LoiBaoCao, match="buổi chiều"):
         bc.luu(a, {"onl_chieu": 0}, PHONG, "k", NGAY)
-    with pytest.raises(bc.LoiBaoCao, match="Theo dõi Online"):
-        bc.luu(a, {"da_online": 5}, PHONG, "k", NGAY)
+    with pytest.raises(bc.LoiBaoCao, match="1 ca bấm Đã online"):
+        bc.luu(a, {"da_online": 0}, PHONG, "k", NGAY)                                    # thấp hơn số ca đã online: chặn
+    bc.luu(a, {"da_online": 5}, PHONG, "k", NGAY)                                       # cao hơn số ca (ca online chưa kịp vào Theo dõi Online): được
     bc.luu(a, {"onl_sang": 3, "onl_chieu": 1, "da_online": 1}, PHONG, "k", NGAY)         # tăng hoặc bằng số ca: được
     r = bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a]
     assert (r.onl_sang, r.onl_chieu, r.thuc_hien, r.co_ca) == (3, 1, 1, 2)
@@ -721,9 +722,9 @@ def test_them_ca_va_doi_khung_khong_xoa_so_da_online_sale_da_go(hai_nguoi):
     oc.doi_khung(i, "10-12", PHONG, "k")
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 2                  # đổi khung: giữ nguyên
     oc.doi_trang_thai(i, "da_online", PHONG, "k")
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1                  # bấm Đã online: lấy đúng số phiếu đã online
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 2                  # bấm Đã online: số gõ (2) đã gồm ca này, KHÔNG cộng đôi
     oc.doi_trang_thai(i, "du_kien", PHONG, "k")
-    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 0                  # bỏ Đã online: về 0
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1                  # bỏ Đã online: giảm đúng 1, không xoá số gõ
 
 
 def test_dua_ve_tim_noi_ca_dang_o_va_thong_ke_doi_di_theo_dung_noi(hai_nguoi):

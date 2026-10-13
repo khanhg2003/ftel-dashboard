@@ -26,7 +26,6 @@ AN = {"display": "none"}
 TOI_LA = "Chọn tên mình (để ghi tên)"
 GHI_TEN = "Chọn tên mình ở ô \"Tôi là\" để phần \"cập nhật bởi\" ghi đúng tên."
 SUA = "params.data.sua_duoc"
-SUA_ONL = "params.data.sua_duoc && !params.data.co_ca"       # "Đã online" của người đã có ca lấy từ Theo dõi Online, không gõ tay
 NHIP_MS = 60_000                   # nhịp hỏi lại xem có ai vừa sửa không; 15 giây làm Vercel cạn CPU (09/10/2026)
 # Vá lại dòng mình vừa sửa sau khi ngừng gõ CHO_VA giây. Phải hoãn chứ không vá ngay lúc lưu:
 # ag-grid XOÁ SẠCH undo stack mỗi lần nhận transaction, vá ngay là Ctrl+Z mất tác dụng.
@@ -98,7 +97,7 @@ def _cot() -> list[dict]:
     sua = {"editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale", "cellClassRules": THIEU,
            "type": "numericColumn", "valueFormatter": SO_NHAP, "width": 84, "minWidth": 74, "maxWidth": 104}
     doc = {"type": "numericColumn", "valueFormatter": SO, "width": 84, "minWidth": 72, "maxWidth": 104}
-    sua_doc = {**doc, "editable": {"function": SUA_ONL}, "cellClass": "ag-right-aligned-cell o-sale"}
+    sua_doc = {**doc, "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale"}
 
     ban = [
         {"field": "muc_tieu", "headerName": "MT ngày *", "headerClass": "vung-sale",
@@ -119,7 +118,7 @@ def _cot() -> list[dict]:
          **sua},
         # ô sale tự gõ như Google Sheet, không liên quan tới file Internet (chốt 06/10/2026)
         {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **sua_doc,
-         "headerTooltip": "Số đã online hôm nay của người này.\nNgười đã có ca ở mục Theo dõi Online thì số này lấy từ các ca đã online (bấm ở thẻ ca).\nNgười chưa có ca thì tự gõ, không lấy từ file Internet."},
+         "headerTooltip": "Số đã online hôm nay của người này.\nGõ được cả khi người đó đã có ca ở Theo dõi Online, nhưng không thấp hơn số ca đã bấm Đã online.\nKhông lấy từ file Internet."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
          "valueGetter": CON_PHAI_ONL,
          "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "

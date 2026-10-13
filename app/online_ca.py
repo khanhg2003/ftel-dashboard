@@ -279,22 +279,25 @@ def _dau(r: OnlineCa, ai: str) -> None:
     r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), ai[:60]
 
 
-def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, bo: str | None = None, dong_online: bool = True) -> None:
+def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, bo: str | None = None, huong_online: int | None = None) -> None:
     """Tính lại ONL sáng / ONL chiều / Đã online của các nhân viên từ phiếu rồi ghi vào bảng Báo cáo ngày.
 
     Số phiếu còn ÍT hơn số sale đã gõ ở ô dự kiến (chưa khai đủ) thì KHÔNG ghi đè ONL sáng / chiều, nếu không số gõ bị thay bằng số nhỏ
     hơn và cảnh báo thiếu biến mất. `bo` = buổi ("sang" / "chieu") của MỘT ca vừa bị huỷ hoặc dời sang ngày khác: đó là chủ ý bớt đúng một ca,
     nên ô buổi đó chỉ GIẢM 1 (không thấp hơn số ca còn lại), KHÔNG tụt về số phiếu - nếu không huỷ vài ca test là mất cả số sale đã gõ
     (chủ app báo 12/10/2026: dự kiến 5 còn 0 sau khi huỷ 2 ca).
-    `dong_online=False` (thêm ca, đổi khung, ca đến ngày mới) thì KHÔNG ghi "Đã online": thao tác đó không làm đổi số ca đã online, mà ghi số phiếu (thường 0)
-    sẽ xoá số "Đã online" sale đã gõ tay ở bảng cho người chưa có ca (13/10/2026 rà soát "nhập rồi nhảy về 0")."""
+    `huong_online`: None (thêm ca, đổi khung, ca đến ngày mới) thì KHÔNG đụng "Đã online" - ghi số phiếu (thường 0) sẽ xoá số sale đã gõ tay (13/10/2026 rà soát
+    "nhập rồi nhảy về 0"). +1 = vừa có một ca thành Đã online, -1 = vừa mất một ca đã online (bỏ Đã online, huỷ, dời ngày): "Đã online" = số sale đã gõ (trừ 1 khi giảm)
+    nhưng KHÔNG thấp hơn số ca đã online, nên số gõ cao hơn số ca (ca online chưa kịp vào đây) được giữ, còn bỏ một ca thì số vẫn giảm đúng 1."""
     buoi = {k["ma"]: k["buoi"] for k in khung()}
     ca, dk = ds_ca(phong, ngay), dk_nhap(phong, ngay)
     g_buoi = _dk_theo_buoi(phong, ngay) if bo else {}
+    da_go = _da_online_go(phong, ngay) if huong_online is not None else {}
     for a in dict.fromkeys(a for a in accs if a):
         cua = [c for c in ca if c["acc"] == a]
         n = {b: sum(buoi.get(c["khung"]) == b for c in cua) for b in ("sang", "chieu")}
-        so = {"da_online": sum(c["tt"] == "da_online" for c in cua)} if dong_online else {}
+        n_on = sum(c["tt"] == "da_online" for c in cua)
+        so = {"da_online": max(n_on, da_go.get(a, 0) - (huong_online == -1))} if huong_online is not None else {}
         if bo in n:
             for b in n:
                 g = g_buoi.get(a, {}).get(b, 0)
@@ -304,6 +307,17 @@ def dong_bo_bang(ngay: date, phong: list[str], accs, ai: str, bo: str | None = N
         elif len(cua) >= dk.get(a, 0):
             so["onl_sang"], so["onl_chieu"] = n["sang"], n["chieu"]
         bc.luu(a, so, phong, ai, ngay, ghi_ten=ai, kiem_ca=False)
+
+
+def _da_online_go(phong: list[str], ngay: date) -> dict[str, int]:
+    """"Đã online" mỗi người đang có ở bảng Báo cáo ngày: {acc_norm: số} (chưa gõ thì không có)."""
+    bc.dam_bao_bang()
+    ma = {f"p{i}": c for i, c in enumerate(phong)}
+    cho = ", ".join(f":{k}" for k in ma)
+    with engine.connect() as c:
+        rows = c.execute(text(f"""SELECT acc_norm, COALESCE(da_online, 0) FROM bao_cao_ngay WHERE ngay = :n AND phong_code IN ({cho})"""),
+                         {**ma, "n": ngay.isoformat()}).all()
+    return {a: int(n) for a, n in rows}
 
 
 def _dk_theo_buoi(phong: list[str], ngay: date) -> dict[str, dict[str, int]]:
@@ -381,7 +395,7 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
     if not ket["them"] and not ket["hoi"]:
         raise LoiOnline("; ".join(f"{m}: {ly}" for m, ly in ket["bo_qua"]) + ".")
     if ket["them"]:
-        dong_bo_bang(ngay, phong, [acc_norm], ai, dong_online=False)
+        dong_bo_bang(ngay, phong, [acc_norm], ai)
         ot.dong_bo_hen(ket["them"], ngay, phong, ai)
         for ma, gc in sang_ton.items():
             ot.ca_sang_ton(ma, gc, phong, ai)
@@ -409,11 +423,13 @@ def doi_trang_thai(id_: int, tt: str, phong: list[str], ai: str) -> None:
         if r.trang_thai == tt:
             return
         _ghi_ls(r, ai, f"{NHAN_TT[r.trang_thai]} → {NHAN_TT[tt]}")
+        cu = r.trang_thai
         r.trang_thai = tt
         r.online_luc = utc_bay_gio() if tt == "da_online" else None
         _dau(r, ai)
         ngay, acc, ma = r.ngay, r.acc_norm, r.ma_hd
-    dong_bo_bang(ngay, phong, [acc], ai)
+        huong = 1 if tt == "da_online" else -1 if cu == "da_online" else None
+    dong_bo_bang(ngay, phong, [acc], ai, huong_online=huong)
     from app import online_ton as ot
     ot.dong_bo_tt(ma, tt, phong, ai)
 
@@ -429,7 +445,7 @@ def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
         r.khung = khung_ma
         _dau(r, ai)
         ngay, acc = r.ngay, r.acc_norm
-    dong_bo_bang(ngay, phong, [acc], ai, dong_online=False)
+    dong_bo_bang(ngay, phong, [acc], ai)
 
 
 def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str | None = None) -> date:
@@ -485,8 +501,8 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str 
                          trang_thai="du_kien", ghi_chu=r.ghi_chu, lich_su=r.lich_su, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
             _dau(n, ai)
             s.add(n)
-    dong_bo_bang(cu, phong, [acc], ai, bo=buoi_cu, dong_online=da_on)
-    dong_bo_bang(moi, phong, [acc], ai, dong_online=moi_da_on)
+    dong_bo_bang(cu, phong, [acc], ai, bo=buoi_cu, huong_online=-1 if da_on else None)
+    dong_bo_bang(moi, phong, [acc], ai, huong_online=1 if moi_da_on else None)
     from app import online_ton as ot
     ot.dong_bo_hen([ma], moi, phong, ai)
     return moi
@@ -553,7 +569,7 @@ def xoa(id_: int, phong: list[str], ai: str) -> dict:
         thong_tin = {"ma_hd": r.ma_hd, "ngay": r.ngay}
         acc, buoi_cu, da_on = r.acc_norm, _buoi_cua(r.khung), r.trang_thai == "da_online"
         s.execute(delete(OnlineCa).where(OnlineCa.id == r.id))
-    dong_bo_bang(thong_tin["ngay"], phong, [acc], ai, bo=buoi_cu, dong_online=da_on)
+    dong_bo_bang(thong_tin["ngay"], phong, [acc], ai, bo=buoi_cu, huong_online=-1 if da_on else None)
     return thong_tin
 
 
