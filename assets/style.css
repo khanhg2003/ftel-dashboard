@@ -1653,15 +1653,16 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-them-f { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .onl-them-f label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); min-width: 0; }
 .onl-them-f label:first-child, .onl-them-f label:last-of-type { grid-column: 1 / -1; }
-.onl-them-f input, .onl-them-f select { width: 100%; min-width: 0; padding: 8px 10px; font: inherit; font-size: 14px; font-weight: 400; border: 1px solid #D0D5DD; border-radius: 6px; background: #fff; color: var(--onl-chu); }
+.onl-them-f input, .onl-them-f select { width: 100%; min-width: 0; padding: 8px 10px; font: inherit; font-size: 14px; font-weight: 400; border: 1px solid #D0D5DD; border-radius: 6px; background: #fff; color: #1F2933; }
 .onl-them-f input:focus, .onl-them-f select:focus { outline: none; border-color: var(--fpt-blue); box-shadow: 0 0 0 2px #0072bc22; }
-.onl-them-loi { grid-column: 1 / -1; min-height: 0; font-size: 12.5px; color: var(--onl-do); }
+.onl-them-loi { grid-column: 1 / -1; min-height: 0; font-size: 12.5px; color: #B42318; }
 .onl-them-loi:empty { display: none; }
 @media (max-width: 560px) { .onl-them-f { grid-template-columns: 1fr; } }
 #onl-tm .modal-hop { max-width: 460px; }
 
 /* Dời ca sang ngày khác (hộp chọn khung giờ + ghi chú) và ô xếp khung giờ ngay trên thẻ ca "Chưa hẹn giờ" */
-.onl-dn-tt { margin-bottom: 12px; font-size: 13.5px; color: var(--onl-chu); }
+.onl-dn-tt { margin-bottom: 12px; font-size: 13.5px; color: #1F2933; }
 #onl-dn .modal-hop { max-width: 440px; }
 .onl-xep { width: 100%; margin: 2px 0 8px; padding: 6px 8px; font: inherit; font-size: 12.5px; font-weight: 600; color: #9A5B13; border: 1px dashed #D9822B; border-radius: 6px; background: #FFF9F0; cursor: pointer; }
 .onl-xep:hover { background: #FDF1DC; }
+.onl-them-f select option { color: #1F2933; }
