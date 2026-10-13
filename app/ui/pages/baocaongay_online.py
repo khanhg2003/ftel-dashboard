@@ -31,6 +31,7 @@ def khung() -> list:
             html.Div(id="onl-bang"),
         ], className="card onl", id="onl-goc"),
         modal("onl-tm", "Thêm ca phát sinh", [html.Div(id="onl-them")], nut_chinh="Thêm ca"),
+        modal("onl-dn", "Dời ca sang ngày khác", [html.Div(id="onl-dn-than")], nut_chinh="Dời ca"),
         modal("onl-md", html.Span(id="onl-md-tieu-de"), [
             dcc.Store(id="onl-md-id"),
             html.Div([html.Label("Ghi chú"),
@@ -113,7 +114,7 @@ def register(app):
                 if kq["loi"]:
                     return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update, *_sau_khi_ghi(accs)[1:])
             elif act == "mai":
-                oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"))
+                oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"), sk.get("khung") or None, sk.get("gc"))
             elif act == "xoa":
                 t = oc.xoa(sk["id"], phong, ai)
                 ghi_log("online_xoa", f"{t['ma_hd']} {t['ngay']:%d/%m/%Y} {code}")

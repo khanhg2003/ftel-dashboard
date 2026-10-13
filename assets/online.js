@@ -12,7 +12,7 @@
 (function () {
     const TT_DAI = {du_kien: 'Chờ lắp', dang_lam: 'Đang triển khai', da_online: 'Đã online'};
     const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false, moHen = false, moThem = false, themNv = '', themKhung = '';
+    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false, moHen = false, moThem = false, themNv = '', themKhung = '', doi = null;
     const cuoi = {};                                            // id khối -> HTML đã vẽ lần trước (giống nhau thì khỏi vẽ lại)
 
     function esc(s) {
@@ -226,6 +226,40 @@
             + '<div class="onl-them-loi"></div></div>';
     }
 
+    /* Dời ca sang ngày khác: chọn ngày ở menu ⋯ chưa dời ngay mà mở hộp hỏi khung giờ (+ ghi chú) của ngày đó; để "Chưa hẹn giờ" thì hôm đó xếp sau. */
+    function moHopDoi(c, ngay) {
+        doi = {id: c.id, ngay: ngay};
+        const d = new Date(ngay + 'T00:00:00'), cur = c.khung;
+        document.querySelectorAll('.onl-mn[open]').forEach(function (m) { m.open = false; });
+        document.getElementById('onl-dn-than').innerHTML = '<div class="onl-dn-tt">Ca <b>' + esc(c.ma) + '</b> sẽ dời sang <b>' + THU[d.getDay()] + ' ' + ngayVn(ngay) + '</b></div><div class="onl-them-f">'
+            + '<label>Khung giờ<select class="d-kh">' + du.khung.map(function (k) {
+                return '<option value="' + esc(k.ma) + '"' + (k.ma === cur ? ' selected' : '') + '>' + esc(k.ma === 'chua' ? 'Chưa hẹn giờ (xếp sau)' : k.nhan) + '</option>';
+            }).join('') + '</select></label>'
+            + '<label>Ghi chú<input class="d-gc" type="text" maxlength="200" value="' + esc(c.gc || '') + '" placeholder="Không bắt buộc" autocomplete="off"></label></div>';
+        window.dash_clientside.set_props('onl-dn', {className: 'modal mo'});
+        setTimeout(function () { const o = document.querySelector('#onl-dn-than .d-kh'); if (o) { o.focus(); } }, 80);
+    }
+
+    function dongHopDoi(huy) {
+        window.dash_clientside.set_props('onl-dn', {className: 'modal'});
+        if (huy) { document.querySelectorAll('#onl-goc select[data-act="ngay"]').forEach(function (x) { x.value = ''; }); }
+        doi = null;
+    }
+
+    function xacNhanDoi() {
+        const f = document.getElementById('onl-dn-than');
+        if (!doi || !f || !du) { return; }
+        const c = tim(doi.id), kh = f.querySelector('.d-kh').value, gc = f.querySelector('.d-gc').value;
+        if (c) {
+            du.ca = du.ca.filter(function (x) { return x !== c; });
+            bao('Đã dời ' + c.ma + ' sang ngày ' + ngayVn(doi.ngay));
+            gui('mai', {id: c.id, ngay: doi.ngay, khung: kh, gc: gc});
+            capNhatThieu();
+            ve();
+        }
+        dongHopDoi(false);
+    }
+
     function moHopThem(mo) {
         window.dash_clientside.set_props('onl-tm', {className: mo ? 'modal mo' : 'modal'});
         if (mo) { setTimeout(function () { const o = document.querySelector('#onl-them .t-ma'); if (o) { o.focus(); } }, 80); }
@@ -246,6 +280,8 @@
             + (qua ? '<em class="onl-tre">quá giờ</em>' : '') + (c.doi >= 3 ? '<em class="onl-tre" title="Ca dời nhiều lần dễ bị huỷ">đã dời ' + c.doi + ' lần</em>' : '')
             + (lech ? '<em class="onl-lech" title="Nhập tồn đang ghi ' + (lech.loai === 'tra_ve' ? 'trả về' : 'hẹn thi công') + ' ngày ' + ngayVn(lech.ngay) + ', khác ngày của ca">Nhập tồn: ' + ngayVn(lech.ngay) + '</em>' : '')
             + (c.gc ? '<small title="' + esc(c.gc) + '">' + esc(c.gc) + '</small>' : '') + '</div>'
+            + (c.khung === 'chua' && !xong ? '<select class="onl-xep" data-act="khung" data-id="' + c.id + '" title="Chọn khung giờ cho ca này"><option value="chua" selected>Xếp khung giờ…</option>'
+                + du.khung.filter(function (k) { return k.ma !== 'chua'; }).map(function (k) { return '<option value="' + esc(k.ma) + '">' + esc(k.nhan) + '</option>'; }).join('') + '</select>' : '')
             + '<div class="onl-c-nut">' + nut + '<span class="grow"></span>'
             + '<details class="onl-mn"><summary title="Dời khung giờ, dời ngày, sửa ghi chú, huỷ">⋯</summary><div class="onl-mn-ds">'
             + '<div class="onl-mn-nhom"><div class="onl-mn-nhan">Dời ca</div>'
@@ -351,10 +387,8 @@
         const d = e.dataset, c = d.id ? tim(d.id) : null;
         if (act === 'tt' && c) { if (c.tt === d.val) { return; } c.tt = d.val; gui('tt', {id: c.id, val: d.val}); }
         else if (act === 'ngay' && c) {
-            if (!d.ngay) { return; }
-            du.ca = du.ca.filter(function (x) { return x !== c; });
-            bao('Đã dời ' + c.ma + ' sang ngày ' + d.ngay.slice(8, 10) + '/' + d.ngay.slice(5, 7));
-            gui('mai', {id: c.id, ngay: d.ngay});
+            if (d.ngay) { moHopDoi(c, d.ngay); }
+            return;
         }
         else if (act === 'xoa' && c) {
             if (!window.confirm('Huỷ ca ' + d.ma + '?')) { return; }
@@ -409,6 +443,8 @@
         document.addEventListener('click', function (e) {
             const t = e.target && e.target.closest ? e.target : null;
             if (!t) { return; }
+            if (t.closest('#onl-dn-ok')) { xacNhanDoi(); return; }
+            if (t.closest('#onl-dn-dong, #onl-dn-huy')) { dongHopDoi(true); return; }
             if (t.closest('#onl-tm-ok')) { themTay(); return; }
             if (t.closest('#onl-tm-dong, #onl-tm-huy')) { moHopThem(false); return; }
             const b = t.closest('#onl-goc [data-act]');
@@ -434,6 +470,7 @@
         });
         document.addEventListener('keydown', function (e) {
             const o = e.target && e.target.classList && e.target.classList.contains('onl-nhap') ? e.target : null;
+            if (e.target && e.target.closest && e.target.closest('#onl-dn') && e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); xacNhanDoi(); return; }
             if (e.target && e.target.closest && e.target.closest('#onl-them') && e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); themTay(); return; }
             if (e.target && e.target.id === 'onl-md-gc' && e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

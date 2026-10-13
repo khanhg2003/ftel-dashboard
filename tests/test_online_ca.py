@@ -50,9 +50,9 @@ def _don():
 
     def don():
         with session_scope() as s:
-            for ngay in (NGAY, NGAY + timedelta(days=1)):
-                s.execute(delete(OnlineCa).where(OnlineCa.ngay == ngay))
-            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay.in_([NGAY, NGAY + timedelta(days=1)])))
+            ngay_don = [NGAY + timedelta(days=i) for i in range(4)]            # ca dời sang +2 / +3 ngày cũng phải sạch
+            s.execute(delete(OnlineCa).where(OnlineCa.ngay.in_(ngay_don)))
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay.in_(ngay_don)))
     bc.dam_bao_bang()
     oc.dam_bao_bang()
     don()
@@ -145,6 +145,22 @@ def test_sua_ghi_chu_khong_co_doi_nguoi_phu_trach(hai_nguoi):
     assert oc.ds_ca(PHONG, NGAY)[0]["gc"] == ""
     with pytest.raises(oc.LoiOnline, match="Không tìm thấy"):
         oc.sua_ghi_chu(i, "x", ["IBB2"], "k")
+
+
+def test_doi_ngay_chon_khung_gio_va_ghi_chu_cho_ngay_moi(hai_nguoi):
+    """Dời sang ngày khác thì sale chọn luôn khung giờ + ghi chú của ngày đó (chủ app yêu cầu 13/10/2026); bỏ trống thì "Chưa hẹn giờ", giữ ghi chú cũ."""
+    a, _ = hai_nguoi
+    i = oc.them("DAAAP0001", a, "08-10", PHONG, "k", NGAY, ghi_chu="gọi trước")
+    j = oc.them("DAAAP0002", a, "08-10", PHONG, "k", NGAY)
+    moi = oc.doi_ngay(i, PHONG, "k", NGAY + timedelta(days=2), "1330-1530", "  khách hẹn sau 14h ")
+    c = oc.ds_ca(PHONG, moi)[0]
+    assert (c["khung"], c["gc"]) == ("1330-1530", "khách hẹn sau 14h")
+    moi2 = oc.doi_ngay(j, PHONG, "k", NGAY + timedelta(days=1))
+    assert oc.ds_ca(PHONG, moi2)[0]["khung"] == "chua"
+    k = oc.them("DAAAP0003", a, "08-10", PHONG, "k", NGAY, ghi_chu="giữ")
+    assert oc.ds_ca(PHONG, oc.doi_ngay(k, PHONG, "k", NGAY + timedelta(days=1), None, None))[-1]["gc"] == "giữ"
+    with pytest.raises(oc.LoiOnline):
+        oc.doi_ngay(oc.them("DAAAP0004", a, "08-10", PHONG, "k", NGAY), PHONG, "k", NGAY + timedelta(days=1), "khong-co")
 
 
 def test_doi_sang_ngay_mai_ve_du_kien_chua_hen_gio_va_tinh_lai_hai_ngay(hai_nguoi):

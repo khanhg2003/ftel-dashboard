@@ -341,11 +341,14 @@ def doi_khung(id_: int, khung_ma: str, phong: list[str], ai: str) -> None:
     dong_bo_bang(ngay, phong, [acc], ai)
 
 
-def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None) -> date:
+def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str | None = None, ghi_chu: str | None = None) -> date:
     """Dời ca sang một ngày SAU (mặc định ngày kế tiếp; `ngay_moi` là date hoặc chuỗi YYYY-MM-DD), tối đa tới ngày xa nhất Báo cáo ngày cho nhập
     trước (`bc.ngay_xa_nhat`). Ca cũ giữ lại ở ngày của nó với trạng thái "doi_mai" (không hiện trên bảng, nhưng tính là ca không lên đúng
-    hẹn khi thống kê); ca mới ở ngày đích về Dự kiến + "Chưa hẹn giờ" để hôm đó sale chọn khung."""
+    hẹn khi thống kê); ca mới ở ngày đích về Dự kiến, khung giờ do sale chọn lúc dời (`khung_moi`, bỏ trống = "Chưa hẹn giờ" để hôm đó xếp sau),
+    `ghi_chu` mới (None = giữ ghi chú cũ)."""
     dam_bao_bang()
+    khung_moi = khung_moi or "chua"
+    _khung_hop_le(khung_moi)
     if isinstance(ngay_moi, str):
         try:
             ngay_moi = date.fromisoformat(ngay_moi[:10])
@@ -365,8 +368,9 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None) -> date:
         _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}")
         r.trang_thai, r.online_luc = "doi_mai", None
         _dau(r, ai)
-        n = OnlineCa(ngay=moi, phong_code=r.phong_code, ma_hd=r.ma_hd, acc_norm=acc, khung="chua", khung_dau="chua", trang_thai="du_kien",
-                     ghi_chu=r.ghi_chu, lich_su=r.lich_su, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
+        gc = r.ghi_chu if ghi_chu is None else ((ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None)
+        n = OnlineCa(ngay=moi, phong_code=r.phong_code, ma_hd=r.ma_hd, acc_norm=acc, khung=khung_moi, khung_dau=khung_moi, trang_thai="du_kien",
+                     ghi_chu=gc, lich_su=r.lich_su, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
         _dau(n, ai)
         s.add(n)
     dong_bo_bang(cu, phong, [acc], ai, bo=buoi_cu)

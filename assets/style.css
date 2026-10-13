@@ -1659,3 +1659,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-them-loi:empty { display: none; }
 @media (max-width: 560px) { .onl-them-f { grid-template-columns: 1fr; } }
 #onl-tm .modal-hop { max-width: 460px; }
+
+/* Dời ca sang ngày khác (hộp chọn khung giờ + ghi chú) và ô xếp khung giờ ngay trên thẻ ca "Chưa hẹn giờ" */
+.onl-dn-tt { margin-bottom: 12px; font-size: 13.5px; color: var(--onl-chu); }
+#onl-dn .modal-hop { max-width: 440px; }
+.onl-xep { width: 100%; margin: 2px 0 8px; padding: 6px 8px; font: inherit; font-size: 12.5px; font-weight: 600; color: #9A5B13; border: 1px dashed #D9822B; border-radius: 6px; background: #FFF9F0; cursor: pointer; }
+.onl-xep:hover { background: #FDF1DC; }
