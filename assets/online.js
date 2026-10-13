@@ -299,9 +299,14 @@
             const g = {};
             ds.forEach(function (x) { (g[x[khoa]] = g[x[khoa]] || []).push(x); });
             return '<div class="onl-doi-nhom"><div class="onl-doi-nhan">' + tieu + ' <em>' + ds.length + ' ca</em></div>' + Object.keys(g).sort().map(function (k) {
+                // Dời đi (khoa 'den' = ngày đích k): ca đang ở ngày k, đưa về NGÀY NÀY. Dời đến (khoa 'tu' = ngày gốc k): ca đang ở NGÀY NÀY, trả về ngày gốc k.
+                const tu = khoa === 'den' ? k : du.ngay, ve = khoa === 'den' ? du.ngay : k, mas = g[k].map(function (x) { return x.ma; }).join(',');
+                const nut = '<button type="button" class="onl-doi-ve" data-act="doi-ve" data-tu="' + tu + '" data-ve="' + ve + '" data-mas="' + esc(mas) + '" title="'
+                    + (khoa === 'tu' ? 'Trả ' + g[k].length + ' ca về ' : 'Đưa ' + g[k].length + ' ca về ') + ngayDai(ve) + '">↩ '
+                    + (khoa === 'tu' ? 'Trả về ' + ngayVn(ve) : ve === du.hom_nay ? 'Đưa về hôm nay' : 'Đưa về ' + ngayVn(ve)) + '</button>';
                 return '<div class="onl-doi-d"><b>' + mui + ' ' + ngayDai(k) + '</b><span>' + g[k].length + ' ca</span><div class="onl-doi-ma">' + g[k].map(function (x) {
                     return '<i title="' + esc(tenCua(x.a)) + '">' + esc(x.ma) + (loc ? '' : ' · ' + esc(tenNgan(x.a))) + '</i>';
-                }).join('') + '</div></div>';
+                }).join('') + '</div>' + nut + '</div>';
             }).join('') + '</div>';
         };
         return '<div class="onl-doi">' + tt + '<div class="onl-doi-ds">' + nhom(di, 'den', 'Dời đi', '→') + nhom(den, 'tu', 'Dời đến', '←') + '</div></div>';
@@ -450,6 +455,13 @@
         else if (act === 'dm-ok') { xacNhanDoi(e.closest('.onl-mn-form')); return; }
         else if (act === 'mo-hen') { moHen = !moHen; }
         else if (act === 'mo-doi') { moDoi = !moDoi; }
+        else if (act === 'doi-ve') {                              // đưa các ca đã dời về lại ngày cũ (nhóm trong thanh "Ca dời ngày")
+            const mas = String(d.mas || '').split(',').filter(Boolean);
+            if (!window.confirm('Đưa ' + mas.length + ' ca (' + mas.join(', ') + ') về lại ' + ngayDai(d.ve) + '?' + String.fromCharCode(10) + 'Ngày hẹn thi công ở Nhập tồn sẽ đổi theo.')) { return; }
+            gui('ve_ngay', {mas: mas, tu: d.tu, ve: d.ve, khung: ''});
+            bao('Đang đưa ' + mas.length + ' ca về lại ' + ngayDai(d.ve) + '...');
+            return;
+        }
         else if (act === 'mo-them') { themNv = themNv || loc || toiLa || ''; ve(); moHopThem(true); return; }
         else if (act === 'them-hen' || act === 'them-hen-tat') {
             const k = e.closest('.onl-hen').querySelector('select');

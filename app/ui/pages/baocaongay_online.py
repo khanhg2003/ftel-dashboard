@@ -119,11 +119,15 @@ def register(app):
                 oc.doi_ngay(sk["id"], phong, ai, sk.get("ngay"), sk.get("khung") or None)
             elif act == "ve_ngay":                             # hoàn tác một lần dời ngày: đưa ca (đang ở ngày `tu`) về lại ngày cũ
                 tu = date.fromisoformat(str(sk.get("tu"))[:10])
-                ca = next((c for c in oc.ds_ca(phong, tu) if c["ma"] == sk.get("ma")), None)
-                if ca is None:
-                    raise oc.LoiOnline("Không hoàn tác được: ca không còn ở ngày đã dời tới (có thể đã được dời tiếp).")
-                oc.doi_ngay(ca["id"], phong, ai, sk.get("ve"), sk.get("khung") or None)
-                accs = [ca["acc"]]
+                dang_o = {c["ma"]: c for c in oc.ds_ca(phong, tu)}
+                mas = [m for m in (sk.get("mas") or [sk.get("ma")]) if m]
+                con = [dang_o[m] for m in mas if m in dang_o]
+                if not con:
+                    raise oc.LoiOnline("Không đưa về được: ca không còn ở ngày đã dời tới (có thể đã được dời tiếp).")
+                for ca in con:
+                    oc.doi_ngay(ca["id"], phong, ai, sk.get("ve"), sk.get("khung") or None)
+                accs = [ca["acc"] for ca in con]
+                thong_bao = {"msg": f"✓ Đã đưa {len(con)} ca về lại {date.fromisoformat(str(sk.get('ve'))[:10]):%d/%m}", "t": gio_viet_nam().isoformat()}
             elif act == "xoa":
                 t = oc.xoa(sk["id"], phong, ai)
                 ghi_log("online_xoa", f"{t['ma_hd']} {t['ngay']:%d/%m/%Y} {code}")
