@@ -555,6 +555,25 @@ def test_doi_nham_roi_doi_ve_lai_ngay_cu_phieu_hoi_sinh_va_nhap_ton_khop_lai(hai
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].onl_sang == 1         # ONL sáng đã gõ không mất qua một vòng dời đi dời về
 
 
+def test_doi_ve_lai_ngay_cu_giu_dung_trang_thai_cu(hai_nguoi):
+    """Hoàn tác một lần dời ngày: ca đang "Đang lắp" / "Đã online" trước khi dời thì về lại đúng trạng thái đó."""
+    a, _ = hai_nguoi
+    i = oc.them("DAAAP7101", a, "08-10", PHONG, "k", NGAY)
+    j = oc.them("DAAAP7102", a, "10-12", PHONG, "k", NGAY)
+    k = oc.them("DAAAP7103", a, "10-12", PHONG, "k", NGAY)
+    oc.doi_trang_thai(i, "dang_lam", PHONG, "k")
+    oc.doi_trang_thai(j, "da_online", PHONG, "k")
+    moi = NGAY + timedelta(days=1)
+    for x in (i, j, k):
+        oc.doi_ngay(x, PHONG, "k", moi)
+    for c in oc.ds_ca(PHONG, moi):
+        assert c["tt"] == "du_kien"                                                 # sang ngày mới thì bắt đầu lại từ Dự kiến
+        oc.doi_ngay(c["id"], PHONG, "k", NGAY)
+    ca = {c["ma"]: c for c in oc.ds_ca(PHONG, NGAY)}
+    assert (ca["DAAAP7101"]["tt"], ca["DAAAP7102"]["tt"], ca["DAAAP7103"]["tt"]) == ("dang_lam", "da_online", "du_kien")
+    assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1         # "Đã online" tính lại đúng 1 ca
+
+
 def test_khong_lui_ve_ngay_da_qua_neu_day_khong_phai_ngay_cu_cua_ca(hai_nguoi):
     a, _ = hai_nguoi
     i = oc.them("DAAAP7001", a, "08-10", PHONG, "k", NGAY + timedelta(days=1))

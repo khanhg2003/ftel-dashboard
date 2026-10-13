@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 from sqlalchemy import delete, select, text
@@ -187,9 +187,9 @@ def du_lieu(phong: list[str], ngay: date) -> dict:
 
 
 # ------------------------------------------------------------------ ghi
-def _ghi_ls(r: OnlineCa, ai: str, viec: str) -> None:
+def _ghi_ls(r: OnlineCa, ai: str, viec: str, them: dict | None = None) -> None:
     ls = _ls(r)
-    ls.append({"luc": gio_viet_nam().isoformat(timespec="minutes"), "ai": ai, "viec": viec})
+    ls.append({"luc": gio_viet_nam().isoformat(timespec="minutes"), "ai": ai, "viec": viec, **(them or {})})
     r.lich_su = json.dumps(ls[-LS_TOI_DA:], ensure_ascii=False)
 
 
@@ -372,12 +372,18 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str 
         if cu_row is None and moi < r.ngay and moi < bc.hom_nay():
             raise LoiOnline("Chỉ dời được từ hôm nay trở đi.")
         cu, acc, ma, buoi_cu = r.ngay, r.acc_norm, r.ma_hd, _buoi_cua(r.khung)
-        _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}")
+        _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}", {"tt": r.trang_thai, "onl": r.online_luc.isoformat() if r.online_luc else None})   # nhớ trạng thái để dời về lại thì trả đúng
         r.trang_thai, r.online_luc = "doi_mai", None
         _dau(r, ai)
         if cu_row is not None:
+            nho = next((x for x in reversed(_ls(cu_row)) if x.get("tt") in TRANG_THAI), {})
+            tt_cu = nho.get("tt", "du_kien")
             _ghi_ls(cu_row, ai, f"Dời về lại ngày {moi:%d/%m}")
-            cu_row.trang_thai, cu_row.online_luc, cu_row.ghi_chu = "du_kien", None, r.ghi_chu
+            cu_row.trang_thai, cu_row.ghi_chu = tt_cu, r.ghi_chu
+            try:
+                cu_row.online_luc = datetime.fromisoformat(nho["onl"]) if tt_cu == "da_online" and nho.get("onl") else None
+            except ValueError:
+                cu_row.online_luc = None
             if khung_moi:
                 cu_row.khung = khung_moi
             _dau(cu_row, ai)
