@@ -137,6 +137,10 @@
             return '<option value="' + esc(n.a) + '"' + (n.a === loc ? ' selected' : '') + '>' + esc(n.t) + (dem[n.a] ? ' · ' + dem[n.a] + ' ca' : '') + '</option>';
         };
         const o = function (cls, n, nhanO, phu) { return '<div class="onl-k ' + cls + '"><span>' + nhanO + '</span><b>' + n + '</b><em>' + phu + '</em></div>'; };
+        const dd = du.doi || {di: [], den: []}, loai = function (ds) { return ds.filter(function (x) { return !loc || x.a === loc; }).length; };
+        const diN = loai(dd.di), denN = loai(dd.den);          // ca bị dời: bấm ô này để mở / đóng danh sách chi tiết ở thanh "Ca dời ngày" bên dưới (chủ app 13/10/2026)
+        const oDoi = '<button type="button" class="onl-k doi" data-act="mo-doi" title="Bấm để xem ca dời đi / dời đến ngày nào"><span>Ca bị dời</span><b>' + diN + '</b><em>'
+            + (diN || denN ? 'dời sang ngày khác' + (denN ? ' · ' + denN + ' dời đến' : '') : 'chưa có ca dời') + '</em></button>';
         const chon = '<select class="onl-nv-chon" data-act="loc-nv-sel" title="Chọn nhân viên: chỉ xem ca của người đó và thêm ca cho người đó"><option value="">Cả phòng</option>'
             + (lienQuan.length ? '<optgroup label="Có ca hôm nay">' + lienQuan.map(opt).join('') + '</optgroup>' : '')
             + (khac.length ? '<optgroup label="Chưa có ca">' + khac.map(opt).join('') + '</optgroup>' : '') + '</select>';
@@ -144,7 +148,7 @@
             + ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' + nhan + '</span><span class="grow"></span><label class="onl-chon-nhan">Nhân viên</label>' + chon
             + (du.ngay < du.hom_nay ? '' : '<button type="button" class="onl-them-mo" data-act="mo-them" title="Thêm ca phát sinh chưa có ở Nhập tồn">+ Thêm ca</button>') + '</div>'
             + '<div class="onl-kpi">' + o('tong', tk.tong, 'Ca dự kiến', loc ? 'của ' + esc(tenCua(loc)) : 'cả phòng') + o('cho', tk.cho, 'Đang chờ lắp', 'chưa triển khai')
-            + o('dang', tk.dang, 'Đang triển khai', 'đang lắp đặt') + o('xong', tk.online, 'Đã online', tk.tong ? Math.round(ph(tk.online)) + '% số ca dự kiến' : 'chưa có ca') + '</div>'
+            + o('dang', tk.dang, 'Đang triển khai', 'đang lắp đặt') + o('xong', tk.online, 'Đã online', tk.tong ? Math.round(ph(tk.online)) + '% số ca dự kiến' : 'chưa có ca') + oDoi + '</div>'
             + '<div class="onl-thanh" title="Xanh lá: đã online · Xanh dương: đang triển khai · Vàng: chờ lắp"><i class="x" style="width:' + ph(tk.online) + '%"></i><i class="d" style="width:'
             + ph(tk.dang) + '%"></i><i class="c" style="width:' + ph(tk.cho) + '%"></i></div>'
             + '<div class="onl-lk">' + (du.ngay > du.hom_nay

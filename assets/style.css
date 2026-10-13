@@ -1726,3 +1726,5 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 #bn-luoi .ag-cell.o-tu-ca { background: #F1F4F8; color: #3C556F; cursor: default; }
 #bn-luoi .ag-row:hover .ag-cell.o-tu-ca { background: #E9EEF4; }
 .onl .onl-lk { margin: 8px 0 0; font-size: 12px; color: var(--onl-mut, #6B7C93); }
+.onl-k.doi { border-left-color: #A593DB; font: inherit; text-align: left; cursor: pointer; } .onl-k.doi b { color: #6B4FBB; }
+.onl-k.doi:hover { background: #F7F5FD; }
