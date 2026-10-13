@@ -410,6 +410,15 @@ def _ghi_chu_sang_online(hd, ghi_chu, phong, acc) -> None:
         logging.getLogger(__name__).exception("Không chép được ghi chú %s sang Theo dõi Online", hd)
 
 
+def _ca_theo_moc(hd, phong, acc) -> None:
+    """Đổi mốc Hẹn thi công thì ca của HĐ ở Theo dõi Online dời theo (xem `online_ca.keo_ca_theo_ton`). Lỗi ở đây không làm hỏng việc lưu Nhập tồn."""
+    try:
+        from app import online_ca as oc
+        oc.keo_ca_theo_ton(hd, phong, _nguoi_ghi(acc)[1] or current_user.username)
+    except Exception:                                      # noqa: BLE001
+        logging.getLogger(__name__).exception("Không dời được ca %s theo mốc Nhập tồn", hd)
+
+
 def register(app):
     @app.callback(Output("nt-nv", "options"), Output("nt-pham-vi", "children"), Output("nt-kpi", "children"),
                   Output("nt-nv-luoi", "rowData"), Output("nt-nv-luoi", "dashGridOptions"),
@@ -503,6 +512,8 @@ def register(app):
                 da_sua.append(r.get("hop_dong"))
                 if cot == "ghi_chu":
                     _ghi_chu_sang_online(r.get("hop_dong"), d.get("value"), phong, acc)
+                elif cot in ("loai_moc", "ngay_moc"):
+                    _ca_theo_moc(r.get("hop_dong"), phong, acc)
             except nt.LoiNhapTon as e:
                 loi.append(str(e))
         # kèm danh sách HĐ vừa sửa, và bật nhịp để `_va_dong` làm mới các dòng đó khi sale ngừng gõ
@@ -547,6 +558,7 @@ def register(app):
             nt.luu(hd, {"ghi_chu": ghi_chu, "loai_moc": loai, "ngay_moc": ngay, "phuong_an": pa}, phong,
                    current_user.username, *_nguoi_ghi(acc))
             _ghi_chu_sang_online(hd, ghi_chu, phong, acc)
+            _ca_theo_moc(hd, phong, acc)
         except nt.LoiNhapTon as e:
             return alert(str(e), "bad"), no_update
         return "", gio_viet_nam().isoformat()

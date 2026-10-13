@@ -908,3 +908,33 @@ def test_giong_noi_bo_qua_o_tu_dem_hom_nay_van_ghi_o_khac(monkeypatch, hai_nguoi
         assert kq["da"] == [a] and any("tự đếm từ ca" in x for x in kq["loi"])
     finally:
         _don_hom_nay(a, b)
+
+
+def test_doi_moc_hen_o_nhap_ton_keo_ca_ve_ngay_moi_vao_chua_hen_gio(hai_nguoi, ma_ton, hen_that):
+    """Chủ app 13/10/2026: Nhập tồn đang hẹn 15/10, sale sửa thành 13/10 thì Theo dõi Online ngày 13/10 phải hiện HĐ đó để xếp khung giờ."""
+    from app import nhap_ton as nt
+    from app import online_ton as ot
+    from app.db import session_scope
+    from app.models import OnlineCa
+    from sqlalchemy import delete
+    a, _ = hai_nguoi
+    hn = bc.hom_nay()
+    xa, ma = hn + timedelta(days=2), ma_ton[0]
+    try:
+        oc.them(ma, a, "10-12", PHONG, AI, xa, ghi_chu="khách rảnh chiều")
+        assert ot._moc([ma])[ma]["ngay"] == xa
+        m0 = oc.moc(PHONG, hn)
+        nt.luu(ma, {"loai_moc": "hen", "ngay_moc": hn.isoformat()}, PHONG, AI, ghi_ten=AI)         # sale sửa mốc ở Nhập tồn
+        assert oc.moc(PHONG, hn) != m0                                                           # trang đang mở nạp lại được
+        assert [x["ma"] for v in ot.hen_cho_ngay(PHONG, hn).values() for x in v] == [ma]                  # chưa có ca hôm nay: hộp nhắc vẫn hiện
+        assert oc.keo_ca_theo_ton(ma, PHONG, AI) is True
+        ca = next(c for c in oc.ds_ca(PHONG, hn) if c["ma"] == ma)
+        assert ca["khung"] == "chua" and ca["acc"] == a and ca["gc"] == "khách rảnh chiều"        # chờ sale chọn lại khung giờ, giữ người + ghi chú
+        assert oc.ds_ca(PHONG, xa) == []                                                         # ngày cũ không còn ca (giữ phiếu doi_mai cho thống kê)
+        assert ot.hen_cho_ngay(PHONG, hn) == {}                                                  # đã có ca nên hết nhắc
+        assert oc.keo_ca_theo_ton(ma, PHONG, AI) is False                                        # gọi lại: không làm gì thêm
+        nt.luu(ma, {"ngay_moc": (hn - timedelta(days=1)).isoformat()}, PHONG, AI, ghi_ten=AI)    # mốc ở quá khứ: không kéo
+        assert oc.keo_ca_theo_ton(ma, PHONG, AI) is False
+    finally:
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_(ma_ton)))

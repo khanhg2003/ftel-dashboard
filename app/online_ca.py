@@ -173,14 +173,18 @@ def ca_dang_o(phong: list[str], ma: str, quanh: date) -> dict | None:
 
 
 def moc(phong: list[str], ngay: date) -> str:
-    """Dấu vết lần sửa gần nhất của các phiếu trong ngày, để trang tự nạp lại khi người khác vừa cập nhật."""
+    """Dấu vết lần sửa gần nhất của các phiếu trong ngày VÀ của các HĐ Nhập tồn đang hẹn đúng ngày này, để trang tự nạp lại khi người khác vừa cập nhật
+    (đổi ngày hẹn bên Nhập tồn cũng phải làm hộp "hẹn hôm nay" và ca được kéo về hiện ra, chủ app 13/10/2026)."""
     dam_bao_bang()
+    from app import nhap_ton as nt
+    nt.dam_bao_bang()
     ma = {f"p{i}": c for i, c in enumerate(phong)}
     cho = ", ".join(f":{k}" for k in ma)
     with engine.connect() as c:
         a = c.execute(text(f"SELECT COUNT(*), MAX(cap_nhat_luc) FROM online_ca WHERE ngay = :n AND phong_code IN ({cho})"),
                       {**ma, "n": ngay.isoformat()}).one()
-    return f"{a[0]}|{a[1] or ''}"
+        h = c.execute(text("SELECT COUNT(*), MAX(cap_nhat_luc) FROM ton_theo_doi WHERE loai_moc = 'hen' AND ngay_moc = :n"), {"n": ngay.isoformat()}).one()
+    return f"{a[0]}|{a[1] or ''}|{h[0]}|{h[1] or ''}"
 
 
 def dem_theo_nguoi(phong: list[str], ngay: date) -> dict[str, dict]:
@@ -450,6 +454,29 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str 
     from app import online_ton as ot
     ot.dong_bo_hen([ma], moi, phong, ai)
     return moi
+
+
+def keo_ca_theo_ton(ma: str, phong: list[str], ai: str) -> bool:
+    """Sale đổi mốc "Hẹn thi công" của HĐ ở Nhập tồn sang ngày D (chủ app 13/10/2026: đang hẹn 15/10, sửa thành 13/10) thì ca còn sống của HĐ đó
+    (Dự kiến / Đang triển khai, từ hôm nay trở đi) được DỜI về D, vào "Chưa hẹn giờ" để sale xếp lại khung giờ - ngày cũ giữ phiếu `doi_mai` nên Hiệu quả vẫn
+    tính đúng. HĐ chưa có ca thì không làm gì (hộp "Nhập tồn hẹn hôm nay" nhắc xếp ca). Trả True nếu đã dời. Lỗi (ngày quá xa, đã có ca ở D...) thì bỏ qua."""
+    from app import online_ton as ot
+    dam_bao_bang()
+    x = ot._moc([ma]).get(ma)
+    if not x or x["loai"] != "hen" or x["ngay"] is None or not bc.hom_nay() <= x["ngay"] <= bc.ngay_xa_nhat():
+        return False
+    d = x["ngay"]
+    with session_scope() as s:
+        rows = s.execute(select(OnlineCa).where(OnlineCa.ma_hd == ma, OnlineCa.phong_code.in_(phong), OnlineCa.ngay >= bc.hom_nay(),
+                                                OnlineCa.trang_thai.in_(("du_kien", "dang_lam"))).order_by(OnlineCa.ngay)).scalars().all()
+        if not rows or any(r.ngay == d for r in rows):
+            return False
+        id_ = rows[0].id
+    try:
+        doi_ngay(id_, phong, ai, d)
+    except LoiOnline:
+        return False
+    return True
 
 
 def dong_bo_ngay_hen(id_: int, phong: list[str], ai: str) -> int:
