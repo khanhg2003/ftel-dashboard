@@ -744,3 +744,74 @@ def test_dua_ve_tim_noi_ca_dang_o_va_thong_ke_doi_di_theo_dung_noi(hai_nguoi):
     oc.doi_ngay(ca["id"], PHONG, "k", NGAY)                                        # đưa về: từ nơi nó đang ở, không cần biết ngày đích cũ
     assert [c["ma"] for c in oc.ds_ca(PHONG, NGAY)] == ["DAAAP7401"] and oc.ca_dang_o(PHONG, "DAAAP7401", NGAY)["ngay"] == NGAY
     assert oc.ca_doi(PHONG, NGAY)["di"] == []
+
+
+def test_ghi_chu_lien_ket_hai_chieu_giua_ca_va_nhap_ton(hai_nguoi, ma_ton):
+    """Chủ app 13/10/2026: ghi chú của ca (Theo dõi Online) và "Ghi chú tình trạng" (Nhập tồn) là cùng một chữ, sửa bên nào thì bên kia theo."""
+    from sqlalchemy import delete
+
+    from app.db import session_scope
+    from app.models import BaoCaoNgay, OnlineCa
+    try:
+        from app import nhap_ton as nt
+        from app import online_ton as ot
+        a, _ = hai_nguoi
+        hom_nay = bc.hom_nay()
+        gc_ton = lambda ma: ot.ghi_chu_ton([ma]).get(ma, "")                         # noqa: E731
+        # 1) Nhập tồn đã có chữ, thêm ca mới không gõ gì -> ca lấy sẵn chữ Nhập tồn
+        nt.luu(ma_ton[0], {"ghi_chu": "KH hẹn 7/10, trời mưa"}, PHONG, AI)
+        i = oc.them(ma_ton[0], a, "08-10", PHONG, AI, hom_nay)
+        assert next(c for c in oc.ds_ca(PHONG, hom_nay) if c["id"] == i)["gc"] == "KH hẹn 7/10, trời mưa"
+        # 2) sửa ở ca -> Nhập tồn đổi theo
+        oc.sua_ghi_chu(i, "KH hẹn lại 11/10", PHONG, AI)
+        assert gc_ton(ma_ton[0]) == "KH hẹn lại 11/10"
+        # 3) sửa ở Nhập tồn -> ca đổi theo (và chỉ các ca còn sống từ hôm nay)
+        nt.luu(ma_ton[0], {"ghi_chu": "KH hẹn 12/10 sau 15h"}, PHONG, AI)
+        assert oc.ghi_chu_tu_ton(ma_ton[0], "KH hẹn 12/10 sau 15h", PHONG, AI) == 1
+        assert next(c for c in oc.ds_ca(PHONG, hom_nay) if c["id"] == i)["gc"] == "KH hẹn 12/10 sau 15h"
+        # 4) ca mới có gõ ghi chú riêng mà Nhập tồn đã có chữ -> NỐI, không xoá lịch sử; hai bên giống nhau
+        oc.them(ma_ton[1], a, "10-12", PHONG, AI, hom_nay, ghi_chu="KH rảnh sau 15h")
+        nt.luu(ma_ton[2], {"ghi_chu": "đã gọi 2 lần"}, PHONG, AI)
+        k = oc.them(ma_ton[2], a, "10-12", PHONG, AI, hom_nay, ghi_chu="KH rảnh sau 15h")
+        gc = next(c for c in oc.ds_ca(PHONG, hom_nay) if c["id"] == k)["gc"]
+        assert gc == "đã gọi 2 lần · KH rảnh sau 15h" and gc_ton(ma_ton[2]) == gc
+        assert gc_ton(ma_ton[1]) == "KH rảnh sau 15h"                                   # Nhập tồn chưa có chữ: lấy chữ của ca
+        # 5) HĐ không có trong tồn: bỏ qua, không lỗi
+        j = oc.them("DAAAP7501", a, "08-10", PHONG, AI, hom_nay, ghi_chu="ca phát sinh")
+        oc.sua_ghi_chu(j, "đổi chữ", PHONG, AI)
+        assert ot.ghi_chu_ton(["DAAAP7501"]) == {}
+
+    finally:                                                                     # ca thử nằm ở HÔM NAY thật, không thuộc ngày kiểm thử mà fixture tự dọn
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_([*ma_ton, "DAAAP7501"])))
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == bc.hom_nay(), BaoCaoNgay.acc_norm == a))
+
+
+def test_trang_nhap_ton_chep_ghi_chu_sang_ca_theo_doi_online(hai_nguoi, ma_ton):
+    """Đường THẬT của trang Nhập tồn (`_ghi_chu_sang_online`, gọi sau mỗi lần sale sửa "Ghi chú tình trạng") đổi ghi chú các ca đang còn của HĐ đó."""
+    import json
+    from types import SimpleNamespace
+
+    from flask_login import login_user
+    from sqlalchemy import delete
+
+    from app import online_ton as ot
+    from app.auth import SessionUser
+    from app.db import session_scope
+    from app.models import BaoCaoNgay, OnlineCa
+    from app.ui.app import server
+    from app.ui.pages import nhapton
+    a, _ = hai_nguoi
+    hom_nay = bc.hom_nay()
+    try:
+        i = oc.them(ma_ton[0], a, "08-10", PHONG, AI, hom_nay, ghi_chu="chữ cũ")
+        with server.test_request_context("/"):
+            login_user(SessionUser(SimpleNamespace(id=1, username="kiemthu.nvkd", ho_ten="Kiểm thử", role="nvkd", ma_nv=None, session_version=0,
+                                                   scope=json.dumps(PHONG))))
+            nhapton._ghi_chu_sang_online(ma_ton[0], "chữ mới từ Nhập tồn", PHONG, a)
+        assert next(c for c in oc.ds_ca(PHONG, hom_nay) if c["id"] == i)["gc"] == "chữ mới từ Nhập tồn"
+        assert ot.ghi_chu_ton([ma_ton[0]]).get(ma_ton[0], "") != "chữ mới từ Nhập tồn"        # hàm này chỉ chép MỘT chiều (Nhập tồn đã tự lưu ở bước trước)
+    finally:
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ma_hd == ma_ton[0]))
+            s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay == hom_nay, BaoCaoNgay.acc_norm == a))

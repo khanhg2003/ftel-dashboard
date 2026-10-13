@@ -31,7 +31,7 @@ from app.thoi_gian import gio_viet_nam, utc_bay_gio
 TRANG_THAI = ("du_kien", "dang_lam", "da_online")        # sale tự đặt; "doi_mai" là trạng thái app đặt khi dời sang ngày kế
 COT_THEM = {"khung_dau": "VARCHAR(16)", "online_luc": "TIMESTAMP"}
 NHAN_TT = {"du_kien": "Dự kiến", "dang_lam": "Đang triển khai", "da_online": "Đã online"}
-GHI_CHU_TOI_DA = 300
+GHI_CHU_TOI_DA = 500                    # bằng ghi chú ở Nhập tồn (`nhap_ton.GHI_CHU_TOI_DA`): hai bên là cùng một chữ nên không được ngắn hơn
 LS_TOI_DA = 30                                  # số dòng lịch sử giữ lại cho mỗi phiếu
 MA_HD = re.compile(r"^[A-Z0-9]{5,20}$")
 _da_tao = False
@@ -327,7 +327,9 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
     _khung_hop_le(khung_ma)
     from app import online_ton as ot
     xd = {x["ma"]: x for x in ot.xung_dot(ma_ds, ngay, phong)}
+    gc_ton = ot.ghi_chu_ton(ma_ds)
     ket = {"them": [], "bo_qua": [(t, "mã không hợp lệ") for t in sai], "hoi": []}
+    sang_ton = {}                                           # mã -> ghi chú mới cần chép sang Nhập tồn
     with session_scope() as s:
         da = {r.ma_hd: r.trang_thai for r in s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code == phong[0])).scalars()}
         for ma in ma_ds:
@@ -337,8 +339,11 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
             if ma in xd and not xac_nhan:
                 ket["hoi"].append(xd[ma])
                 continue
+            gc = ot.gop_ghi_chu(gc_ton.get(ma, ""), ghi_chu)
+            if gc != gc_ton.get(ma, "") and (ghi_chu or "").strip() in gc:
+                sang_ton[ma] = gc
             r = OnlineCa(ngay=ngay, phong_code=phong[0], ma_hd=ma, acc_norm=acc_norm, khung=khung_ma, khung_dau=khung_ma,
-                         trang_thai="du_kien", ghi_chu=(ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
+                         trang_thai="du_kien", ghi_chu=gc[:GHI_CHU_TOI_DA] or None, tao_luc=utc_bay_gio(), tao_boi=ai[:60])
             _ghi_ls(r, ai, f"Tạo ca, khung {_nhan_khung(khung_ma)}")
             _dau(r, ai)
             s.add(r)
@@ -348,6 +353,8 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
     if ket["them"]:
         dong_bo_bang(ngay, phong, [acc_norm], ai, dong_online=False)
         ot.dong_bo_hen(ket["them"], ngay, phong, ai)
+        for ma, gc in sang_ton.items():
+            ot.ca_sang_ton(ma, gc, phong, ai)
     return ket
 
 
@@ -481,12 +488,31 @@ def doi_nhieu(ids, loai: str, khung_ma: str, phong: list[str], ai: str) -> dict:
 
 
 def sua_ghi_chu(id_: int, ghi_chu: str, phong: list[str], ai: str) -> None:
-    """Sửa ghi chú của ca. KHÔNG có đổi người phụ trách: mỗi HĐ gắn đúng người bán, không có chuyện chuyển hay sai HĐ (chủ app chốt 12/10/2026)."""
+    """Sửa ghi chú của ca. KHÔNG có đổi người phụ trách: mỗi HĐ gắn đúng người bán, không có chuyện chuyển hay sai HĐ (chủ app chốt 12/10/2026).
+    Ghi chú liên kết hai chiều với "Ghi chú tình trạng" ở Nhập tồn (xem `online_ton`): sửa ở đây thì Nhập tồn đổi theo."""
     dam_bao_bang()
     with session_scope() as s:
         r = _tim(s, id_, phong)
         r.ghi_chu = (ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None
         _dau(r, ai)
+        ma, moi = r.ma_hd, r.ghi_chu or ""
+    from app import online_ton as ot
+    ot.ca_sang_ton(ma, moi, phong, ai)
+
+
+def ghi_chu_tu_ton(ma: str, ghi_chu: str, phong: list[str], ai: str) -> int:
+    """Nhập tồn vừa sửa "Ghi chú tình trạng" của một HĐ: chép sang các ca ĐANG CÒN (từ hôm nay trở đi) của HĐ đó ở Theo dõi Online. Trả số ca đã đổi."""
+    dam_bao_bang()
+    moi = (ghi_chu or "").strip()[:GHI_CHU_TOI_DA] or None
+    n = 0
+    with session_scope() as s:
+        for r in s.execute(select(OnlineCa).where(OnlineCa.ma_hd == ma, OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai",
+                                                  OnlineCa.ngay >= bc.hom_nay())).scalars():
+            if (r.ghi_chu or None) != moi:
+                r.ghi_chu = moi
+                _dau(r, ai)
+                n += 1
+    return n
 
 
 def xoa(id_: int, phong: list[str], ai: str) -> dict:

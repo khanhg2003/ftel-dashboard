@@ -238,7 +238,7 @@
             + '<label>Người phụ trách<select class="t-nv" data-act="them-nv">' + opt('', 'Chọn người…', !themNv)
             + du.nv.map(function (n) { return opt(n.a, n.t, n.a === themNv); }).join('') + '</select></label>'
             + '<label>Khung giờ<select class="t-kh" data-act="them-kh">' + du.khung.map(function (k) { return opt(k.ma, k.nhan, k.ma === kh); }).join('') + '</select></label>'
-            + '<label>Ghi chú<input class="t-gc" type="text" maxlength="200" placeholder="Không bắt buộc" autocomplete="off"></label>'
+            + '<label>Ghi chú<input class="t-gc" type="text" maxlength="500" placeholder="Không bắt buộc" autocomplete="off"></label>'
             + '<div class="onl-them-loi"></div></div>';
     }
 

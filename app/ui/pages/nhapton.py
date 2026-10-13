@@ -6,6 +6,7 @@ form 3 mục bắt buộc. Danh sách xếp theo từng cụm nhân viên. Mọi
 from __future__ import annotations
 
 import base64
+import logging
 from datetime import datetime
 
 import pandas as pd
@@ -399,6 +400,16 @@ def _ten_nguong(ton_tu) -> str:
 
 
 # ------------------------------------------------------------------ callbacks
+def _ghi_chu_sang_online(hd, ghi_chu, phong, acc) -> None:
+    """Ghi chú tình trạng liên kết hai chiều với ghi chú của ca ở Theo dõi Online (chủ app 13/10/2026): chép sang các ca đang còn của HĐ.
+    Lỗi ở đây không được làm hỏng việc lưu Nhập tồn nên chỉ ghi log."""
+    try:
+        from app import online_ca as oc
+        oc.ghi_chu_tu_ton(hd, ghi_chu, phong, _nguoi_ghi(acc)[1] or current_user.username)
+    except Exception:                                      # noqa: BLE001
+        logging.getLogger(__name__).exception("Không chép được ghi chú %s sang Theo dõi Online", hd)
+
+
 def register(app):
     @app.callback(Output("nt-nv", "options"), Output("nt-pham-vi", "children"), Output("nt-kpi", "children"),
                   Output("nt-nv-luoi", "rowData"), Output("nt-nv-luoi", "dashGridOptions"),
@@ -490,6 +501,8 @@ def register(app):
             try:
                 nt.luu(r.get("hop_dong"), {cot: d.get("value")}, phong, current_user.username, *_nguoi_ghi(acc))
                 da_sua.append(r.get("hop_dong"))
+                if cot == "ghi_chu":
+                    _ghi_chu_sang_online(r.get("hop_dong"), d.get("value"), phong, acc)
             except nt.LoiNhapTon as e:
                 loi.append(str(e))
         # kèm danh sách HĐ vừa sửa, và bật nhịp để `_va_dong` làm mới các dòng đó khi sale ngừng gõ
@@ -533,6 +546,7 @@ def register(app):
         try:
             nt.luu(hd, {"ghi_chu": ghi_chu, "loai_moc": loai, "ngay_moc": ngay, "phuong_an": pa}, phong,
                    current_user.username, *_nguoi_ghi(acc))
+            _ghi_chu_sang_online(hd, ghi_chu, phong, acc)
         except nt.LoiNhapTon as e:
             return alert(str(e), "bad"), no_update
         return "", gio_viet_nam().isoformat()

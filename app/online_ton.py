@@ -4,6 +4,9 @@
   và tính vào số ca còn thiếu giờ của người đó (`online_ca.thieu_gio`).
 - Sale thêm ca vào một ngày nhưng Nhập tồn đang hẹn / trả về NGÀY KHÁC thì PHẢI hỏi lại trước (`xung_dot`); đồng ý thì ca được thêm và ngày hẹn
   ở Nhập tồn tự đổi theo (`dong_bo_hen`). Chưa có mốc nào ở Nhập tồn thì tự điền Hẹn thi công theo ngày của ca (không cần hỏi).
+- GHI CHÚ liên kết HAI CHIỀU (chủ app 13/10/2026, để sale khỏi nhập lại): ghi chú của ca ở Theo dõi Online và "Ghi chú tình trạng" ở Nhập tồn là CÙNG MỘT chữ.
+  Sửa bên nào thì bên kia đổi theo (`ca_sang_ton` / `online_ca.ghi_chu_tu_ton`, bản ghi sau cùng thắng). Ca mới tạo mà không gõ ghi chú thì lấy sẵn ghi chú Nhập tồn;
+  gõ ghi chú riêng cho ca mới khi Nhập tồn đã có chữ thì NỐI vào cuối (`gop_ghi_chu`) để không xoá lịch sử tình trạng đã ghi. Mã không có trong tồn thì bỏ qua.
 - Dời ca sang ngày khác thì Nhập tồn tự đổi ngày hẹn theo ngày mới. Ca bấm "Đã online" thì phương án ở Nhập tồn thành "Đã triển khai" (chờ file
   Internet về); bỏ "Đã online" thì trả về "Đang chờ triển khai" (chỉ khi phương án đang là Đã triển khai).
 HĐ không còn trong danh sách tồn (đã online theo file, hoặc mã lạ) thì bỏ qua, không báo lỗi. Ghi vào Nhập tồn luôn đi qua `nhap_ton.luu` nên
@@ -32,6 +35,38 @@ def _moc(mas) -> dict[str, dict]:
     with session_scope() as s:
         return {r.hop_dong: {"loai": r.loai_moc, "ngay": r.ngay_moc, "pa": r.phuong_an}
                 for r in s.execute(select(TonTheoDoi).where(TonTheoDoi.hop_dong.in_(mas))).scalars()}
+
+
+def ghi_chu_ton(mas) -> dict[str, str]:
+    """Ghi chú tình trạng đang có ở Nhập tồn của các mã (chỉ mã đã có chữ)."""
+    mas = list(mas)
+    if not mas:
+        return {}
+    nt.dam_bao_bang()
+    with session_scope() as s:
+        return {r.hop_dong: r.ghi_chu for r in s.execute(select(TonTheoDoi).where(TonTheoDoi.hop_dong.in_(mas))).scalars() if r.ghi_chu}
+
+
+def gop_ghi_chu(co_san: str, moi: str) -> str:
+    """Ghi chú của ca mới: bỏ trống thì lấy sẵn chữ Nhập tồn; có gõ thì nối vào cuối chữ đã có (không xoá lịch sử). Quá dài thì giữ riêng chữ vừa gõ."""
+    co_san, moi = (co_san or "").strip(), (moi or "").strip()
+    if not moi or moi in co_san:
+        return co_san
+    if not co_san:
+        return moi
+    gop = f"{co_san} · {moi}"
+    return gop if len(gop) <= nt.GHI_CHU_TOI_DA else moi
+
+
+def ca_sang_ton(ma: str, ghi_chu: str, phong: list[str], ai: str) -> None:
+    """Chép ghi chú của ca sang "Ghi chú tình trạng" ở Nhập tồn (giống chữ thì thôi). HĐ không còn trong tồn thì bỏ qua."""
+    gc = (ghi_chu or "").strip()
+    if gc == ghi_chu_ton([ma]).get(ma, ""):
+        return
+    try:
+        nt.luu(ma, {"ghi_chu": gc}, list(phong), ai, ghi_ten=ai)
+    except nt.LoiNhapTon:
+        return
 
 
 def _ton(phong: list[str]):
