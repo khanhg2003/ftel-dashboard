@@ -3,7 +3,8 @@
 Máy chủ chỉ làm ba việc: nạp gói dữ liệu của ngày (`onl-du-lieu`), nhận sự kiện từ trình duyệt qua `onl-sk` (đổi trạng thái, dời
 khung, dời mai, huỷ, thêm ca) và nhận form sửa ca. Phòng và ngày lấy từ chính bộ lọc của trang Báo cáo ngày
 (`bn-phong`, `bn-ngay`); ai được xem / sửa thì theo đúng quyền của Báo cáo ngày (`bn._phong_hop_le`).
-Mục này TÁCH RỜI với các ô số của bảng phía trên (chủ app chốt 13/10/2026): không đọc, không ghi, không kiểm số ONL / Đã online của bảng.
+Liên kết một chiều với bảng phía trên (chủ app chốt 13/10/2026, phương án A): từ HÔM NAY trở về trước, ONL sáng / ONL chiều / Đã online của bảng tự đếm từ
+các ca ở đây (`bc.che_do_onl`, `oc.dem_theo_nguoi`), nên mỗi lần ca đổi trang báo bảng vá lại dòng + dòng TỔNG; ngày chưa tới thì bảng gõ tay, mục này không ghi gì vào bảng.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from dash import ClientsideFunction, Input, Output, State, ctx, dcc, html, no_up
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
+from app import bao_cao_ngay as bc
 from app import online_ca as oc
 from app.auth import ghi_log
 from app.thoi_gian import gio_viet_nam
@@ -46,6 +48,19 @@ def khung() -> list:
     ]
 
 
+def _bao_bang(d: date, truoc: set, phong: list[str], sk: dict | None = None) -> tuple:
+    """Hai đầu ra `bn-da-luu` + `bn-nhip-va`: báo bảng phía trên nạp lại dòng của những người vừa có ca đổi (cả người cũ và người mới khi chuyển ca).
+    Ngày chưa tới thì bảng gõ tay, không có gì phải báo."""
+    if not bc.che_do_onl(d):
+        return no_update, no_update
+    accs = truoc | {c["acc"] for c in oc.ds_ca(phong, d)} | {(sk or {}).get("acc")}
+    accs.discard(None)
+    accs.discard("")
+    if not accs:
+        return no_update, no_update
+    return {"luc": gio_viet_nam().isoformat(), "acc": sorted(accs), "xong": []}, False
+
+
 def _ngu_canh(code, ngay, toi_la):
     """(phòng, ngày, tên người ghi) sau khi kiểm quyền ở máy chủ."""
     from app.ui.pages import baocaongay as bn
@@ -74,13 +89,16 @@ def register(app):
         return oc.du_lieu(phong, d)
 
     @app.callback(Output("onl-lam-moi", "data"), Output("onl-msg", "children"), Output("onl-thong-bao", "data"),
-                  Output("onl-hoi", "data"), Input("onl-sk", "data"), State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
+                  Output("onl-hoi", "data"), Output("bn-da-luu", "data", allow_duplicate=True),
+                  Output("bn-nhip-va", "disabled", allow_duplicate=True),
+                  Input("onl-sk", "data"), State("bn-phong", "value"), State("bn-ngay", "date"), State("bn-toi-la", "value"),
                   prevent_initial_call=True)
     def _su_kien(sk, code, ngay, toi_la):
         if not sk or sk.get("act") in (None, "sua"):
             raise PreventUpdate
         phong, d, ai = _ngu_canh(code, ngay, toi_la)
         act, thong_bao, canh_bao, hoi = sk["act"], no_update, None, no_update
+        truoc = {c["acc"] for c in oc.ds_ca(phong, d)} if bc.che_do_onl(d) else set()       # người có ca TRƯỚC khi đổi (ca xoá / dời đi không còn ở sau)
         try:
             if act == "them":
                 kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d, ghi_chu=sk.get("gc") or "", xac_nhan=bool(sk.get("xn")))
@@ -107,7 +125,7 @@ def register(app):
                 ids = [i for i in (sk.get("ids") or []) if i in ids_hien]
                 kq = oc.doi_nhieu(ids, sk.get("loai"), sk.get("val") or "", phong, ai)
                 if kq["loi"]:
-                    return gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update
+                    return (gio_viet_nam().isoformat(), alert("; ".join(kq["loi"][:3]), "warn"), no_update, no_update, *_bao_bang(d, truoc, phong, sk))
             elif act == "mai":
                 if sk.get("acc"):                              # đổi sale phụ trách TRƯỚC khi dời để phiếu mới ở ngày đích đã mang đúng người
                     oc.doi_nguoi(sk["id"], sk["acc"], phong, ai)
@@ -141,8 +159,8 @@ def register(app):
             else:
                 raise PreventUpdate
         except oc.LoiOnline as e:                              # trình duyệt đã đổi tạm trên màn hình: nạp lại số thật + báo lỗi
-            return gio_viet_nam().isoformat(), alert(str(e), "bad"), no_update, no_update
-        return gio_viet_nam().isoformat(), canh_bao, thong_bao, hoi
+            return gio_viet_nam().isoformat(), alert(str(e), "bad"), no_update, no_update, no_update, no_update
+        return (gio_viet_nam().isoformat(), canh_bao, thong_bao, hoi, *_bao_bang(d, truoc, phong, sk))
 
     @app.callback(Output("onl-md", "className"), Output("onl-md-tieu-de", "children"), Output("onl-md-id", "data"),
                   Output("onl-md-gc", "value"), Output("onl-md-ls", "children"), Output("onl-md-msg", "children"),

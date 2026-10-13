@@ -36,6 +36,7 @@ from app.models import AuditLog, BaoCaoNgay, BaoCaoNgayChu, Target
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
 O_NHAP = ("muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu", "da_online", "ghi_chu")
+O_TU_CA = ("onl_sang", "onl_chieu", "da_online")      # ba ô này tự đếm từ ca ở Theo dõi Online (xem `che_do_onl`)
 # cột thêm sau, phải tự vá vào database đang chạy: tên cột -> kiểu
 COT_THEM = {"da_online": "INTEGER", "da_ban": "INTEGER"}
 GHI_CHU_TOI_DA = 400
@@ -64,6 +65,27 @@ def dam_bao_bang() -> None:
 
 def hom_nay() -> date:
     return gio_viet_nam().date()
+
+
+def che_do_onl(ngay: date) -> str:
+    """Ba ô ONL sáng / ONL chiều / Đã online lấy số từ đâu (chủ app chốt 13/10/2026, phương án A): sale thường nhập dự kiến cho ngày mai vào tối hôm trước,
+    còn đến ngày đó thì số phải theo ca thật ở Theo dõi Online (xếp khung giờ + đổi tình trạng ở thẻ ca là số nhảy).
+      "" = ngày CHƯA TỚI: sale gõ tay, ô nào cũng sửa được.
+      "het" = HÔM NAY: cả phòng tự đếm từ ca (người chưa có ca thì 0), không gõ tay; số sale đã gõ tối hôm trước vẫn còn trong database để đối chiếu.
+      "co_ca" = ngày ĐÃ QUA: người nào có ca thì tự đếm, người không có ca (ngày trước khi có mục Theo dõi Online) giữ số đã gõ và vẫn sửa được."""
+    h = hom_nay()
+    return "" if ngay > h else "het" if ngay == h else "co_ca"
+
+
+def khoa_onl(acc_norm: str, phong: list[str], ngay: date) -> bool:
+    """True nếu ba ô tự đếm của người này trong ngày KHÔNG được gõ tay."""
+    m = che_do_onl(ngay)
+    if not m:
+        return False
+    if m == "het":
+        return True
+    from app import online_ca as oc
+    return acc_norm in oc.dem_theo_nguoi(phong, ngay)
 
 
 def ngay_xa_nhat() -> date:
@@ -274,6 +296,17 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     # 06/10/2026, thay quy tắc 25/09 "lấy số lớn hơn giữa số gõ và số file": sale gõ 1 mà file ghi 4 thì
     # ô nhảy 4, sale tưởng lỗi nhập liệu). Chưa gõ thì tính 0.
     df["thuc_hien"] = pd.to_numeric(df.get("da_online"), errors="coerce").fillna(0).astype(int)
+    df["dk_toi_qua"] = df.onl_sang + df.onl_chieu                # số sale GÕ TAY (thường là tối hôm trước); hôm nay chỉ để đối chiếu với số ca đã xếp
+    df["tu_ca"], df["chua_xep"] = False, 0
+    che_do = che_do_onl(ngay)
+    if che_do:
+        from app import online_ca as oc
+        dem = oc.dem_theo_nguoi(phong, ngay)
+        tu = df.acc_norm.isin(dem) if che_do == "co_ca" else pd.Series(True, index=df.index)
+        for cot, khoa in (("onl_sang", "sang"), ("onl_chieu", "chieu"), ("thuc_hien", "da_onl")):
+            df[cot] = [dem.get(a, {}).get(khoa, 0) if t else v for a, t, v in zip(df.acc_norm, tu, df[cot])]
+        df["chua_xep"] = [dem.get(a, {}).get("chua", 0) for a in df.acc_norm]
+        df["tu_ca"] = tu
     df["dk_onl"] = df.onl_sang + df.onl_chieu
     # KHÔNG kẹp ở 0: người online vượt dự kiến để số âm thì cộng dọc cột mới ra đúng
     # tổng dự kiến - tổng đã online (chủ app chốt 26/09/2026: mọi con số phải cộng được).
@@ -282,7 +315,7 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     df["id"] = df.acc_norm
     cot = ["id", "acc_norm", "acc", "ho_ten", "phong_code", "muc_tieu", "khtn", "da_ban", "onl_sang",
            "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl", "pttb_thang", "mt_thang", "vvip_thang",
-           "ghi_chu", "da_nhap"]
+           "ghi_chu", "da_nhap", "tu_ca", "dk_toi_qua", "chua_xep"]
     return df[cot].sort_values(["pttb_thang", "ho_ten"], ascending=[False, True]).reset_index(drop=True)
 
 
@@ -343,6 +376,10 @@ def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | 
         d[k] = (str(v or "").strip()[:GHI_CHU_TOI_DA] or None) if k == "ghi_chu" else _so(v)
     if not d:
         return
+    if any(k in O_TU_CA for k in d) and khoa_onl(acc_norm, phong, ngay):
+        raise LoiBaoCao("ONL sáng / ONL chiều / Đã online của ngày này tự đếm từ ca ở mục Theo dõi Online bên dưới. "
+                        "Xếp khung giờ và đổi tình trạng ở thẻ ca là số tự nhảy." if ngay == hom_nay() else
+                        "Người này đã có ca ở mục Theo dõi Online nên ONL sáng / ONL chiều / Đã online tự đếm từ ca, không gõ tay được.")
     code = _phong_cua(acc_norm, phong)
     for lan in (1, 2):
         try:
@@ -382,7 +419,11 @@ def moc_cap_nhat(phong: list[str], ngay: date | None = None) -> str:
         r = c.execute(text(f"""SELECT COUNT(*), MAX(cap_nhat_luc) FROM bao_cao_ngay
                                WHERE ngay = :n AND phong_code IN ({cho})"""),
                       {**ma, "n": ngay.isoformat()}).one()
-    return f"{r[0]}|{r[1] or ''}"
+    moc = f"{r[0]}|{r[1] or ''}"
+    if che_do_onl(ngay):                                        # số tự đếm từ ca nên ca đổi là bảng phải nạp lại
+        from app import online_ca as oc
+        moc += "|" + oc.moc(phong, ngay)
+    return moc
 
 
 def chu(phong_code: str, ngay: date | None = None) -> dict:

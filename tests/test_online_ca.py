@@ -409,8 +409,8 @@ def test_cua_so_hieu_qua_va_thanh_tien_do_nhap_dung_duoc(hai_nguoi, monkeypatch)
     from app.ui.pages import baocaongay, baocaongay_hq
     monkeypatch.setattr(pa, "khoang", lambda ky, hom=None: (NGAY, NGAY))                  # dữ liệu thử nằm ở ngày kiểm thử, không phải hôm nay
     a, b = hai_nguoi
+    bc.luu(a, {"onl_sang": 1, "muc_tieu": 2}, PHONG, "k", NGAY)                          # gõ trước khi có ca (có ca rồi thì ô ONL tự đếm, không gõ tay được)
     oc.them("DAAAP5001", a, "08-10", PHONG, "k", NGAY)
-    bc.luu(a, {"onl_sang": 1, "muc_tieu": 2}, PHONG, "k", NGAY)
     ndung = baocaongay_hq.noi_dung(PHONG, "hn")
     assert ndung and ndung[0].className == "hq-dau"
     assert baocaongay_hq.noi_dung(PHONG, "hn", a)[0].className == "hq-nv-dau"                  # bấm một người: xem chi tiết
@@ -782,3 +782,129 @@ def test_chuyen_ca_cho_sale_phu_trach_khac_ghi_lich_su_va_mang_theo_khi_doi_ngay
     moi = oc.doi_ngay(i, PHONG, "k", NGAY + timedelta(days=1))
     assert oc.ds_ca(PHONG, moi)[0]["acc"] == b                                         # dời ngày vẫn mang theo người phụ trách mới
     assert oc.ca_dang_o(PHONG, "DAAAP7702", NGAY)["acc"] == a
+
+
+def _don_hom_nay(a, b):
+    from sqlalchemy import delete
+
+    from app.db import session_scope
+    from app.models import BaoCaoNgay, OnlineCa
+    with session_scope() as s:
+        s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.like("DAAAP88%")))
+        s.execute(delete(BaoCaoNgay).where(BaoCaoNgay.ngay.in_([bc.hom_nay(), bc.hom_nay() + timedelta(days=1)]), BaoCaoNgay.acc_norm.in_([a, b])))
+
+
+def test_dem_theo_nguoi_chia_theo_buoi_ca_chua_hen_gio_chua_tinh_cho_toi_khi_da_online(hai_nguoi):
+    """Phương án A (13/10/2026): số ca theo khung buổi sáng / chiều là ONL sáng / chiều của bảng; ca "Chưa hẹn giờ" đếm riêng, chỉ vào sáng / chiều khi đã online
+    (theo giờ bấm) nhờ vậy Đã online không bao giờ vượt DK ONL; ca đã dời sang ngày khác không tính."""
+    a, b = hai_nguoi
+    s1, s2 = oc.them("DAAAP8801", a, "08-10", PHONG, "k", NGAY), oc.them("DAAAP8802", a, "10-12", PHONG, "k", NGAY)
+    oc.them("DAAAP8803", a, "1330-1530", PHONG, "k", NGAY)
+    oc.them("DAAAP8804", a, "chua", PHONG, "k", NGAY)
+    chua_onl = oc.them("DAAAP8805", a, "chua", PHONG, "k", NGAY)
+    oc.them("DAAAP8806", b, "sau", PHONG, "k", NGAY)
+    oc.doi_trang_thai(s1, "da_online", PHONG, "k")
+    oc.doi_trang_thai(chua_onl, "da_online", PHONG, "k")
+    oc.doi_ngay(s2, PHONG, "k", NGAY + timedelta(days=1))                                  # dời đi: không còn ở ngày này
+    d = oc.dem_theo_nguoi(PHONG, NGAY)
+    assert d[a]["tong"] == 4 and d[a]["chua"] == 1 and d[a]["da_onl"] == 2                 # 8801 + 8805 đã online, 8804 vẫn chưa hẹn giờ
+    assert d[a]["sang"] + d[a]["chieu"] == 4 - 1                                           # chỉ 8804 chưa vào ô nào
+    assert d[a]["sang"] >= 1 and d[a]["chieu"] >= 1                                        # 8801 ở khung sáng, 8803 ở khung chiều
+    assert d[b] == {"sang": 0, "chieu": 1, "da_onl": 0, "chua": 0, "tong": 1}
+
+
+def test_bang_hom_nay_tu_dem_tu_ca_ngay_mai_go_tay_va_khoa_o_o_hom_nay(hai_nguoi):
+    """Chủ app 13/10/2026: nhập dự kiến cho ngày mai vào tối hôm trước (gõ tay), còn hôm nay phải xếp khung giờ + đổi tình trạng ở thẻ ca thì số mới nhảy."""
+    from app.db import session_scope
+    from app.models import BaoCaoNgay
+    a, b = hai_nguoi
+    hn, mai = bc.hom_nay(), bc.hom_nay() + timedelta(days=1)
+    try:
+        assert bc.che_do_onl(mai) == "" and bc.che_do_onl(hn) == "het" and bc.che_do_onl(hn - timedelta(days=1)) == "co_ca"
+        bc.luu(a, {"onl_sang": 3, "onl_chieu": 2, "da_online": 0}, PHONG, "k", mai)           # ngày mai: ô nào cũng gõ tay được
+        r = bc.bang(PHONG, mai).set_index("acc_norm").loc[a]
+        assert (int(r.onl_sang), int(r.onl_chieu), bool(r.tu_ca)) == (3, 2, False)
+        with session_scope() as s:                                                             # số sale đã gõ từ tối hôm trước (khi đó còn là "ngày mai")
+            s.add(BaoCaoNgay(ngay=hn, acc_norm=a, phong_code="IBB7", onl_sang=3, onl_chieu=2, muc_tieu=4))
+        r = bc.bang(PHONG, hn).set_index("acc_norm").loc[a]
+        assert (int(r.onl_sang), int(r.onl_chieu), int(r.dk_onl), bool(r.tu_ca)) == (0, 0, 0, True)      # chưa xếp ca nào thì 0
+        assert int(r.dk_toi_qua) == 5 and int(r.muc_tieu) == 4                                  # số gõ tối qua vẫn còn để đối chiếu, ô khác không đụng
+        i = oc.them("DAAAP8811", a, "08-10", PHONG, "k", hn)
+        oc.them("DAAAP8812", a, "1330-1530", PHONG, "k", hn)
+        oc.them("DAAAP8813", a, "chua", PHONG, "k", hn)
+        oc.doi_trang_thai(i, "da_online", PHONG, "k")
+        r = bc.bang(PHONG, hn).set_index("acc_norm").loc[a]
+        assert (int(r.onl_sang), int(r.onl_chieu), int(r.dk_onl), int(r.thuc_hien), int(r.con_phai_onl), int(r.chua_xep)) == (1, 1, 2, 1, 1, 1)
+        t = bc.tom_tat(PHONG, hn)                                                              # khối tóm tắt và ảnh lấy cùng số đã đếm
+        assert t["onl_sang"] >= 1 and t["dk_onl"] == t["onl_sang"] + t["onl_chieu"] and t["da_online"] >= 1
+        with pytest.raises(bc.LoiBaoCao, match="tự đếm từ ca"):
+            bc.luu(a, {"onl_sang": 9}, PHONG, "k", hn)                                          # máy chủ chặn dù trình duyệt có gửi
+        bc.luu(a, {"khtn": 6, "ghi_chu": "vẫn nhập được ô khác"}, PHONG, "k", hn)
+        assert int(bc.bang(PHONG, hn).set_index("acc_norm").loc[a].khtn) == 6
+        assert bc.khoa_onl(a, PHONG, hn) and not bc.khoa_onl(a, PHONG, mai)
+    finally:
+        _don_hom_nay(a, b)
+
+
+def test_ngay_da_qua_nguoi_co_ca_tu_dem_nguoi_khong_co_ca_giu_so_da_go(hai_nguoi):
+    a, b = hai_nguoi
+    bc.luu(a, {"onl_sang": 4, "onl_chieu": 1, "da_online": 3}, PHONG, "k", NGAY)
+    bc.luu(b, {"onl_sang": 2}, PHONG, "k", NGAY)
+    oc.them("DAAAP8821", b, "10-12", PHONG, "k", NGAY)                                       # chỉ b có ca
+    df = bc.bang(PHONG, NGAY).set_index("acc_norm")
+    assert (int(df.loc[a].onl_sang), int(df.loc[a].thuc_hien), bool(df.loc[a].tu_ca)) == (4, 3, False)       # a: số cũ, vẫn sửa được
+    assert (int(df.loc[b].onl_sang), int(df.loc[b].onl_chieu), bool(df.loc[b].tu_ca)) == (1, 0, True)        # b: theo ca
+    bc.luu(a, {"onl_sang": 5}, PHONG, "k", NGAY)
+    with pytest.raises(bc.LoiBaoCao, match="đã có ca"):
+        bc.luu(b, {"onl_sang": 5}, PHONG, "k", NGAY)
+
+
+def test_ca_doi_thi_dau_vet_cap_nhat_cua_bang_hom_nay_doi_theo(hai_nguoi):
+    """Ca đổi (người khác sửa) phải làm dấu vết của bảng đổi thì nhịp tự nạp mới kéo số mới về; ngày chưa tới thì bảng không phụ thuộc ca."""
+    a, b = hai_nguoi
+    hn, mai = bc.hom_nay(), bc.hom_nay() + timedelta(days=1)
+    try:
+        m0, mai0 = bc.moc_cap_nhat(PHONG, hn), bc.moc_cap_nhat(PHONG, mai)
+        oc.them("DAAAP8831", a, "08-10", PHONG, "k", hn)
+        assert bc.moc_cap_nhat(PHONG, hn) != m0
+        oc.them("DAAAP8832", a, "08-10", PHONG, "k", mai)
+        assert bc.moc_cap_nhat(PHONG, mai) == mai0
+    finally:
+        _don_hom_nay(a, b)
+
+
+def test_trang_bao_bang_khi_ca_doi_va_dong_luoi_giu_so_tu_dem(hai_nguoi, monkeypatch):
+    from app.ui.pages import baocaongay, baocaongay_online
+    monkeypatch.setattr(baocaongay, "_dung_chung", lambda: False)
+    a, b = hai_nguoi
+    hn, mai = bc.hom_nay(), bc.hom_nay() + timedelta(days=1)
+    try:
+        luu, mo = baocaongay_online._bao_bang(hn, {a}, PHONG, {"acc": b})
+        assert luu["acc"] == sorted({a, b}) and mo is False                                    # cả người cũ lẫn người nhận ca đều được vá lại
+        n1, n2 = baocaongay_online._bao_bang(mai, {a}, PHONG)
+        assert n1 is baocaongay_online.no_update and n2 is baocaongay_online.no_update            # ngày chưa tới: bảng gõ tay, không có gì để báo
+        dong = {r["acc_norm"]: r for r in baocaongay._dong_luoi(bc.bang(PHONG, hn))}
+        assert dong[a]["onl_sang"] == 0 and dong[a]["thuc_hien"] == 0                           # chưa nhập báo cáo nhưng số tự đếm vẫn hiện 0, không để trống
+        assert dong[a]["muc_tieu"] is None                                                      # ô gõ tay chưa nhập thì vẫn trống
+        mo_ta = baocaongay._mo_ta(bc.tom_tat(PHONG, hn), hn, bc.bang(PHONG, hn), None)
+        assert "tự đếm từ ca" in str(mo_ta)
+    finally:
+        _don_hom_nay(a, b)
+
+
+def test_giong_noi_bo_qua_o_tu_dem_hom_nay_van_ghi_o_khac(monkeypatch, hai_nguoi):
+    from types import SimpleNamespace
+
+    from app import giong_noi as gn
+    from app.auth import ADMIN_USERNAME, SessionUser
+    a, b = hai_nguoi
+    hn = bc.hom_nay()
+    monkeypatch.setattr(gn, "kiem_tra", lambda user, code: {})
+    user = SessionUser(SimpleNamespace(id=2, username=ADMIN_USERNAME, ho_ten="Kiểm thử", role="admin", ma_nv=None, session_version=0, scope="[]"))
+    try:
+        kq = gn.luu_nhieu([{"acc_norm": a, "truong": {"muc_tieu": 5, "onl_sang": 3, "da_online": 1}, "ghi_chu": ""}], PHONG, hn, user)
+        r = bc.bang(PHONG, hn).set_index("acc_norm").loc[a]
+        assert int(r.muc_tieu) == 5 and int(r.onl_sang) == 0                                    # số bán ghi được, ONL sáng không bị ghi đè
+        assert kq["da"] == [a] and any("tự đếm từ ca" in x for x in kq["loi"])
+    finally:
+        _don_hom_nay(a, b)

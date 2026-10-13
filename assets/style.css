@@ -1721,3 +1721,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .bn-luu-tt.loi { padding: 3px 10px; border-radius: 999px; background: #FDECEA; color: #B42318; cursor: pointer; }
 .onl-doi-ve { border: 1px solid #D0D5DD; border-radius: 6px; background: #fff; padding: 3px 10px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--fpt-blue); cursor: pointer; white-space: nowrap; }
 .onl-doi-ve:hover { border-color: var(--fpt-blue); background: #F1F6FD; }
+
+/* Báo cáo ngày: ONL sáng / chiều / Đã online tự đếm từ ca ở Theo dõi Online (hôm nay trở về trước) - ô xám, không gõ tay */
+#bn-luoi .ag-cell.o-tu-ca { background: #F1F4F8; color: #3C556F; cursor: default; }
+#bn-luoi .ag-row:hover .ag-cell.o-tu-ca { background: #E9EEF4; }
+.onl .onl-lk { margin: 8px 0 0; font-size: 12px; color: var(--onl-mut, #6B7C93); }

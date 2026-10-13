@@ -26,6 +26,8 @@ AN = {"display": "none"}
 TOI_LA = "Chọn tên mình (để ghi tên)"
 GHI_TEN = "Chọn tên mình ở ô \"Tôi là\" để phần \"cập nhật bởi\" ghi đúng tên."
 SUA = "params.data.sua_duoc"
+# ONL sáng / chiều / Đã online: hôm nay (và người đã có ca ở ngày đã qua) tự đếm từ ca ở Theo dõi Online nên KHÓA, chỉ ngày chưa tới mới gõ tay (xem `bc.che_do_onl`)
+SUA_ONL = "params.data.sua_duoc && !params.data.tu_ca"
 NHIP_MS = 60_000                   # nhịp hỏi lại xem có ai vừa sửa không; 15 giây làm Vercel cạn CPU (09/10/2026)
 # Vá lại dòng mình vừa sửa sau khi ngừng gõ CHO_VA giây. Phải hoãn chứ không vá ngay lúc lưu:
 # ag-grid XOÁ SẠCH undo stack mỗi lần nhận transaction, vá ngay là Ctrl+Z mất tác dụng.
@@ -33,8 +35,10 @@ NHIP_VA_MS = 2_000
 CHO_VA = 5
 # tô cam theo NGƯỜI chưa nhập báo cáo hôm nay, không theo ô bằng 0: KHTN 0 hay ONL sáng 0 là số thật
 THIEU = {"o-thieu": "!params.data.da_nhap && !params.data.la_tong"}
+THIEU_ONL = {"o-thieu": "!params.data.da_nhap && !params.data.la_tong && !params.data.tu_ca", "o-tu-ca": "params.data.tu_ca"}
 # chưa nhập thì để ô trống chứ không hiện 0, nhìn là biết ngay ai còn thiếu
 SO_NHAP = {"function": "params.data.da_nhap ? " + SO["function"] + " : ''"}
+SO_ONL = {"function": "params.data.da_nhap || params.data.tu_ca ? " + SO["function"] + " : ''"}      # số tự đếm từ ca hiện cả số 0
 GOI_Y = ("Mục tiêu bán của riêng hôm nay.\nKHTN là khách đang theo, chưa lên hợp đồng.\n"
          "Dự kiến online sáng / chiều là số ca chắc chắn lên trong buổi đó.")
 MAU_CON = {"styleConditions": [{"condition": "params.value > 0",
@@ -98,6 +102,9 @@ def _cot() -> list[dict]:
            "type": "numericColumn", "valueFormatter": SO_NHAP, "width": 84, "minWidth": 74, "maxWidth": 104}
     doc = {"type": "numericColumn", "valueFormatter": SO, "width": 84, "minWidth": 72, "maxWidth": 104}
     sua_doc = {**doc, "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale"}
+    sua_onl = {**sua, "editable": {"function": SUA_ONL}, "cellClassRules": THIEU_ONL, "valueFormatter": SO_ONL}
+    tu_ca = ("\nNgày mai trở đi: sale gõ dự kiến trước.\nHôm nay: app tự đếm từ mục Theo dõi Online bên dưới, "
+             "xếp khung giờ và đổi tình trạng ở thẻ ca là số nhảy.")
 
     ban = [
         {"field": "muc_tieu", "headerName": "MT ngày *", "headerClass": "vung-sale",
@@ -113,12 +120,13 @@ def _cot() -> list[dict]:
         {"field": "dk_onl", "headerName": "DK ONL", **doc, "cellStyle": {"fontWeight": "700"},
          "valueGetter": DK_ONL,
          "headerTooltip": "Dự kiến online cả ngày = sáng + chiều. App tự cộng."},
-        {"field": "onl_sang", "headerName": "ONL sáng *", "headerTooltip": "Dự kiến online buổi sáng.", **sua},
-        {"field": "onl_chieu", "headerName": "ONL chiều *", "headerTooltip": "Dự kiến online buổi chiều.",
-         **sua},
-        # ô sale tự gõ như Google Sheet, không liên quan tới file Internet (chốt 06/10/2026)
+        {"field": "onl_sang", "headerName": "ONL sáng *", "headerTooltip": "Dự kiến online buổi sáng." + tu_ca, **sua_onl},
+        {"field": "onl_chieu", "headerName": "ONL chiều *", "headerTooltip": "Dự kiến online buổi chiều." + tu_ca, **sua_onl},
+        # không lấy từ file Internet (06/10/2026); từ 13/10/2026 hôm nay đếm số ca "Đã online" ở Theo dõi Online
         {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **sua_doc,
-         "headerTooltip": "Số đã online hôm nay của người này.\nSale tự gõ, không lấy từ file Internet và không liên quan mục Theo dõi Online."},
+         "editable": {"function": SUA_ONL}, "cellClassRules": {"o-tu-ca": "params.data.tu_ca"},
+         "headerTooltip": "Số đã online của người này, không lấy từ file Internet.\nNgày mai trở đi: sale gõ.\n"
+                          "Hôm nay: app tự đếm số ca bấm \"Đã online\" ở mục Theo dõi Online bên dưới."},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
          "valueGetter": CON_PHAI_ONL,
          "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "
@@ -372,10 +380,31 @@ def _dong_luoi(df: pd.DataFrame) -> list[dict]:
     ds = df.to_dict("records")
     for r in ds:
         if not r.get("da_nhap"):
-            for k in ("muc_tieu", "khtn", "da_ban", "onl_sang", "onl_chieu"):
+            for k in ("muc_tieu", "khtn", "da_ban") + (() if r.get("tu_ca") else ("onl_sang", "onl_chieu")):   # số tự đếm từ ca luôn hiện, kể cả 0
                 r[k] = None
-            r["thuc_hien"] = None
+            if not r.get("tu_ca"):
+                r["thuc_hien"] = None
     return ds
+
+
+def _mo_ta(t: dict, d: date, df: pd.DataFrame, toi_la):
+    """Dòng mô tả dưới tiêu đề bảng. Ngày đã tới thì nói rõ ba ô ONL tự đếm từ ca, còn bao nhiêu ca chưa xếp giờ, và (hôm nay) số sale đã gõ tối hôm trước
+    để không ai tưởng số dự kiến "biến mất" khi sang ngày."""
+    mo_ta = (f"{t['so_nguoi']} nhân sự · {t['chua_nhap']} người chưa nhập. "
+             "Ô có dấu * là sale nhập, còn lại app tự lấy từ file Internet.")
+    if d > bc.hom_nay():
+        mo_ta = f"Ngày {d:%d/%m} chưa tới nên các cột app tự lấy từ file vẫn đang là số của hôm nay. " + mo_ta
+    elif bc.che_do_onl(d) and not df.empty:
+        mo_ta += " ONL sáng, ONL chiều, Đã online tự đếm từ ca ở mục Theo dõi Online bên dưới (ô xám)."
+        chua = int(df.chua_xep.sum())
+        if chua:
+            mo_ta += f" Còn {chua} ca chưa xếp khung giờ."
+        du_kien, da_xep = int(df.dk_toi_qua.sum()), int(df.dk_onl.sum())
+        if d == bc.hom_nay() and du_kien > da_xep:
+            mo_ta += f" Dự kiến đã nhập từ trước: {du_kien} ca, hiện mới xếp {da_xep}."
+    if _dung_chung() and not toi_la:
+        mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
+    return mo_ta
 
 
 def _ghim(df: pd.DataFrame) -> list[dict]:
@@ -478,18 +507,12 @@ def register(app):
             # KHÔNG cập nhật `bn-moc` ở đây: moc lúc này đã gồm cả lần sửa của NGƯỜI KHÁC xen giữa mà dòng đó chưa được đẩy về bảng. Nhớ moc mới là
             # nhịp tự nạp kế tiếp tưởng "không ai sửa gì" và bỏ qua mãi - bảng giữ số cũ của người ta trong khi dòng TỔNG đã tính số mới.
             return (chon, _tom_tat(t), no_update, no_update, _ghim(df),
-                    no_update, no_update, no_update, no_update, _tien_do(df, d), no_update)
+                    no_update, no_update, _mo_ta(t, d, df, toi_la), no_update, _tien_do(df, d), no_update)
         dien_thoai = (vw or {}).get("w", 1440) < 768
         tieu_de = [f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"]
         if d > bc.hom_nay():                      # điền trước cho hôm sau: phải nói rõ kẻo đọc nhầm
             tieu_de.append(html.Span("Nhập trước", className="bn-sau"))
-        mo_ta = (f"{t['so_nguoi']} nhân sự · {t['chua_nhap']} người chưa nhập. "
-                 "Ô có dấu * là sale nhập, còn lại app tự lấy từ file Internet.")
-        if d > bc.hom_nay():
-            mo_ta = (f"Ngày {d:%d/%m} chưa tới nên các cột app tự lấy từ file vẫn đang là số của hôm nay. "
-                     + mo_ta)
-        if _dung_chung() and not toi_la:
-            mo_ta = html.Span([mo_ta, " ", html.I(GHI_TEN)])
+        mo_ta = _mo_ta(t, d, df, toi_la)
         if ctx.triggered_id == "bn-nhip":
             # nhịp tự nạp: KHÔNG ghi đè cả bảng, chỉ gửi số mới để trình duyệt cập nhật các dòng (trừ dòng đang chờ lưu / đang gõ)
             return (chon, _tom_tat(t), no_update, no_update, _ghim(df), _the(df) if dien_thoai else [], tieu_de, mo_ta, moc, _tien_do(df, d),
@@ -569,12 +592,13 @@ def register(app):
                   Output("bn-f-khtn", "value"), Output("bn-f-ban", "value"), Output("bn-f-sang", "value"),
                   Output("bn-f-chieu", "value"),
                   Output("bn-f-onl", "value"), Output("bn-f-ghi-chu", "value"), Output("bn-md-msg", "children"),
+                  Output("bn-f-sang", "disabled"), Output("bn-f-chieu", "disabled"), Output("bn-f-onl", "disabled"),
                   Input({"type": "bn-the", "acc": ALL}, "n_clicks"), Input("bn-md-dong", "n_clicks"),
                   Input("bn-md-huy", "n_clicks"), Input("bn-da-luu", "data"), State("bn-phong", "value"),
                   State("bn-ngay", "date"), prevent_initial_call=True)
     def _mo_form(bam, _d, _h, _l, code, ngay):
         if not isinstance(ctx.triggered_id, dict):
-            return ("modal",) + (no_update,) * 11
+            return ("modal",) + (no_update,) * 14
         if not any(bam or []):
             raise PreventUpdate
         d = _ngay_hop_le(ngay)
@@ -584,8 +608,9 @@ def register(app):
             raise PreventUpdate
         r = r.iloc[0]
         dau = f"{r.acc} · PTTB tháng {int(r.pttb_thang)}/{int(r.mt_thang)} · V.VIP {int(r.vvip_thang)}"
+        khoa = bool(r.tu_ca)                       # ba ô này tự đếm từ ca: hiện số, không cho sửa
         return ("modal mo", f"{r.ho_ten} · {d:%d/%m}", r.acc_norm, dau, int(r.muc_tieu), int(r.khtn),
-                int(r.da_ban), int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), r.ghi_chu, "")
+                int(r.da_ban), int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), r.ghi_chu, "", khoa, khoa, khoa)
 
     @app.callback(Output("bn-md-msg", "children", allow_duplicate=True),
                   Output("bn-da-luu", "data", allow_duplicate=True),
@@ -599,9 +624,10 @@ def register(app):
         if not (gc or "").strip():
             return alert("Chưa điền Ghi chú.", "bad"), no_update
         try:
-            bc.luu(acc, {"muc_tieu": mt, "khtn": khtn, "da_ban": ban, "onl_sang": sang,
-                         "onl_chieu": chieu, "da_online": onl, "ghi_chu": gc},
-                   phong, current_user.username, d, ghi_ten=nt_ten(toi_la) if _dung_chung() else None)
+            truong = {"muc_tieu": mt, "khtn": khtn, "da_ban": ban, "onl_sang": sang, "onl_chieu": chieu, "da_online": onl, "ghi_chu": gc}
+            if bc.khoa_onl(acc, phong, d):         # ba ô tự đếm từ ca: form chỉ hiện để xem
+                truong = {k: v for k, v in truong.items() if k not in bc.O_TU_CA}
+            bc.luu(acc, truong, phong, current_user.username, d, ghi_ten=nt_ten(toi_la) if _dung_chung() else None)
         except bc.LoiBaoCao as e:
             return alert(str(e), "bad"), no_update
         return "", gio_viet_nam().isoformat()

@@ -219,6 +219,10 @@ def luu_nhieu(muc: list[dict], phong: list[str], ngay: date, user, ghi_ten: str 
                 loi.append(f"Chưa chọn người cho “{m.get('ten_noi') or 'dòng này'}”.")
             continue
         truong = {c: v for c, v in (m.get("truong") or {}).items() if c in NHAN and v is not None}
+        if truong.keys() & set(bc.O_TU_CA) and bc.khoa_onl(acc, phong, ngay):         # ngày này ba ô đó tự đếm từ ca ở Theo dõi Online
+            for c in bc.O_TU_CA:
+                truong.pop(c, None)
+            loi.append(f"{ten[acc]}: bỏ qua ONL sáng / chiều / Đã online vì tự đếm từ ca ở Theo dõi Online.")
         if (m.get("ghi_chu") or "").strip():
             truong["ghi_chu"] = m["ghi_chu"]
         if not truong:

@@ -13,7 +13,7 @@
     const TT_DAI = {du_kien: 'Chờ lắp', dang_lam: 'Đang triển khai', da_online: 'Đã online'};
     const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
     let du = null, loc = '', toiLa = '', chonTay = false, moHen = false, moThem = false, themNv = '', themKhung = '', moDoi = false;
-    const cuoi = {};                                            // id khối -> HTML đã vẽ lần trước (giống nhau thì khỏi vẽ lại)
+    let thuLai = 0;                                             // số lần chờ vùng vẽ xuất hiện (Dash dựng trang xong sau khi gói dữ liệu về)
 
     function esc(s) {
         return String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -88,8 +88,8 @@
 
     function dat(id, html) {
         const e = document.getElementById(id);
-        if (!e || cuoi[id] === html) { return; }
-        cuoi[id] = html;
+        if (!e || e._onlHtml === html) { return; }                // nhớ trên CHÍNH phần tử: Dash dựng lại trang (đổi trang rồi quay lại) thì vùng mới trống phải được vẽ lại
+        e._onlHtml = html;
         e.innerHTML = html;
     }
 
@@ -147,7 +147,9 @@
             + o('dang', tk.dang, 'Đang triển khai', 'đang lắp đặt') + o('xong', tk.online, 'Đã online', tk.tong ? Math.round(ph(tk.online)) + '% số ca dự kiến' : 'chưa có ca') + '</div>'
             + '<div class="onl-thanh" title="Xanh lá: đã online · Xanh dương: đang triển khai · Vàng: chờ lắp"><i class="x" style="width:' + ph(tk.online) + '%"></i><i class="d" style="width:'
             + ph(tk.dang) + '%"></i><i class="c" style="width:' + ph(tk.cho) + '%"></i></div>'
-            ;
+            + '<div class="onl-lk">' + (du.ngay > du.hom_nay
+                ? 'Ngày này chưa tới: ONL sáng / chiều ở bảng phía trên anh/chị gõ tay. Xếp ca ở đây để chuẩn bị, đến ngày đó số tự đếm theo ca.'
+                : 'Số ca theo khung giờ và tình trạng ở đây tự điền vào ONL sáng / ONL chiều / Đã online của bảng phía trên.') + '</div>';
     }
 
     function quaGio(c, now) {
@@ -365,7 +367,12 @@
     }
 
     function ve() {
-        if (!du || !document.getElementById('onl-bang')) { return; }
+        if (!du) { return; }
+        if (!document.getElementById('onl-bang')) {               // gói dữ liệu về trước khi Dash dựng xong khung: chờ rồi vẽ, không bỏ luôn
+            if (thuLai++ < 40) { setTimeout(ve, 150); }
+            return;
+        }
+        thuLai = 0;
         const goc = du.ca.slice().sort(function (a, b) {
             const i = function (c) { return du.khung.map(function (k) { return k.ma; }).indexOf(c.khung); };
             return (i(a) - i(b)) || (a.id - b.id);

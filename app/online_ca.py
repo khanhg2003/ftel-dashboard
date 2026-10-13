@@ -4,8 +4,8 @@ Quy tắc đã chốt với chủ app:
 - Mỗi mã hợp đồng là MỘT phiếu (ca) riêng, gắn nhân viên + khung giờ dự kiến + trạng thái.
 - Trạng thái: Dự kiến → Đang triển khai → Đã online. Sale tự cập nhật, KHÔNG lấy từ file Internet.
   Dời khung giờ hay dời sang ngày khác thì ghi vào lịch sử của phiếu. Không lưu tên khách hàng.
-- TÁCH RỜI với các ô số của bảng Báo cáo ngày (chủ app chốt 13/10/2026, để hoàn thiện ý tưởng liên kết mới sau): mục này KHÔNG đọc, KHÔNG ghi, KHÔNG kiểm
-  ONL sáng / ONL chiều / Đã online / DK ONL của bảng; không còn cảnh báo "chưa khai đủ giờ". Cái duy nhất còn nối là Nhập tồn (ngày hẹn, trạng thái, ghi chú).
+- Liên kết MỘT chiều với bảng Báo cáo ngày (chủ app chốt 13/10/2026, phương án A): từ hôm nay trở về trước ONL sáng / ONL chiều / Đã online của bảng tự đếm từ ca
+  (`dem_theo_nguoi`), còn ngày chưa tới thì sale gõ tay trên bảng; mục này không ghi gì vào bảng. Còn nối với Nhập tồn (ngày hẹn, trạng thái, ghi chú).
 - Phiếu giữ lại sau ngày (khác báo cáo đầu ngày bị xoá), để sau này xem lại tỷ lệ ca lên đúng giờ.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ from app.bo_nho import nho
 from app.config import rules_config
 from app.db import engine, session_scope
 from app.models import OnlineCa
-from app.thoi_gian import gio_viet_nam, utc_bay_gio
+from app.thoi_gian import gio_viet_nam, sang_gio_vn, utc_bay_gio
 
 TRANG_THAI = ("du_kien", "dang_lam", "da_online")        # sale tự đặt; "doi_mai" là trạng thái app đặt khi dời sang ngày kế
 COT_THEM = {"khung_dau": "VARCHAR(16)", "online_luc": "TIMESTAMP"}
@@ -181,6 +181,33 @@ def moc(phong: list[str], ngay: date) -> str:
         a = c.execute(text(f"SELECT COUNT(*), MAX(cap_nhat_luc) FROM online_ca WHERE ngay = :n AND phong_code IN ({cho})"),
                       {**ma, "n": ngay.isoformat()}).one()
     return f"{a[0]}|{a[1] or ''}"
+
+
+def dem_theo_nguoi(phong: list[str], ngay: date) -> dict[str, dict]:
+    """Số ca của từng người trong `ngay` để điền vào ONL sáng / ONL chiều / Đã online của bảng Báo cáo ngày (chủ app 13/10/2026: từ HÔM NAY trở về
+    trước các ô đó tự đếm từ ca, sale chỉ xếp khung giờ và đổi tình trạng ở thẻ ca). {acc: {sang, chieu, da_onl, chua, tong}}.
+    Ca ở khung buổi sáng / chiều tính vào ô đúng buổi; ca "Chưa hẹn giờ" CHƯA tính vào ô nào (đếm riêng ở `chua`) cho tới khi đã online: lúc đó tính vào buổi
+    của giờ sale bấm Đã online, nhờ vậy "đã online" luôn nằm trong "dự kiến" và Còn phải ONL không bao giờ âm vì ca chưa xếp giờ. Ca đã dời sang ngày khác không tính."""
+    dam_bao_bang()
+    buoi = {k["ma"]: k["buoi"] for k in khung()}
+    out: dict[str, dict] = {}
+    with session_scope() as s:
+        rows = s.execute(select(OnlineCa.acc_norm, OnlineCa.khung, OnlineCa.trang_thai, OnlineCa.online_luc)
+                         .where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai")).all()
+    for acc, kh, tt, luc in rows:
+        o = out.setdefault(acc, {"sang": 0, "chieu": 0, "da_onl": 0, "chua": 0, "tong": 0})
+        o["tong"] += 1
+        b = buoi.get(kh, "")
+        if tt == "da_online":
+            o["da_onl"] += 1
+            if not b:
+                gio = sang_gio_vn(luc)
+                b = "sang" if gio is not None and gio.hour < 12 else "chieu"
+        elif not b:
+            o["chua"] += 1
+        if b in ("sang", "chieu"):
+            o[b] += 1
+    return out
 
 
 def thong_ke(ca: list[dict]) -> dict:
