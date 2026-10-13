@@ -574,6 +574,26 @@ def test_doi_ve_lai_ngay_cu_giu_dung_trang_thai_cu(hai_nguoi):
     assert bc.bang(PHONG, NGAY).set_index("acc_norm").loc[a].thuc_hien == 1         # "Đã online" tính lại đúng 1 ca
 
 
+def test_thong_ke_ca_doi_di_va_den_theo_ngay(hai_nguoi):
+    """Chủ app 13/10/2026: xem được hôm nay có bao nhiêu ca dời đi (sang ngày nào) và ca từ ngày khác dời đến."""
+    a, b = hai_nguoi
+    d1, d2 = NGAY + timedelta(days=1), NGAY + timedelta(days=2)
+    i = oc.them("DAAAP7201", a, "08-10", PHONG, "k", NGAY)
+    j = oc.them("DAAAP7202", a, "08-10", PHONG, "k", NGAY)
+    k = oc.them("DAAAP7203", b, "08-10", PHONG, "k", NGAY)
+    oc.doi_ngay(i, PHONG, "k", d1)
+    oc.doi_ngay(j, PHONG, "k", d2)
+    oc.doi_ngay(k, PHONG, "k", d1)
+    x = oc.ca_doi(PHONG, NGAY)
+    assert [(r["ma"], r["den"]) for r in x["di"]] == [("DAAAP7201", d1.isoformat()), ("DAAAP7203", d1.isoformat()), ("DAAAP7202", d2.isoformat())] and x["den"] == []
+    y = oc.ca_doi(PHONG, d1)
+    assert [(r["ma"], r["tu"]) for r in y["den"]] == [("DAAAP7201", NGAY.isoformat()), ("DAAAP7203", NGAY.isoformat())] and y["di"] == []
+    assert oc.du_lieu(PHONG, NGAY)["doi"] == x
+    ca = oc.ds_ca(PHONG, d1)
+    oc.doi_ngay(next(c["id"] for c in ca if c["ma"] == "DAAAP7201"), PHONG, "k", NGAY)    # dời về lại: không còn tính là dời đi / đến
+    assert "DAAAP7201" not in [r["ma"] for r in oc.ca_doi(PHONG, NGAY)["di"]]
+
+
 def test_khong_lui_ve_ngay_da_qua_neu_day_khong_phai_ngay_cu_cua_ca(hai_nguoi):
     a, _ = hai_nguoi
     i = oc.them("DAAAP7001", a, "08-10", PHONG, "k", NGAY + timedelta(days=1))

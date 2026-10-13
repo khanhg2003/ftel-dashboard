@@ -1673,3 +1673,17 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-toast .onl-ht { margin-left: 8px; padding: 2px 10px; border: 1px solid #ffffff80; border-radius: 999px; background: transparent; color: #fff; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; pointer-events: auto; }
 .sm-toast .onl-ht:hover { background: #ffffff26; }
 #onl-toast.hien { pointer-events: auto; }
+
+/* Thống kê ca dời (ẩn sẵn, bấm thanh xám để mở) */
+.onl-doi { margin-top: 8px; }
+.onl-doi-tt { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 8px 12px; border: 0; border-radius: 6px; background: #F2F4F7; font: inherit; font-size: 13px; font-weight: 600; color: #475467; text-align: left; cursor: pointer; }
+.onl-doi-tt:hover { background: #E7EAF0; }
+.onl-doi-tt span { font-size: 12px; }
+.onl-doi-ds { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; padding: 10px 14px; border-left: 3px solid #98A2B3; background: #F9FAFB; font-size: 13px; }
+.onl-doi-nhan { margin-bottom: 4px; font-size: 12px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; color: #667085; }
+.onl-doi-nhan em { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; color: #98A2B3; margin-left: 4px; }
+.onl-doi-d { display: grid; grid-template-columns: 170px 54px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 4px 0; border-top: 1px solid #EAECF0; }
+.onl-doi-d span { color: #667085; font-size: 12.5px; }
+.onl-doi-ma { display: flex; flex-wrap: wrap; gap: 6px; }
+.onl-doi-ma i { font-style: normal; padding: 1px 8px; border: 1px solid #D0D5DD; border-radius: 6px; background: #fff; font-size: 12.5px; font-variant-numeric: tabular-nums; color: #344054; }
+@media (max-width: 767px) { .onl-doi-d { grid-template-columns: 1fr; gap: 2px; } }

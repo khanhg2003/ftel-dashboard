@@ -179,6 +179,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      (`ton_tat_ca`, gửi cả phòng trong gói dữ liệu) bấm là thêm. Mỗi ca một THẺ (chủ app thấy bản dạng dòng chữ "không trực quan như ảnh mẫu"): mã HĐ + nhãn trạng thái màu ở góc, người phụ trách, nút "Đang lắp" / "✓ Đã online", ⋯ = dời khung / dời ngày / sửa ghi chú / huỷ (KHÔNG có đổi người phụ trách: mỗi HĐ gắn đúng người bán, chủ app chốt 12/10/2026); đầu mục là bốn ô số liệu lớn (ca dự kiến, chờ lắp, đang triển khai, đã online) + thanh tiến độ.
      Ca PHÁT SINH trong ngày chưa kịp có ở Nhập tồn thêm bằng nút "+ Thêm ca" (ngoài trang chỉ một nút, bấm mới mở hộp thoại `onl-tm` đúng 4 ô: mã HĐ, người phụ trách, khung giờ, ghi chú; chủ app yêu cầu 12/10/2026). Nội dung hộp vẽ ở `online.js`, nằm NGOÀI `#onl-goc` nên sự kiện của nó phải gắn riêng.
      Thanh đỏ "quá giờ" dời cả nhóm ca một cú bấm (`doi_nhieu`), cuối ngày hỏi dời hết ca chưa online sang mai; ca dời từ 3 lần có nhãn cảnh báo.
+     Thống kê ca dời (`ca_doi`: dời đi sang ngày nào / dời đến từ ngày nào) cũng chỉ là MỘT thanh xám gập ẩn sẵn, bấm mới gom theo ngày (chủ app 13/10/2026: không trải ra toàn bộ).
      Người chưa khai đủ giờ chỉ là MỘT dòng gập ("N người chưa khai đủ giờ online ▾"), đừng dựng lại hàng chip / tab / dải khung giờ riêng.
      **Mở được báo cáo của ngày CHƯA TỚI** (chốt 26/09/2026, `TRUOC_TOI_DA` = 7 ngày,
      `ngay_xa_nhat()`): sale hay điền trước cho hôm sau. Ngày tương lai vẫn hiện các cột app tự lấy từ

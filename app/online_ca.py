@@ -123,6 +123,42 @@ def ds_ca(phong: list[str], ngay: date) -> list[dict]:
     return sorted(ca, key=lambda c: (thu_tu.get(c["khung"], 99), c["id"]))
 
 
+def _den_cua(r: OnlineCa) -> date | None:
+    """Ngày mà phiếu `doi_mai` này đã được dời tới: lấy từ lần "Dời sang ngày" gần nhất (phiếu cũ chỉ có dd/mm thì suy ra năm)."""
+    for x in reversed(_ls(r)):
+        if x.get("den"):
+            try:
+                return date.fromisoformat(x["den"])
+            except ValueError:
+                return None
+        m = re.match(r"Dời sang ngày (\d\d)/(\d\d)", x.get("viec", ""))
+        if m:
+            try:
+                d = date(r.ngay.year, int(m[2]), int(m[1]))
+            except ValueError:
+                return None
+            return d if d >= r.ngay else date(r.ngay.year + 1, d.month, d.day)
+    return None
+
+
+def ca_doi(phong: list[str], ngay: date) -> dict[str, list[dict]]:
+    """Thống kê ca dời của ngày đang xem (chủ app 13/10/2026, mục này ẨN sẵn, bấm mới mở): `di` = ca của ngày này đã dời sang ngày khác (kèm ngày
+    đích), `den` = ca từ ngày khác dời về ngày này (kèm ngày gốc, chỉ tính ca hiện còn ở ngày này). Mỗi ca một dòng: {ma, a: acc_norm, den | tu: ISO}."""
+    dam_bao_bang()
+    with session_scope() as s:
+        rows = s.execute(select(OnlineCa).where(OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai == "doi_mai",
+                                                OnlineCa.ngay.between(ngay - timedelta(days=45), ngay + timedelta(days=45)))).scalars().all()
+        dang_co = set(s.execute(select(OnlineCa.ma_hd).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai")).scalars())
+        di, den = [], []
+        for r in rows:
+            dich = _den_cua(r)
+            if r.ngay == ngay and dich:
+                di.append({"ma": r.ma_hd, "a": r.acc_norm, "den": dich.isoformat()})
+            elif r.ngay != ngay and dich == ngay and r.ma_hd in dang_co:
+                den.append({"ma": r.ma_hd, "a": r.acc_norm, "tu": r.ngay.isoformat()})
+    return {"di": sorted(di, key=lambda x: (x["den"], x["ma"])), "den": sorted(den, key=lambda x: (x["tu"], x["ma"]))}
+
+
 def dk_nhap(phong: list[str], ngay: date) -> dict[str, int]:
     """Số dự kiến online (ONL sáng + ONL chiều) mỗi người đã gõ ở bảng Báo cáo ngày: {acc_norm: số}."""
     bc.dam_bao_bang()
@@ -183,7 +219,7 @@ def du_lieu(phong: list[str], ngay: date) -> dict:
     hen = ot.hen_cho_ngay(phong, ngay)
     return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "dk": dk, "hen": hen,
             "lech": ot.lech_ngay(ca, ngay, phong), "thieu": thieu_gio(ca, dk, {a: len(v) for a, v in hen.items()}),
-            "ton": ton_tat_ca(phong, ngay), "xa_nhat": bc.ngay_xa_nhat().isoformat(), "moc": moc(phong, ngay)}
+            "ton": ton_tat_ca(phong, ngay), "doi": ca_doi(phong, ngay), "xa_nhat": bc.ngay_xa_nhat().isoformat(), "moc": moc(phong, ngay)}
 
 
 # ------------------------------------------------------------------ ghi
@@ -372,7 +408,7 @@ def doi_ngay(id_: int, phong: list[str], ai: str, ngay_moi=None, khung_moi: str 
         if cu_row is None and moi < r.ngay and moi < bc.hom_nay():
             raise LoiOnline("Chỉ dời được từ hôm nay trở đi.")
         cu, acc, ma, buoi_cu = r.ngay, r.acc_norm, r.ma_hd, _buoi_cua(r.khung)
-        _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}", {"tt": r.trang_thai, "onl": r.online_luc.isoformat() if r.online_luc else None})   # nhớ trạng thái để dời về lại thì trả đúng
+        _ghi_ls(r, ai, f"Dời sang ngày {moi:%d/%m}", {"tt": r.trang_thai, "onl": r.online_luc.isoformat() if r.online_luc else None, "den": moi.isoformat()})   # nhớ trạng thái để dời về lại thì trả đúng
         r.trang_thai, r.online_luc = "doi_mai", None
         _dau(r, ai)
         if cu_row is not None:

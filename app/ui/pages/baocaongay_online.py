@@ -29,6 +29,7 @@ def khung() -> list:
             html.Div(id="onl-hero"),
             html.Div(id="onl-msg"),
             html.Div(id="onl-hen"),
+            html.Div(id="onl-doi"),
             html.Div(id="onl-xuly"),
             html.Div(id="onl-bang"),
         ], className="card onl", id="onl-goc"),

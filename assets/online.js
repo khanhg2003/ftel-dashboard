@@ -12,7 +12,7 @@
 (function () {
     const TT_DAI = {du_kien: 'Chờ lắp', dang_lam: 'Đang triển khai', da_online: 'Đã online'};
     const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false, moHen = false, moThem = false, themNv = '', themKhung = '';
+    let du = null, loc = '', toiLa = '', chonTay = false, moThieu = false, moHen = false, moThem = false, themNv = '', themKhung = '', moDoi = false;
     const cuoi = {};                                            // id khối -> HTML đã vẽ lần trước (giống nhau thì khỏi vẽ lại)
 
     function esc(s) {
@@ -285,6 +285,28 @@
         if (mo) { setTimeout(function () { const o = document.querySelector('#onl-them .t-ma'); if (o) { o.focus(); } }, 80); }
     }
 
+    /* Thống kê ca dời của ngày đang xem: MỘT thanh gập (xám, ẩn sẵn); mở ra thì gom theo ngày đích / ngày gốc. */
+    function veDoi() {
+        const d = du.doi || {di: [], den: []};
+        const loai = function (ds) { return ds.filter(function (x) { return !loc || x.a === loc; }); };
+        const di = loai(d.di), den = loai(d.den);
+        if (!di.length && !den.length) { return ''; }
+        const tt = '<button type="button" class="onl-doi-tt" data-act="mo-doi">Ca dời ngày: ' + [di.length ? di.length + ' dời đi' : '', den.length ? den.length + ' dời đến' : ''].filter(Boolean).join(' · ')
+            + ' <span>' + (moDoi ? '▴' : '▾') + '</span></button>';
+        if (!moDoi) { return '<div class="onl-doi">' + tt + '</div>'; }
+        const nhom = function (ds, khoa, tieu, mui) {
+            if (!ds.length) { return ''; }
+            const g = {};
+            ds.forEach(function (x) { (g[x[khoa]] = g[x[khoa]] || []).push(x); });
+            return '<div class="onl-doi-nhom"><div class="onl-doi-nhan">' + tieu + ' <em>' + ds.length + ' ca</em></div>' + Object.keys(g).sort().map(function (k) {
+                return '<div class="onl-doi-d"><b>' + mui + ' ' + ngayDai(k) + '</b><span>' + g[k].length + ' ca</span><div class="onl-doi-ma">' + g[k].map(function (x) {
+                    return '<i title="' + esc(tenCua(x.a)) + '">' + esc(x.ma) + (loc ? '' : ' · ' + esc(tenNgan(x.a))) + '</i>';
+                }).join('') + '</div></div>';
+            }).join('') + '</div>';
+        };
+        return '<div class="onl-doi">' + tt + '<div class="onl-doi-ds">' + nhom(di, 'den', 'Dời đi', '→') + nhom(den, 'tu', 'Dời đến', '←') + '</div></div>';
+    }
+
     function veDong(c, hn, now) {
         const qua = hn && quaGio(c, now), xong = c.tt === 'da_online', dang = c.tt === 'dang_lam', lech = (du.lech || {})[c.ma];
         const khung = du.khung.map(function (x) {
@@ -361,6 +383,7 @@
         dat('onl-hero', veDau(ca, thongKe(ca, du.khung)) + veNhac());
         dat('onl-them', veThem());
         dat('onl-hen', veHen());
+        dat('onl-doi', veDoi());
         dat('onl-xuly', veXuLy(goc));
         dat('onl-bang', veBang(ca, goc));
         if (giuGt) {                                            // đang gõ dở mà bảng vẽ lại (nhịp tự động): giữ chữ và con trỏ
@@ -426,6 +449,7 @@
         else if (act === 'them-ton') { themMa(loc, d.khung, d.ma); return; }
         else if (act === 'dm-ok') { xacNhanDoi(e.closest('.onl-mn-form')); return; }
         else if (act === 'mo-hen') { moHen = !moHen; }
+        else if (act === 'mo-doi') { moDoi = !moDoi; }
         else if (act === 'mo-them') { themNv = themNv || loc || toiLa || ''; ve(); moHopThem(true); return; }
         else if (act === 'them-hen' || act === 'them-hen-tat') {
             const k = e.closest('.onl-hen').querySelector('select');
