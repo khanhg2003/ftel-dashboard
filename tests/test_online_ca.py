@@ -973,3 +973,35 @@ def test_nhap_ton_hen_hom_nay_ma_ca_da_doi_di_thi_tu_keo_ve_khi_nap_va_nhac_khi_
     finally:
         with session_scope() as s:
             s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_(ma_ton)))
+
+
+def test_dat_ca_sang_ngay_khac_tai_lai_khong_bi_keo_nguoc_ve_du_nhap_ton_con_mot_ngay_cu(hai_nguoi, ma_ton, hen_that):
+    """Lỗi thật 13/10/2026 (DNG.Anhtu): dời ca sang 15/10 xong tải lại thì ca về chỗ cũ, vì tự kéo ca theo Nhập tồn kéo ngược cả khi chính sale vừa dời.
+    Hai trường hợp: HĐ không còn trong tồn (Nhập tồn không ghi được nên còn ngày cũ) và HĐ còn tồn nhưng Nhập tồn cũ hơn lần dời."""
+    from sqlalchemy import update
+
+    from app import nhap_ton as nt
+    from app.db import session_scope
+    from app.models import OnlineCa, TonTheoDoi
+    a, _ = hai_nguoi
+    hn, xa = bc.hom_nay(), bc.hom_nay() + timedelta(days=2)
+    la = "KGAAK9998"                                                                          # mã không có trong danh sách tồn
+    try:
+        with session_scope() as s:
+            s.merge(TonTheoDoi(hop_dong=la, loai_moc="hen", ngay_moc=hn, phuong_an="Đang chờ triển khai"))
+        i = oc.them(la, a, "1530-1730", PHONG, AI, hn)
+        oc.doi_ngay(i, PHONG, AI, xa, "08-10")
+        oc.du_lieu(PHONG, hn)
+        assert oc.ds_ca(PHONG, hn) == [] and [(c["ma"], c["khung"]) for c in oc.ds_ca(PHONG, xa)] == [(la, "08-10")]    # không bị kéo về
+        # HĐ còn tồn: Nhập tồn ghi ngày hôm nay NHƯNG cũ hơn lần dời của sale thì ý sale thắng
+        ma = ma_ton[0]
+        nt.luu(ma, {"loai_moc": "hen", "ngay_moc": hn.isoformat()}, PHONG, AI, ghi_ten=AI)
+        j = oc.them(ma, a, "1330-1530", PHONG, AI, hn)
+        with session_scope() as s:
+            s.execute(update(OnlineCa).where(OnlineCa.id == j).values(ngay=xa))                 # giả lập: ca nằm ngày xa, ngày hẹn Nhập tồn còn là hôm nay, lần sửa ca mới hơn
+        assert oc.keo_ca_ve_ngay(PHONG, hn) == 0 and [c["ma"] for c in oc.ds_ca(PHONG, xa)].count(ma) == 1
+    finally:
+        from sqlalchemy import delete
+        with session_scope() as s:
+            s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_([la, *ma_ton])))
+            s.execute(delete(TonTheoDoi).where(TonTheoDoi.hop_dong == la))

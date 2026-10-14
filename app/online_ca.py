@@ -484,11 +484,18 @@ def keo_ca_theo_ton(ma: str, phong: list[str], ai: str) -> bool:
         return False
     if x["pa"] in (nt.PA_HUY, nt.PA_DA_TRIEN_KHAI):               # đã chốt hướng xử lý: không kéo ca về nữa (giống hộp nhắc `hen_cho_ngay`)
         return False
+    if ma not in set(ot._ton(phong).hop_dong):                    # HĐ không còn trong tồn thì Nhập tồn không ghi được nữa: mốc ở đó là số CŨ, không được kéo ca về theo
+        return False
     d = x["ngay"]
     with session_scope() as s:
+        luc_ton = s.get(TonTheoDoi, ma).cap_nhat_luc
         rows = s.execute(select(OnlineCa).where(OnlineCa.ma_hd == ma, OnlineCa.phong_code.in_(phong), OnlineCa.ngay >= bc.hom_nay(),
                                                 OnlineCa.trang_thai.in_(("du_kien", "dang_lam"))).order_by(OnlineCa.ngay)).scalars().all()
         if not rows or any(r.ngay == d for r in rows):
+            return False
+        # Chỉ kéo khi Nhập tồn được sửa SAU lần cuối ca đổi. Sale vừa dời ca ở Theo dõi Online (ca mới hơn Nhập tồn) thì ý sale là ngày của ca, không được kéo ngược
+        # (lỗi thật 13/10/2026: dời ca sang ngày khác, tải lại thì ca về chỗ cũ).
+        if luc_ton is not None and rows[0].cap_nhat_luc is not None and luc_ton <= rows[0].cap_nhat_luc:
             return False
         id_ = rows[0].id
     try:
