@@ -265,7 +265,7 @@ def du_lieu(phong: list[str], ngay: date) -> dict:
     nv = nhan_vien(tuple(phong), ngay.isoformat())
     from app import online_ton as ot
     ca = ds_ca(phong, ngay)
-    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "khung": khung(), "nv": nv, "ca": ca, "hen": ot.hen_cho_ngay(phong, ngay),
+    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "tu_ca": bc.onl_tu_ca_bat(), "khung": khung(), "nv": nv, "ca": ca, "hen": ot.hen_cho_ngay(phong, ngay),
             "lech": ot.lech_ngay(ca, ngay, phong),
             "ton": ton_tat_ca(phong, ngay), "doi": ca_doi(phong, ngay), "xa_nhat": bc.ngay_xa_nhat().isoformat(), "moc": moc(phong, ngay)}
 

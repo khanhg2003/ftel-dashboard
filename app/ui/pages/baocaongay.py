@@ -104,7 +104,7 @@ def _cot() -> list[dict]:
     sua_doc = {**doc, "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale"}
     sua_onl = {**sua, "editable": {"function": SUA_ONL}, "cellClassRules": THIEU_ONL, "valueFormatter": SO_ONL}
     tu_ca = ("\nNgày mai trở đi: sale gõ dự kiến trước.\nHôm nay: app tự đếm từ mục Theo dõi Online bên dưới, "
-             "xếp khung giờ và đổi tình trạng ở thẻ ca là số nhảy.")
+             "xếp khung giờ và đổi tình trạng ở thẻ ca là số nhảy.") if bc.onl_tu_ca_bat() else ""
 
     ban = [
         {"field": "muc_tieu", "headerName": "MT ngày *", "headerClass": "vung-sale",
@@ -125,8 +125,9 @@ def _cot() -> list[dict]:
         # không lấy từ file Internet (06/10/2026); từ 13/10/2026 hôm nay đếm số ca "Đã online" ở Theo dõi Online
         {"field": "thuc_hien", "headerName": "Đã online *", "headerClass": "vung-sale", **sua_doc,
          "editable": {"function": SUA_ONL}, "cellClassRules": {"o-tu-ca": "params.data.tu_ca"},
-         "headerTooltip": "Số đã online của người này, không lấy từ file Internet.\nNgày mai trở đi: sale gõ.\n"
-                          "Hôm nay: app tự đếm số ca bấm \"Đã online\" ở mục Theo dõi Online bên dưới."},
+         "headerTooltip": "Số đã online của người này, không lấy từ file Internet." + (
+             "\nNgày mai trở đi: sale gõ.\nHôm nay: app tự đếm số ca bấm \"Đã online\" ở mục Theo dõi Online bên dưới."
+             if bc.onl_tu_ca_bat() else "\nSale tự gõ.")},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
          "valueGetter": CON_PHAI_ONL,
          "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "

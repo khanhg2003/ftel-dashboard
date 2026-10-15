@@ -67,12 +67,19 @@ def hom_nay() -> date:
     return gio_viet_nam().date()
 
 
+def onl_tu_ca_bat() -> bool:
+    """Công tắc `rules.yml` → `bao_cao_ngay.onl_tu_ca`: tắt thì ba ô ONL sáng / chiều / Đã online luôn do sale gõ tay (xem `che_do_onl`)."""
+    return bool(cau_hinh().get("onl_tu_ca"))
+
+
 def che_do_onl(ngay: date) -> str:
     """Ba ô ONL sáng / ONL chiều / Đã online lấy số từ đâu (chủ app chốt 13/10/2026, phương án A): sale thường nhập dự kiến cho ngày mai vào tối hôm trước,
     còn đến ngày đó thì số phải theo ca thật ở Theo dõi Online (xếp khung giờ + đổi tình trạng ở thẻ ca là số nhảy).
       "" = ngày CHƯA TỚI: sale gõ tay, ô nào cũng sửa được.
       "het" = HÔM NAY: cả phòng tự đếm từ ca (người chưa có ca thì 0), không gõ tay; số sale đã gõ tối hôm trước vẫn còn trong database để đối chiếu.
       "co_ca" = ngày ĐÃ QUA: người nào có ca thì tự đếm, người không có ca (ngày trước khi có mục Theo dõi Online) giữ số đã gõ và vẫn sửa được."""
+    if not onl_tu_ca_bat():
+        return ""
     h = hom_nay()
     return "" if ngay > h else "het" if ngay == h else "co_ca"
 
@@ -97,7 +104,7 @@ def ngay_xa_nhat() -> date:
 def cau_hinh() -> dict:
     from app.config import rules_config
     c = rules_config().get("bao_cao_ngay") or {}
-    return {"phong": list(c.get("phong") or []), "giong_noi": list(c.get("giong_noi") or [])}
+    return {"phong": list(c.get("phong") or []), "giong_noi": list(c.get("giong_noi") or []), "onl_tu_ca": bool(c.get("onl_tu_ca"))}
 
 
 # ------------------------------------------------------------------ mục tiêu (dùng lại target_monthly)

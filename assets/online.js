@@ -151,9 +151,11 @@
             + o('dang', tk.dang, 'Đang triển khai', 'đang lắp đặt') + o('xong', tk.online, 'Đã online', tk.tong ? Math.round(ph(tk.online)) + '% số ca dự kiến' : 'chưa có ca') + oDoi + '</div>'
             + '<div class="onl-thanh" title="Xanh lá: đã online · Xanh dương: đang triển khai · Vàng: chờ lắp"><i class="x" style="width:' + ph(tk.online) + '%"></i><i class="d" style="width:'
             + ph(tk.dang) + '%"></i><i class="c" style="width:' + ph(tk.cho) + '%"></i></div>'
-            + '<div class="onl-lk">' + (du.ngay > du.hom_nay
-                ? 'Ngày này chưa tới: ONL sáng / chiều ở bảng phía trên anh/chị gõ tay. Xếp ca ở đây để chuẩn bị, đến ngày đó số tự đếm theo ca.'
-                : 'Số ca theo khung giờ và tình trạng ở đây tự điền vào ONL sáng / ONL chiều / Đã online của bảng phía trên.') + '</div>';
+            + '<div class="onl-lk">' + (!du.tu_ca
+                ? 'Mục này đang tạm dừng nối với bảng: ONL sáng / ONL chiều / Đã online ở bảng phía trên do anh/chị tự nhập tay.'
+                : du.ngay > du.hom_nay
+                    ? 'Ngày này chưa tới: ONL sáng / chiều ở bảng phía trên anh/chị gõ tay. Xếp ca ở đây để chuẩn bị, đến ngày đó số tự đếm theo ca.'
+                    : 'Số ca theo khung giờ và tình trạng ở đây tự điền vào ONL sáng / ONL chiều / Đã online của bảng phía trên.') + '</div>';
     }
 
     function quaGio(c, now) {
@@ -530,6 +532,10 @@
         window.dash_clientside = window.dash_clientside || {};
         window.dash_clientside.ftel = Object.assign(window.dash_clientside.ftel || {}, {
             ve_online: nap,
+            onl_gap: function (n, dang) {                        // thanh nhỏ mở / đóng mục Theo dõi Online (nhớ trạng thái trên máy, mặc định ĐÓNG)
+                const mo = (n || 0) > 0 ? !dang : !!dang;
+                return [mo, {display: mo ? 'block' : 'none'}, 'onl-gap' + (mo ? ' mo' : ''), Date.now()];
+            },
             onl_bao: function (tb) { if (tb && tb.msg) { bao(tb.msg); } return window.dash_clientside.no_update; },
             onl_hoi: function (h) {                              // Nhập tồn đang hẹn / trả về NGÀY KHÁC: hỏi sale trước, đồng ý thì thêm và Nhập tồn tự đổi ngày
                 if (!h || !h.ds || !h.ds.length) { return window.dash_clientside.no_update; }

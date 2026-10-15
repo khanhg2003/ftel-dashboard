@@ -27,14 +27,21 @@ def khung() -> list:
     return [
         dcc.Store(id="onl-du-lieu"), dcc.Store(id="onl-sk"), dcc.Store(id="onl-lam-moi"), dcc.Store(id="onl-ve"),
         dcc.Store(id="onl-thong-bao"), dcc.Store(id="onl-bao-xong"), dcc.Store(id="onl-toi-la-xong"), dcc.Store(id="onl-hoi"), dcc.Store(id="onl-hoi-xong"),
+        # Mục này đang TẠM DỪNG (chủ app 15/10/2026): giữ nguyên logic + giao diện nhưng thu gọn thành MỘT thanh nhỏ, bấm mới mở. Đóng thì máy chủ không nạp gì
+        # (đỡ CPU Vercel, và các bước tự đồng bộ ghi chú / kéo ca không chạy ngầm); nhớ trạng thái mở / đóng trên máy.
+        dcc.Store(id="onl-mo", storage_type="local", data=False), dcc.Store(id="onl-mo-xong"),
+        html.Button([html.B("Theo dõi Online"), html.Span("Tạm dừng · bấm để mở", className="onl-gap-ghi"), html.Span("▾", className="onl-gap-mui")],
+                    id="onl-gap", className="onl-gap", n_clicks=0, title="Mục theo dõi ca online theo khung giờ đang tạm dừng, bấm để mở / thu gọn"),
         html.Div([
-            html.Div(id="onl-hero"),
-            html.Div(id="onl-msg"),
-            html.Div(id="onl-hen"),
-            html.Div(id="onl-doi"),
-            html.Div(id="onl-xuly"),
-            html.Div(id="onl-bang"),
-        ], className="card onl", id="onl-goc"),
+            html.Div([
+                html.Div(id="onl-hero"),
+                html.Div(id="onl-msg"),
+                html.Div(id="onl-hen"),
+                html.Div(id="onl-doi"),
+                html.Div(id="onl-xuly"),
+                html.Div(id="onl-bang"),
+            ], className="card onl", id="onl-goc"),
+        ], id="onl-vo", style={"display": "none"}),
         modal("onl-tm", "Thêm ca phát sinh", [html.Div(id="onl-them")], nut_chinh="Thêm ca"),
         modal("onl-md", html.Span(id="onl-md-tieu-de"), [
             dcc.Store(id="onl-md-id"),
@@ -70,6 +77,9 @@ def _ngu_canh(code, ngay, toi_la):
 
 
 def register(app):
+    app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_gap"),
+                            Output("onl-mo", "data"), Output("onl-vo", "style"), Output("onl-gap", "className"), Output("onl-mo-xong", "data"),
+                            Input("onl-gap", "n_clicks"), State("onl-mo", "data"))
     app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="ve_online"),
                             Output("onl-ve", "data"), Input("onl-du-lieu", "data"))
     app.clientside_callback(ClientsideFunction(namespace="ftel", function_name="onl_bao"),
@@ -81,8 +91,10 @@ def register(app):
 
     @app.callback(Output("onl-du-lieu", "data"),
                   Input("bn-phong", "value"), Input("bn-ngay", "date"), Input("bn-nhip", "n_intervals"),
-                  Input("onl-lam-moi", "data"), State("onl-du-lieu", "data"))
-    def _nap(code, ngay, _nhip, _moi, cu):
+                  Input("onl-lam-moi", "data"), Input("onl-mo", "data"), State("onl-du-lieu", "data"))
+    def _nap(code, ngay, _nhip, _moi, mo, cu):
+        if not mo:
+            raise PreventUpdate                                # mục đang thu gọn: không nạp gì
         phong, d, _ = _ngu_canh(code, ngay, None)
         if ctx.triggered_id == "bn-nhip" and cu and cu.get("moc") == oc.moc(phong, d) and cu.get("ngay") == d.isoformat():
             raise PreventUpdate                                # nhịp tự động: chỉ nạp lại khi có người vừa sửa

@@ -61,6 +61,12 @@ def _don():
 
 
 @pytest.fixture()
+def tu_ca_bat(monkeypatch):
+    """Bật công tắc nối Theo dõi Online với ba ô ONL của bảng (mặc định đang TẮT: `rules.yml` → `bao_cao_ngay.onl_tu_ca`)."""
+    monkeypatch.setattr(bc, "onl_tu_ca_bat", lambda: True)
+
+
+@pytest.fixture()
 def hai_nguoi():
     nv = oc.nhan_vien(tuple(PHONG), NGAY.isoformat())
     assert len(nv) >= 2, "phòng IBB7 phải có ít nhất hai nhân sự trong kỳ kiểm thử"
@@ -813,7 +819,7 @@ def test_dem_theo_nguoi_chia_theo_buoi_ca_chua_hen_gio_chua_tinh_cho_toi_khi_da_
     assert d[b] == {"sang": 0, "chieu": 1, "da_onl": 0, "chua": 0, "tong": 1}
 
 
-def test_bang_hom_nay_tu_dem_tu_ca_ngay_mai_go_tay_va_khoa_o_o_hom_nay(hai_nguoi):
+def test_bang_hom_nay_tu_dem_tu_ca_ngay_mai_go_tay_va_khoa_o_o_hom_nay(hai_nguoi, tu_ca_bat):
     """Chủ app 13/10/2026: nhập dự kiến cho ngày mai vào tối hôm trước (gõ tay), còn hôm nay phải xếp khung giờ + đổi tình trạng ở thẻ ca thì số mới nhảy."""
     from app.db import session_scope
     from app.models import BaoCaoNgay
@@ -846,7 +852,7 @@ def test_bang_hom_nay_tu_dem_tu_ca_ngay_mai_go_tay_va_khoa_o_o_hom_nay(hai_nguoi
         _don_hom_nay(a, b)
 
 
-def test_ngay_da_qua_nguoi_co_ca_tu_dem_nguoi_khong_co_ca_giu_so_da_go(hai_nguoi):
+def test_ngay_da_qua_nguoi_co_ca_tu_dem_nguoi_khong_co_ca_giu_so_da_go(hai_nguoi, tu_ca_bat):
     a, b = hai_nguoi
     bc.luu(a, {"onl_sang": 4, "onl_chieu": 1, "da_online": 3}, PHONG, "k", NGAY)
     bc.luu(b, {"onl_sang": 2}, PHONG, "k", NGAY)
@@ -859,7 +865,7 @@ def test_ngay_da_qua_nguoi_co_ca_tu_dem_nguoi_khong_co_ca_giu_so_da_go(hai_nguoi
         bc.luu(b, {"onl_sang": 5}, PHONG, "k", NGAY)
 
 
-def test_ca_doi_thi_dau_vet_cap_nhat_cua_bang_hom_nay_doi_theo(hai_nguoi):
+def test_ca_doi_thi_dau_vet_cap_nhat_cua_bang_hom_nay_doi_theo(hai_nguoi, tu_ca_bat):
     """Ca đổi (người khác sửa) phải làm dấu vết của bảng đổi thì nhịp tự nạp mới kéo số mới về; ngày chưa tới thì bảng không phụ thuộc ca."""
     a, b = hai_nguoi
     hn, mai = bc.hom_nay(), bc.hom_nay() + timedelta(days=1)
@@ -873,7 +879,7 @@ def test_ca_doi_thi_dau_vet_cap_nhat_cua_bang_hom_nay_doi_theo(hai_nguoi):
         _don_hom_nay(a, b)
 
 
-def test_trang_bao_bang_khi_ca_doi_va_dong_luoi_giu_so_tu_dem(hai_nguoi, monkeypatch):
+def test_trang_bao_bang_khi_ca_doi_va_dong_luoi_giu_so_tu_dem(hai_nguoi, monkeypatch, tu_ca_bat):
     from app.ui.pages import baocaongay, baocaongay_online
     monkeypatch.setattr(baocaongay, "_dung_chung", lambda: False)
     a, b = hai_nguoi
@@ -892,7 +898,7 @@ def test_trang_bao_bang_khi_ca_doi_va_dong_luoi_giu_so_tu_dem(hai_nguoi, monkeyp
         _don_hom_nay(a, b)
 
 
-def test_giong_noi_bo_qua_o_tu_dem_hom_nay_van_ghi_o_khac(monkeypatch, hai_nguoi):
+def test_giong_noi_bo_qua_o_tu_dem_hom_nay_van_ghi_o_khac(monkeypatch, hai_nguoi, tu_ca_bat):
     from types import SimpleNamespace
 
     from app import giong_noi as gn
@@ -1005,3 +1011,19 @@ def test_dat_ca_sang_ngay_khac_tai_lai_khong_bi_keo_nguoc_ve_du_nhap_ton_con_mot
         with session_scope() as s:
             s.execute(delete(OnlineCa).where(OnlineCa.ma_hd.in_([la, *ma_ton])))
             s.execute(delete(TonTheoDoi).where(TonTheoDoi.hop_dong == la))
+
+
+def test_cong_tac_tam_dung_sale_tu_go_ba_o_onl_o_moi_ngay_ke_ca_hom_nay(hai_nguoi):
+    """Chủ app 15/10/2026: Theo dõi Online tạm dừng, ba ô ONL sáng / chiều / Đã online của bảng trả về cho sale tự nhập tay (công tắc mặc định TẮT)."""
+    a, b = hai_nguoi
+    hn = bc.hom_nay()
+    try:
+        assert bc.onl_tu_ca_bat() is False and bc.che_do_onl(hn) == "" and bc.che_do_onl(NGAY) == ""
+        oc.them("DAAAP8841", a, "08-10", PHONG, "k", hn)                                         # có ca cũng không ảnh hưởng số của bảng
+        bc.luu(a, {"onl_sang": 3, "onl_chieu": 2, "da_online": 1}, PHONG, "k", hn)                # hôm nay gõ tay được
+        r = bc.bang(PHONG, hn).set_index("acc_norm").loc[a]
+        assert (int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), int(r.dk_onl), bool(r.tu_ca)) == (3, 2, 1, 5, False)
+        assert not bc.khoa_onl(a, PHONG, hn)
+        assert oc.du_lieu(PHONG, hn)["tu_ca"] is False
+    finally:
+        _don_hom_nay(a, b)
