@@ -119,6 +119,9 @@ def _o_form(loai: str) -> html.Div:
                             dcc.Input(id={"type": F, "l": loai, "k": t["khoa"]}, type="text", className="inp", debounce=True,
                                       placeholder=t["goi_y"], maxLength=300)], className="field sm-dai" if t["dai"] else "field")
                   for t in L["truong"]], className="sm-o")
+    cau = html.Div([html.Span("Gợi ý nhanh:", className="sm-cau-nhan"),
+                    *[html.Button(ten, type="button", className="sm-cau", title=cau_mau, **{"data-loai": loai, "data-cau": cau_mau})
+                      for ten, cau_mau in L["goi_y_cau"]]], className="sm-cau-dong") if L.get("goi_y_cau") else None
     y = html.Div([
         html.Label(L["y_chinh"]),
         dcc.Textarea(id={"type": FT, "l": loai, "k": "tinh_huong"}, className="inp sm-ta", rows=4,
@@ -128,6 +131,7 @@ def _o_form(loai: str) -> html.Div:
                   html.Button("Hoàn tác", id={"type": "sm-hoan", "l": loai}, className="btn nho", n_clicks=0),
                   tip(NHAC_AI, trai=True)], className="sm-fox-dong"),
         dcc.Store(id={"type": "sm-y-goc", "l": loai}),
+        *([cau] if cau is not None else []),
         html.Div(id={"type": "sm-fox-msg", "l": loai})], className="field rong")
     them = html.Details([
         html.Summary("Thêm ý riêng vào mail (tuỳ chọn)"),
@@ -316,8 +320,8 @@ def _dang_ky_fox(app):
         loai = ctx.triggered_id["l"]
         v = {i["k"]: x for i, x in zip(ids, vals)}
         try:
-            doan = sm.viet_tinh_huong(loai, y_chinh, {"Hạn cần lắp": v.get("han_lap"),
-                                                       "Thời gian khách có thể đợi": v.get("thoi_gian_cho")}, current_user)
+            doan = sm.viet_tinh_huong(loai, y_chinh, {"Hạn cần lắp": v.get("han_lap"), "Thời gian khách có thể đợi": v.get("thoi_gian_cho"),
+                                                       "Thiết bị xin thêm": v.get("thiet_bi")}, current_user)
         except ai.LoiAI as e:
             return no_update, alert(str(e), "bad"), no_update
         return doan, alert("Fox đã viết xong. Đọc lại và sửa nếu cần, rồi bấm Copy.", "ok"), y_chinh or ""

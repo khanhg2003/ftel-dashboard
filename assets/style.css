@@ -1291,7 +1291,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 }
 
 /* ---- Soạn email (app/ui/pages/soanmail.py, assets/soan_mail.js): chọn loại · form · lá thư sửa được ---- */
-.sm-loai { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sm-loai { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 1100px) { .sm-loai { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .sm-loai-the { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 11px 14px; cursor: pointer; text-align: left;
   font: inherit; background: var(--card); border: 1.5px solid var(--border); border-radius: 12px;
   transition: border-color .15s, background .15s, box-shadow .15s; }
@@ -1361,7 +1362,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 
 /* Soạn email: cả ba biểu mẫu dựng sẵn, chỉ hiện biểu mẫu của loại đang chọn (đổi loại tức thì, ô đã gõ không mất) */
 .sm-khung .sm-form { display: none; }
-.sm-khung.loai-ca_hot .f-ca_hot, .sm-khung.loai-hoa_don .f-hoa_don, .sm-khung.loai-ha_tang .f-ha_tang, .sm-khung.loai-ha_tang_moi .f-ha_tang_moi { display: block; }
+.sm-khung.loai-ca_hot .f-ca_hot, .sm-khung.loai-hoa_don .f-hoa_don, .sm-khung.loai-ha_tang .f-ha_tang, .sm-khung.loai-ha_tang_moi .f-ha_tang_moi, .sm-khung.loai-bo_phat .f-bo_phat { display: block; }
 
 /* Danh bạ: chế độ Sơ đồ cây theo phòng ban (căn giữa, có đường nối đầy đủ) - assets/danh_ba.js */
 .db-so-do { --duong: #9FB1C6; overflow-x: auto; padding: 4px 0 12px; }
@@ -1744,3 +1745,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-con-the { padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; color: #475467; background: transparent; border: 0; border-radius: 7px; cursor: pointer; }
 .sm-con-the:hover { color: var(--fpt-blue-700); }
 .sm-con-the.chon { color: var(--fpt-blue-700); background: #fff; box-shadow: 0 1px 3px #1018281f; }
+
+/* Soạn email: dãy nút "Gợi ý nhanh" thêm câu tình huống có sẵn (mẫu Xin thêm bộ phát) */
+.sm-cau-dong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.sm-cau-nhan { font-size: 12px; color: var(--text-muted); margin-right: 2px; }
+.sm-cau { padding: 4px 10px; font: inherit; font-size: 12.5px; color: var(--fpt-blue-700); background: #EEF5FC; border: 1px solid #CFE0F2; border-radius: 999px; cursor: pointer; }
+.sm-cau:hover { background: #E1EEFB; border-color: var(--fpt-blue); }

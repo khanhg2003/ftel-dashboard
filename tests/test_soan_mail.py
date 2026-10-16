@@ -235,7 +235,7 @@ def test_y_them_nam_truoc_cau_cam_on_va_bo_ca_doan_khi_trong():
         goc = sm.dung(loai, v)["text"]
         co = sm.dung(loai, {**v, "y_them": "Khách quen, nhờ anh ưu tiên giúp em.\nEm cảm ơn."})["text"]
         assert "Khách quen" not in goc and "\n\n\n" not in goc
-        assert co.index("Khách quen") < co.index("Trân trọng" if loai == "ha_tang_moi" else "Em xin chân thành cảm ơn")      # mẫu đầu tư tập điểm mới kết bằng "Em cảm ơn ... Trân trọng."
+        assert co.index("Khách quen") < co.index({"ha_tang_moi": "Trân trọng", "bo_phat": "Trân trọng cảm ơn"}.get(loai, "Em xin chân thành cảm ơn"))      # mẫu đầu tư tập điểm mới kết bằng "Em cảm ơn ... Trân trọng."
         assert "Khách quen, nhờ anh ưu tiên giúp em.\nEm cảm ơn." in co
 
 
@@ -341,7 +341,7 @@ def test_mail_dau_tu_tap_diem_moi_dung_theo_mail_mau_cua_chu_app():
 def test_hai_mau_ha_tang_chung_mot_the_nhung_hai_bieu_mau_rieng():
     from app.ui.pages import soanmail
     nhom = dict(sm.nhom_mau())
-    assert nhom["ha_tang"] == ["ha_tang", "ha_tang_moi"] and nhom["ca_hot"] == ["ca_hot"] and len(nhom) == 3        # vẫn ba thẻ chọn
+    assert nhom["ha_tang"] == ["ha_tang", "ha_tang_moi"] and nhom["ca_hot"] == ["ca_hot"] and len(nhom) == 4        # bốn thẻ chọn (hạ tầng gộp hai mẫu)
     the = soanmail._chon_loai().children
     ha = next(t for t in the if getattr(t, "className", "").startswith("sm-loai-the") and t.to_plotly_json()["props"].get("data-loai") == "ha_tang")
     assert ha.to_plotly_json()["props"]["data-nhom"] == "ha_tang ha_tang_moi"
@@ -351,3 +351,44 @@ def test_hai_mau_ha_tang_chung_mot_the_nhung_hai_bieu_mau_rieng():
         assert [("chon" in b.className) for b in con.children] == [k == "ha_tang", k == "ha_tang_moi"]
     assert len(soanmail._o_form("hoa_don").children) == 3                         # mẫu đứng một mình không có nút đổi mẫu
     assert sm.goi_y("ha_tang_moi", "Đà Nẵng", "")["don_vi"] == "Đà Nẵng"           # gợi ý người nhận dùng chung quy tắc hạ tầng
+
+
+BO_PHAT = {"hop_dong": "DAAAR2260", "ten_kh": "Nguyễn Văn Phúc", "dia_chi": "K34/H19/1 Thi Sách", "chao": "Phúc",
+           "tinh_huong": "Khách hàng đăng ký gói giga kèm camera ngoài trả trước 6 tháng. Nhà khách hàng 2 tầng đã có thiết bị phát cũ nhưng không đảm bảo."}
+
+
+def test_mail_xin_them_bo_phat_dung_theo_mail_mau_va_xin_duoc_nhieu_loai_thiet_bi():
+    """Chủ app 17/10/2026: mẫu xin hỗ trợ thêm bộ phát, tình huống do sale gõ / bấm gợi ý / Fox viết nên dùng được cho nhiều ca."""
+    kq = sm.dung("bo_phat", BO_PHAT)
+    assert kq["thieu"] == [] and kq["tieu_de"] == "DAAAR2260 - XIN HỖ TRỢ THÊM BỘ PHÁT"
+    t = kq["text"]
+    assert t.startswith("Dear Phúc,\n\nKhách hàng: Nguyễn Văn Phúc (DAAAR2260)\nĐịa chỉ lắp đặt: K34/H19/1 Thi Sách\n\nKhách hàng đăng ký gói giga")
+    assert "Nhờ Phúc xem xét ca này có thể hỗ trợ thêm bộ phát phụ được không để khách hàng sử dụng lâu dài ạ." in t       # để trống thì là bộ phát phụ
+    assert t.endswith("Trân trọng cảm ơn!")
+    khac = sm.dung("bo_phat", {**BO_PHAT, "thiet_bi": "2 bộ mesh"})["text"]
+    assert "hỗ trợ thêm 2 bộ mesh được không" in khac
+    assert "[Tình huống]" in sm.dung("bo_phat", {**BO_PHAT, "tinh_huong": ""})["text"]                  # tình huống bắt buộc: không có câu mẫu để khỏi gửi nhầm
+    assert sm.goi_y("bo_phat", "Đà Nẵng", "") ["den"] == [] and sm.goi_y("bo_phat", "Đà Nẵng", "")["cc"] == []        # chưa biết ai duyệt: không bịa gợi ý
+
+
+def test_bo_phat_co_nut_goi_y_nhanh_nhung_cac_mau_khac_khong():
+    from app.ui.pages import soanmail
+    cau = sm.LOAI["bo_phat"]["goi_y_cau"]
+    assert len(cau) >= 5 and all(ten and mau.endswith(".") for ten, mau in cau)
+    nut = [n for n in _cac_nut(soanmail._o_form("bo_phat")) if getattr(n, "className", "") == "sm-cau"]
+    assert sorted(n.children for n in nut) == sorted(ten for ten, _ in cau) and all(n.to_plotly_json()["props"]["data-loai"] == "bo_phat" for n in nut)
+    assert not [n for n in _cac_nut(soanmail._o_form("ca_hot")) if getattr(n, "className", "") == "sm-cau"]
+
+
+def _cac_nut(goc) -> list:
+    out, dung = [], [goc]
+    while dung:
+        n = dung.pop()
+        if isinstance(n, (list, tuple)):
+            dung.extend(n)
+            continue
+        out.append(n)
+        c = getattr(n, "children", None)
+        if c is not None:
+            dung.append(c)
+    return out

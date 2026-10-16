@@ -140,6 +140,15 @@
             chepODung(loaiHienTai(), moi);
             window.dash_clientside.set_props('sm-loai', {data: moi});
         });
+        document.addEventListener('click', function (e) {           // nút "Gợi ý nhanh": thêm một câu tình huống có sẵn vào ô tình huống (sale sửa tiếp được)
+            const nut = e.target && e.target.closest ? e.target.closest('.sm-cau') : null;
+            if (!nut) { return; }
+            const id = {k: 'tinh_huong', l: nut.dataset.loai, type: 'sm-ft'}, o = document.getElementById(JSON.stringify(id));
+            const cu = o ? o.value.trim() : '';
+            if (cu.indexOf(nut.dataset.cau) >= 0) { return; }
+            window.dash_clientside.set_props({type: 'sm-ft', l: nut.dataset.loai, k: 'tinh_huong'},
+                                             {value: (cu ? cu + ' ' : '') + nut.dataset.cau, n_blur: Date.now() % 1000000000});   // n_blur để bản xem trước cập nhật ngay
+        });
         document.addEventListener('click', function (e) {           // hai nút nhỏ đổi mẫu trong cùng một thẻ (VD nâng cấp tập điểm / đầu tư tập điểm mới)
             const nut = e.target && e.target.closest ? e.target.closest('.sm-con-the') : null;
             if (!nut) { return; }

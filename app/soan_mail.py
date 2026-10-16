@@ -1,6 +1,6 @@
 """Soạn email cho nhân viên KD (chốt 10/10/2026; người dùng: admin + nvkd IBB7, `auth.duoc_soan_mail`).
 
-Ba nhóm mail mẫu (từ mail thật chủ app đưa): ca hot triển khai, xin xuất hoá đơn doanh nghiệp, xin đầu tư hạ tầng. Nhóm hạ tầng có HAI mẫu
+Bốn thẻ mail mẫu (từ mail thật chủ app đưa): ca hot triển khai, xin xuất hoá đơn doanh nghiệp, xin đầu tư hạ tầng, xin hỗ trợ thêm bộ phát (17/10/2026). Nhóm hạ tầng có HAI mẫu
 (chủ app 16/10/2026): nâng cấp tập điểm đầy port (`ha_tang`) và hỗ trợ đầu tư tập điểm mới (`ha_tang_moi`), cùng một thẻ chọn, sale đổi qua lại bằng hai nút nhỏ
 trong biểu mẫu. Sale chỉ điền các ô thay đổi; phần cố định do KHUÔN điền; người nhận chỉ GỢI Ý, sale tự chọn; xong bấm
 Copy rồi dán vào Outlook. App KHÔNG gửi mail, không lưu nội dung mail (chỉ ghi nhật ký ai soạn loại nào, mã HĐ nào).
@@ -24,8 +24,9 @@ TOI_DA_DOAN = 1200                # ký tự đoạn tình huống
 THIEU = "[{}]"                    # chỗ còn trống trong bản xem trước: [Mã hợp đồng]
 
 
-def _o(khoa, nhan, goi_y="", dai=False, bat_buoc=True):
-    return {"khoa": khoa, "nhan": nhan, "goi_y": goi_y, "dai": dai, "bat_buoc": bat_buoc}
+def _o(khoa, nhan, goi_y="", dai=False, bat_buoc=True, mac_dinh=""):
+    """Một ô sale điền. `mac_dinh` (chỉ cho ô không bắt buộc): để trống thì mail dùng chữ này."""
+    return {"khoa": khoa, "nhan": nhan, "goi_y": goi_y, "dai": dai, "bat_buoc": bat_buoc, "mac_dinh": mac_dinh}
 
 
 # Mỗi mẫu: `nhom` (có thì các mẫu cùng nhóm dùng chung MỘT thẻ chọn, `nhan_con` là tên nút nhỏ), ô sale điền (`truong`; `dai` = chiếm cả hàng), `mo_ta` (một dòng trên thẻ chọn loại), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
@@ -138,6 +139,33 @@ LOAI = {
                   "khác phủ sóng, tiềm năng phát triển thêm thuê bao trong thời gian tới. Việc đầu tư tập điểm mới sẽ giúp đáp ứng nhu cầu trước "
                   "mắt của khách hàng, đồng thời mở rộng vùng phủ và tạo điều kiện phát triển thuê bao lâu dài."),
     },
+    "bo_phat": {
+        "ten": "Xin thêm bộ phát",
+        "mo_ta": "Nhà khách rộng / nhiều tầng, xin hỗ trợ thêm bộ phát phụ",
+        "truong": [_o("hop_dong", "Mã hợp đồng", "VD: DAAAR2260"),
+                   _o("ten_kh", "Tên khách hàng", "VD: Nguyễn Văn Phúc"),
+                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),
+                   _o("thiet_bi", "Xin hỗ trợ thêm", "Để trống = bộ phát phụ (VD: 2 bộ phát phụ, bộ mesh)", bat_buoc=False, mac_dinh="bộ phát phụ")],
+        "y_chinh": "Tình huống (bấm gợi ý bên dưới hoặc gõ ý chính, Fox viết giúp)",
+        "y_mau": "khách đăng ký gói giga kèm camera trả trước 6 tháng, nhà 2 tầng, thiết bị cũ yếu, khách không muốn mua thêm",
+        "goi_y_cau": [("Nhà nhiều tầng", "Nhà khách hàng có nhiều tầng nên sóng wifi hiện tại không phủ hết các tầng."),
+                      ("Nhà rộng", "Nhà khách hàng có diện tích rộng, một bộ phát không đủ phủ sóng toàn nhà."),
+                      ("Thiết bị cũ yếu", "Khách hàng đã có thiết bị phát cũ nhưng không đảm bảo, sóng yếu và hay chập chờn."),
+                      ("Dùng nhiều thiết bị", "Khách hàng dùng nhiều thiết bị cùng lúc (làm việc, học online, camera) nên cần sóng ổn định."),
+                      ("Không mua thêm", "Khách hàng không muốn tốn thêm chi phí mua thiết bị, nên sale chưa tư vấn mua thêm."),
+                      ("Gói cao, trả trước", "Khách hàng đăng ký gói cao cấp và trả trước dài hạn, mong được hỗ trợ để sử dụng ổn định lâu dài.")],
+        "tieu_de": "{hop_dong} - XIN HỖ TRỢ THÊM BỘ PHÁT",
+        "than": ["Dear {chao},", "Khách hàng: {ten_kh} (**{hop_dong}**)\nĐịa chỉ lắp đặt: {dia_chi}", "{tinh_huong}",
+                 "Nhờ {chao} xem xét ca này có thể hỗ trợ thêm {thiet_bi} được không để khách hàng sử dụng lâu dài ạ.",
+                 "{?y_them}", "Trân trọng cảm ơn!"],
+        "goi_y": {"den": [], "cc": []},
+        "fox": ("Viết 2-4 câu nêu tình huống: gói khách đăng ký, nhà mấy tầng hay rộng thế nào, thiết bị hiện có và vì sao chưa đảm bảo, khách "
+                "có muốn mua thêm không và sale đã tư vấn gì. KHÔNG viết câu nhờ hỗ trợ cuối (đã có sẵn trong mail). Chỉ dùng ý sale đưa."),
+        "vi_du": ("Ý chính: gói giga kèm camera trả trước 6 tháng, nhà 2 tầng, thiết bị cũ không đảm bảo, khách khó tính không muốn mua thêm.\n"
+                  "Đoạn: Khách hàng đăng ký gói giga kèm camera ngoài trả trước 6 tháng. Nhà khách hàng 2 tầng đã có thiết bị phát cũ nhưng không "
+                  "đảm bảo, khách đang dùng sóng thu và hơi kỹ tính. Do khách hơi khó tính nên sale không tư vấn mua thêm thiết bị vì khách không "
+                  "muốn tốn thêm chi phí do tháng này chi phí ra quá nhiều rồi."),
+    },
 }
 
 
@@ -160,6 +188,9 @@ def _gia_tri(loai: str, v: dict) -> dict:
     """Giá trị đã chuẩn hoá để điền khuôn: bỏ khoảng trắng thừa, ô tình huống trống thì lấy câu mẫu (nếu loại có)."""
     kq = {k: re.sub(r"[ \t]+", " ", str(x or "")).strip() for k, x in v.items()}
     L = LOAI[loai]
+    for t in L["truong"]:
+        if t["mac_dinh"] and not kq.get(t["khoa"]):
+            kq[t["khoa"]] = t["mac_dinh"]
     if not kq.get("tinh_huong") and L.get("mac_dinh"):
         kq["tinh_huong"] = L["mac_dinh"].format(thoi_gian_cho=kq.get("thoi_gian_cho") or THIEU.format("Khách có thể đợi"))
     return kq
