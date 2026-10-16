@@ -437,3 +437,8 @@ def test_tranh_chap_co_goi_y_nhanh_va_nhac_dinh_kem_anh():
 def test_o_co_cau_mac_dinh_bo_dau_cham_cuoi_de_khong_thanh_hai_dau_cham():
     ra = sm.dung("tranh_chap", {**TRANH, "yeu_cau": "trả HĐ về cho sale lên trước."})["text"]
     assert "Kính mong FTEL" not in ra and "Kính mong FTQ HO trả HĐ về cho sale lên trước." in ra and ".." not in ra
+
+
+def test_the_chon_loai_xep_dung_thu_tu_chu_app_chot():
+    assert [k for k, _ in sm.nhom_mau()] == ["ca_hot", "ha_tang", "tranh_chap", "hoa_don", "bo_phat"]
+    assert set(sm.THU_TU_THE) == {k for k, _ in sm.nhom_mau()}                       # thêm mẫu mới thì nhớ thêm vào THU_TU_THE

@@ -202,12 +202,16 @@ LOAI = {
 }
 
 
+THU_TU_THE = ("ca_hot", "ha_tang", "tranh_chap", "hoa_don", "bo_phat")        # thứ tự thẻ chọn trên trang (chủ app chốt 17/10/2026); thẻ chưa có trong đây xếp cuối
+
+
 def nhom_mau() -> list[tuple[str, list[str]]]:
-    """[(mẫu đầu của nhóm, [các mẫu cùng nhóm])] theo thứ tự khai báo: mỗi nhóm một thẻ chọn trên trang (mẫu không khai `nhom` tự thành nhóm một mẫu)."""
+    """[(mẫu đầu của nhóm, [các mẫu cùng nhóm])] xếp theo `THU_TU_THE`: mỗi nhóm một thẻ chọn trên trang (mẫu không khai `nhom` tự thành nhóm một mẫu)."""
     nhom: dict[str, list[str]] = {}
     for k, L in LOAI.items():
         nhom.setdefault(L.get("nhom") or k, []).append(k)
-    return [(ds[0], ds) for ds in nhom.values()]
+    the = [(ds[0], ds) for ds in nhom.values()]
+    return sorted(the, key=lambda x: THU_TU_THE.index(x[0]) if x[0] in THU_TU_THE else len(THU_TU_THE))
 
 
 class LoiSoanMail(ValueError):
