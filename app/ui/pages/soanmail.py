@@ -47,12 +47,13 @@ def _cua_loai(loai: str, vals: list, ids: list) -> dict:
 
 # ------------------------------------------------------------------ giao diện
 def _chon_loai():
-    """Ba thẻ chọn loại mail, mỗi thẻ một dòng mô tả. Bấm thẻ là đổi ngay trên trình duyệt (assets/soan_mail.js ghi vào Store
-    `sm-loai`), không hỏi máy chủ."""
+    """Ba thẻ chọn loại mail (nhóm hạ tầng gộp hai mẫu vào một thẻ), mỗi thẻ một dòng mô tả. Bấm thẻ là đổi ngay trên trình duyệt
+    (assets/soan_mail.js ghi vào Store `sm-loai`), không hỏi máy chủ."""
     return html.Div([dcc.Store(id="sm-loai", data="ca_hot"),
-                     *[html.Button([html.Span(L["ten"], className="sm-loai-ten"), html.Span(L["mo_ta"], className="sm-loai-mo")],
-                                   type="button", className="sm-loai-the" + (" chon" if k == "ca_hot" else ""), **{"data-loai": k})
-                       for k, L in sm.LOAI.items()]], className="sm-loai")
+                     *[html.Button([html.Span(sm.LOAI[k]["ten"], className="sm-loai-ten"), html.Span(sm.LOAI[k]["mo_ta"], className="sm-loai-mo")],
+                                   type="button", className="sm-loai-the" + (" chon" if k == "ca_hot" else ""),
+                                   **{"data-loai": k, "data-nhom": " ".join(ds)})
+                       for k, ds in sm.nhom_mau()]], className="sm-loai")
 
 
 def layout():
@@ -134,7 +135,10 @@ def _o_form(loai: str) -> html.Div:
                      placeholder="VD: Khách là khách quen, nhờ anh ưu tiên giúp em."),
         html.Div("Đoạn này nằm ngay trước câu cảm ơn. Muốn thêm hay sửa chỗ khác, bấm thẳng vào thư bên phải.", className="desc")],
         className="sm-them")
-    return html.Div([o, y, them], id=f"sm-form-{loai}", className=f"sm-form f-{loai}")
+    ban_chua_nhom = [k for k, L2 in sm.LOAI.items() if L2.get("nhom") and L2["nhom"] == L.get("nhom")]
+    con = html.Div([html.Button(sm.LOAI[k]["nhan_con"], type="button", className="sm-con-the" + (" chon" if k == loai else ""), **{"data-loai": k})
+                    for k in ban_chua_nhom], className="sm-con") if len(ban_chua_nhom) > 1 else None
+    return html.Div([*([con] if con is not None else []), o, y, them], id=f"sm-form-{loai}", className=f"sm-form f-{loai}")
 
 
 def _chip(vt: str, i: int, p: dict) -> html.Span:

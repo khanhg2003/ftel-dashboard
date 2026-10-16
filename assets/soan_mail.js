@@ -104,6 +104,29 @@
         t._h = setTimeout(function () { t.classList.remove('hien'); }, 2200);
     }
 
+    /* Đổi qua lại giữa hai mẫu (hoặc loại) thì mã hợp đồng, địa chỉ, SĐT đã gõ ở mẫu cũ tự chép sang mẫu mới nếu ô bên đó còn trống: đỡ gõ lại */
+    const O_CHUNG = ['hop_dong', 'dia_chi', 'sdt'];
+
+    function oNhap(loai, k) {
+        return document.getElementById(JSON.stringify({k: k, l: loai, type: 'sm-f'}));
+    }
+
+    function loaiHienTai() {
+        const f = document.getElementById('sm-form');
+        const m = f ? /loai-(\w+)/.exec(f.className) : null;
+        return m ? m[1] : '';
+    }
+
+    function chepODung(cu, moi) {
+        if (!cu || !moi || cu === moi) { return; }
+        O_CHUNG.forEach(function (k) {
+            const a = oNhap(cu, k), b = oNhap(moi, k);
+            if (a && b && a.value && !b.value) {
+                window.dash_clientside.set_props({type: 'sm-f', l: moi, k: k}, {value: a.value});
+            }
+        });
+    }
+
     function khoiSua(e) {
         return e.target && e.target.closest ? e.target.closest('#sm-than, #sm-tieu') : null;
     }
@@ -113,7 +136,21 @@
             const the = e.target && e.target.closest ? e.target.closest('.sm-loai-the') : null;
             if (!the) { return; }
             document.querySelectorAll('.sm-loai-the').forEach(function (t) { t.classList.toggle('chon', t === the); });
-            window.dash_clientside.set_props('sm-loai', {data: the.dataset.loai});
+            const moi = the.dataset.cuoi || the.dataset.loai;       // thẻ gộp nhiều mẫu thì quay lại mẫu đang dùng dở
+            chepODung(loaiHienTai(), moi);
+            window.dash_clientside.set_props('sm-loai', {data: moi});
+        });
+        document.addEventListener('click', function (e) {           // hai nút nhỏ đổi mẫu trong cùng một thẻ (VD nâng cấp tập điểm / đầu tư tập điểm mới)
+            const nut = e.target && e.target.closest ? e.target.closest('.sm-con-the') : null;
+            if (!nut) { return; }
+            const moi = nut.dataset.loai;
+            document.querySelectorAll('.sm-loai-the').forEach(function (t) {
+                const co = (t.dataset.nhom || t.dataset.loai).split(' ').indexOf(moi) >= 0;
+                t.classList.toggle('chon', co);
+                if (co) { t.dataset.cuoi = moi; }
+            });
+            chepODung(loaiHienTai(), moi);
+            window.dash_clientside.set_props('sm-loai', {data: moi});
         });
         document.addEventListener('input', function (e) {
             const el = khoiSua(e);

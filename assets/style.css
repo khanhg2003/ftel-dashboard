@@ -1361,7 +1361,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 
 /* Soạn email: cả ba biểu mẫu dựng sẵn, chỉ hiện biểu mẫu của loại đang chọn (đổi loại tức thì, ô đã gõ không mất) */
 .sm-khung .sm-form { display: none; }
-.sm-khung.loai-ca_hot .f-ca_hot, .sm-khung.loai-hoa_don .f-hoa_don, .sm-khung.loai-ha_tang .f-ha_tang { display: block; }
+.sm-khung.loai-ca_hot .f-ca_hot, .sm-khung.loai-hoa_don .f-hoa_don, .sm-khung.loai-ha_tang .f-ha_tang, .sm-khung.loai-ha_tang_moi .f-ha_tang_moi { display: block; }
 
 /* Danh bạ: chế độ Sơ đồ cây theo phòng ban (căn giữa, có đường nối đầy đủ) - assets/danh_ba.js */
 .db-so-do { --duong: #9FB1C6; overflow-x: auto; padding: 4px 0 12px; }
@@ -1738,3 +1738,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-gap-mui { font-size: 12px; transition: transform .15s; }
 .onl-gap.mo .onl-gap-mui { transform: rotate(180deg); }
 .onl-gap.mo { margin-bottom: 14px; }
+
+/* Soạn email: hai nút nhỏ đổi mẫu trong cùng một thẻ (nhóm Xin đầu tư hạ tầng) */
+.sm-con { display: inline-flex; gap: 2px; padding: 3px; margin: 0 0 14px; background: #EEF2F7; border-radius: 9px; }
+.sm-con-the { padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; color: #475467; background: transparent; border: 0; border-radius: 7px; cursor: pointer; }
+.sm-con-the:hover { color: var(--fpt-blue-700); }
+.sm-con-the.chon { color: var(--fpt-blue-700); background: #fff; box-shadow: 0 1px 3px #1018281f; }

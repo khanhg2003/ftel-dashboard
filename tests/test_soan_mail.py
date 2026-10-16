@@ -235,7 +235,7 @@ def test_y_them_nam_truoc_cau_cam_on_va_bo_ca_doan_khi_trong():
         goc = sm.dung(loai, v)["text"]
         co = sm.dung(loai, {**v, "y_them": "Khách quen, nhờ anh ưu tiên giúp em.\nEm cảm ơn."})["text"]
         assert "Khách quen" not in goc and "\n\n\n" not in goc
-        assert co.index("Khách quen") < co.index("Em xin chân thành cảm ơn")
+        assert co.index("Khách quen") < co.index("Trân trọng" if loai == "ha_tang_moi" else "Em xin chân thành cảm ơn")      # mẫu đầu tư tập điểm mới kết bằng "Em cảm ơn ... Trân trọng."
         assert "Khách quen, nhờ anh ưu tiên giúp em.\nEm cảm ơn." in co
 
 
@@ -316,3 +316,38 @@ def test_goi_y_gon_trong_mot_nut_xo_xuong_moi_nguoi_mot_dong_co_den_cc():
     assert [b.to_plotly_json()["props"]["data-vt"] for b in dong[0].children[1:]] == ["den", "cc"]       # nút chính theo gợi ý, nút kia đổi vị trí
     assert [b.to_plotly_json()["props"]["data-vt"] for b in dong[1].children[1:]] == ["cc", "den"]
     assert "Chưa có gợi ý" in soanmail._goi_y_khung({"den": [], "cc": [], "don_vi": "X", "khu_vuc_ro": True})[0].children
+
+
+MOI = {"hop_dong": "CMAAE5918", "ten_kh": "Ngô Lâm Thái Bảo", "sdt": "0372256684", "dia_chi": "Ấp 5, Xã Mỹ Hạnh, Tây Ninh",
+       "toa_do": "(10.8304167, 106.4760000)", "chao": "anh Thịnh"}
+
+
+def test_mail_dau_tu_tap_diem_moi_dung_theo_mail_mau_cua_chu_app():
+    """Chủ app 16/10/2026: thêm mẫu "hỗ trợ đầu tư tập điểm mới" vào nhóm Xin đầu tư hạ tầng (cạnh mẫu nâng cấp tập điểm)."""
+    kq = sm.dung("ha_tang_moi", MOI)
+    assert kq["thieu"] == [] and kq["tieu_de"] == "CMAAE5918 - ĐỀ NGHỊ HỖ TRỢ ĐẦU TƯ TẬP ĐIỂM MỚI"
+    t = kq["text"]
+    assert t.startswith("Dear anh Thịnh,\n\nEm có hợp đồng khách hàng đăng ký lắp mới Internet tại khu vực:\n• Tên KH: Ngô Lâm Thái Bảo\n• SĐT: 0372256684\n"
+                        "• Địa chỉ: Ấp 5, Xã Mỹ Hạnh, Tây Ninh\n• Tọa độ: (10.8304167, 106.4760000)")
+    assert "Khách hàng đã xác nhận nhu cầu sử dụng thực tế và sẵn sàng triển khai dịch vụ." in t
+    assert "Bên cạnh nhu cầu của khách hàng hiện hữu, khu vực này còn có nhiều hộ dân đang sinh sống" in t       # câu mẫu khi sale không gõ gì
+    assert "Kính mong anh Thịnh xem xét hỗ trợ phương án đầu tư tập điểm mới" in t
+    assert t.endswith("Em cảm ơn anh Thịnh.\nTrân trọng.")
+    rieng = sm.dung("ha_tang_moi", {**MOI, "tinh_huong": "Khu vực nhiều nhà trọ công nhân."})["text"]
+    assert "Khu vực nhiều nhà trọ công nhân." in rieng and "Bên cạnh nhu cầu của khách hàng hiện hữu" not in rieng       # sale gõ thì thay câu mẫu
+    assert "[Tên khách hàng]" in sm.dung("ha_tang_moi", {**MOI, "ten_kh": ""})["text"]
+
+
+def test_hai_mau_ha_tang_chung_mot_the_nhung_hai_bieu_mau_rieng():
+    from app.ui.pages import soanmail
+    nhom = dict(sm.nhom_mau())
+    assert nhom["ha_tang"] == ["ha_tang", "ha_tang_moi"] and nhom["ca_hot"] == ["ca_hot"] and len(nhom) == 3        # vẫn ba thẻ chọn
+    the = soanmail._chon_loai().children
+    ha = next(t for t in the if getattr(t, "className", "").startswith("sm-loai-the") and t.to_plotly_json()["props"].get("data-loai") == "ha_tang")
+    assert ha.to_plotly_json()["props"]["data-nhom"] == "ha_tang ha_tang_moi"
+    for k in ("ha_tang", "ha_tang_moi"):
+        con = soanmail._o_form(k).children[0]                                    # hai nút nhỏ đổi mẫu nằm đầu biểu mẫu
+        assert [b.children for b in con.children] == ["Nâng cấp tập điểm", "Đầu tư tập điểm mới"]
+        assert [("chon" in b.className) for b in con.children] == [k == "ha_tang", k == "ha_tang_moi"]
+    assert len(soanmail._o_form("hoa_don").children) == 3                         # mẫu đứng một mình không có nút đổi mẫu
+    assert sm.goi_y("ha_tang_moi", "Đà Nẵng", "")["don_vi"] == "Đà Nẵng"           # gợi ý người nhận dùng chung quy tắc hạ tầng

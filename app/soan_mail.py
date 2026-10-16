@@ -1,7 +1,8 @@
 """Soạn email cho nhân viên KD (chốt 10/10/2026; người dùng: admin + nvkd IBB7, `auth.duoc_soan_mail`).
 
-Ba loại mail mẫu (từ mail thật chủ app đưa): ca hot triển khai, xin xuất hoá đơn doanh nghiệp, xin đầu tư hạ tầng (nâng
-cấp tập điểm). Sale chỉ điền các ô thay đổi; phần cố định do KHUÔN điền; người nhận chỉ GỢI Ý, sale tự chọn; xong bấm
+Ba nhóm mail mẫu (từ mail thật chủ app đưa): ca hot triển khai, xin xuất hoá đơn doanh nghiệp, xin đầu tư hạ tầng. Nhóm hạ tầng có HAI mẫu
+(chủ app 16/10/2026): nâng cấp tập điểm đầy port (`ha_tang`) và hỗ trợ đầu tư tập điểm mới (`ha_tang_moi`), cùng một thẻ chọn, sale đổi qua lại bằng hai nút nhỏ
+trong biểu mẫu. Sale chỉ điền các ô thay đổi; phần cố định do KHUÔN điền; người nhận chỉ GỢI Ý, sale tự chọn; xong bấm
 Copy rồi dán vào Outlook. App KHÔNG gửi mail, không lưu nội dung mail (chỉ ghi nhật ký ai soạn loại nào, mã HĐ nào).
 
 Fox chỉ viết MỘT đoạn "tình huống" từ ý chính của sale. Địa chỉ, SĐT, MST, tên khách không bao giờ gửi lên AI (quy tắc
@@ -27,7 +28,7 @@ def _o(khoa, nhan, goi_y="", dai=False, bat_buoc=True):
     return {"khoa": khoa, "nhan": nhan, "goi_y": goi_y, "dai": dai, "bat_buoc": bat_buoc}
 
 
-# Mỗi loại: ô sale điền (`truong`; `dai` = chiếm cả hàng), `mo_ta` (một dòng trên thẻ chọn loại), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
+# Mỗi mẫu: `nhom` (có thì các mẫu cùng nhóm dùng chung MỘT thẻ chọn, `nhan_con` là tên nút nhỏ), ô sale điền (`truong`; `dai` = chiếm cả hàng), `mo_ta` (một dòng trên thẻ chọn loại), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
 # ô đó trống; {?y_them} là đoạn sale tự thêm), tiêu đề, gợi ý người nhận (`goi_y`: (nhóm chức danh, nơi)), và lời dặn Fox (`fox`).
 LOAI = {
     "ca_hot": {
@@ -81,7 +82,8 @@ LOAI = {
     },
     "ha_tang": {
         "ten": "Xin đầu tư hạ tầng",
-        "mo_ta": "Tập điểm đầy port, xin nâng cấp để lắp cho khách",
+        "mo_ta": "Nâng cấp tập điểm đầy port, hoặc đầu tư tập điểm mới",
+        "nhom": "ha_tang", "nhan_con": "Nâng cấp tập điểm",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: CMAAE5918"),
                    _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),
                    _o("tap_diem", "Tập điểm (TD)", "VD: CMUP003.0008/HO"),
@@ -104,7 +106,47 @@ LOAI = {
         "vi_du": ("Ý chính: khách cần sớm để làm việc và gia đình, đợi được 2-3 ngày.\n"
                   "Đoạn: hiện khách đang cần sớm để phục vụ cho công việc và gia đình sử dụng, có thể đợi khoảng 2 đến 3 ngày."),
     },
+    "ha_tang_moi": {
+        "ten": "Xin đầu tư hạ tầng",
+        "mo_ta": "Nâng cấp tập điểm đầy port, hoặc đầu tư tập điểm mới",
+        "nhom": "ha_tang", "nhan_con": "Đầu tư tập điểm mới",
+        "truong": [_o("hop_dong", "Mã hợp đồng", "VD: CMAAE5918"),
+                   _o("ten_kh", "Tên khách hàng", "VD: Ngô Lâm Thái Bảo"),
+                   _o("sdt", "Số điện thoại khách", "VD: 0372256684"),
+                   _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà / ấp, xã (phường), tỉnh", dai=True),
+                   _o("toa_do", "Tọa độ", "VD: (10.8304167, 106.4760000)", dai=True)],
+        "y_chinh": "Tiềm năng khu vực (không bắt buộc, trống thì dùng câu mẫu)",
+        "y_mau": "khu vực có nhiều nhà trọ công nhân và hộ dân mới xây, chưa có nhà mạng khác phủ",
+        "y_tuy_chon": True,
+        "mac_dinh": ("Bên cạnh nhu cầu của khách hàng hiện hữu, khu vực này còn có nhiều hộ dân đang sinh sống, tiềm năng phát triển thêm thuê bao "
+                     "trong thời gian tới. Việc đầu tư tập điểm mới sẽ giúp đáp ứng nhu cầu trước mắt của khách hàng, đồng thời mở rộng vùng phủ "
+                     "và tạo điều kiện phát triển thuê bao lâu dài."),
+        "tieu_de": "{hop_dong} - ĐỀ NGHỊ HỖ TRỢ ĐẦU TƯ TẬP ĐIỂM MỚI",
+        "than": ["Dear {chao},",
+                 "Em có hợp đồng khách hàng đăng ký lắp mới Internet tại khu vực:\n• Tên KH: {ten_kh}\n• SĐT: {sdt}\n• Địa chỉ: {dia_chi}\n"
+                 "• Tọa độ: {toa_do}",
+                 "Khách hàng đã xác nhận nhu cầu sử dụng thực tế và sẵn sàng triển khai dịch vụ. Tuy nhiên hiện tại khu vực chưa có hạ tầng "
+                 "đáp ứng, cần đầu tư tập điểm mới để phục vụ lắp đặt.",
+                 "{tinh_huong}",
+                 "Kính mong {chao} xem xét hỗ trợ phương án đầu tư tập điểm mới để triển khai hợp đồng và khai thác hiệu quả khu vực.",
+                 "{?y_them}", "Em cảm ơn {chao}.\nTrân trọng."],
+        "goi_y": {"den": [("ha_tang", "lap")], "cc": [("giam_doc", "lap")]},
+        "fox": ("Viết 1-2 câu nối tiếp sau đoạn 'khu vực chưa có hạ tầng, cần đầu tư tập điểm mới', nói về tiềm năng phát triển thuê bao của khu vực "
+                "(dân cư, nhu cầu, đối thủ chưa phủ) và lợi ích của việc đầu tư tập điểm mới. Chỉ dùng ý sale đưa, không nhắc lại thông tin khách."),
+        "vi_du": ("Ý chính: khu vực nhiều nhà trọ công nhân, hộ dân mới xây, chưa có nhà mạng khác phủ.\n"
+                  "Đoạn: Bên cạnh nhu cầu của khách hàng hiện hữu, khu vực này còn có nhiều nhà trọ công nhân và hộ dân mới xây, chưa có nhà mạng "
+                  "khác phủ sóng, tiềm năng phát triển thêm thuê bao trong thời gian tới. Việc đầu tư tập điểm mới sẽ giúp đáp ứng nhu cầu trước "
+                  "mắt của khách hàng, đồng thời mở rộng vùng phủ và tạo điều kiện phát triển thuê bao lâu dài."),
+    },
 }
+
+
+def nhom_mau() -> list[tuple[str, list[str]]]:
+    """[(mẫu đầu của nhóm, [các mẫu cùng nhóm])] theo thứ tự khai báo: mỗi nhóm một thẻ chọn trên trang (mẫu không khai `nhom` tự thành nhóm một mẫu)."""
+    nhom: dict[str, list[str]] = {}
+    for k, L in LOAI.items():
+        nhom.setdefault(L.get("nhom") or k, []).append(k)
+    return [(ds[0], ds) for ds in nhom.values()]
 
 
 class LoiSoanMail(ValueError):
