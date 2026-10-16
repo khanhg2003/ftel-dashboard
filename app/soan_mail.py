@@ -1,6 +1,6 @@
 """Soạn email cho nhân viên KD (chốt 10/10/2026; người dùng: admin + nvkd IBB7, `auth.duoc_soan_mail`).
 
-Bốn thẻ mail mẫu (từ mail thật chủ app đưa): ca hot triển khai, xin xuất hoá đơn doanh nghiệp, xin đầu tư hạ tầng, xin hỗ trợ thêm bộ phát (17/10/2026). Nhóm hạ tầng có HAI mẫu
+Năm thẻ mail mẫu (từ mail thật chủ app đưa): ca hot triển khai, xin xuất hoá đơn doanh nghiệp, xin đầu tư hạ tầng, xin hỗ trợ thêm bộ phát, tranh chấp hợp đồng (17/10/2026). Nhóm hạ tầng có HAI mẫu
 (chủ app 16/10/2026): nâng cấp tập điểm đầy port (`ha_tang`) và hỗ trợ đầu tư tập điểm mới (`ha_tang_moi`), cùng một thẻ chọn, sale đổi qua lại bằng hai nút nhỏ
 trong biểu mẫu. Sale chỉ điền các ô thay đổi; phần cố định do KHUÔN điền; người nhận chỉ GỢI Ý, sale tự chọn; xong bấm
 Copy rồi dán vào Outlook. App KHÔNG gửi mail, không lưu nội dung mail (chỉ ghi nhật ký ai soạn loại nào, mã HĐ nào).
@@ -30,7 +30,7 @@ def _o(khoa, nhan, goi_y="", dai=False, bat_buoc=True, mac_dinh=""):
 
 
 # Mỗi mẫu: `nhom` (có thì các mẫu cùng nhóm dùng chung MỘT thẻ chọn, `nhan_con` là tên nút nhỏ), ô sale điền (`truong`; `dai` = chiếm cả hàng), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
-# ô đó trống; {?y_them} là đoạn sale tự thêm), tiêu đề, gợi ý người nhận (`goi_y`: (nhóm chức danh, nơi)), và lời dặn Fox (`fox`).
+# ô đó trống; [[... {khoa} ...]] = đoạn NGẮN trong dòng, bỏ riêng đoạn đó nếu ô bên trong trống và không báo thiếu; {?y_them} là đoạn sale tự thêm), tiêu đề, gợi ý người nhận (`goi_y`: (nhóm chức danh, nơi)), và lời dặn Fox (`fox`).
 LOAI = {
     "ca_hot": {
         "ten": "Ca hot triển khai",
@@ -161,6 +161,44 @@ LOAI = {
                   "đảm bảo, khách đang dùng sóng thu và hơi kỹ tính. Do khách hơi khó tính nên sale không tư vấn mua thêm thiết bị vì khách không "
                   "muốn tốn thêm chi phí do tháng này chi phí ra quá nhiều rồi."),
     },
+    "tranh_chap": {
+        "ten": "Tranh chấp HĐ",
+        "truong": [_o("ma_phieu", "Mã phiếu hỗ trợ (nếu có)", "VD: #HT15102600115", bat_buoc=False),
+                   _o("hop_dong", "HĐ của em", "VD: DLAAF7287"),
+                   _o("acc_minh", "Sale lên HĐ của em", "VD: DNG.Myltm"),
+                   _o("gio_minh", "Giờ lên HĐ của em", "VD: 12/10/2026 13:49:30", bat_buoc=False),
+                   _o("hop_dong_khac", "HĐ đang tranh chấp", "VD: DLAAF7274"),
+                   _o("acc_khac", "Sale lên HĐ còn lại", "VD: DLK.Hienvt54"),
+                   _o("gio_khac", "Giờ lên HĐ còn lại", "VD: 14/10/2026 11:54:37", bat_buoc=False),
+                   _o("nghi_van", "Nghi vấn đưa vào tiêu đề (không bắt buộc)", "VD: NGHI NGỜ KỸ THUẬT VÀ SALE ĐỊA BÀN PHỐI HỢP ĐỂ DÀNH HĐ", dai=True, bat_buoc=False),
+                   _o("yeu_cau", "Đề nghị xử lý", "Để trống = xác minh giúp em hai HĐ và có hướng xử lý", dai=True,
+                      bat_buoc=False, mac_dinh="xác minh giúp em hai hợp đồng trên và có hướng xử lý phù hợp")],
+        "y_chinh": "Diễn biến (bấm gợi ý nhanh bên dưới hoặc gõ ý chính, Fox viết giúp)",
+        "y_mau": "khách hẹn kỹ thuật qua nhà, em đã xác nhận qua Zalo, KTV checkin nhưng sau đó lại nhận phiếu HĐ của sale khác",
+        "goi_y_cau": [("KH đồng ý, hẹn qua Zalo", "Em lên HĐ dưới sự đồng ý của khách hàng và đã xác nhận lịch triển khai với khách qua Zalo (đính kèm hình ảnh)."),
+                      ("KTV đã checkin", "Đến giờ hẹn, KTV đã checkin ở nhà khách hàng nên em không tương tác thêm vì nghĩ KTV đang hỗ trợ khách."),
+                      ("Không liên hệ được KTV", "Em liên hệ KTV qua số điện thoại trên hệ thống nhưng không được."),
+                      ("KTV nhận phiếu HĐ kia", "Sau đó sale khác lên thêm một HĐ cho cùng khách hàng và cùng KTV đó nhận phiếu triển khai."),
+                      ("KTV không phối hợp", "Trong suốt quá trình triển khai KTV không tương tác với em mà triển khai phiếu của sale kia."),
+                      ("Trùng thông tin", "Theo quy định ban hành từ 10/9/2026, khi tạo HĐ mà hệ thống báo trùng thông tin (họ tên, SĐT, địa chỉ) thì nghiêm cấm lên HĐ mới, "
+                                          "nhưng HĐ còn lại vẫn được lên."),
+                      ("Nghi ngờ phí đầu vào", "Em nghi ngờ HĐ còn lại có hỗ trợ phần phí đầu vào cho khách hàng để giành HĐ, kính nhờ xác minh.")],
+        "tieu_de": "[[{ma_phieu}_]]{hop_dong}, {hop_dong_khac} XÁC MINH HĐ TRANH CHẤP[[, {nghi_van}]]",
+        "than": ["Dear {chao},",
+                 "Em xin phản ánh trường hợp tranh chấp hợp đồng:\n• HĐ của em: **{hop_dong}** ({acc_minh})[[, lên lúc {gio_minh}]]\n"
+                 "• HĐ đang tranh chấp: **{hop_dong_khac}** ({acc_khac})[[, lên lúc {gio_khac}]]",
+                 "{tinh_huong}", "Kính mong {chao} {yeu_cau}.", "{?y_them}", "Em xin chân thành cảm ơn ạ!"],
+        "nhac": "Nhớ đính kèm hình ảnh tin nhắn Zalo xác nhận lịch hẹn và ảnh chụp hệ thống báo trùng thông tin nếu có (app không lưu ảnh).",
+        "goi_y": {"den": [], "cc": []},
+        "fox": ("Viết 3-6 câu kể diễn biến theo trình tự thời gian: HĐ của sale lên lúc nào, khách hẹn thế nào, kỹ thuật làm gì, sau đó HĐ còn lại phát sinh ra sao. "
+                "Giọng khách quan, nêu sự việc; chỉ dùng chữ 'nghi ngờ' hoặc nêu nghi vấn khi sale nói rõ trong ý chính, không tự quy kết ai. "
+                "KHÔNG viết câu đề nghị xử lý cuối (đã có sẵn trong mail). Chỉ dùng ý sale đưa."),
+        "vi_du": ("Ý chính: khách hẹn sáng 14/10 cho kỹ thuật qua nhà, em xác nhận qua Zalo, KTV checkin nhưng em gọi không được, sau đó sale khác lên HĐ cùng khách và cùng KTV nhận phiếu.\n"
+                  "Đoạn: Em lên HĐ dưới sự đồng ý của khách hàng và đã xác nhận lịch triển khai qua Zalo (đính kèm hình ảnh). Đến hẹn sáng 14/10, KTV đã "
+                  "checkin ở nhà khách hàng nên em không tương tác thêm vì nghĩ KTV đang hỗ trợ khách, nhưng em liên hệ KTV qua số điện thoại trên hệ thống "
+                  "không được. Sau đó sale khác lên thêm một HĐ cho cùng khách hàng và cùng KTV đó nhận phiếu triển khai, trong suốt quá trình KTV không "
+                  "tương tác với em."),
+    },
 }
 
 
@@ -184,8 +222,8 @@ def _gia_tri(loai: str, v: dict) -> dict:
     kq = {k: re.sub(r"[ \t]+", " ", str(x or "")).strip() for k, x in v.items()}
     L = LOAI[loai]
     for t in L["truong"]:
-        if t["mac_dinh"] and not kq.get(t["khoa"]):
-            kq[t["khoa"]] = t["mac_dinh"]
+        if t["mac_dinh"]:                                   # ô có câu mặc định nằm giữa câu của khuôn: bỏ dấu chấm cuối sale lỡ gõ để khỏi thành ".."
+            kq[t["khoa"]] = (kq.get(t["khoa"]) or t["mac_dinh"]).rstrip(". ")
     if not kq.get("tinh_huong") and L.get("mac_dinh"):
         kq["tinh_huong"] = L["mac_dinh"].format(thoi_gian_cho=kq.get("thoi_gian_cho") or THIEU.format("Khách có thể đợi"))
     return kq
@@ -202,6 +240,7 @@ def dung(loai: str, v: dict) -> dict:
     thieu: list[str] = []
 
     def dien(mau: str) -> str | None:
+        mau = re.sub(r"\[\[(.*?)\]\]", lambda m: "" if any(not kq.get(k) for k in re.findall(r"\{(\w+)\}", m.group(1))) else m.group(1), mau)
         for k in re.findall(r"\{\?(\w+)\}", mau):
             if not kq.get(k):
                 return None                                  # đoạn tuỳ chọn mà ô trống: bỏ cả đoạn

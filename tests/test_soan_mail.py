@@ -341,7 +341,7 @@ def test_mail_dau_tu_tap_diem_moi_dung_theo_mail_mau_cua_chu_app():
 def test_hai_mau_ha_tang_chung_mot_the_nhung_hai_bieu_mau_rieng():
     from app.ui.pages import soanmail
     nhom = dict(sm.nhom_mau())
-    assert nhom["ha_tang"] == ["ha_tang", "ha_tang_moi"] and nhom["ca_hot"] == ["ca_hot"] and len(nhom) == 4        # bốn thẻ chọn (hạ tầng gộp hai mẫu)
+    assert nhom["ha_tang"] == ["ha_tang", "ha_tang_moi"] and nhom["ca_hot"] == ["ca_hot"] and len(nhom) == 5        # năm thẻ chọn (hạ tầng gộp hai mẫu)
     the = soanmail._chon_loai().children
     ha = next(t for t in the if getattr(t, "className", "").startswith("sm-loai-the") and t.to_plotly_json()["props"].get("data-loai") == "ha_tang")
     assert ha.to_plotly_json()["props"]["data-nhom"] == "ha_tang ha_tang_moi"
@@ -392,3 +392,48 @@ def _cac_nut(goc) -> list:
         if c is not None:
             dung.append(c)
     return out
+
+
+TRANH = {"ma_phieu": "#HT15102600115", "hop_dong": "DLAAF7287", "acc_minh": "DNG.Myltm", "gio_minh": "12/10/2026 13:49:30",
+         "hop_dong_khac": "DLAAF7274", "acc_khac": "DLK.Hienvt54", "gio_khac": "14/10/2026 11:54:37",
+         "nghi_van": "NGHI NGỜ KỸ THUẬT VÀ SALE ĐỊA BÀN PHỐI HỢP ĐỂ DÀNH HĐ CỦA SALE NGOẠI TỈNH", "chao": "FTQ HO",
+         "tinh_huong": "Em lên HĐ dưới sự đồng ý của khách hàng và đã xác nhận lịch triển khai qua Zalo."}
+
+
+def test_mail_tranh_chap_dung_theo_mail_mau_va_bo_doan_tuy_chon_khi_trong():
+    """Chủ app 17/10/2026: mẫu tranh chấp HĐ linh hoạt - mã phiếu, giờ lên HĐ, nghi vấn trong tiêu đề đều không bắt buộc; đoạn trống bị bỏ, không hiện [ô trống]."""
+    kq = sm.dung("tranh_chap", TRANH)
+    assert kq["thieu"] == []
+    assert kq["tieu_de"] == ("#HT15102600115_DLAAF7287, DLAAF7274 XÁC MINH HĐ TRANH CHẤP, "
+                             "NGHI NGỜ KỸ THUẬT VÀ SALE ĐỊA BÀN PHỐI HỢP ĐỂ DÀNH HĐ CỦA SALE NGOẠI TỈNH")
+    t = kq["text"]
+    assert t.startswith("Dear FTQ HO,\n\nEm xin phản ánh trường hợp tranh chấp hợp đồng:\n• HĐ của em: DLAAF7287 (DNG.Myltm), lên lúc 12/10/2026 13:49:30\n"
+                        "• HĐ đang tranh chấp: DLAAF7274 (DLK.Hienvt54), lên lúc 14/10/2026 11:54:37")
+    assert "Kính mong FTQ HO xác minh giúp em hai hợp đồng trên và có hướng xử lý phù hợp." in t        # để trống thì dùng câu mẫu
+    ngan = sm.dung("tranh_chap", {**TRANH, "ma_phieu": "", "gio_minh": "", "gio_khac": " ", "nghi_van": "", "yeu_cau": "trả HĐ về cho sale lên trước"})
+    assert ngan["thieu"] == [] and ngan["tieu_de"] == "DLAAF7287, DLAAF7274 XÁC MINH HĐ TRANH CHẤP"
+    assert "• HĐ của em: DLAAF7287 (DNG.Myltm)\n• HĐ đang tranh chấp: DLAAF7274 (DLK.Hienvt54)\n" in ngan["text"] and "lên lúc" not in ngan["text"]
+    assert "Kính mong FTQ HO trả HĐ về cho sale lên trước." in ngan["text"]
+    assert "[Diễn biến" not in ngan["text"] and sm.dung("tranh_chap", {**TRANH, "tinh_huong": ""})["thieu"] == ["Tình huống"]       # diễn biến bắt buộc, không có câu mẫu
+
+
+def test_doan_tuy_chon_trong_dong_khong_lam_hong_cac_mau_khac():
+    for loai in sm.LOAI:
+        if loai != "tranh_chap":
+            L = sm.LOAI[loai]
+            assert "[[" not in " ".join(L["than"]) + L["tieu_de"], loai
+
+
+def test_tranh_chap_co_goi_y_nhanh_va_nhac_dinh_kem_anh():
+    from app.ui.pages import soanmail
+    cau = sm.LOAI["tranh_chap"]["goi_y_cau"]
+    assert len(cau) >= 6 and all(ten and mau.endswith(".") for ten, mau in cau)
+    nut = [n for n in _cac_nut(soanmail._o_form("tranh_chap")) if getattr(n, "className", "") == "sm-cau"]
+    assert len(nut) == len(cau)
+    assert "đính kèm" in sm.LOAI["tranh_chap"]["nhac"]
+    assert sm.goi_y("tranh_chap", "Đà Nẵng", "") ["den"] == []                    # chưa biết gửi ai: không bịa gợi ý
+
+
+def test_o_co_cau_mac_dinh_bo_dau_cham_cuoi_de_khong_thanh_hai_dau_cham():
+    ra = sm.dung("tranh_chap", {**TRANH, "yeu_cau": "trả HĐ về cho sale lên trước."})["text"]
+    assert "Kính mong FTEL" not in ra and "Kính mong FTQ HO trả HĐ về cho sale lên trước." in ra and ".." not in ra
