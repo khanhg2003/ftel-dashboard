@@ -121,7 +121,7 @@ LOAI = {
         "mac_dinh": ("Bên cạnh nhu cầu của khách hàng hiện hữu, khu vực này còn có nhiều hộ dân đang sinh sống, tiềm năng phát triển thêm thuê bao "
                      "trong thời gian tới. Việc đầu tư tập điểm mới sẽ giúp đáp ứng nhu cầu trước mắt của khách hàng, đồng thời mở rộng vùng phủ "
                      "và tạo điều kiện phát triển thuê bao lâu dài."),
-        "tieu_de": "{hop_dong} - ĐỀ NGHỊ HỖ TRỢ ĐẦU TƯ TẬP ĐIỂM MỚI",
+        "tieu_de": "{hop_dong} - XIN HỖ TRỢ ĐẦU TƯ TẬP ĐIỂM MỚI",
         "than": ["Dear {chao},",
                  "Em có hợp đồng khách hàng đăng ký lắp mới Internet tại khu vực:\n• Tên KH: {ten_kh}\n• SĐT: {sdt}\n• Địa chỉ: {dia_chi}\n"
                  "• Tọa độ: {toa_do}",

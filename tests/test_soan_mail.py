@@ -325,7 +325,7 @@ MOI = {"hop_dong": "CMAAE5918", "ten_kh": "Ngô Lâm Thái Bảo", "sdt": "03722
 def test_mail_dau_tu_tap_diem_moi_dung_theo_mail_mau_cua_chu_app():
     """Chủ app 16/10/2026: thêm mẫu "hỗ trợ đầu tư tập điểm mới" vào nhóm Xin đầu tư hạ tầng (cạnh mẫu nâng cấp tập điểm)."""
     kq = sm.dung("ha_tang_moi", MOI)
-    assert kq["thieu"] == [] and kq["tieu_de"] == "CMAAE5918 - ĐỀ NGHỊ HỖ TRỢ ĐẦU TƯ TẬP ĐIỂM MỚI"
+    assert kq["thieu"] == [] and kq["tieu_de"] == "CMAAE5918 - XIN HỖ TRỢ ĐẦU TƯ TẬP ĐIỂM MỚI"
     t = kq["text"]
     assert t.startswith("Dear anh Thịnh,\n\nEm có hợp đồng khách hàng đăng ký lắp mới Internet tại khu vực:\n• Tên KH: Ngô Lâm Thái Bảo\n• SĐT: 0372256684\n"
                         "• Địa chỉ: Ấp 5, Xã Mỹ Hạnh, Tây Ninh\n• Tọa độ: (10.8304167, 106.4760000)")
