@@ -51,7 +51,7 @@ def _chon_loai():
     """Bốn thẻ chọn loại mail (nhóm hạ tầng gộp hai mẫu vào một thẻ), mỗi thẻ chỉ có tên (chủ app bỏ hẳn dòng mô tả 17/10/2026). Bấm thẻ là đổi ngay trên trình duyệt
     (assets/soan_mail.js ghi vào Store `sm-loai`), không hỏi máy chủ."""
     return html.Div([dcc.Store(id="sm-loai", data="ca_hot"),
-                     *[html.Button([html.Span(icon(BIEU_TUONG.get(k, "mail"), 20), className="sm-loai-bt"), html.Span(sm.LOAI[k]["ten"], className="sm-loai-ten")],
+                     *[html.Button([html.Span(icon(BIEU_TUONG.get(k, "mail"), 18), className="sm-loai-bt"), html.Span(sm.LOAI[k]["ten"], className="sm-loai-ten")],
                                    type="button", className="sm-loai-the" + (" chon" if k == "ca_hot" else ""),
                                    **{"data-loai": k, "data-nhom": " ".join(ds)})
                        for k, ds in sm.nhom_mau()]], className="sm-loai")
