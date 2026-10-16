@@ -229,6 +229,10 @@ def bang_tong_quan(thang: str, ngay: int | None = None,
     mttn_phong_bat = set(mttn.cau_hinh()["phong"])
     mttn_bay_bat = {meta[c]["bay"] for c in mttn_phong_bat if c in meta}
 
+    # "Chưa gán phòng" chỉ hiện khi còn số (HĐ của sale chi nhánh khác đã loại khỏi báo cáo, xem org.yml)
+    cot_dem = [c for c in df.columns if c not in ("phong", "bay", *COT_KHONG_CONG, "mt_camera")]
+    if "CHUA_GAN" in df.index and not df.loc["CHUA_GAN", cot_dem].any():
+        df = df.drop("CHUA_GAN")
     rows = []
     bays = bay_info()
     for bcode, binfo in sorted(bays.items(), key=lambda kv: kv[1]["thu_tu"]):

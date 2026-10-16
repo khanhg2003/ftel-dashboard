@@ -64,4 +64,11 @@ fallback:
   theo_phong_he_thong:
     "Phòng kỹ thuật": {DNG_01: KT_DNG1, DNG_02: KT_DNG2, QNM: KT_QNM}
     "Phòng CUS":      {DNG_01: CUS_DNG1, DNG_02: CUS_DNG2, QNM: CUS_QNM}
+  # HĐ do sale CHI NHÁNH KHÁC bán hộ (CN Bán ngoài DNG_* / QNM, không phải ECOM, acc không có trong danh mục)
+  # KHÔNG tính vào số của Đà Nẵng + Quảng Nam: gán mã này, mã không có trong danh sách phòng nên mọi bảng
+  # theo phòng và dòng tổng đều bỏ qua (chủ app chốt 16/10/2026, thay quy tắc cũ "cộng vào Chưa gán phòng").
+  # CN Bán rỗng hoặc lạ kiểu "DNG" vẫn về Chưa gán phòng để người quản trị soát.
+  ngoai_chi_nhanh:
+    ma: NGOAI_CN
+    tien_to_noi_bo: [DNG, QNM]
   mac_dinh: CHUA_GAN

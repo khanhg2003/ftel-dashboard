@@ -19,7 +19,7 @@ from sqlalchemy import text
 
 from app.db import engine
 from app.metrics import dieu_kien_ton, month_range, prev_month
-from app.org import bay_info, phong_order
+from app.org import bay_info, ma_ngoai_chi_nhanh, phong_order
 
 CN_NOI_BO = ("DNG_01", "DNG_02", "QNM")
 NHOM_GOI = ("Giga", "Sky", "Meta")
@@ -63,6 +63,7 @@ def hop_dong_online(tu: str, den: str, chi_phong: list[str] | None = None) -> pd
         FROM fact_internet f
         WHERE f.ngay_online >= :tu AND f.ngay_online <= :den"""),
         engine, params={"tu": tu, "den": den})
+    df = df[df.phong_code != ma_ngoai_chi_nhanh()]
     if chi_phong is not None:
         df = df[df.phong_code.isin(set(chi_phong))]
     df = df.copy()
@@ -94,6 +95,7 @@ def hop_dong_ton(chi_phong: list[str] | None = None, ten_kh: bool = False) -> pd
     df = pd.read_sql_query(text(f"""SELECT f.hop_dong, f.phong_code, f.acc_nhan_vien, f.acc_norm,
                                      f.goi_dich_vu, f.ngay_tao_hd, f.nguon_ban{them}
                               FROM fact_internet f WHERE {dk}"""), engine, params=p)
+    df = df[df.phong_code != ma_ngoai_chi_nhanh()]
     if chi_phong is not None:
         df = df[df.phong_code.isin(set(chi_phong))]
     df = df.copy()

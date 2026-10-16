@@ -342,6 +342,11 @@ def phong_theo_danh_muc(dong, ngay=None) -> str | None:
     return max(dong, key=lambda x: x[1])[2]
 
 
+def ma_ngoai_chi_nhanh() -> str:
+    """Mã gán cho HĐ do sale chi nhánh khác bán hộ (không tính vào số Đà Nẵng + Quảng Nam)."""
+    return (org_config()["fallback"].get("ngoai_chi_nhanh") or {}).get("ma", "")
+
+
 def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=None, doi_tuong_kh=None):
     """Trả về (mã phòng, có phải hợp đồng ECOM không). `ngay` = ngày online (hoặc ngày tạo) của hợp đồng,
     dùng để chọn đúng phòng khi nhân sự chuyển phòng (cột Hiệu lực từ / đến của danh mục).
@@ -373,4 +378,7 @@ def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=
         code = theo_phong.get(cn_ban)
         if code:
             return code, False
+    ngoai = fb.get("ngoai_chi_nhanh")
+    if ngoai and cn_ban and not cn_ban.startswith(tuple(ngoai["tien_to_noi_bo"])):
+        return ngoai["ma"], False
     return fb["mac_dinh"], False
