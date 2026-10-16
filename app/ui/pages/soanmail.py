@@ -24,6 +24,7 @@ from app.ui.components import alert, modal, tip
 from app.ui.icons import icon
 from app.ui.pages.danhba import chon_chi_nhanh
 
+BIEU_TUONG = {"ca_hot": "zap", "hoa_don": "file_text", "ha_tang": "server", "bo_phat": "wifi", "tranh_chap": "compare"}      # icon của từng thẻ chọn loại mail
 F, FT = "sm-f", "sm-ft"                                   # kiểu id của ô một dòng / ô nhiều dòng (tình huống)
 TU_NHAN = ""                                              # ô chi nhánh nơi lắp: để trống = tự nhận từ địa chỉ
 VT = {"den": "Đến", "cc": "CC"}
@@ -50,7 +51,7 @@ def _chon_loai():
     """Bốn thẻ chọn loại mail (nhóm hạ tầng gộp hai mẫu vào một thẻ), mỗi thẻ chỉ có tên (chủ app bỏ hẳn dòng mô tả 17/10/2026). Bấm thẻ là đổi ngay trên trình duyệt
     (assets/soan_mail.js ghi vào Store `sm-loai`), không hỏi máy chủ."""
     return html.Div([dcc.Store(id="sm-loai", data="ca_hot"),
-                     *[html.Button(html.Span(sm.LOAI[k]["ten"], className="sm-loai-ten"),
+                     *[html.Button([html.Span(icon(BIEU_TUONG.get(k, "mail"), 20), className="sm-loai-bt"), html.Span(sm.LOAI[k]["ten"], className="sm-loai-ten")],
                                    type="button", className="sm-loai-the" + (" chon" if k == "ca_hot" else ""),
                                    **{"data-loai": k, "data-nhom": " ".join(ds)})
                        for k, ds in sm.nhom_mau()]], className="sm-loai")

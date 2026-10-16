@@ -1293,13 +1293,22 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 /* ---- Soạn email (app/ui/pages/soanmail.py, assets/soan_mail.js): chọn loại · form · lá thư sửa được ---- */
 .sm-loai { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 1100px) { .sm-loai { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.sm-loai-the { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 13px 14px; cursor: pointer; text-align: left;
-  font: inherit; background: var(--card); border: 1.5px solid var(--border); border-radius: 12px;
-  transition: border-color .15s, background .15s, box-shadow .15s; }
-.sm-loai-the:hover { border-color: var(--fpt-blue); }
-.sm-loai-the.chon { border-color: var(--fpt-blue); background: #EEF5FC; box-shadow: 0 0 0 3px #0072bc1f; }
-.sm-loai-ten { display: inline-flex; align-items: center; font-size: 14px; font-weight: 650; color: var(--text); }
-.sm-loai-the.chon .sm-loai-ten { color: var(--fpt-blue-700); }
+.sm-loai-the { --ac: #0072BC; --ac2: #3A9BDC; --ac-nhat: #E8F3FC; display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; text-align: left;
+  font: inherit; background: var(--card); border: 1.5px solid var(--border); border-radius: 14px; box-shadow: 0 1px 2px #1018280d;
+  transition: transform .15s, border-color .15s, background .15s, box-shadow .15s, color .15s; }
+.sm-loai-the:hover { transform: translateY(-2px); border-color: var(--ac); box-shadow: 0 6px 14px #1018281a; }
+.sm-loai-bt { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 11px;
+  color: var(--ac); background: var(--ac-nhat); transition: background .15s, color .15s; }
+.sm-loai-ten { font-size: 14.5px; font-weight: 650; line-height: 1.25; color: var(--text); }
+.sm-loai-the.chon { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--ac), var(--ac2));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--ac) 38%, transparent); }
+.sm-loai-the.chon .sm-loai-bt { color: #fff; background: #ffffff33; }
+.sm-loai-the.chon .sm-loai-ten { color: #fff; }
+.sm-loai-the[data-loai="ca_hot"] { --ac: #E8590C; --ac2: #FF922B; --ac-nhat: #FFF0E6; }
+.sm-loai-the[data-loai="hoa_don"] { --ac: #0072BC; --ac2: #3A9BDC; --ac-nhat: #E8F3FC; }
+.sm-loai-the[data-loai="ha_tang"] { --ac: #0B8F7E; --ac2: #2DBFA9; --ac-nhat: #E3F6F2; }
+.sm-loai-the[data-loai="bo_phat"] { --ac: #6D4AD1; --ac2: #9672EA; --ac-nhat: #EFEAFC; }
+.sm-loai-the[data-loai="tranh_chap"] { --ac: #D6336C; --ac2: #F06595; --ac-nhat: #FDE8EF; }
 
 .sm-luoi { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; margin-top: 12px; align-items: start; }
 .sm-o { display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: row dense; gap: 12px 14px; margin-bottom: 14px; }
