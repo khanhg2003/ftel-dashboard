@@ -145,7 +145,7 @@ LOAI = {
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: DAAAR2260"),
                    _o("ten_kh", "Tên khách hàng", "VD: Nguyễn Văn Phúc"),
                    _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),
-                   _o("thiet_bi", "Xin hỗ trợ thêm", "Để trống = bộ phát phụ (VD: 2 bộ phát phụ, bộ mesh)", bat_buoc=False, mac_dinh="bộ phát phụ")],
+                   _o("thiet_bi", "Xin hỗ trợ thêm", "Để trống = bộ phát phụ (VD: 2 bộ phát phụ, bộ mesh)", dai=True, bat_buoc=False, mac_dinh="bộ phát phụ")],
         "y_chinh": "Tình huống (bấm gợi ý bên dưới hoặc gõ ý chính, Fox viết giúp)",
         "y_mau": "khách đăng ký gói giga kèm camera trả trước 6 tháng, nhà 2 tầng, thiết bị cũ yếu, khách không muốn mua thêm",
         "goi_y_cau": [("Nhà nhiều tầng", "Nhà khách hàng có nhiều tầng nên sóng wifi hiện tại không phủ hết các tầng."),
