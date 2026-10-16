@@ -66,7 +66,7 @@ LOAI = {
         "than": ["Kính gửi {chao},",
                  "Em có HĐ: **{hop_dong}** muốn **lắp gói cá nhân nhưng xin đứng tên và xuất hóa đơn doanh nghiệp.**",
                  "{tinh_huong}",
-                 "D/c lắp đặt: {dia_chi}\nĐc xuất hóa đơn: **{dia_chi_hd}**\nMã số thuế: **{mst}**\nSố điện thoại: {sdt}\n"
+                 "D/C lắp đặt: {dia_chi}\nĐC xuất hóa đơn: **{dia_chi_hd}**\nMã số thuế: **{mst}**\nSố điện thoại: {sdt}\n"
                  "Gói cước: {goi_cuoc}",
                  "{?y_them}", "Em xin chân thành cảm ơn ạ!"],
         "goi_y": {"den": [("pho_giam_doc", "lap")], "cc": [("giam_doc", "lap"), ("giam_doc", "nha")]},
