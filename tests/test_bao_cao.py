@@ -73,8 +73,9 @@ def test_gan_phong_doi_tuong_kh_vip7_vuot_tren_ecom_va_danh_muc():
     khoản bán là ECOM hoặc có trong danh mục nhân sự - nhóm khách công ty quản lý riêng, không phụ
     thuộc ai đứng tên bán."""
     dm = {"dng.abc": "IBB2"}
-    # vượt trên cả ECOM (lẽ ra là ECOM_QNM nếu không có VIP 7)
-    assert assign_phong("HCM.ECOM.x", "", "HCM_ECOM", "QNM", dm, doi_tuong_kh="VIP 7") == ("ANCS", False)
+    # vượt trên cả ECOM (lẽ ra là ECOM_QNM / ECOM_DNG nếu không có VIP 7); khách Quảng Nam thì về ANCS_QNM (16/10/2026)
+    assert assign_phong("HCM.ECOM.x", "", "HCM_ECOM", "DNG_02", dm, doi_tuong_kh="VIP 7") == ("ANCS", False)
+    assert assign_phong("HCM.ECOM.x", "", "HCM_ECOM", "QNM", dm, doi_tuong_kh="VIP 7") == ("ANCS_QNM", False)
     # vượt trên cả danh mục nhân sự (lẽ ra là IBB2 nếu không có VIP 7)
     assert assign_phong("DNG.ABC", "Phòng kinh doanh 2", "DNG_01", "DNG_01", dm,
                         doi_tuong_kh="VIP 7") == ("ANCS", False)

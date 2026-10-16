@@ -43,3 +43,20 @@ def test_bao_cao_tong_khong_con_dong_chua_gan_khi_het_so(monkeypatch):
     so.loc["CHUA_GAN", "online"] = 0
     bang, _ = ov.bang_tong_quan("2026-09", 11)
     assert "CHUA_GAN" not in set(bang.phong_code) and bang[bang.phong_code == "TOTAL"].iloc[0].online == 5
+
+
+def test_vip7_theo_cn_quan_ly_cua_khach_nhu_inside():
+    """Chủ app chốt 16/10/2026: VIP 7 của khách Quảng Nam tính cho Quảng Nam (ANCS_QNM), còn lại vẫn ANCS (Đà Nẵng)."""
+    assert assign_phong("x", "", "HCM_ECOM", "QNM", DM, doi_tuong_kh="VIP 7") == ("ANCS_QNM", False)
+    assert assign_phong("DNG.ABC", "", "DNG_02", "QNM", DM, doi_tuong_kh="vip 7") == ("ANCS_QNM", False)    # vượt cả danh mục
+    assert assign_phong("x", "", "HCM_ECOM", "DNG_01", DM, doi_tuong_kh="VIP 7") == ("ANCS", False)
+    assert assign_phong("DNG.ABC", "", "DNG_02", "BPC", DM, doi_tuong_kh="VIP 7") == ("ANCS", False)       # tỉnh khác: giữ ở ANCS
+    assert assign_phong("x", "", "HCM_ECOM", "QNM", DM) == ("ECOM_QNM", True)                                # không phải VIP 7: như cũ
+
+
+def test_ancs_qnm_la_phong_quang_nam_va_khong_cong_nhan_su_muc_tieu_vao_tong():
+    from app.org import org_config
+    from app.overview import phong_khong_cong_tong
+    p = {x["code"]: x for x in org_config()["phong"]}["ANCS_QNM"]
+    assert p["chi_nhanh"] == "QNM" and p["bay"] == "KHAC"
+    assert {"ANCS", "ANCS_QNM"} <= phong_khong_cong_tong()

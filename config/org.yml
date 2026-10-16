@@ -46,6 +46,7 @@ phong:
   - {code: ECOM_DNG, ten: "ECOM DNG",       bay: ECOM, loai: ECOM,   chi_nhanh: DNG, nhom_khac: DNG,  thu_tu: 1}
   - {code: ECOM_QNM, ten: "ECOM QNM",       bay: ECOM, loai: ECOM,   chi_nhanh: QNM, nhom_khac: QNM,  thu_tu: 2}
   - {code: ANCS,     ten: "ANCS",           bay: KHAC, loai: KHAC,   chi_nhanh: DNG, nhom_khac: null, thu_tu: 1}
+  - {code: ANCS_QNM, ten: "ANCS QNM",     bay: KHAC, loai: KHAC,   chi_nhanh: QNM, nhom_khac: null, thu_tu: 4}
   - {code: DOANHNGHIEP, ten: "Doanh nghiệp", bay: KHAC, loai: KHAC,  chi_nhanh: DNG, nhom_khac: null, thu_tu: 2}
   - {code: CHUA_GAN, ten: "Chưa gán phòng", bay: KHAC, loai: KHAC,   chi_nhanh: DNG, nhom_khac: null, thu_tu: 3}
 
@@ -57,6 +58,10 @@ fallback:
   # thường (khoá viết hoa).
   doi_tuong_kh_dac_biet:
     "VIP 7": ANCS
+  # ...nhưng khách của tỉnh nào thì tính cho chi nhánh đó, như Inside (chủ app chốt 16/10/2026): VIP 7 có
+  # CN Quản lý QNM về ANCS_QNM (thuộc Quảng Nam), còn lại (DNG_*, tỉnh khác) vẫn về ANCS (Đà Nẵng).
+  dac_biet_theo_cn_quan_ly:
+    ANCS: {QNM: ANCS_QNM}
   ecom_cn_ban_suffix: "_ECOM"      # CN Bán = HCM_ECOM / HNI_ECOM  -> ECOM
   ecom_theo_cn_quan_ly:            # tách ECOM DNG / ECOM QNM theo CN Quản lý
     QNM: ECOM_QNM

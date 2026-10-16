@@ -45,7 +45,7 @@ nsld:
 # Dòng TỔNG TOÀN CHI NHÁNH (và Tổng DNG / Tổng QNM) không cộng NHÂN SỰ và MỤC TIÊU của các phòng này,
 # làm như Google Sheet (chốt 14/09/2026). ANCS vẫn hiện dòng riêng; số thực hiện vẫn tính đủ.
 tong_chi_nhanh:
-  khong_cong: [ANCS]
+  khong_cong: [ANCS, ANCS_QNM]
 
 # MTTN (Miền Trung - Tây Nguyên): hợp đồng của các phòng dưới đây có CN Quản lý (tỉnh của khách) thuộc danh
 # sách mã tỉnh thì tính là số MTTN. Mục tiêu = tỷ lệ % số online MTTN / số online phòng, nhập ở Quản trị →

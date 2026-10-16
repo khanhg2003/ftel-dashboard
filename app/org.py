@@ -357,10 +357,11 @@ def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=
     fb = org_config()["fallback"]
     dac_biet = {k.upper(): v for k, v in (fb.get("doi_tuong_kh_dac_biet") or {}).items()}
     phong_dac_biet = dac_biet.get(norm_text(doi_tuong_kh).upper())
-    if phong_dac_biet:
-        return phong_dac_biet, False
     cn_ban = norm_text(cn_ban).upper()
     cn_quan_ly = norm_text(cn_quan_ly).upper()
+    if phong_dac_biet:
+        theo_tinh = (fb.get("dac_biet_theo_cn_quan_ly") or {}).get(phong_dac_biet) or {}
+        return next((v for k, v in theo_tinh.items() if cn_quan_ly.startswith(k)), phong_dac_biet), False
 
     if cn_ban.endswith(fb["ecom_cn_ban_suffix"]):
         rule = fb["ecom_theo_cn_quan_ly"]
