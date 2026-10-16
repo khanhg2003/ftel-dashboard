@@ -29,12 +29,11 @@ def _o(khoa, nhan, goi_y="", dai=False, bat_buoc=True, mac_dinh=""):
     return {"khoa": khoa, "nhan": nhan, "goi_y": goi_y, "dai": dai, "bat_buoc": bat_buoc, "mac_dinh": mac_dinh}
 
 
-# Mỗi mẫu: `nhom` (có thì các mẫu cùng nhóm dùng chung MỘT thẻ chọn, `nhan_con` là tên nút nhỏ), ô sale điền (`truong`; `dai` = chiếm cả hàng), `mo_ta` (một dòng trên thẻ chọn loại), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
+# Mỗi mẫu: `nhom` (có thì các mẫu cùng nhóm dùng chung MỘT thẻ chọn, `nhan_con` là tên nút nhỏ), ô sale điền (`truong`; `dai` = chiếm cả hàng), khuôn (`than`: mỗi phần tử một đoạn; **đậm**; {khoa} = ô điền; {?khoa} = bỏ cả đoạn nếu
 # ô đó trống; {?y_them} là đoạn sale tự thêm), tiêu đề, gợi ý người nhận (`goi_y`: (nhóm chức danh, nơi)), và lời dặn Fox (`fox`).
 LOAI = {
     "ca_hot": {
         "ten": "Ca hot triển khai",
-        "mo_ta": "Khách cần lắp gấp, nhờ phân công kỹ thuật",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: DAAAP6381"),
                    _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, quận / huyện, tỉnh", dai=True),
                    _o("han_lap", "Cần lắp trước", "VD: 17h chiều nay")],
@@ -54,7 +53,6 @@ LOAI = {
     },
     "hoa_don": {
         "ten": "Xin xuất hoá đơn DN",
-        "mo_ta": "Khách đăng ký gói cá nhân nhưng xuất hoá đơn công ty",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: NTAAQ4015"),
                    _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),
                    _o("dia_chi_hd", "Địa chỉ xuất hoá đơn", "Địa chỉ trên giấy phép doanh nghiệp", dai=True),
@@ -83,7 +81,6 @@ LOAI = {
     },
     "ha_tang": {
         "ten": "Xin đầu tư hạ tầng",
-        "mo_ta": "Nâng cấp tập điểm đầy port, hoặc đầu tư tập điểm mới",
         "nhom": "ha_tang", "nhan_con": "Nâng cấp tập điểm",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: CMAAE5918"),
                    _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),
@@ -109,7 +106,6 @@ LOAI = {
     },
     "ha_tang_moi": {
         "ten": "Xin đầu tư hạ tầng",
-        "mo_ta": "Nâng cấp tập điểm đầy port, hoặc đầu tư tập điểm mới",
         "nhom": "ha_tang", "nhan_con": "Đầu tư tập điểm mới",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: CMAAE5918"),
                    _o("ten_kh", "Tên khách hàng", "VD: Ngô Lâm Thái Bảo"),
@@ -141,7 +137,6 @@ LOAI = {
     },
     "bo_phat": {
         "ten": "Xin thêm bộ phát",
-        "mo_ta": "Nhà khách rộng / nhiều tầng, xin hỗ trợ thêm bộ phát phụ",
         "truong": [_o("hop_dong", "Mã hợp đồng", "VD: DAAAR2260"),
                    _o("ten_kh", "Tên khách hàng", "VD: Nguyễn Văn Phúc"),
                    _o("dia_chi", "Địa chỉ lắp đặt", "Số nhà, đường, phường / xã, tỉnh", dai=True),

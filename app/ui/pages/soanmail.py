@@ -47,13 +47,13 @@ def _cua_loai(loai: str, vals: list, ids: list) -> dict:
 
 # ------------------------------------------------------------------ giao diện
 def _chon_loai():
-    """Bốn thẻ chọn loại mail (nhóm hạ tầng gộp hai mẫu vào một thẻ), mỗi thẻ chỉ có tên, mô tả nằm trong biểu tượng ⓘ (di chuột mới hiện). Bấm thẻ là đổi ngay trên trình duyệt
+    """Bốn thẻ chọn loại mail (nhóm hạ tầng gộp hai mẫu vào một thẻ), mỗi thẻ chỉ có tên (chủ app bỏ hẳn dòng mô tả 17/10/2026). Bấm thẻ là đổi ngay trên trình duyệt
     (assets/soan_mail.js ghi vào Store `sm-loai`), không hỏi máy chủ."""
     return html.Div([dcc.Store(id="sm-loai", data="ca_hot"),
-                     *[html.Button(html.Span([sm.LOAI[k]["ten"], tip(sm.LOAI[k]["mo_ta"] + ".", trai=i >= 2)], className="sm-loai-ten"),
+                     *[html.Button(html.Span(sm.LOAI[k]["ten"], className="sm-loai-ten"),
                                    type="button", className="sm-loai-the" + (" chon" if k == "ca_hot" else ""),
                                    **{"data-loai": k, "data-nhom": " ".join(ds)})
-                       for i, (k, ds) in enumerate(sm.nhom_mau())]], className="sm-loai")
+                       for k, ds in sm.nhom_mau()]], className="sm-loai")
 
 
 def layout():
