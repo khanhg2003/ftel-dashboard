@@ -64,7 +64,7 @@ LOAI = {
         "y_mau": "khách chỉ đăng ký gói trả trước 6 tháng, đứng tên doanh nghiệp, dùng cho 3 máy tính nhân viên, đang mở thêm chi nhánh",
         "tieu_de": "{hop_dong} - HỖ TRỢ CF KHÁCH HÀNG LẮP GÓI CÁ NHÂN MUỐN XHĐ DOANH NGHIỆP",
         "than": ["Kính gửi {chao},",
-                 "Em có hd: **{hop_dong}** muốn **lắp gói cá nhân nhưng xin đứng tên và xuất hóa đơn doanh nghiệp.**",
+                 "Em có HĐ: **{hop_dong}** muốn **lắp gói cá nhân nhưng xin đứng tên và xuất hóa đơn doanh nghiệp.**",
                  "{tinh_huong}",
                  "D/c lắp đặt: {dia_chi}\nĐc xuất hóa đơn: **{dia_chi_hd}**\nMã số thuế: **{mst}**\nSố điện thoại: {sdt}\n"
                  "Gói cước: {goi_cuoc}",
@@ -95,7 +95,7 @@ LOAI = {
         "y_tuy_chon": True,
         "mac_dinh": "hiện khách đang cần sớm để phục vụ cho công việc và gia đình sử dụng, có thể đợi khoảng {thoi_gian_cho}.",
         "tieu_de": "{hop_dong} - ĐỀ NGHỊ NÂNG CẤP TẬP ĐIỂM {tap_diem} LÊN {port_nang_cap} PORT",
-        "than": ["Dear {chao},", "Em có hd: **{hop_dong}**\nĐịa chỉ: {dia_chi}",
+        "than": ["Dear {chao},", "Em có HĐ: **{hop_dong}**\nĐịa chỉ: {dia_chi}",
                  "Hiện kỹ thuật qua khảo sát báo lại nhà KH kéo về TD **{tap_diem}** hiện đang full {port_hien_tai} port cần "
                  "nâng cấp để có thể triển khai cho khách hàng, nhờ {chao} hỗ trợ phương án nâng cấp tập điểm **{tap_diem}** "
                  "từ {port_hien_tai} port lên {port_nang_cap} port để có thể sớm hỗ trợ cho khách hàng với ạ, {tinh_huong}",

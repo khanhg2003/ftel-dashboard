@@ -55,7 +55,7 @@ def test_mail_xin_hoa_don_dn_du_cac_dong_cua_mail_mau():
          "tinh_huong": "Hiện khách chỉ muốn đăng ký gói trả trước 6 tháng."}
     kq = sm.dung("hoa_don", v)
     assert kq["thieu"] == [] and kq["text"].startswith("Kính gửi anh Ý,")
-    for dong in ("Em có hd: NTAAQ4015 muốn lắp gói cá nhân nhưng xin đứng tên và xuất hóa đơn doanh nghiệp.",
+    for dong in ("Em có HĐ: NTAAQ4015 muốn lắp gói cá nhân nhưng xin đứng tên và xuất hóa đơn doanh nghiệp.",
                  "D/c lắp đặt: 225 Cầu Dừa, Nha Trang, Khánh Hòa", "Đc xuất hóa đơn: Số 02L Ngô Quyền, Sơn Trà, Đà Nẵng",
                  "Mã số thuế: 4201591367", "Số điện thoại: 0963901900", "Gói cước: combo vvip trả trước 6 tháng"):
         assert dong in kq["text"]
