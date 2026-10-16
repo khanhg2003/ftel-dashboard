@@ -1741,8 +1741,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .onl-gap.mo { margin-bottom: 14px; }
 
 /* Soạn email: hai nút nhỏ đổi mẫu trong cùng một thẻ (nhóm Xin đầu tư hạ tầng) */
-.sm-con { display: inline-flex; gap: 2px; padding: 3px; margin: 0 0 14px; background: #EEF2F7; border-radius: 9px; }
-.sm-con-the { padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; color: #475467; background: transparent; border: 0; border-radius: 7px; cursor: pointer; }
+.sm-con { display: flex; gap: 4px; padding: 4px; margin: 0 0 16px; background: #EEF2F7; border-radius: 11px; }
+.sm-con-the { flex: 1 1 0; padding: 11px 14px; font: inherit; font-size: 14.5px; font-weight: 600; color: #475467; background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
 .sm-con-the:hover { color: var(--fpt-blue-700); }
 .sm-con-the.chon { color: var(--fpt-blue-700); background: #fff; box-shadow: 0 1px 3px #1018281f; }
 
