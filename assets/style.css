@@ -1756,16 +1756,18 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 /* Chuyển khối: một nút chữ cạnh "Thoát" ở chân menu, bấm thì xổ danh sách lên trên */
 .sidebar .foot { position: relative; }
 .khoi-doi { position: static; }
-.khoi-hien { list-style: none; display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-weight: 500; color: #CBDCEA; cursor: pointer; user-select: none; }
+.khoi-hien { list-style: none; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 10px; border-radius: 6px; font-weight: 600; color: #fff;
+  background: rgba(255, 255, 255, .10); border: 1px solid rgba(255, 255, 255, .30); cursor: pointer; user-select: none;
+  transition: background .16s var(--ease), border-color .16s var(--ease); }
 .khoi-hien::-webkit-details-marker { display: none; }
-.khoi-hien:hover, .khoi-doi[open] .khoi-hien { color: #fff; }
+.khoi-hien:hover, .khoi-doi[open] .khoi-hien { background: rgba(255, 255, 255, .20); border-color: rgba(255, 255, 255, .5); }
 .khoi-ds { display: none; position: absolute; left: 12px; right: 12px; bottom: calc(100% - 4px); z-index: 30; padding: 4px; border-radius: 8px;
   background: #0E3A62; border: 1px solid rgba(255, 255, 255, .16); box-shadow: 0 -8px 24px rgba(0, 10, 25, .35); }
 .khoi-doi[open] .khoi-ds { display: block; }
 .khoi-muc { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 6px; font-size: 13px;
   text-decoration: none; color: #D2E2F0; }
 .khoi-muc:hover { background: rgba(255, 255, 255, .08); color: #fff; }
-.khoi-muc.active { color: #fff; font-weight: 600; }
+.khoi-muc.active { color: #fff; font-weight: 600; background: rgba(255, 255, 255, .10); }
 .khoi-muc small { white-space: nowrap; font-size: 10.5px; color: #9FC0DA; }
 /* menu thu gọn: chỉ còn biểu tượng, danh sách xổ sang bên phải */
 .app-shell.thu-gon .khoi-hien span:last-child { display: none; }

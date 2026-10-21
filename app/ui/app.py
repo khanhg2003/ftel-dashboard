@@ -186,7 +186,7 @@ def _chon_khoi_ui(khoi_dang_xem: str):
         tt = kh.KHOI[k]
         dang_xem = k == khoi_dang_xem
         duoi = icon("check", 14) if dang_xem else (None if tt["san_sang"] else html.Small("Sắp có"))
-        muc.append(dcc.Link([html.Span(tt["ten"]), duoi], href=tt["trang_chu"], className="khoi-muc active" if dang_xem else "khoi-muc"))
+        muc.append(dcc.Link([html.Span(tt["ten_day_du"]), duoi], href=tt["trang_chu"], className="khoi-muc active" if dang_xem else "khoi-muc"))
     return html.Details([
         html.Summary([icon("doi_khoi", 14), html.Span(kh.KHOI[khoi_dang_xem]["ten_ngan"])], className="khoi-hien", title="Chuyển khối làm việc"),
         html.Div(muc, className="khoi-ds"),
