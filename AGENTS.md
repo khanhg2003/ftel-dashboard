@@ -315,7 +315,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 
 9. **Khối làm việc** (chốt 21/10/2026, `app/ui/khoi.py`): app có ba khối Kinh doanh (KD), Dịch vụ khách hàng (DVKH), Kỹ thuật (KT, chưa có
    trang). Đường dẫn quyết định khối: `/dvkh...`, `/kt...`; trang dùng chung (`/taikhoan`, `/huongdan`, `/quantri`) giữ khối đang xem
-   (Store `ui-khoi`). **Quản trị (BGĐ, role `admin`) chuyển được giữa mọi khối** bằng thanh "Khối" đầu menu; vai trò `dvkh` chỉ thấy khối DVKH
+   (Store `ui-khoi`). **Quản trị (BGĐ, role `admin`) chuyển được giữa mọi khối** bằng ô "Khối làm việc" nằm trên chân menu (thẻ `details` xổ lên trên, `assets/khoi_doi.js` đóng khi bấm ra ngoài; chủ app chê thanh ba nút ở đầu menu là thô, 21/10/2026); vai trò `dvkh` chỉ thấy khối DVKH
    (đăng nhập vào `/dvkh`, không vào được trang KD, `phong_duoc_xem()` và `phong_nhan_su()` đều rỗng); các vai trò cũ vẫn chỉ ở khối KD
    (`SessionUser.khoi_duoc_xem()`, `vao_duoc()` kiểm theo khối). Cập nhật file DVKH: `duoc_nap_dvkh` (admin + `dvkh`), callback phải dùng
    `callback_can_quyen(app, "duoc_nap_dvkh")`. Thêm khối mới = thêm mục vào `KHOI`, mảng menu, vai trò, và trang dưới `/<khối>/`.

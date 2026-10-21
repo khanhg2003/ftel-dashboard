@@ -173,20 +173,32 @@ def _chon_khoi(path: str, khoi_cu: str | None) -> str:
     return k if k in duoc else duoc[0]
 
 
+def _the_khoi(k: str):
+    return html.Span(icon(kh.KHOI[k]["bieu_tuong"], 16), className=f"khoi-the khoi-the-{k.lower()}")
+
+
 def _chon_khoi_ui(khoi_dang_xem: str):
-    """Thanh chuyển khối ở đầu menu - chỉ hiện với tài khoản được vào từ hai khối trở lên."""
+    """Ô chuyển khối ngay trên chân menu: hiện khối đang xem, bấm thì xổ danh sách khối lên trên.
+    Chỉ hiện với tài khoản được vào từ hai khối trở lên. Dùng thẻ details nên không cần callback."""
     duoc = current_user.khoi_duoc_xem()
     if len(duoc) < 2:
         return None
-    nut = []
+    muc = []
     for k in kh.THU_TU:
         if k not in duoc:
             continue
-        thong_tin = kh.KHOI[k]
-        cls = "khoi-nut active" if k == khoi_dang_xem else "khoi-nut"
-        nut.append(dcc.Link(thong_tin["ten"] if thong_tin["san_sang"] else [thong_tin["ten"], html.Small("Sắp có")],
-                            href=thong_tin["trang_chu"], className=cls, title=thong_tin["ten_day_du"]))
-    return html.Div([html.Div("Khối", className="khoi-nhan"), html.Div(nut, className="khoi-nhom")], className="khoi-chon")
+        tt = kh.KHOI[k]
+        dang_xem = k == khoi_dang_xem
+        duoi = icon("check", 15, "khoi-tick") if dang_xem else (None if tt["san_sang"] else html.Small("Sắp có"))
+        muc.append(dcc.Link([_the_khoi(k), html.Span(tt["ten"], className="khoi-ten khoi-text"), duoi],
+                            href=tt["trang_chu"], className="khoi-muc active" if dang_xem else "khoi-muc", title=tt["ten_day_du"]))
+    hien = kh.KHOI[khoi_dang_xem]
+    return html.Details([
+        html.Summary([_the_khoi(khoi_dang_xem),
+                      html.Span([html.Span("Khối làm việc", className="khoi-nhan"), html.Span(hien["ten"], className="khoi-ten")], className="khoi-text"),
+                      icon("doi_khoi", 15, "khoi-chev")], className="khoi-hien", title="Chuyển khối"),
+        html.Div([html.Div("Chuyển sang khối", className="khoi-tieu"), *muc], className="khoi-ds"),
+    ], className="khoi-doi")
 
 
 def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
@@ -226,8 +238,8 @@ def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
                                className="brand-text")],
                      className="brand-mark"),
         ], className="brand"),
-        _chon_khoi_ui(khoi_dang_xem),
         html.Div(items, className="nav"),
+        _chon_khoi_ui(khoi_dang_xem),
         html.Div([html.Div(current_user.ho_ten, className="who"),
                   html.Div(ROLE_LABEL.get(current_user.role, current_user.role)),
                   html.Div([
