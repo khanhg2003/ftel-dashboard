@@ -35,6 +35,9 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Theo dõi Online trong ngày (phiếu ca theo mã HĐ + khung giờ, nối với bảng Báo cáo ngày) | `app/online_ca.py` + `app/ui/pages/baocaongay_online.py` + `assets/online.js` |
 | Danh bạ liên hệ (đọc hai file PNC / TIN, gộp trùng, tra cứu, người sale tự thêm) | `app/danh_ba.py` + `app/ui/pages/danhba.py` |
 | Soạn email (khuôn 3 loại mail, gợi ý người nhận, Fox viết đoạn tình huống) + nút copy dùng chung | `app/soan_mail.py` + `app/ui/pages/soanmail.py` + `assets/sao_chep.js` |
+| Khối làm việc (Kinh doanh / DVKH / Kỹ thuật): định nghĩa, menu từng khối, đường dẫn thuộc khối nào | `app/ui/khoi.py` (menu KD vẫn ở `NAV` của `app/ui/app.py`) |
+| Khối DVKH: đọc file Excel, nạp database, số liệu, nhận định, phân tích chéo | `app/dvkh/` (`doc_file.py`, `nap.py`, `so_lieu.py`, `tong_quan.py`, `insight.py`, `cheo.py`, `models.py`) + `scripts/nap_dvkh.py` |
+| Trang khối DVKH (đường dẫn `/dvkh/...`) | `app/ui/pages/dvkh.py` (định tuyến) + `dvkh_tq.py`, `dvkh_sr_bd.py`, `dvkh_sr_cd.py`, `dvkh_roi_mang.py`, `dvkh_cong_no.py`, `dvkh_nhan_su.py`, `dvkh_insight.py`, `dvkh_nap.py`; thành phần chung `dvkh_chung.py` |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 
@@ -253,6 +256,23 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      vượt thang màu của các page nên màu không nói gì mà lại làm dòng VNĐ khó đọc.
      Cột của bảng này phải có `colId` kèm tên chỉ số: dash-ag-grid giữ `valueFormatter` đã biên dịch theo
      colId, đổi chỉ số mà colId không đổi thì Tin nhắn / PTTB vẫn hiện ra "$". Tiền nhập tay tổng tháng không vẽ theo ngày. Page Trung lập = tài khoản công ty, không chia cho sale.
+   - *Khối DVKH* (`app/dvkh/`, chốt 21/10/2026, nguồn là file Excel "Báo cáo DVKH" gồm các sheet SR bị động, SR chủ động, rời mạng,
+     công nợ, data): **SR lưu từng dòng, khoá là Mã SR**; nạp lại file luỹ kế mới hơn thì dòng cũ được thay bằng trạng thái mới
+     nhất, KHÔNG cộng dồn. Rời mạng / công nợ là số đã tổng hợp trong file, lưu theo ngày chốt / ngày thu. Quy tắc đã đối chiếu
+     với các sheet BC của file: **nhân sự (Account IS) = cột "Người xử lý"** (không phải "Nhân sự AU": đã thử 4 người, chỉ cột này khớp
+     BC); phân công = SR có người xử lý; tồn = Chưa xử lý + Đang xử lý (SR chủ động thêm Chưa phân công); quá hạn = "Hoàn tất quá hạn" +
+     "Quá hạn đang xử lý" của cột Quá hạn trong file; SR chủ động chia như bảng BC (SOS = Ngưng kết nối + Dự đoán RM + nợ cước CTBDV,
+     KSRM T = "CSKH không PSLL vết T", KSRM T-1 = "vết T-", CLL = Checklist lặp); "không liên lạc được" chỉ tính trên SR đã thử liên hệ;
+     tài khoản `autocall` (máy gọi) tách khỏi bảng nhân sự; bảng nhân sự SR bị động chỉ lấy người của phòng dịch vụ khách hàng (SR
+     chuyển sang kỹ thuật / hỗ trợ chỉ vài SR mỗi người). **"Đồng ý" trong kết quả tư vấn phải khớp câu BẮT ĐẦU bằng "Khách hàng đồng ý"**:
+     "không đồng ý" cũng chứa chữ "đồng ý" (lỗi thật khi làm: tỷ lệ giữ khách ra 81% thay vì 32%, có test chặn). Số SR trong file có thể cũ
+     hơn ngày nạp (T10: SR tới 07-08/10, nạp 21/10): luôn hiện các chip "tới ngày" ở đầu trang. Cùng kỳ tháng trước chỉ hiện khi file đã
+     nạp tháng đó, không có thì để "–". Hợp đồng tính "lặp" khi có từ 2 SR trở lên. Nhận định tự động (`insight.py`) do LUẬT cố định
+     viết, ngưỡng nằm đầu file, mẫu dưới 30 thì bỏ qua. QNM chưa có nguồn dữ liệu (hiện chữ "chưa có nguồn"). Aggregation trên hàng nghìn
+     nhóm phải dùng gộp vector hoá (`groupby().agg("size")`, `" · ".join`), không `groupby + lambda` (đo: 7,6 giây so với 0,3 giây). File thật
+     nặng 15 MB nên trên Vercel (giới hạn vài MB mỗi yêu cầu) nạp bằng `python scripts/nap_dvkh.py <file> --ngay YYYY-MM-DD`; chạy app
+     trên máy chủ riêng thì tải thẳng ở trang Cập nhật Excel. Đọc file theo kiểu dừng sau 200 dòng trống liên tiếp (file khai báo hơn 1 triệu dòng
+     mỗi sheet SR nhưng chỉ vài nghìn dòng có chữ).
 3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
 4. Định dạng kiểu Việt Nam: `1.234`, `5,40 $`, `45%`. Khi tự `.replace(",", ".")` thì **chỉ áp lên con số**, không áp lên cả câu.
 
@@ -292,6 +312,15 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    phòng bật Nhập tồn (`ingest/commit.phong_luu_ten_kh`, file Internet) và chỉ HIỆN ở trang Nhập tồn
    (`phan_tich.hop_dong_ton(ten_kh=True)`). Thêm chỗ nào dùng tên khách hàng thì phải hỏi chủ app.
 8. **Không in ra** chuỗi kết nối database, mật khẩu, token, API key: kể cả trong log, thông báo lỗi hay câu trả lời. Khoá OpenAI chỉ nằm ở máy chủ.
+
+9. **Khối làm việc** (chốt 21/10/2026, `app/ui/khoi.py`): app có ba khối Kinh doanh (KD), Dịch vụ khách hàng (DVKH), Kỹ thuật (KT, chưa có
+   trang). Đường dẫn quyết định khối: `/dvkh...`, `/kt...`; trang dùng chung (`/taikhoan`, `/huongdan`, `/quantri`) giữ khối đang xem
+   (Store `ui-khoi`). **Quản trị (BGĐ, role `admin`) chuyển được giữa mọi khối** bằng thanh "Khối" đầu menu; vai trò `dvkh` chỉ thấy khối DVKH
+   (đăng nhập vào `/dvkh`, không vào được trang KD, `phong_duoc_xem()` và `phong_nhan_su()` đều rỗng); các vai trò cũ vẫn chỉ ở khối KD
+   (`SessionUser.khoi_duoc_xem()`, `vao_duoc()` kiểm theo khối). Cập nhật file DVKH: `duoc_nap_dvkh` (admin + `dvkh`), callback phải dùng
+   `callback_can_quyen(app, "duoc_nap_dvkh")`. Thêm khối mới = thêm mục vào `KHOI`, mảng menu, vai trò, và trang dưới `/<khối>/`.
+   **Cookie đăng nhập dùng chung giữa các cổng của `localhost`**: khi mở hai bản xem thử (vd 8053 và 8054), trình duyệt gửi cùng cookie nên
+   tài khoản bị lẫn; thử vai trò khác thì mở bằng `127.0.0.1` thay vì `localhost`.
 
 ---
 

@@ -438,3 +438,6 @@ class OnlineCa(Base):
     tao_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
     cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)

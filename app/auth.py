@@ -26,7 +26,11 @@ import os as _os
 ADMIN_USERNAME: str = _os.getenv("ADMIN_USERNAME", "admin").strip().lower()
 
 ROLE_LABEL = {"admin": "Quản trị (BGD)", "operator": "Nhập liệu",
-              "phong": "Trưởng phòng", "nvkd": "Nhân viên KD", "nhanvien": "Nhân viên"}
+              "phong": "Trưởng phòng", "nvkd": "Nhân viên KD", "nhanvien": "Nhân viên", "dvkh": "Khối DVKH"}
+# Khối làm việc (app/ui/khoi.py): Quản trị (BGĐ) chuyển được giữa mọi khối; "dvkh" chỉ thấy khối Dịch vụ khách hàng;
+# các vai trò còn lại là của khối Kinh doanh. Thêm khối Kỹ thuật thì thêm vai trò "kt" vào đây.
+ROLE_KHOI = {"dvkh": "DVKH"}
+ROLE_NAP_DVKH = {"admin", "dvkh"}
 # Nạp dữ liệu: Trưởng phòng được nạp 3 file bán hàng (họ là người tải file hằng ngày), nhưng
 # file NSLĐ và Danh mục nhân viên thì chỉ Quản trị (BGĐ) - BGĐ chốt 16/09/2026.
 ROLE_UPLOAD = {"admin", "operator", "phong"}
@@ -146,8 +150,24 @@ class SessionUser(UserMixin):
     def duoc_bao_cao_ngay(self) -> bool:
         return bool(self.phong_bao_cao_ngay())
 
+    def khoi_duoc_xem(self) -> list[str]:
+        """Các khối tài khoản này được vào (theo thứ tự hiển thị). Quản trị: mọi khối."""
+        from app.ui.khoi import THU_TU
+        if self.role == "admin":
+            return list(THU_TU)
+        return [ROLE_KHOI.get(self.role, "KD")]
+
+    @property
+    def duoc_nap_dvkh(self) -> bool:
+        """Cập nhật file Excel của khối DVKH."""
+        return self.role in ROLE_NAP_DVKH
+
     def vao_duoc(self, path: str) -> bool:
-        """Nhân viên KD chỉ vào các trang của mình; vai trò khác do từng trang tự kiểm."""
+        """Chỉ vào trang của khối mình; Nhân viên KD còn bị giới hạn ở danh sách trang riêng, vai trò khác do từng trang tự kiểm."""
+        from app.ui.khoi import khoi_cua_duong_dan
+        khoi = khoi_cua_duong_dan(path)
+        if khoi is not None and khoi not in self.khoi_duoc_xem():
+            return False
         return self.role != "nvkd" or path in TRANG_NVKD
 
     def phong_duoc_xem(self) -> list[str] | None:

@@ -131,7 +131,7 @@ function(ky, path) {
         const doiTrang = path && path !== u.pathname;
         if (doiTrang) { u.pathname = path; u.search = ''; }
         ['tu', 'den', 'cn', 'phong'].forEach(function (k) { u.searchParams.delete(k); });
-        if (ky && KHONG_GHI.indexOf(u.pathname) < 0) {
+        if (ky && KHONG_GHI.indexOf(u.pathname) < 0 && u.pathname.indexOf('/dvkh') !== 0 && u.pathname.indexOf('/kt') !== 0) {
             ['tu', 'den', 'cn', 'phong'].forEach(function (k) {
                 if (ky[k] && !(k === 'cn' && ky[k] === 'all')) { u.searchParams.set(k, ky[k]); }
             });

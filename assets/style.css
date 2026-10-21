@@ -1751,3 +1751,51 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .sm-cau-nhan { font-size: 12px; color: var(--text-muted); margin-right: 2px; }
 .sm-cau { padding: 4px 10px; font: inherit; font-size: 12.5px; color: var(--fpt-blue-700); background: #EEF5FC; border: 1px solid #CFE0F2; border-radius: 999px; cursor: pointer; }
 .sm-cau:hover { background: #E1EEFB; border-color: var(--fpt-blue); }
+
+/* ---------------------------------------------------------- Khối DVKH và chuyển khối */
+.khoi-chon { padding: 10px 14px 4px; }
+.khoi-nhan { font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-soft); font-weight: 650; margin-bottom: 6px; }
+.khoi-nhom { display: flex; flex-direction: column; gap: 4px; background: #EDF1F6; padding: 4px; border-radius: 10px; }
+.khoi-nut { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 11px; border-radius: 7px; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); text-decoration: none; }
+.khoi-nut small { font-size: 10px; font-weight: 600; color: var(--text-soft); background: #fff; border-radius: 99px; padding: 1px 7px; }
+.khoi-nut:hover { color: var(--text); background: rgba(255, 255, 255, .6); }
+.khoi-nut.active { background: var(--card); color: var(--fpt-blue-700); box-shadow: var(--shadow-sm); }
+.app-shell.thu-gon .khoi-chon { display: none; }
+
+.dv-cap-nhat { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.dv-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--border); border-radius: 99px; padding: 4px 11px; font-size: 12px; }
+.dv-nguon { color: var(--text-muted); }
+.dv-ngay-nguon { font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+.dv-ghi-chu-du-lieu { font-size: 12.5px; color: var(--text-muted); background: #FFFBEB; border: 1px solid #F5E3A8; border-radius: 9px; padding: 9px 13px; margin-bottom: 16px; line-height: 1.5; }
+.dv-ghi-chu-du-lieu b { color: #7A5A00; }
+.dv-ngay .DateInput_input { font-size: 13px; padding: 6px 9px; }
+
+.dv-kpi-bang { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dv-kpi-bang th { text-align: right; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-soft); font-weight: 650; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.dv-kpi-bang th:first-child { text-align: left; }
+.dv-kpi-bang td { text-align: right; padding: 9px 10px; border-bottom: 1px solid #F0F3F7; font-variant-numeric: tabular-nums; font-weight: 600; }
+.dv-kpi-bang td.dv-ten { text-align: left; font-weight: 500; color: var(--text); }
+.dv-kpi-bang tr:last-child td { border-bottom: none; }
+.dv-kpi-bang tr:hover td { background: #F8FAFC; }
+.dv-luoi-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 16px; margin-bottom: 4px; }
+.dv-luoi-kpi > .card { margin: 0; min-width: 0; }
+.dv-chua-co { color: var(--text-soft); font-weight: 500; font-size: 12px; }
+.dv-tot { color: var(--ok); } .dv-xau { color: var(--bad); } .dv-vang { color: #B7791F; }
+
+.dv-nd-luoi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 12px; }
+.dv-nd { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--fpt-blue); border-radius: 10px; padding: 13px 16px 14px; }
+.dv-nd.bad { border-left-color: var(--bad); } .dv-nd.warn { border-left-color: #E8A33D; } .dv-nd.ok { border-left-color: var(--ok); } .dv-nd.info { border-left-color: var(--fpt-blue); }
+.dv-nd-dau { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; }
+.dv-muc { font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #E8F2FA; color: var(--fpt-blue-700); }
+.dv-nd.bad .dv-muc { background: #FDE8E6; color: #B42318; } .dv-nd.warn .dv-muc { background: #FDF1DC; color: #8A5709; } .dv-nd.ok .dv-muc { background: #E3F6EA; color: #0A5B31; }
+.dv-chu-de { font-size: 12px; color: var(--text-muted); }
+.dv-nd-tieu-de { font-size: 14.5px; font-weight: 650; line-height: 1.35; margin-bottom: 4px; }
+.dv-nd-noi-dung { font-size: 13px; color: #44546A; line-height: 1.55; }
+.dv-nd-goi-y { font-size: 12.5px; color: var(--text-muted); margin-top: 7px; padding-top: 7px; border-top: 1px dashed var(--border); line-height: 1.5; }
+.dv-nd-goi-y b { color: var(--fpt-blue-700); }
+.dv-hai-cot { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 16px; }
+.dv-hai-cot > .card { margin: 0; min-width: 0; }
+@media (max-width: 640px) { .dv-luoi-kpi, .dv-nd-luoi, .dv-hai-cot { grid-template-columns: 1fr; } }
+.dv-huong-dan { margin: 0; padding-left: 20px; font-size: 13px; color: #44546A; line-height: 1.7; }
+.dv-huong-dan code { background: #EEF2F7; padding: 2px 6px; border-radius: 5px; font-size: 12px; }

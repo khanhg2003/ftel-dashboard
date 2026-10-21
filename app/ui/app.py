@@ -7,6 +7,7 @@ from flask_login import current_user, login_user, logout_user
 
 from app.auth import ROLE_LABEL, login_manager, xac_thuc
 from app.config import BASE_DIR, SECRET_KEY
+from app.ui import khoi as kh
 from app.ui import ky_chung
 from app.ui.icons import icon
 from app.ui.viet_hoa import viet_hoa
@@ -50,6 +51,8 @@ LOGIN_PAGE = """<!doctype html>
 def trang_mo_dau(user) -> str:
     """Nhân viên KD vào Báo cáo ngày (việc đầu tiên trong ngày), Trưởng phòng vào Báo cáo phòng của mình,
     các vai trò khác vào Báo cáo Tổng."""
+    if user.role == "dvkh":
+        return "/dvkh"
     if user.role == "nvkd":
         return "/baocaongay" if user.duoc_bao_cao_ngay else "/nhapton"
     return "/phong" if user.role == "phong" and user.phong_nhan_su() else "/"
@@ -160,12 +163,40 @@ def _brand_dots():
     return html.Div([html.I(), html.I(), html.I()], className="brand-dots")
 
 
-def _sidebar(path: str):
+NAV_THEO_KHOI = {kh.KD: NAV, kh.DVKH: kh.NAV_DVKH, kh.KT: kh.NAV_KT}
+
+
+def _chon_khoi(path: str, khoi_cu: str | None) -> str:
+    """Khối đang xem: theo đường dẫn; trang dùng chung giữ khối cũ (nếu tài khoản còn được vào khối đó)."""
+    duoc = current_user.khoi_duoc_xem()
+    k = kh.khoi_cua_duong_dan(path) or (khoi_cu if khoi_cu in duoc else None) or duoc[0]
+    return k if k in duoc else duoc[0]
+
+
+def _chon_khoi_ui(khoi_dang_xem: str):
+    """Thanh chuyển khối ở đầu menu - chỉ hiện với tài khoản được vào từ hai khối trở lên."""
+    duoc = current_user.khoi_duoc_xem()
+    if len(duoc) < 2:
+        return None
+    nut = []
+    for k in kh.THU_TU:
+        if k not in duoc:
+            continue
+        thong_tin = kh.KHOI[k]
+        cls = "khoi-nut active" if k == khoi_dang_xem else "khoi-nut"
+        nut.append(dcc.Link(thong_tin["ten"] if thong_tin["san_sang"] else [thong_tin["ten"], html.Small("Sắp có")],
+                            href=thong_tin["trang_chu"], className=cls, title=thong_tin["ten_day_du"]))
+    return html.Div([html.Div("Khối", className="khoi-nhan"), html.Div(nut, className="khoi-nhom")], className="khoi-chon")
+
+
+def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
     items = []
-    for nhom, muc in NAV:
+    for nhom, muc in NAV_THEO_KHOI[khoi_dang_xem]:
         muc_hien = []
         for href, label, ico, quyen in muc:
             if not current_user.vao_duoc(href):
+                continue
+            if quyen == "duoc_nap_dvkh" and not current_user.duoc_nap_dvkh:
                 continue
             if quyen == "nhapton" and not current_user.duoc_nhap_ton:
                 continue
@@ -191,10 +222,11 @@ def _sidebar(path: str):
             html.Div([html.Img(src=FPT_LOGO_SRC, className="logo-img",
                                alt="FPT Telecom"),
                       html.Div([html.Div("FPT Telecom", className="logo"),
-                                html.Div("Sales & HR Performance", className="sub")],
+                                html.Div(kh.KHOI[khoi_dang_xem]["mo_ta"], className="sub")],
                                className="brand-text")],
                      className="brand-mark"),
         ], className="brand"),
+        _chon_khoi_ui(khoi_dang_xem),
         html.Div(items, className="nav"),
         html.Div([html.Div(current_user.ho_ten, className="who"),
                   html.Div(ROLE_LABEL.get(current_user.role, current_user.role)),
@@ -220,6 +252,7 @@ def serve_layout():
         dcc.Store(id="ui-sidebar", storage_type="local", data={"thu_gon": False}),
         dcc.Store(id="ui-vw", data={"w": 1440, "h": 900}),
         dcc.Store(id="ui-menu"),
+        dcc.Store(id="ui-khoi", storage_type="session"),
         # kỳ báo cáo, chi nhánh, phòng dùng chung giữa các trang (xem app/ui/ky_chung.py)
         dcc.Store(id="ky-chung", storage_type="session"),
         dcc.Store(id="ui-duong-dan"),
@@ -304,9 +337,11 @@ def _nhan_nut_thu_gon(data):
     return [icon("thu_gon", 17), html.Span("Thu gọn")]
 
 
-@app.callback(Output("sidebar-container", "children"), Input("url", "pathname"))
-def _render_sidebar(path):
-    return _sidebar(path or "/")
+@app.callback(Output("sidebar-container", "children"), Output("ui-khoi", "data"),
+              Input("url", "pathname"), State("ui-khoi", "data"))
+def _render_sidebar(path, khoi_cu):
+    k = _chon_khoi(path or "/", khoi_cu)
+    return _sidebar(path or "/", k), k
 
 
 app.clientside_callback(ky_chung.JS_GHI_DUONG_DAN, Output("ui-duong-dan", "data"),
@@ -325,7 +360,12 @@ def _ky_tu_duong_dan(_path, search, store):
 
 
 @app.callback(Output("thanh-du-lieu", "children"), Input("url", "pathname"))
-def _thanh_du_lieu(_path):
+def _thanh_du_lieu(path):
+    duoc = current_user.khoi_duoc_xem()
+    k = kh.khoi_cua_duong_dan(path or "/")
+    if (k if k in duoc else duoc[0]) == kh.DVKH:
+        from app.ui.pages.dvkh_chung import thanh_du_lieu as dvkh_thanh
+        return dvkh_thanh()
     from app.ui.lien_ket import thanh_du_lieu
     return thanh_du_lieu()
 
@@ -366,8 +406,15 @@ def _router(path, search=None, store=None):
     tab = (parse_qs((search or "").lstrip("?")).get("tab") or [None])[0]
     if not current_user.vao_duoc(path):
         return (html.Div([html.H3("Tài khoản này không mở được trang này"),
-                          dcc.Link("← Về Nhập tồn", href="/nhapton", className="btn primary")], className="card"),
+                          dcc.Link("← Về trang chính của bạn", href=trang_mo_dau(current_user), className="btn primary")], className="card"),
                 _topbar_simple("Không có quyền"))
+    if kh.khoi_cua_duong_dan(path) == kh.DVKH:
+        from app.ui.pages import dvkh as dvkh_page
+        return dvkh_page.trang(path, tab)
+    if kh.khoi_cua_duong_dan(path) == kh.KT:
+        return (html.Div([html.H3("Khối Kỹ thuật đang được xây dựng"),
+                          html.Div("Trang này sẽ có khi khối Kỹ thuật có dữ liệu và chỉ số riêng.", className="desc")], className="card"),
+                _topbar_simple("Khối Kỹ thuật", "Sắp có"))
     if path == "/baocaongay":
         from app.ui.pages import baocaongay
         return baocaongay.layout(), baocaongay.topbar()
@@ -447,7 +494,8 @@ def _register_pages():
 
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, danhba, nhapton, soanmail
-    for mod in (tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
+    from app.ui.pages import dvkh as dvkh_page
+    for mod in (dvkh_page, tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
                 danhba, soanmail):
         mod.register(app)
