@@ -18,7 +18,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 .vercel/
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/settings.json
 
 # mã khôi phục / file bí mật cá nhân - không bao giờ đưa lên GitHub
 recovery-codes*.txt

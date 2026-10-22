@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" bat_dau", "timeout": 15}]}
+    ],
+    "UserPromptSubmit": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "Bash", "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" truoc_bash", "timeout": 340}]},
+      {"matcher": "Agent|Task", "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
+    ],
+    "PostToolUse": [
+      {"matcher": "Edit|Write", "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" sau_sua", "timeout": 90}]},
+      {"matcher": "*", "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
+    ],
+    "SubagentStart": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
+    ],
+    "SubagentStop": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
+    ]
+  }
+}

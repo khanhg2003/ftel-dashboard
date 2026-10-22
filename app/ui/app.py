@@ -154,6 +154,7 @@ NAV = [
     ]),
     ("Hệ thống", [
         ("/quantri", "Quản trị", "settings", "settings"),
+        ("/vanphong", "Văn phòng AI", "sparkle", "settings"),
     ]),
 ]
 # đường dẫn cũ vẫn mở được, menu sáng đúng mục mới
@@ -461,6 +462,11 @@ def _router(path, search=None, store=None):
         if not current_user.duoc_xem_ads:
             return html.Div("Tài khoản này không xem được mục Ads IBB7."), _topbar_simple("Ads IBB7")
         return ads_page.layout(tab), ads_page.topbar()
+    if path == "/vanphong":
+        from app.ui.pages import vanphong
+        if not current_user.duoc_cau_hinh:
+            return html.Div("Chỉ Quản trị xem được Văn phòng AI."), _topbar_simple("Văn phòng AI")
+        return vanphong.layout(), vanphong.topbar()
     if path in ("/quantri", "/settings"):
         if not current_user.duoc_cau_hinh:
             return html.Div("Bạn không có quyền vào mục Quản trị."), _topbar_simple("Quản trị")
@@ -501,11 +507,11 @@ def _register_pages():
     from app.ui import ngan_nhan_su, tro_ly
 
     from app.ui.pages import ads as ads_page
-    from app.ui.pages import baocaongay, danhba, giafpt, nhapton, soanmail
+    from app.ui.pages import baocaongay, danhba, giafpt, nhapton, soanmail, vanphong
     from app.ui.pages import dvkh as dvkh_page
     for mod in (dvkh_page, tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
-                danhba, soanmail, giafpt):
+                danhba, soanmail, giafpt, vanphong):
         mod.register(app)
 
 
