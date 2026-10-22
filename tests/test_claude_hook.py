@@ -1,4 +1,4 @@
-"""Hook của Claude Code (scripts/claude_hook.py): chặn lệnh git sai quy tắc, ghi nhật ký cho trang Văn phòng AI mà không lộ mật khẩu."""
+"""Hook của Claude Code (scripts/claude_hook.py): chặn lệnh git sai quy tắc, ghi nhật ký hoạt động mà không lộ mật khẩu."""
 from __future__ import annotations
 
 import importlib.util
@@ -19,7 +19,6 @@ def hook(tmp_path, monkeypatch):
     spec.loader.exec_module(mod)
     monkeypatch.setattr(mod, "THU_MUC", tmp_path)
     monkeypatch.setattr(mod, "NHAT_KY", tmp_path / "su_kien.jsonl")
-    monkeypatch.setattr(mod, "HANG_DOI", tmp_path / "viec.json")
     return mod
 
 
@@ -60,14 +59,6 @@ def test_nhat_ky_ghi_su_kien_va_che_mat_khau(hook):
     assert ds[0]["chi_tiet"].startswith("coder: Sửa trang giá") and ds[1]["agent"] == "coder" and ds[2]["agent"] == "tester"
     chu = hook.NHAT_KY.read_text(encoding="utf-8")
     assert "matkhau" not in chu and "abc123" not in chu and "zzz9" not in chu                   # không để lọt mật khẩu / token vào nhật ký
-
-
-def test_hang_doi_viec_in_ra_dau_phien(hook, capsys):
-    assert hook.bat_dau({}) == 0 and capsys.readouterr().out == ""                              # chưa có file: im lặng
-    hook.HANG_DOI.write_text(json.dumps([{"noi_dung": "Làm bảng A", "trang_thai": "cho"}, {"noi_dung": "Việc cũ", "trang_thai": "xong"}]), encoding="utf-8")
-    hook.bat_dau({})
-    ra = capsys.readouterr().out
-    assert "Làm bảng A" in ra and "Việc cũ" not in ra
 
 
 def test_doc_dau_vao_hong_khong_lam_vo_hook(hook, monkeypatch):

@@ -2,8 +2,7 @@
 
 - `sau_sua`   : sau khi Edit / Write file .py -> báo ngay lỗi cú pháp / tên chưa định nghĩa (chạy ruff trên đúng file đó).
 - `truoc_bash`: trước mỗi lệnh Bash -> chặn `git add -A` / `git add .` (AGENTS.md mục 7) và chặn `git commit` nếu ruff hoặc test mới đang lỗi.
-- `ghi`       : ghi sự kiện (giao việc, agent bắt đầu / xong, dùng công cụ nào) vào `data/van_phong/su_kien.jsonl` cho trang Văn phòng AI.
-- `bat_dau`   : đầu phiên -> in hàng đợi việc CEO đã thêm ở trang Văn phòng AI để Claude Code biết.
+- `ghi`       : ghi sự kiện (giao việc, agent bắt đầu / xong, dùng công cụ nào) vào `data/van_phong/su_kien.jsonl` để giao diện văn phòng AI bên ngoài app đọc.
 
 Thoát mã 2 = chặn / báo lỗi cho Claude (stderr là lời nhắn); mã 0 = không có ý kiến. Nhật ký chỉ nằm ở `data/` (không lên GitHub); câu lệnh và lời
 nhắc được che các chuỗi nhạy cảm (đường dẫn kết nối có mật khẩu, password= / token= / key=) trước khi ghi.
@@ -21,7 +20,6 @@ from pathlib import Path
 GOC = Path(__file__).resolve().parent.parent
 THU_MUC = GOC / "data" / "van_phong"
 NHAT_KY = THU_MUC / "su_kien.jsonl"
-HANG_DOI = THU_MUC / "viec.json"
 TOI_DA_DONG = 3000
 LOI_CU = [f"tests/test_he_thong_hoa.py::{t}" for t in (
     "test_truong_phong_khong_goi_duoc_callback_quan_tri", "test_doi_mat_khau_kiem_tra_nhap_lai", "test_trang_mo_dau_theo_vai_tro")]
@@ -122,20 +120,7 @@ def ghi(d: dict) -> int:
     return 0
 
 
-def bat_dau(d: dict) -> int:
-    try:
-        viec = json.loads(HANG_DOI.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return 0
-    chua = [v for v in viec if v.get("trang_thai") != "xong"]
-    if chua:
-        print("Hàng đợi việc CEO đã thêm ở trang Văn phòng AI (chưa xong):")
-        for v in chua:
-            print(f"- [{v.get('trang_thai', 'cho')}] {che(str(v.get('noi_dung') or ''))[:200]}")
-    return 0
-
-
-VIEC = {"sau_sua": sau_sua, "truoc_bash": truoc_bash, "ghi": ghi, "bat_dau": bat_dau}
+VIEC = {"sau_sua": sau_sua, "truoc_bash": truoc_bash, "ghi": ghi}
 
 if __name__ == "__main__":
     for luong in (sys.stdout, sys.stderr):                      # Windows mặc định cp1252: lời nhắn tiếng Việt sẽ bị vỡ chữ

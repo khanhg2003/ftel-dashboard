@@ -1,8 +1,5 @@
 {
   "hooks": {
-    "SessionStart": [
-      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" bat_dau", "timeout": 15}]}
-    ],
     "UserPromptSubmit": [
       {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
     ],
