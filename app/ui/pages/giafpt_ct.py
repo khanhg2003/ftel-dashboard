@@ -1,5 +1,5 @@
 """Cửa sổ chi tiết một gói ở Tra cứu giá: bấm cả thẻ để mở. CHỈ ghi những điểm KHÁC phần chung của nhóm (chủ app chốt 22/10/2026);
-phần chung (cách thanh toán, số tháng tặng, phí lắp đặt dùng chung, hạn chính sách...) đã nằm ngoài danh sách, ở dải "Chung cho cả nhóm".
+phần chung (cách thanh toán, số tháng tặng, phí hòa mạng dùng chung, hạn chính sách...) đã nằm ngoài danh sách, ở dải "Chính sách chung".
 
 Nội dung dựng khi mở: chi tiết một gói đã nhớ tạm từ lúc nạp danh sách nên thường mở ngay.
 """
@@ -13,6 +13,7 @@ from app.ui.components import alert, ghi_chu
 from app.ui.luoi import bang
 
 DONG = {"function": "params.value == null ? '–' : Math.round(params.value).toLocaleString('vi-VN') + 'đ'"}
+PHI = {"function": "params.value == null ? 'Chưa rõ' : (params.value == 0 ? 'Miễn phí' : Math.round(params.value).toLocaleString('vi-VN') + 'đ')"}
 
 
 def _hang_gia(ct: dict) -> list[dict]:
@@ -25,13 +26,13 @@ def _hang_gia(ct: dict) -> list[dict]:
 
 
 def _cot(hang: list[dict]) -> list[dict]:
-    """Cột nào giống nhau ở mọi dòng thì bỏ (đã nói ở phần khác biệt), chỉ giữ cột có khác nhau giữa các cách thanh toán.
+    """Cột nào giống nhau ở mọi dòng thì bỏ (đã nói ở phần khác biệt; phí hòa mạng đã ghi ở "Thông tin chính"), chỉ giữ cột có khác nhau giữa các cách thanh toán.
     Cột hẹp (minWidth) và bảng tự co theo khung (`columnSize`) để ở màn 800 px không phải cuộn ngang; cột Ưu đãi xuống dòng."""
     def doi(k):
         return len({h[k] for h in hang}) > 1
     cot = [{"field": "thoi_han", "headerName": "Cách thanh toán", "minWidth": 120},
            {"field": "tong", "headerName": "Tổng tiền dịch vụ", "minWidth": 130, "type": "numericColumn", "valueFormatter": DONG,
-            "headerTooltip": "Số tiền dịch vụ khách đóng một lần cho cả thời hạn (chưa gồm phí lắp đặt)."},
+            "headerTooltip": "Số tiền dịch vụ khách đóng một lần cho cả thời hạn (chưa gồm phí hòa mạng)."},
            {"field": "binh_quan", "headerName": "Bình quân / tháng", "minWidth": 120, "type": "numericColumn", "valueFormatter": DONG,
             "headerTooltip": "Tổng tiền dịch vụ chia cho cả thời hạn."}]
     if any(h["tang"] for h in hang):
@@ -39,7 +40,7 @@ def _cot(hang: list[dict]) -> list[dict]:
                     "valueFormatter": {"function": "params.value == null ? '–' : '+' + params.value.toLocaleString('vi-VN')"},
                     "cellStyle": {"styleConditions": [{"condition": "params.value > 0", "style": {"color": "#00844A", "fontWeight": "600"}}]}})
     if doi("phi_lap"):
-        cot.append({"field": "phi_lap", "headerName": "Phí hòa mạng", "minWidth": 105, "type": "numericColumn", "valueFormatter": DONG})
+        cot.append({"field": "phi_lap", "headerName": "Phí hòa mạng", "minWidth": 105, "type": "numericColumn", "valueFormatter": PHI})
     if doi("thiet_bi"):
         cot.append({"field": "thiet_bi", "headerName": "Thiết bị", "minWidth": 95, "type": "numericColumn", "valueFormatter": DONG})
     if doi("qua"):
@@ -63,7 +64,7 @@ def _nhan_xet(ct: dict) -> str | None:
 
 def _thong_tin(g: dict, ct: dict, kb: dict, co_chung: bool):
     """Thông tin chính của gói. Phí hòa mạng luôn ghi (sale dựa vào đó để tư vấn); ưu đãi / thiết bị đi kèm chỉ ghi khi khác phần chung của nhóm."""
-    dong = [html.Li([html.B("Phí hòa mạng: "), gf.chu_phi_hoa_mang(ct)])]
+    dong = [html.Li([html.B("Phí hòa mạng: "), gf.chu_phi_hoa_mang(ct, chi_tiet=True)])]
     if g["toc_do"]:
         dong.append(html.Li([html.B("Tốc độ: "), g["toc_do"].replace(" / ", " tải xuống · ") + " tải lên"]))
     if g["thiet_bi"]:
@@ -78,7 +79,7 @@ def _thong_tin(g: dict, ct: dict, kb: dict, co_chung: bool):
 
 def than(g: dict, ct: dict, chung: dict, khu_vuc: str):
     kb = gf.khac_biet(g, ct, chung)
-    chips = html.Div([html.Span(f"Khu vực: {khu_vuc}", className="chip"), html.Span(gf.tieu_de_nhom(gf.khoa_nhom(g)), className="chip"),
+    chips = html.Div([html.Span(f"Khu vực: {khu_vuc}", className="chip"), html.Span(g["nhom"], className="chip"),
                       html.Span(f"Giá niêm yết: {gf.chu_tien(ct['gia'])}", className="chip")], className="chips", style={"margin": "0 0 12px"})
     hang = _hang_gia(ct)
     cac = [chips, _thong_tin(g, ct, kb, bool(chung))]
@@ -112,7 +113,7 @@ def register(app):
             ct = gf.chi_tiet_goi(g["code"], tinh, phuong, g["gia"])
         except gf.LoiGia as e:
             return "modal mo", bam["code"], alert(f"{e} Thử lại sau ít phút.", "warn")
-        return "modal mo", g["ten"], than(g, ct, ((ctd or {}).get("chung") or {}).get(gf.khoa_nhom(g), {}), ten_khu_vuc(tinh, phuong))
+        return "modal mo", g["ten"], than(g, ct, ((ctd or {}).get("chung") or {}).get(g["nhom"], {}), ten_khu_vuc(tinh, phuong))
 
     @app.callback(Output("gf-ct", "className", allow_duplicate=True), Input("gf-ct-dong", "n_clicks"), Input("gf-ct-nen", "n_clicks"),
                   prevent_initial_call=True)

@@ -33,6 +33,35 @@ def _goi(id_, code, ten, loai="internet", gia=0, tagline=""):
 
 
 MAU = {"1": ("sky", "Internet Sky"), "18": ("meta-f1", "Internet Meta F1"), "109": ("super300", "Super300 Biz")}
+KICH_BAN: dict = {}        # code gói -> {"phi": số / None (không ghi dòng phí), "tra_sau": phí trả sau, "thieu_lan_dau": "rong" | "ca_nhan_combo", "thieu_mai": True}
+LAN_GOI: dict = {}         # code gói -> số lần đã gọi packages/get
+
+
+def _chinh_sach(thang, tong, phi, tinh_trang="active", hieu_luc_den=None, hinh_thuc="Trả trước"):
+    tu, den = utc_bay_gio() - timedelta(days=30), hieu_luc_den or utc_bay_gio() + timedelta(days=30)
+    return {"name": "CS INT Cá nhân", "status": tinh_trang, "billing_type_name": hinh_thuc, "contract_length_months": thang,
+            "sale_platform_code": "INT.1", "effective_from": tu.strftime("%Y-%m-%d %H:%M:%S"),
+            "effective_to": den.strftime("%Y-%m-%d %H:%M:%S"),
+            "summary": {"service_price": {"price": tong}, "fee_price": None if phi is None else {"price": phi}, "device_price": None}}
+
+
+def _chi_tiet_goi_gia(noi_dung):
+    code = noi_dung["code"]
+    kb = KICH_BAN.get(code, {})
+    LAN_GOI[code] = LAN_GOI.get(code, 0) + 1
+    gia_an_hai = {**{m[0]: GIA_THEO_PHUONG[AN_HAI].get(i) for i, m in MAU.items()}, "sky-an-tam": 395000, "meta-an-tam": 405000}.get(code, 340000)
+    het = utc_bay_gio() - timedelta(days=1)
+    phi = None if (kb.get("thieu_phi_lan_dau") and LAN_GOI[code] == 1) else kb.get("phi", 500000)       # lượt đầu mất dòng "Phí lắp đặt Internet"
+    cs =[_chinh_sach(3, 3 * gia_an_hai, phi), _chinh_sach(13, 12 * gia_an_hai, phi), _chinh_sach(6, 6 * gia_an_hai, phi, hieu_luc_den=het)]
+    if "tra_sau" in kb:
+        cs.insert(0, _chinh_sach(1, gia_an_hai, kb["tra_sau"], hinh_thuc="Trả sau"))
+    thieu = kb.get("thieu_mai") or (kb.get("thieu_lan_dau") and LAN_GOI[code] == 1)
+    if thieu:
+        cs = [] if kb.get("thieu") != "combo" else [{**_chinh_sach(1, None, 840000), "billing_type_name": None, "contract_length_months": None}]
+    return {"name": "Internet Meta F1", "price": {"price": 1020000, "contract_length_months": 3},     # giá theo thời hạn ngắn nhất, không phải giá tháng
+            "card_description": "Modem Wi-Fi 6\nKết nối 25 thiết bị",
+            "display_contents": {"promotion_contents": [{"contract_length_months": 13, "charge_type": "tra-truoc", "tag_line": "Tặng Camera"}]},
+            "product_offering_price": cs}
 
 
 def _dich_vu(duong, noi_dung, han=15):
@@ -42,22 +71,11 @@ def _dich_vu(duong, noi_dung, han=15):
         return [{"id": QUE_SON, "text": "Xã Quế Sơn"}, {"id": AN_HAI, "text": "Phường An Hải"}, {"id": QUANG_PHU, "text": "Phường Quảng Phú"}]
     if duong.endswith("packages/list"):
         bang = GIA_THEO_PHUONG[noi_dung["location"]["ward_id"]]
-        return [_goi(int(i), MAU[i][0], MAU[i][1], gia=g) for i, g in bang.items()] + [_goi(24, "goi-vvip1", "Gói V.VIP 1", "fpt-play", 130000),
-                                                                                                                           _goi(128, "casper", "Casper Smart TV", "smart-tivi", 3378531)]
+        bay = [_goi(24, "goi-vvip1", "Gói V.VIP 1", "fpt-play", 130000), _goi(128, "casper", "Casper Smart TV", "smart-tivi", 3378531),
+               _goi(129, "cam-iq4s", "Camera IQ4S", "fpt-camera", 1200000)]                    # Camera / FPT Play / Smart TV lẻ: không lấy (chủ app 22/10/2026)
+        return [_goi(int(i), MAU[i][0], MAU[i][1], gia=g) for i, g in bang.items()] + bay
     if duong.endswith("packages/get"):
-        tu, den = utc_bay_gio() - timedelta(days=30), utc_bay_gio() + timedelta(days=30)
-        het = utc_bay_gio() - timedelta(days=1)
-
-        def chinh_sach(thang, tong, tinh_trang="active", hieu_luc_den=den):
-            return {"name": "CS INT Cá nhân", "status": tinh_trang, "billing_type_name": "Trả trước", "contract_length_months": thang,
-                    "sale_platform_code": "INT.1", "effective_from": tu.strftime("%Y-%m-%d %H:%M:%S"),
-                    "effective_to": hieu_luc_den.strftime("%Y-%m-%d %H:%M:%S"),
-                    "summary": {"service_price": {"price": tong}, "fee_price": {"price": 500000}, "device_price": None}}
-        gia_an_hai = {m[0]: GIA_THEO_PHUONG[AN_HAI].get(i) for i, m in MAU.items()}.get(noi_dung["code"], 340000)
-        return {"name": "Internet Meta F1", "price": {"price": 1020000, "contract_length_months": 3},     # giá theo thời hạn ngắn nhất, không phải giá tháng
-                "card_description": "Modem Wi-Fi 6\nKết nối 25 thiết bị",
-                "display_contents": {"promotion_contents": [{"contract_length_months": 13, "charge_type": "tra-truoc", "tag_line": "Tặng Camera"}]},
-                "product_offering_price": [chinh_sach(3, 3 * gia_an_hai), chinh_sach(13, 12 * gia_an_hai), chinh_sach(6, 6 * gia_an_hai, hieu_luc_den=het)]}
+        return _chi_tiet_goi_gia(noi_dung)
     raise AssertionError(duong)
 
 
@@ -65,21 +83,25 @@ def _dich_vu(duong, noi_dung, han=15):
 def mang_gia(monkeypatch):
     xoa("gia_fpt")
     gf._GAN_NHAT.clear()
+    KICH_BAN.clear()
+    LAN_GOI.clear()
     monkeypatch.setattr(gf, "_goi_dich_vu", _dich_vu)
     yield
     xoa("gia_fpt")
     gf._GAN_NHAT.clear()
+    KICH_BAN.clear()
+    LAN_GOI.clear()
 
 
 def test_phan_loai_goi_theo_ten():
     c = gf._chuan_goi(_goi(1, "a", "Super500 Biz Plus", gia=1))
-    assert c["khach"] == "doanh_nghiep" and c["nhom"] == "Internet"
+    assert c["khach"] == "doanh_nghiep" and c["nhom"] == "Internet doanh nghiệp"
     assert gf._chuan_goi(_goi(2, "b", "Combo Lux 800 - V.VIP"))["khach"] == "doanh_nghiep"
-    assert gf._chuan_goi(_goi(2, "b", "Combo Lux 800 - V.VIP"))["nhom"] == "Combo Internet + V.VIP"
-    assert gf._chuan_goi(_goi(3, "c", "Sky An Tâm 7 - IQ4S"))["nhom"] == "Internet + Camera An Tâm"
+    assert gf._chuan_goi(_goi(2, "b", "Combo Lux 800 - V.VIP"))["nhom"] == "Combo Internet + V.VIP doanh nghiệp"
+    assert gf._chuan_goi(_goi(3, "c", "Sky An Tâm 7 - IQ4S"))["nhom"] == "Combo Internet + Camera"
     meta = gf._chuan_goi(_goi(4, "d", "Internet Meta F1", gia=330000))
     assert (meta["khach"], meta["gia"], meta["toc_do"], meta["thiet_bi"]) == ("ca_nhan", 330000, "1 Gbps / 300 Mbps", 15)
-    assert gf._chuan_goi(_goi(5, "e", "Camera", "fpt-camera"))["nhom"] == "Camera"
+    assert gf._chuan_goi(_goi(9, "lux500", "Internet Lux500", gia=800000))["khach"] == "doanh_nghiep"                  # Lux500 là gói doanh nghiệp
 
 
 def test_gia_khac_nhau_theo_phuong_va_loc(mang_gia):
@@ -87,11 +109,12 @@ def test_gia_khac_nhau_theo_phuong_va_loc(mang_gia):
     assert {g["ten"]: g["gia"] for g in a["goi"]}["Internet Meta F1"] == 340000
     assert {g["ten"]: g["gia"] for g in b["goi"]}["Internet Meta F1"] == 330000
     assert [g["ten"] for g in gf.loc_goi(a["goi"], "doanh_nghiep")] == ["Super300 Biz"]
-    assert {g["ten"] for g in gf.loc_goi(a["goi"], "all", "FPT Play")} == {"Gói V.VIP 1"}
-    assert {g["ten"] for g in gf.loc_goi(a["goi"], ["ca_nhan"], ["Internet", "FPT Play"])} == {"Internet Sky", "Internet Meta F1", "Gói V.VIP 1"}   # chọn nhiều
-    assert len(gf.loc_goi(a["goi"], [], [])) == len(a["goi"]) == len(gf.loc_goi(a["goi"], ["all"], None))                              # để trống = tất cả
-    assert gf.cac_nhom(a["goi"]) == ["Internet", "FPT Play"]
-    assert all(g["ten"] != "Casper Smart TV" for g in a["goi"])            # Smart TV, Tăng tốc, Smart Home, thiết bị mạng không lấy (chủ app 22/10/2026)
+    assert {g["ten"] for g in gf.loc_goi(a["goi"], ["ca_nhan"])} == {"Internet Sky", "Internet Meta F1"}                  # chọn nhiều / một giá trị
+    assert len(gf.loc_goi(a["goi"], [])) == len(a["goi"]) == len(gf.loc_goi(a["goi"], ["all"]))                           # để trống = tất cả
+    assert list(gf.theo_nhom(a["goi"])) == ["Internet cá nhân", "Internet game thủ", "Internet doanh nghiệp"]            # theo thứ tự NHOM, nhóm trống bỏ
+    ten = {g["ten"] for g in a["goi"]}
+    assert not ten & {"Casper Smart TV", "Gói V.VIP 1", "Camera IQ4S"}      # Smart TV, FPT Play lẻ, Camera lẻ và các loại khác không lấy (chủ app 22/10/2026)
+    assert all(g["code"] not in ("goi-vvip1", "casper", "cam-iq4s") for g in a["goi"])
 
 
 def test_dich_vu_loi_thi_dung_ban_cu_hoac_bao_loi(mang_gia, monkeypatch):
@@ -117,20 +140,101 @@ def test_chi_tiet_goi_tang_thang_va_bo_chinh_sach_het_han(mang_gia):
     assert ct["gia"] == 340000                                           # giá tháng lấy từ danh sách, không lấy giá theo thời hạn của dịch vụ chi tiết
 
 
-def test_dieu_kien_chung_cua_nhom_va_diem_rieng_cua_goi(mang_gia):
-    goi = [g for g in gf.goi_theo_phuong(TINH, AN_HAI)["goi"] if g["nhom"] == "Internet" and g["khach"] == "ca_nhan"]
+def test_dieu_kien_chung_cua_nhom_va_diem_rieng_cua_goi(mang_gia_an_tam):
+    goi = gf.theo_nhom(gf.goi_theo_phuong(TINH, AN_HAI)["goi"])["Combo Internet + Camera"]
     ct = gf.chi_tiet_nhieu(TINH, AN_HAI, goi)
     chung = gf.phan_chung(goi, ct)
     assert chung["tra_truoc"] == [3, 13] and chung["tra_sau"] is False and chung["tang"] == {"13": 1.0}
-    assert chung["phi_lap"] == [500000, 500000] and chung["den"] and chung["so_goi"] == 2
+    assert chung["phi"] == 500000 and chung["den"] and chung["so_goi"] == 2
     dong = gf.dong_chung(chung)
     assert "Thanh toán: trả trước 3 / 13 tháng" in dong and "Trả trước 13 tháng: tặng thêm 1 tháng" in dong and "Phí hòa mạng: 500.000đ" in dong
-    assert gf.khac_biet(goi[0], ct[goi[0]["code"]], chung).get("phi_lap") is None      # phí giống phần chung thì không nhắc lại ở từng gói
     assert gf.phan_chung(goi[:1], ct) == {}                                             # một gói thì không có gì để gọi là chung
     assert gf.chu_phi_hoa_mang(ct[goi[0]["code"]]) == "500.000đ" and gf.chu_phi_hoa_mang(None) == ""
-    assert gf.chu_phi_hoa_mang({"phi_lap": None}) == "Miễn phí"                          # dịch vụ không ghi khoản phí nào
-    rieng = gf.khac_biet(goi[0], ct[goi[0]["code"]], {})                                # nhóm không có phần chung: ghi đủ ở gói
-    assert rieng["phi_lap"] == [500000, 500000]
+    assert "phi" not in gf.khac_biet(goi[0], ct[goi[0]["code"]], {})                     # phí luôn ghi riêng ở thẻ, không nằm trong phần "khác biệt"
+    ct[goi[1]["code"]]["phi_nhom"] = [["Trả trước 3 / 13 tháng", 700000]]
+    assert gf.phan_chung(goi, ct)["phi"] is None                                         # hai gói khác phí thì dải chung không ghi phí
+    assert not any(d.startswith("Phí hòa mạng") for d in gf.dong_chung(gf.phan_chung(goi, ct)))
+
+
+# ------------------------------------------------------------------ phí hòa mạng: không suy ra "miễn phí" từ chỗ trống (22/10/2026)
+def _lc(hinh_thuc, thang, phi):
+    return {"hinh_thuc": hinh_thuc, "thang": thang, "phi_lap": phi}
+
+
+def test_phi_hoa_mang_chi_ghi_mien_phi_khi_dich_vu_ghi_ro_la_0(mang_gia):
+    KICH_BAN["goi-sky"] = {"phi": 0}
+    ct = gf.chi_tiet_goi("goi-sky", TINH, AN_HAI, 205000)
+    assert ct["phi_nhom"] == [["Trả trước 3 / 13 tháng", 0]] and gf.chu_phi_hoa_mang(ct) == "Miễn phí"
+    KICH_BAN["goi-meta-f1"] = {"phi": None}
+    ct = gf.chi_tiet_goi("goi-meta-f1", TINH, AN_HAI, 340000)                        # dịch vụ KHÔNG ghi dòng phí: chưa rõ, không phải miễn phí
+    assert ct["phi_nhom"] == [] and gf.chu_phi_hoa_mang(ct) == "Chưa rõ"
+    assert "fpt.vn" in gf.chu_phi_hoa_mang(ct, chi_tiet=True)
+    assert LAN_GOI["goi-meta-f1"] == gf.LAN_THU                                       # đã gọi lại hết lượt mới chịu "chưa rõ"
+
+
+def test_dich_vu_tra_thieu_thi_goi_lai_cho_toi_khi_du(mang_gia):
+    KICH_BAN["goi-sky"] = {"thieu_lan_dau": True}                                    # lượt đầu: danh sách chính sách rỗng
+    ct = gf.chi_tiet_goi("goi-sky", TINH, AN_HAI, 205000)
+    assert LAN_GOI["goi-sky"] == 2 and ct["phi_nhom"] == [["Trả trước 3 / 13 tháng", 500000]]
+    KICH_BAN["goi-meta-f1"] = {"thieu_lan_dau": True, "thieu": "combo"}              # lượt đầu: chỉ có chính sách "Combo" không có hình thức thanh toán
+    ct = gf.chi_tiet_goi("goi-meta-f1", TINH, AN_HAI, 340000)
+    assert LAN_GOI["goi-meta-f1"] == 2 and [z["thang"] for z in ct["lua_chon"]] == [3, 13]
+    KICH_BAN["goi-super300"] = {"thieu_mai": True}                                   # lượt nào cũng rỗng: báo lỗi, không hiện số
+    with pytest.raises(gf.LoiGia):
+        gf.chi_tiet_goi("goi-super300", TINH, AN_HAI, 450000)
+    assert gf.chi_tiet_nhieu(TINH, AN_HAI, [{"code": "goi-super300", "gia": 450000}]) == {"goi-super300": None}
+
+
+def test_mat_dong_phi_lan_dau_thi_goi_lai_va_lay_phi_that(mang_gia):
+    KICH_BAN["goi-sky"] = {"thieu_phi_lan_dau": True}                                # lượt đầu có chính sách nhưng không có dòng phí; lượt sau đủ
+    ct = gf.chi_tiet_goi("goi-sky", TINH, AN_HAI, 205000)
+    assert LAN_GOI["goi-sky"] == 2                                                   # phải gọi lại, không dừng ở lượt thiếu
+    assert ct["phi_nhom"] == [["Trả trước 3 / 13 tháng", 500000]] and gf.chu_phi_hoa_mang(ct) == "500.000đ"
+    assert "Chưa rõ" not in gf.chu_phi_hoa_mang(ct) and "Miễn phí" not in gf.chu_phi_hoa_mang(ct)
+
+
+def test_diem_day_du_xep_dung_thu_tu():
+    def cs(phi, hinh_thuc="Trả trước", dich_vu=300000):
+        return {"billing_type_name": hinh_thuc,
+                "summary": {"service_price": {"price": dich_vu}, "fee_price": None if phi is None else {"price": phi}}}
+    assert gf._diem_day_du({}, 300000) == 0
+    assert gf._diem_day_du({"product_offering_price": [{"billing_type_name": None, "summary": {}}]}, 300000) == 0     # chỉ có dòng "Combo" không hình thức thanh toán
+    assert gf._diem_day_du({"product_offering_price": [cs(None)]}, 300000) == 2                                         # thiếu phí
+    assert gf._diem_day_du({"product_offering_price": [cs(0)]}, 300000) == 3                                            # phí 0 là có phí
+    assert gf._diem_day_du({"product_offering_price": [cs(0, "Trả sau", 250000)]}, 300000) == 2                         # trả sau lệch giá tháng của danh sách
+    assert gf._diem_day_du({"product_offering_price": [cs(0), cs(None)]}, 300000) == 2                                  # chỉ cần một cách thiếu phí là chưa đủ
+
+
+def test_phi_cung_muc_gom_mot_dong_va_phi_0_chung_cua_nhom():
+    nhom = gf._nhom_phi([_lc("Trả sau", 1, 500000), _lc("Trả trước", 6, 500000), _lc("Trả trước", 13, 500000)])
+    assert nhom == [["Trả theo tháng · trả trước 6 / 13 tháng", 500000]]            # cùng mức phí thì một dòng, không lặp
+    assert gf.dong_phi({"phi_nhom": nhom}) == ["500.000đ"]
+    mien = {"phi_nhom": [["Trả trước 3 / 13 tháng", 0]], "thiet_bi": None}
+    chung = gf.phan_chung([{"code": "a", "uu_dai": ""}, {"code": "b", "uu_dai": ""}],
+                          {"a": {**mien, "lua_chon": [{"hinh_thuc": "Trả trước", "thang": 3, "tang": 0, "den": ""}]},
+                           "b": {**mien, "lua_chon": [{"hinh_thuc": "Trả trước", "thang": 3, "tang": 0, "den": ""}]}})
+    assert chung["phi"] == 0 and "Phí hòa mạng: Miễn phí" in gf.dong_chung(chung)   # số 0 chung của cả nhóm không bị coi là "không có"
+    chua_ro = {"phi_nhom": [], "thiet_bi": None, "lua_chon": [{"hinh_thuc": "Trả trước", "thang": 3, "tang": 0, "den": ""}]}
+    chung = gf.phan_chung([{"code": "a", "uu_dai": ""}, {"code": "b", "uu_dai": ""}], {"a": chua_ro, "b": chua_ro})
+    assert chung["phi"] is None and not any(d.startswith("Phí hòa mạng") for d in gf.dong_chung(chung))   # cả nhóm chưa rõ: dải chung không ghi phí
+
+
+def test_phi_khac_nhau_theo_cach_thanh_toan_ghi_tung_cach(mang_gia):
+    KICH_BAN["goi-sky"] = {"phi": 600000, "tra_sau": 1000000}                        # kiểu gói Biz: trả sau 1.000.000, trả trước 600.000
+    ct = gf.chi_tiet_goi("goi-sky", TINH, AN_HAI, 205000)
+    assert ct["phi_nhom"] == [["Trả theo tháng", 1000000], ["Trả trước 3 / 13 tháng", 600000]]
+    assert gf.chu_phi_hoa_mang(ct) == "Trả theo tháng: 1.000.000đ · Trả trước 3 / 13 tháng: 600.000đ"
+    assert [z["phi_lap"] for z in ct["lua_chon"]] == [1000000, 600000, 600000]
+
+
+def test_phi_giu_so_0_va_chi_can_mot_cach_thieu_la_chua_ro():
+    nhom = gf._nhom_phi([_lc("Trả sau", 1, 0), _lc("Trả trước", 6, 300000), _lc("Trả trước", 13, 300000)])
+    assert nhom == [["Trả theo tháng", 0], ["Trả trước 6 / 13 tháng", 300000]]       # số 0 không bị bỏ khỏi khoảng
+    chu = gf.chu_phi_hoa_mang({"phi_nhom": nhom})
+    assert "Miễn phí" in chu and "300.000đ" in chu
+    assert gf._nhom_phi([_lc("Trả sau", 1, 0), _lc("Trả trước", 6, None)]) == []   # một cách không ghi phí: không kết luận miễn phí cho cả gói
+    assert gf._nhom_phi([]) == []
+    assert gf.chu_phi_hoa_mang({"phi_nhom": [["", 0]]}) == "Miễn phí"
 
 
 def test_so_sanh_hai_phuong(mang_gia):
@@ -139,7 +243,7 @@ def test_so_sanh_hai_phuong(mang_gia):
     meta = dong["Internet Meta F1"]
     assert (meta["gia_a"], meta["gia_b"], meta["chenh"], meta["pct"], meta["tinh_trang"]) == (340000, 330000, -10000, -2.9, "b_re")
     assert dong["Super300 Biz"]["tinh_trang"] == "bang" and dong["Super300 Biz"]["chenh"] == 0
-    assert gf.dem_so_sanh(list(dong.values())) == {"b_re": 2, "b_dat": 0, "bang": 2, "chi_a": 0, "chi_b": 0}
+    assert gf.dem_so_sanh(list(dong.values())) == {"b_re": 2, "b_dat": 0, "bang": 1, "chi_a": 0, "chi_b": 0}
     chi_a = {r["ten"]: r["tinh_trang"] for r in gf.so_sanh(a["goi"], c["goi"])}
     assert chi_a["Super300 Biz"] == "chi_a"                                # Quế Sơn không bán gói doanh nghiệp
     assert {r["tinh_trang"] for r in gf.so_sanh(c["goi"], a["goi"])} >= {"chi_b"}
@@ -169,14 +273,50 @@ def test_quet_tinh_phuong_loi_thi_ghi_vao_loi(mang_gia, monkeypatch):
     assert du["loi"] == [str(QUE_SON)] and len(du["gia"]) == 2
 
 
-def test_nut_nho_cua_internet_ca_nhan_theo_ten_goi():
-    def g(ten):
-        return {"ten": ten}
-    assert gf.thuoc_con(g("FPT SpeedX2 Pro"), "wifi7") and gf.thuoc_con(g("FPT SpeedX2 Pro"), "game") and not gf.thuoc_con(g("FPT SpeedX2 Pro"), "gia_dinh")
-    assert gf.thuoc_con(g("Internet Meta F1"), "gia_dinh") and gf.thuoc_con(g("Internet Meta F1"), "game")           # một gói nằm được nhiều nút
-    assert gf.thuoc_con(g("Internet F-Game"), "game") and not gf.thuoc_con(g("Internet F-Game"), "wifi7")
-    assert gf.thuoc_con(g("Internet Sky F2"), "gia_dinh") and not any(gf.thuoc_con(g("Internet Sky"), m) for m in ("wifi7", "gia_dinh", "game"))
-    assert gf._chuan_goi(_goi(9, "lux500", "Internet Lux500", gia=800000))["khach"] == "doanh_nghiep"                  # Lux500 là gói doanh nghiệp
+TEN_THAT = ["Gói Giga", "Internet Sky", "FPT SpeedX2", "FPT SpeedX10", "Internet Giga F1", "Internet Sky F1", "Internet Sky F2", "Internet F-Game",
+            "Internet Meta F1", "Internet Meta F2", "FPT SpeedX2 Pro", "FPT SpeedX10 Pro", "Sky An Tâm 7 - IQ4S (1 cam)", "Giga An Tâm 7 - Play 4 (từ 2 cam)",
+            "Sky F2 An Tâm 7 - IQ4S", "Super300 Biz", "Super800 Biz Plus", "Internet Lux500", "Combo Giga - V.VIP", "Combo Meta F1 V.VIP (có box)",
+            "Combo Speedx2 - V.VIP", "Combo Lux 800 - V.VIP"]
+
+
+def _goi_that():
+    return [gf._chuan_goi(_goi(i + 1, f"c{i}", ten, gia=100000 + i)) for i, ten in enumerate(TEN_THAT)]
+
+
+def test_moi_goi_dung_mot_nhom_va_tong_cac_nut_bang_so_goi():
+    goi = _goi_that()
+    nhom = gf.theo_nhom(goi)
+    assert sum(len(v) for v in nhom.values()) == len(goi)                                # không gói nào rơi ra ngoài hay bị đếm hai lần
+    assert all(g["nhom"] in gf.NHOM for g in goi)
+    codes = [g["code"] for v in nhom.values() for g in v]
+    assert len(codes) == len(set(codes))
+    assert list(nhom) == [n for n in gf.NHOM if n in nhom] and len(gf.NHOM) == 7        # thứ tự cố định của nút
+    assert gf.theo_nhom([]) == {}
+
+
+def test_thu_tu_uu_tien_khi_goi_khop_nhieu_nhom():
+    def nhom(ten):
+        return gf._chuan_goi(_goi(99, "x", ten))["nhom"]
+    assert nhom("Internet Meta F1") == "Internet game thủ"                               # khớp cả game thủ lẫn gia đình: lấy game thủ
+    assert nhom("FPT SpeedX2 Pro") == "Internet game thủ"
+    assert nhom("FPT SpeedX2") == "Internet cá nhân" and nhom("FPT SpeedX10") == "Internet cá nhân"      # SpeedX thường (Wi-Fi 7) không có nút riêng
+    assert nhom("Internet Sky F1") == "Internet gia đình" and nhom("Internet Sky F2") == "Internet gia đình"
+    assert nhom("Gói Giga") == "Internet cá nhân" and nhom("Internet Sky") == "Internet cá nhân"
+    assert nhom("Sky An Tâm 7 - IQ4S (1 cam)") == "Combo Internet + Camera"
+    assert nhom("Sky F2 An Tâm 7 - IQ4S") == "Combo Internet + Camera"                   # An Tâm thắng gia đình (Sky F2)
+    assert nhom("Combo Meta F1 V.VIP (có box)") == "Combo Internet + V.VIP"             # V.VIP thắng game thủ (Meta)
+    assert nhom("Combo Lux 800 - V.VIP") == "Combo Internet + V.VIP doanh nghiệp"
+    assert nhom("Super800 Biz Plus") == "Internet doanh nghiệp" and nhom("Internet Lux500") == "Internet doanh nghiệp"
+
+
+def test_khong_con_nhom_camera_fpt_play_le():
+    assert not any("FPT Play" in n for n in gf.NHOM) and "Camera" not in gf.NHOM            # chỉ còn "Combo Internet + Camera" (gói An Tâm)
+    assert gf.NHOM_MAC_DINH == "Internet cá nhân"
+    ma = Path(gf.__file__).read_text(encoding="utf-8")
+    assert "fpt-camera" not in ma and "fpt-play" not in ma
+    cs = (Path(__file__).resolve().parent.parent / "app" / "ui" / "pages" / "huongdan.py").read_text(encoding="utf-8")
+    tra_gia = cs[cs.index('_muc("Tra cứu giá"'):cs.index('_muc("Ads IBB7')]
+    assert "Copy bảng giá" not in tra_gia and "lắp đặt" not in tra_gia and "phí hòa mạng" in tra_gia and "7 nhóm" in tra_gia
 
 
 def test_chu_so_sanh_gui_khach(mang_gia):
@@ -219,11 +359,11 @@ def _goi_callback(dau_ra, tai_khoan, *args, bam=None):
 
 
 @pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
-def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia):
+def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia_an_tam):
     from dash.exceptions import PreventUpdate
     from flask_login import login_user
 
-    from app.ui.app import server
+    from app.ui.app import app, server
     from app.ui.pages import giafpt
 
     goi = _goi_callback
@@ -235,26 +375,26 @@ def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia):
     tb, luc, nut, chon, ctd, pha = goi("gf-tb.children", sale, "tra", TINH, AN_HAI, None, None)
     assert tb is None and pha["phuong"] == AN_HAI and ctd is None and luc.startswith("Giá lấy lúc ")
     nhan = [n["label"] for n in nut]
-    assert nhan[0].startswith("Internet · cá nhân (") and any(n.startswith("FPT Play") for n in nhan)       # mỗi nhóm một nút tròn, có số gói
-    assert chon == "Internet|ca_nhan"                                                                    # mặc định Internet cá nhân
-    assert goi("gf-tb.children", sale, "tra", TINH, AN_HAI, None, "FPT Play|ca_nhan")[3] == "FPT Play|ca_nhan"   # giữ nhóm đang xem khi đổi phường
-    nut_con, con, kieu = goi("gf-con.options", sale, chon, pha, "all")
-    assert [n["value"] for n in nut_con] == ["all", "gia_dinh", "game"] and kieu == {} and con == "all"    # fake có Meta F1: gia đình + game thủ
-    assert goi("gf-con.options", sale, "FPT Play|ca_nhan", pha, "all")[2] == {"display": "none"}           # nhóm khác: ẩn hàng nút nhỏ
-    mo_ta = _chu(goi("gf-ds.children", sale, chon, "all", pha, None))
-    assert "gf-the" in mo_ta and "Internet Meta F1" in mo_ta and "Super300 Biz" not in mo_ta              # chỉ nhóm đang chọn
-    assert "Đang nạp chính sách chung" in mo_ta and "Chung cho cả nhóm" not in mo_ta                      # chi tiết chưa về: có chỗ chờ
+    assert nhan == ["Internet cá nhân (1)", "Internet game thủ (1)", "Combo Internet + Camera (2)", "Internet doanh nghiệp (1)"]   # đúng thứ tự NHOM, nhóm trống bỏ
+    assert sum(int(n.rsplit("(", 1)[1].rstrip(")")) for n in nhan) == len(gf.goi_theo_phuong(TINH, AN_HAI)["goi"])             # tổng nút = tổng gói
+    assert chon == "Internet cá nhân"                                                                      # mặc định Internet cá nhân
+    assert goi("gf-tb.children", sale, "tra", TINH, AN_HAI, None, "Internet doanh nghiệp")[3] == "Internet doanh nghiệp"    # giữ nhóm đang xem khi đổi phường
+    mo_ta = _chu(goi("gf-ds.children", sale, "Combo Internet + Camera", pha, None))
+    assert "gf-the" in mo_ta and "Sky An Tâm 7" in mo_ta and "Super300 Biz" not in mo_ta                  # chỉ nhóm đang chọn
+    assert "Đang nạp chính sách chung" in mo_ta and "Chính sách chung" not in mo_ta                       # chi tiết chưa về: có chỗ chờ, phí hòa mạng chưa là "Chưa rõ"
+    assert "Chưa rõ" not in mo_ta
     chi_tiet = goi("gf-ctd.data@", sale, pha)
     assert chi_tiet["pha"] == pha["khoa"] and chi_tiet["chung"] and chi_tiet["ct"]
-    mo_ta2 = _chu(goi("gf-ds.children", sale, chon, "all", pha, chi_tiet))
+    assert all("phi_nhom" in c for c in chi_tiet["ct"].values())
+    mo_ta2 = _chu(goi("gf-ds.children", sale, "Combo Internet + Camera", pha, chi_tiet))
     assert "Đang nạp chính sách chung" not in mo_ta2 and "Phí hòa mạng" in mo_ta2 and "Chính sách chung" in mo_ta2
-    assert "Internet Sky" not in _chu(goi("gf-ds.children", sale, chon, "game", pha, chi_tiet)).replace("Internet Sky F", "")   # nút nhỏ Game thủ: chỉ Meta F1
-    cu = dict(chi_tiet, pha="khac")                                                                      # kết quả của phường khác về muộn: bỏ qua
-    assert "Đang nạp chính sách chung" in _chu(goi("gf-ds.children", sale, chon, "all", pha, cu))
+    cu = dict(chi_tiet, pha="khac")                                                                        # kết quả của phường khác về muộn: bỏ qua
+    assert "Đang nạp chính sách chung" in _chu(goi("gf-ds.children", sale, "Combo Internet + Camera", pha, cu))
     with pytest.raises(PreventUpdate):
-        goi("gf-tb.children", _tk("dvkh"), "tra", TINH, AN_HAI, None, None)                              # khối khác: máy chủ chặn
+        goi("gf-tb.children", _tk("dvkh"), "tra", TINH, AN_HAI, None, None)                                # khối khác: máy chủ chặn
     with pytest.raises(PreventUpdate):
-        goi("gf-tb.children", sale, "sosanh", TINH, AN_HAI, None, None)                                  # tab đang ẩn không tính
+        goi("gf-tb.children", sale, "sosanh", TINH, AN_HAI, None, None)                                    # tab đang ẩn không tính
+    assert not any("gf-con" in k for k in app.callback_map)   # hàng nút nhỏ đã bỏ hẳn
 
 
 @pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
@@ -305,7 +445,7 @@ def _id_the(node) -> list[dict]:
 
 def _the_mau(**ghi_de):
     from app.ui.pages import giafpt_the
-    g = {"code": "x", "ten": "Internet Sky", "nhom": "Internet", "khach": "ca_nhan", "gia": 200000, "toc_do": "1 Gbps / 300 Mbps", "thiet_bi": None,
+    g = {"code": "x", "ten": "Internet Sky", "nhom": "Internet cá nhân", "khach": "ca_nhan", "gia": 200000, "toc_do": "1 Gbps / 300 Mbps", "thiet_bi": None,
          "nhan": "", "uu_dai": ""}
     return giafpt_the._the({**g, **ghi_de}, {}, None, False)
 
@@ -318,13 +458,10 @@ def test_the_goi_an_tam_bam_mo_duoc_chi_tiet(mang_gia_an_tam):
     sale = _tk("nvkd", ["IBB7"])
     pha = {"tinh": TINH, "phuong": AN_HAI, "luc": "x", "khoa": f"{TINH}-{AN_HAI}"}
     chi_tiet = _goi_callback("gf-ctd.data@", sale, pha)
-    khoa_cam = "Internet + Camera An Tâm|ca_nhan"
-    assert chi_tiet["chung"][khoa_cam]                                                      # hai gói An Tâm nên có phần chung của nhóm
-    nut_con = _goi_callback("gf-con.options", sale, "Internet|ca_nhan", pha, "all")[0]
-    assert [n["value"] for n in nut_con] == ["all", "gia_dinh", "game", "camera"]
-    cay = {"internet": _goi_callback("gf-ds.children", sale, "Internet|ca_nhan", "all", pha, chi_tiet),
-           "combo": _goi_callback("gf-ds.children", sale, "Internet|ca_nhan", "camera", pha, chi_tiet),
-           "fpt_play": _goi_callback("gf-ds.children", sale, "FPT Play|ca_nhan", "all", pha, chi_tiet)}
+    assert chi_tiet["chung"]["Combo Internet + Camera"]                                    # hai gói An Tâm nên có phần chung của nhóm
+    cay = {"internet": _goi_callback("gf-ds.children", sale, "Internet cá nhân", pha, chi_tiet),
+           "combo": _goi_callback("gf-ds.children", sale, "Combo Internet + Camera", pha, chi_tiet),
+           "doanh_nghiep": _goi_callback("gf-ds.children", sale, "Internet doanh nghiệp", pha, chi_tiet)}
     for ten, c in cay.items():
         ids = _id_the(c)
         assert ids, ten
@@ -335,10 +472,10 @@ def test_the_goi_an_tam_bam_mo_duoc_chi_tiet(mang_gia_an_tam):
 
     def mo(code):
         return _goi_callback("gf-ct-than.children", sale, [1], TINH, AN_HAI, chi_tiet, bam={"type": "gf-the", "code": code})
-    lop, tieu, than = mo("sky-an-tam")                                                      # thẻ trong nút Combo Internet + Camera
+    lop, tieu, than = mo("sky-an-tam")                                                      # thẻ trong nhóm Combo Internet + Camera
     assert lop == "modal mo" and tieu == "Sky An Tâm 7 - IQ4S"
     assert "điều kiện chung của nhóm" in _chu(than)                                          # lấy đúng phần chung của nhóm An Tâm
-    lop, tieu, than = mo("meta-f1")                                                         # thẻ Internet thường
+    lop, tieu, than = mo("meta-f1")                                                         # thẻ nhóm Internet game thủ (Meta F1)
     assert lop == "modal mo" and tieu == "Internet Meta F1"
     with pytest.raises(PreventUpdate):                                                      # thẻ vừa dựng lại (không có lượt bấm) thì không mở
         _goi_callback("gf-ct-than.children", sale, [0], TINH, AN_HAI, chi_tiet)
@@ -361,3 +498,19 @@ def test_the_khong_toc_do_thi_bo_dong_toc_do():
     assert "Tốc độ" in day_du and "gf-toc-do" in day_du
     mot_chieu = _chu(_the_mau(toc_do="1 Gbps"))
     assert "Tốc độ" in mot_chieu and "↑" not in mot_chieu
+
+
+def test_the_ghi_phi_hoa_mang_dung_va_khong_suy_ra_mien_phi():
+    from app.ui.pages import giafpt_the
+    g = {"code": "x", "ten": "Internet Sky", "nhom": "Internet cá nhân", "khach": "ca_nhan", "gia": 200000, "toc_do": None, "thiet_bi": None, "nhan": "", "uu_dai": ""}
+
+    def the(ct, dang_nap=False):
+        return _chu(giafpt_the._the(g, {}, ct, False, dang_nap))
+    assert "Chưa rõ" in the(None) and "Miễn phí" not in the(None)                           # chi tiết cả phường đã về mà gói này không có: Chưa rõ
+    dang = the(None, dang_nap=True)
+    assert "…" in dang and "Chưa rõ" not in dang                                            # còn đang nạp: dấu chờ, không báo Chưa rõ vội
+    assert "Chưa rõ" in the({"phi_nhom": [], "thiet_bi": None})                              # dịch vụ không ghi phí
+    assert "Miễn phí" in the({"phi_nhom": [["", 0]], "thiet_bi": None})                     # chỉ khi ghi rõ 0
+    assert "300.000đ" in the({"phi_nhom": [["", 300000]], "thiet_bi": None})
+    nhieu = the({"phi_nhom": [["Trả theo tháng", 1000000], ["Trả trước 6 / 13 tháng", 600000]], "thiet_bi": None})
+    assert "Trả theo tháng: 1.000.000đ" in nhieu and "Trả trước 6 / 13 tháng: 600.000đ" in nhieu

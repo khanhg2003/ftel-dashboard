@@ -71,8 +71,9 @@ def layout():
                     "gian chờ"), " có danh sách hợp đồng chờ từ 7 ngày để đôn đốc."]),
                 _muc("Tra cứu giá", "Giá gói cước theo phường / xã, đúng như website fpt.vn", [
                     "Công cụ cho mọi tài khoản khối Kinh doanh. Chọn tỉnh và phường / xã để xem các gói đang bán và giá tại đó "
-                    "(lấy thẳng từ fpt.vn, đã gồm VAT). Bấm ", html.B("Xem chi tiết"), " để xem trả trước 3 / 6 / 13 tháng, phí lắp đặt và "
-                    "chính sách đang áp dụng. ", html.B("Copy bảng giá"), " để dán vào Zalo gửi khách. Tab ", html.B("So giá hai phường"),
+                    "(lấy thẳng từ fpt.vn, đã gồm VAT). Gói Internet chia 7 nhóm, mỗi gói thuộc đúng một nhóm: bấm tên nhóm để xem. "
+                    "Bấm ", html.B("Xem chi tiết"), " để xem trả trước 3 / 6 / 13 tháng, phí hòa mạng và "
+                    "chính sách đang áp dụng. Chỗ nào ghi ", html.B("Chưa rõ"), " là fpt.vn chưa trả đủ dữ liệu: bấm Làm mới giá hoặc xem trực tiếp trên fpt.vn. Tab ", html.B("So giá hai phường"),
                     " cho biết phường nào rẻ hơn, gói nào chỉ bán ở một nơi; tab ", html.B("Giá cả tỉnh"),
                     " quét mọi phường để thấy các mức giá trong tỉnh (mất khoảng nửa phút)."]),
                 _muc("Ads IBB7 (chỉ Quản trị)", "Chi tiêu quảng cáo Facebook và chi phí từng sale", [

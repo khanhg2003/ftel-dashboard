@@ -5,8 +5,13 @@ Giá lấy THẲNG từ dịch vụ mà website fpt.vn đang gọi (`apis.fpt.vn
 không trả lời thì hàm ném `LoiGia` (trang báo bằng lời dễ hiểu), và `goi_theo_phuong` trả lại bản lần gần nhất đã lấy được.
 Không lưu giá vào database; mỗi khu vực nhớ tạm `TTL_GOI` giây trong máy chủ.
 
-Giá trên website đã gồm VAT. Gói Internet có nhiều lựa chọn thời hạn (1 tháng trả sau, 3 / 6 / 13 / 26 tháng trả trước):
+Giá trên website đã gồm VAT. Chỉ lấy gói Internet (kể cả combo kèm Camera / V.VIP), chia thành 7 nhóm LOẠI TRỪ nhau theo TÊN gói
+(`NHOM`, `phan_nhom`): mỗi gói đúng một nhóm. Gói có nhiều lựa chọn thời hạn (1 tháng trả sau, 3 / 6 / 13 / 26 tháng trả trước):
 `chi_tiet_goi` đọc các lựa chọn đó. Quét cả tỉnh (`quet_tinh`) gọi mỗi phường một lần nên chỉ chạy khi người dùng bấm.
+
+Dịch vụ `packages/get` thỉnh thoảng (đo 22/10/2026: khoảng 1 trong 5 lượt) trả THIẾU: danh sách chính sách rỗng, hoặc mất dòng
+"Phí lắp đặt Internet" (cùng một gói, gọi lại lượt sau lại có đủ). Vì vậy mất dòng phí KHÔNG có nghĩa là miễn phí: `chi_tiet_goi` gọi lại tới
+`LAN_THU` lần, và chỉ ghi "Miễn phí" khi dịch vụ ghi rõ phí bằng 0.
 """
 from __future__ import annotations
 
@@ -28,16 +33,16 @@ SO_LUONG_QUET = 8
 HAN_QUET = 45                 # Vercel cho chạy tối đa 60 giây: quá hạn này thì trả phần đã quét được
 
 TINH_MAC_DINH = 511           # Đà Nẵng (đã gồm Quảng Nam cũ)
-KHACH = {"ca_nhan": "Cá nhân", "doanh_nghiep": "Doanh nghiệp"}
-# Chỉ lấy Internet, Camera, FPT Play (chủ app chốt 22/10/2026: không cần Smart TV, Tăng tốc, Smart Home, thiết bị mạng)
-NHOM_THEO_LOAI = {"internet": "Internet", "fpt-camera": "Camera", "fpt-play": "FPT Play"}
-THU_TU_NHOM = ["Internet", "Combo Internet + V.VIP", "Internet + Camera An Tâm", "Camera", "FPT Play"]
+LOAI_LAY = "internet"         # chỉ Internet (chủ app chốt 22/10/2026: không Camera lẻ, FPT Play lẻ, Smart TV, Tăng tốc, Smart Home, thiết bị mạng)
+LAN_THU = 4                   # số lần gọi `packages/get` cho một gói khi dịch vụ trả thiếu
 NHAN_PHU = {"Nổi bật", "Phổ biến", "Mới", "Hot"}   # nhãn của website, không phải ưu đãi
-DON_VI_GIA = {"Camera": "giá thiết bị"}
-# Nút nhỏ của Internet · cá nhân (chủ app 22/10/2026). Website không có cột phân loại nên chia theo TÊN gói, lấy từ các trang
-# fpt.vn/internet/gia-dinh, /game-thu và mục Wi-Fi 7 (22/10/2026); một gói có thể nằm ở nhiều nút. Gói mới có tên khác thì phải bổ sung ở đây.
-PHAN_LOAI_CON = [("wifi7", "Wifi 7"), ("gia_dinh", "Internet gia đình"), ("game", "Internet game thủ"), ("camera", "Combo Internet + Camera")]
-_TEN_CON = {"wifi7": r"speedx", "gia_dinh": r"giga f1|sky f1|sky f2|meta", "game": r"f-game|meta|speedx\d+ pro"}          # các nhóm còn lại là giá mỗi tháng
+# 7 nhóm theo thứ tự nút trên trang. Website không có cột phân loại nên chia theo TÊN gói (các trang fpt.vn/internet/gia-dinh, /game-thu, 22/10/2026).
+# Gói mới có tên khác thì phải bổ sung ở `_NHOM_THEO_TEN` / `_la_doanh_nghiep`, không thì rơi vào "Internet cá nhân".
+NHOM = ["Internet cá nhân", "Internet gia đình", "Internet game thủ", "Combo Internet + Camera", "Internet doanh nghiệp",
+        "Combo Internet + V.VIP", "Combo Internet + V.VIP doanh nghiệp"]
+NHOM_MAC_DINH = NHOM[0]
+# Gói cá nhân khớp nhiều nhóm thì lấy nhóm ĐẦU danh sách này (Meta F1 khớp cả hai nên vào game thủ). Đổi ưu tiên = đổi thứ tự hai dòng.
+_NHOM_THEO_TEN = [("Internet game thủ", r"f-game|meta|speedx\d+ pro"), ("Internet gia đình", r"giga f1|sky f1|sky f2|meta")]
 
 _GAN_NHAT: dict = {}          # bản giá lần gần nhất lấy được, dùng khi dịch vụ lỗi
 _khoa = threading.Lock()
@@ -97,16 +102,16 @@ def _la_doanh_nghiep(x: dict) -> bool:
     return bool(re.search(r"\bbiz\b|lux|doanh nghiệp", chu, re.I))
 
 
-def _nhom(x: dict) -> str:
-    ten = (x.get("name") or "")
-    nhom = NHOM_THEO_LOAI.get(x.get("type"), (x.get("type_name") or "Khác"))
-    if nhom != "Internet":
-        return nhom
-    if re.search(r"v\.?vip", ten, re.I):
-        return "Combo Internet + V.VIP"
-    if "an tâm" in ten.lower():
-        return "Internet + Camera An Tâm"
-    return nhom
+def phan_nhom(ten: str, doanh_nghiep: bool) -> str:
+    """Nhóm DUY NHẤT của một gói. Ưu tiên: Combo Camera (tên có "An Tâm") > Combo V.VIP > doanh nghiệp > game thủ > gia đình > còn lại."""
+    t = ten.lower()
+    if "an tâm" in t:
+        return "Combo Internet + Camera"
+    if re.search(r"v\.?vip", t):
+        return "Combo Internet + V.VIP doanh nghiệp" if doanh_nghiep else "Combo Internet + V.VIP"
+    if doanh_nghiep:
+        return "Internet doanh nghiệp"
+    return next((nhom for nhom, mau in _NHOM_THEO_TEN if re.search(mau, t)), NHOM_MAC_DINH)
 
 
 def _toc_do(x: dict, mo_ta: list[str]) -> str | None:
@@ -124,8 +129,9 @@ def _chuan_goi(x: dict) -> dict:
     gia = x.get("price") or {}
     mo_ta = [d.strip() for d in (x.get("card_description") or "").split("\n") if d.strip()]
     tb = _spec(x, "thiết bị")
-    return {"id": int(x["id"]), "code": x.get("code") or x.get("slug"), "ten": x.get("name") or x.get("title") or "",
-            "nhom": _nhom(x), "khach": "doanh_nghiep" if _la_doanh_nghiep(x) else "ca_nhan",
+    ten, dn = x.get("name") or x.get("title") or "", _la_doanh_nghiep(x)
+    return {"id": int(x["id"]), "code": x.get("code") or x.get("slug"), "ten": ten,
+            "nhom": phan_nhom(ten, dn), "khach": "doanh_nghiep" if dn else "ca_nhan",
             "gia": gia.get("price") if gia.get("price") is not None else gia.get("min_price"),
             "toc_do": _toc_do(x, mo_ta), "thiet_bi": int(tb) if str(tb or "").isdigit() else None,
             "uu_dai": "" if (x.get("tagline") or "") in NHAN_PHU else (x.get("tagline") or "").replace("12T", "12 tháng"),   # website lúc ghi 12T lúc 12 tháng
@@ -133,13 +139,12 @@ def _chuan_goi(x: dict) -> dict:
 
 
 def _thu_tu(g: dict):
-    nhom = g["nhom"]
-    return (THU_TU_NHOM.index(nhom) if nhom in THU_TU_NHOM else len(THU_TU_NHOM), g["khach"], g["gia"] or 0, g["ten"])
+    return (NHOM.index(g["nhom"]) if g["nhom"] in NHOM else len(NHOM), g["gia"] or 0, g["ten"])
 
 
 def _doc_goi(tinh: int, phuong: int) -> list[dict]:
     ds = _goi_dich_vu("/v1.1/packages/list", {"page_size": 100, "location": _vi_tri(tinh, phuong)})
-    return sorted((_chuan_goi(x) for x in ds if x.get("type") in NHOM_THEO_LOAI), key=_thu_tu)
+    return sorted((_chuan_goi(x) for x in ds if x.get("type") == LOAI_LAY), key=_thu_tu)
 
 
 @nho("gia_fpt", TTL_GOI)
@@ -168,20 +173,16 @@ def _chon(v) -> set | None:
     return None if not ds or "all" in ds else ds
 
 
-def thuoc_con(g: dict, ma: str) -> bool:
-    """Gói thuộc nút nhỏ `ma` (không dùng cho "camera": đó là cả nhóm Internet + Camera An Tâm)."""
-    return bool(re.search(_TEN_CON[ma], g["ten"].lower())) if ma in _TEN_CON else False
+def loc_goi(goi: list[dict], khach="all") -> list[dict]:
+    """Lọc theo khách hàng; ô nhận một giá trị hoặc nhiều giá trị (chọn nhiều thì lấy các gói thuộc BẤT KỲ giá trị nào)."""
+    k = _chon(khach)
+    return [g for g in goi if k is None or g["khach"] in k]
 
 
-def loc_goi(goi: list[dict], khach="all", nhom="all") -> list[dict]:
-    """Lọc theo khách hàng và nhóm sản phẩm; mỗi ô nhận một giá trị hoặc nhiều giá trị (chọn nhiều thì lấy các gói thuộc BẤT KỲ giá trị nào)."""
-    k, n = _chon(khach), _chon(nhom)
-    return [g for g in goi if (k is None or g["khach"] in k) and (n is None or g["nhom"] in n)]
-
-
-def cac_nhom(goi: list[dict]) -> list[str]:
-    co = {g["nhom"] for g in goi}
-    return [n for n in THU_TU_NHOM if n in co] + sorted(co - set(THU_TU_NHOM))
+def theo_nhom(goi: list[dict]) -> dict[str, list[dict]]:
+    """{nhóm: các gói} theo thứ tự `NHOM`, nhóm không có gói thì bỏ. Mỗi gói nằm đúng một nhóm nên số gói cộng lại bằng tổng."""
+    ra = {n: [g for g in goi if g["nhom"] == n] for n in NHOM}
+    return {n: v for n, v in ra.items() if v}
 
 
 # ------------------------------------------------------------------ chi tiết một gói
@@ -194,26 +195,47 @@ def _gio_vn(chuoi: str) -> datetime:
 
 
 def _khoang(gia_tri) -> list | None:
-    """[thấp nhất, cao nhất] của các số dương; không có số nào thì None (không có khoản phí này)."""
+    """[thấp nhất, cao nhất] của các số dương; không có số nào thì None (không có khoản này)."""
     ds = [v for v in gia_tri if v]
     return [min(ds), max(ds)] if ds else None
 
 
-@nho("gia_fpt", TTL_GOI)
-def chi_tiet_goi(code: str, tinh: int, phuong: int, gia_thang: float | None) -> dict:
-    """Các lựa chọn thời hạn / hình thức thanh toán đang áp dụng cho gói ở phường đó.
+def _thuc(d: dict) -> list[dict]:
+    """Các chính sách thật của gói: bỏ chính sách không có hình thức thanh toán (dòng "Combo Cam" / "Combo Thể thao" thỉnh thoảng lẫn vào)."""
+    return [o for o in d.get("product_offering_price") or [] if o.get("billing_type_name")]
 
-    `thang_dong` = số tháng thực phải đóng (tổng tiền dịch vụ / giá tháng); `tang` = số tháng được tặng thêm
-    (VD 13 tháng chỉ đóng 12). `gia_thang` lấy từ danh sách gói (giá "price" của dịch vụ chi tiết là giá theo thời hạn
-    ngắn nhất, không phải giá tháng). Chính sách hết hạn rồi thì bỏ."""
-    d = _goi_dich_vu("/v1.1/packages/get", {"code": code, "location": _vi_tri(tinh, phuong)})
-    gia = gia_thang
+
+def _diem_day_du(d: dict, gia_thang: float | None) -> int:
+    """0-3: có chính sách thật; mọi chính sách đều có dòng phí lắp đặt; giá trả sau khớp giá tháng của danh sách. 3 = đủ."""
+    that = _thuc(d)
+    if not that:
+        return 0
+    sm = [o.get("summary") or {} for o in that]
+    co_phi = all(_tien(x.get("fee_price")) is not None for x in sm)
+    sau = [_tien(x.get("service_price")) for o, x in zip(that, sm) if o["billing_type_name"] == "Trả sau"]
+    return 1 + co_phi + (not gia_thang or all(v == gia_thang for v in sau))
+
+
+def _lay_day_du(code: str, tinh: int, phuong: int, gia_thang: float | None) -> dict:
+    """Gọi `packages/get` tới `LAN_THU` lần, lấy lần đầy đủ nhất (xem docstring đầu file: dịch vụ thỉnh thoảng trả thiếu)."""
+    tot, diem_tot = {}, -1
+    for _ in range(LAN_THU):
+        d = _goi_dich_vu("/v1.1/packages/get", {"code": code, "location": _vi_tri(tinh, phuong)})
+        diem = _diem_day_du(d, gia_thang)
+        if diem > diem_tot:
+            tot, diem_tot = d, diem
+        if diem == 3:
+            break
+    return tot
+
+
+def _lua_chon(d: dict, gia: float | None) -> list[dict]:
     qua = {}
     for p in ((d.get("display_contents") or {}).get("promotion_contents") or []):
         qua[(p.get("contract_length_months"), p.get("charge_type"))] = p.get("tag_line") or ""
     bay_gio = utc_bay_gio() + LECH_GIO_VN
-    lua_chon = []
-    for o in d.get("product_offering_price") or []:
+    ra = []
+    for o in _thuc(d):
         if o.get("status") not in (None, "active"):
             continue
         den = _gio_vn(o["effective_to"]) if o.get("effective_to") else None
@@ -225,18 +247,49 @@ def chi_tiet_goi(code: str, tinh: int, phuong: int, gia_thang: float | None) -> 
         sm = o.get("summary") or {}
         thang = o.get("contract_length_months") or 1
         tong = _tien(sm.get("service_price"))
-        tra_truoc = (o.get("billing_type_name") or "") == "Trả trước"
+        tra_truoc = o["billing_type_name"] == "Trả trước"
         thang_dong = round(tong / gia, 1) if tong and gia else None
         tang = round(thang - thang_dong, 1) if tra_truoc and thang_dong and thang - thang_dong > 0.05 else 0
-        lua_chon.append({
-            "hinh_thuc": o.get("billing_type_name") or "", "thang": thang, "tong": tong, "phi_lap": _tien(sm.get("fee_price")),
+        ra.append({
+            "hinh_thuc": o["billing_type_name"], "thang": thang, "tong": tong, "phi_lap": _tien(sm.get("fee_price")),
             "thiet_bi": _tien(sm.get("device_price")), "thang_dong": thang_dong, "tang": tang,
             "binh_quan": round(tong / thang) if tong else None,
             "qua": qua.get((thang, "tra-truoc" if tra_truoc else "tra-sau"), ""),
             "chinh_sach": o.get("name") or "", "ma": o.get("sale_platform_code") or "",
             "den": (den - timedelta(seconds=1)).strftime("%d/%m/%Y") if den else ""})
-    lua_chon.sort(key=lambda z: (z["thang"], z["hinh_thuc"], z["chinh_sach"]))
-    return {"ten": d.get("name") or "", "gia": gia, "phi_lap": _khoang(z["phi_lap"] for z in lua_chon),
+    ra.sort(key=lambda z: (z["thang"], z["hinh_thuc"], z["chinh_sach"]))
+    return ra
+
+
+def _nhom_phi(lua_chon: list[dict]) -> list:
+    """[[nhãn cách thanh toán, phí hòa mạng]], gom các cách cùng mức phí. Phí 0 giữ nguyên (đó là "miễn phí" dịch vụ ghi rõ).
+    Chỉ cần MỘT cách thanh toán không ghi phí là trả rỗng ("chưa rõ"): không suy ra miễn phí từ chỗ trống."""
+    if not lua_chon or any(z["phi_lap"] is None for z in lua_chon):
+        return []
+    theo_phi: dict = {}
+    for z in lua_chon:
+        theo_phi.setdefault(z["phi_lap"], []).append(z)
+    ra = []
+    for phi, zs in theo_phi.items():
+        truoc = sorted({z["thang"] for z in zs if not _la_tra_sau(z["hinh_thuc"], z["thang"])})
+        nhan = chu_thanh_toan(any(_la_tra_sau(z["hinh_thuc"], z["thang"]) for z in zs), truoc)
+        ra.append([nhan[:1].upper() + nhan[1:], phi])
+    return ra
+
+
+@nho("gia_fpt", TTL_GOI)
+def chi_tiet_goi(code: str, tinh: int, phuong: int, gia_thang: float | None) -> dict:
+    """Các lựa chọn thời hạn / hình thức thanh toán đang áp dụng cho gói ở phường đó.
+
+    `thang_dong` = số tháng thực phải đóng (tổng tiền dịch vụ / giá tháng); `tang` = số tháng được tặng thêm
+    (VD 13 tháng chỉ đóng 12). `gia_thang` lấy từ danh sách gói (giá "price" của dịch vụ chi tiết là giá theo thời hạn
+    ngắn nhất, không phải giá tháng). Chính sách hết hạn rồi thì bỏ. Không có chính sách nào dùng được (dịch vụ trả thiếu
+    cả sau các lần gọi lại) thì ném `LoiGia` để trang báo chứ không hiện số sai."""
+    d = _lay_day_du(code, tinh, phuong, gia_thang)
+    lua_chon = _lua_chon(d, gia_thang)
+    if not lua_chon:
+        raise LoiGia("fpt.vn chưa trả đủ chính sách của gói này.")
+    return {"ten": d.get("name") or "", "gia": gia_thang, "phi_nhom": _nhom_phi(lua_chon),
             "thiet_bi": _khoang(z["thiet_bi"] for z in lua_chon), "mo_ta": [x.strip() for x in (d.get("card_description") or "").split("\n") if x.strip()],
             "lua_chon": lua_chon, "luc": utc_bay_gio()}
 
@@ -250,15 +303,6 @@ def chi_tiet_nhieu(tinh: int, phuong: int, goi: list[dict]) -> dict:
             return g["code"], None
     with ThreadPoolExecutor(SO_LUONG_QUET) as ex:
         return dict(ex.map(mot, goi))
-
-
-def khoa_nhom(g: dict) -> str:
-    return f"{g['nhom']}|{g['khach']}"
-
-
-def tieu_de_nhom(khoa: str) -> str:
-    nhom, khach = khoa.split("|")
-    return nhom + (" · doanh nghiệp" if khach == "doanh_nghiep" else (" · cá nhân" if nhom == "Internet" else ""))
 
 
 def nhan_thoi_han(hinh_thuc: str, thang: int) -> str:
@@ -277,7 +321,7 @@ def chu_thanh_toan(tra_sau: bool, tra_truoc: list[int]) -> str:
 def phan_chung(goi: list[dict], chi_tiet: dict) -> dict:
     """Điều kiện chung của các gói cùng nhóm: những gì giống hệt nhau ở MỌI gói thì lôi ra ngoài, trong chi tiết từng gói chỉ ghi chỗ khác.
 
-    Chỉ so khi có từ 2 gói lấy được chi tiết. Gồm: dòng mô tả + ưu đãi, các hình thức thanh toán, số tháng tặng, phí lắp đặt, thiết bị, hạn chính sách."""
+    Chỉ so khi có từ 2 gói lấy được chi tiết. Gồm: dòng mô tả + ưu đãi, các hình thức thanh toán, số tháng tặng, thiết bị, hạn chính sách, và phí hòa mạng CHỈ khi mọi gói đều cùng một mức ở mọi cách thanh toán."""
     cac = [(g, chi_tiet[g["code"]]) for g in goi if chi_tiet.get(g["code"])]
     if len(cac) < 2:
         return {}
@@ -294,16 +338,27 @@ def phan_chung(goi: list[dict], chi_tiet: dict) -> dict:
     return {"uu_dai": uu_dai.pop() if len(uu_dai) == 1 else "",
             "tra_sau": any(_la_tra_sau(h, t) for h, t in dung_chung),
             "tra_truoc": sorted(t for h, t in dung_chung if not _la_tra_sau(h, t)), "tang": {str(k): v for k, v in tang.items()},
-            "phi_lap": ct[0]["phi_lap"] if all(c["phi_lap"] == ct[0]["phi_lap"] for c in ct) else None,
+            "phi": ct[0]["phi_nhom"][0][1] if len(ct[0]["phi_nhom"]) == 1 and all(c["phi_nhom"] == ct[0]["phi_nhom"] for c in ct) else None,
             "thiet_bi": ct[0]["thiet_bi"] if all(c["thiet_bi"] == ct[0]["thiet_bi"] for c in ct) else None,
             "den": min(den, key=lambda x: (x[6:], x[3:5], x[:2])) if den else "", "so_den": len(den), "so_goi": len(cac)}
 
 
-def chu_phi_hoa_mang(ct: dict | None) -> str:
-    """Phí hòa mạng (phí lắp đặt) của gói: số tiền hoặc khoảng; "Miễn phí" khi dịch vụ không ghi khoản phí nào; rỗng nếu chưa có chi tiết."""
+def dong_phi(ct: dict | None, chi_tiet: bool = False) -> list[str]:
+    """Phí hòa mạng (phí lắp đặt Internet) của gói, mỗi mức phí một dòng: một mức chung thì một dòng một số; khác nhau theo cách
+    thanh toán thì ghi từng cách. "Miễn phí" CHỈ khi dịch vụ ghi rõ 0; dịch vụ không ghi thì "Chưa rõ". Rỗng khi chưa có chi tiết."""
     if ct is None:
-        return ""
-    return chu_khoang(ct["phi_lap"]) or "Miễn phí"
+        return []
+    nhom = ct.get("phi_nhom") or []
+    if not nhom:
+        return ["Chưa rõ, xem trên fpt.vn" if chi_tiet else "Chưa rõ"]
+
+    def tien(p):
+        return "Miễn phí" if p == 0 else chu_tien(p)
+    return [tien(nhom[0][1])] if len(nhom) == 1 else [f"{nhan}: {tien(p)}" for nhan, p in nhom]
+
+
+def chu_phi_hoa_mang(ct: dict | None, chi_tiet: bool = False) -> str:
+    return " · ".join(dong_phi(ct, chi_tiet))
 
 
 def chu_khoang(kh: list | None) -> str:
@@ -321,8 +376,8 @@ def dong_chung(c: dict) -> list[str]:
         d.append("Thanh toán: " + chu_thanh_toan(c.get("tra_sau"), c.get("tra_truoc") or []))
     for thang, tang in sorted(c.get("tang", {}).items(), key=lambda x: int(x[0])):
         d.append(f"Trả trước {thang} tháng: tặng thêm {tang:g} tháng")
-    if c.get("phi_lap"):
-        d.append(f"Phí hòa mạng: {chu_khoang(c['phi_lap'])}")
+    if c.get("phi") is not None:
+        d.append("Phí hòa mạng: " + ("Miễn phí" if c["phi"] == 0 else chu_tien(c["phi"])))
     if c.get("thiet_bi"):
         d.append(f"Thiết bị đi kèm: {chu_khoang(c['thiet_bi'])}")
     if c.get("uu_dai"):
@@ -340,8 +395,6 @@ def khac_biet(g: dict, ct: dict | None, c: dict) -> dict:
     kb = {}
     if g["uu_dai"] and g["uu_dai"] != c.get("uu_dai"):
         kb["uu_dai"] = g["uu_dai"]
-    if ct["phi_lap"] and ct["phi_lap"] != c.get("phi_lap"):
-        kb["phi_lap"] = ct["phi_lap"]
     if ct["thiet_bi"] and ct["thiet_bi"] != c.get("thiet_bi"):
         kb["thiet_bi"] = ct["thiet_bi"]
     return kb
@@ -366,7 +419,7 @@ def so_sanh(goi_a: list[dict], goi_b: list[dict]) -> list[dict]:
         chenh = gb - ga if ga is not None and gb is not None else None
         dong.append({"id": i, "ten": g["ten"], "nhom": g["nhom"], "khach": g["khach"], "gia_a": ga, "gia_b": gb,
                      "chenh": chenh, "pct": round(chenh * 100 / ga, 1) if chenh is not None and ga else None, "tinh_trang": tt})
-    dong.sort(key=lambda r: _thu_tu({"nhom": r["nhom"], "khach": r["khach"], "gia": r["gia_a"] or r["gia_b"], "ten": r["ten"]}))
+    dong.sort(key=lambda r: _thu_tu({"nhom": r["nhom"], "gia": r["gia_a"] or r["gia_b"], "ten": r["ten"]}))
     return dong
 
 
