@@ -50,7 +50,7 @@ def _kpi(moi, cu, con_no, db_b):
             f"Tháng trước cùng ngày {int(moi['so_ngay'])}: {ch.pct(cu['ty_le_bill'] * 100)}" if cu is not None else "Chưa có kỳ trước", "ok" if (chenh_b or 0) >= -0.5 else "bad"),
            ("So với tháng trước (doanh thu)", f"{'+' if (chenh_d or 0) > 0 else '−'}{ch.so(abs(chenh_d), 1)} điểm %" if chenh_d is not None else "–",
             f"Kỳ trước: {ch.pct(cu['ty_le_dt'] * 100)}" if cu is not None else "", "ok" if (chenh_d or 0) >= -0.5 else "bad"),
-           ("Tiền còn nợ", f"{ch.so(con_no['tt_con_no'] / 1e6, 0)} triệu" if con_no is not None else "–",
+           ("Tiền còn nợ", html.Span(ch.vnd(con_no["tt_con_no"]), className="dv-so-dai") if con_no is not None else "–",
             f"{ch.so(con_no['hd_con_no'])} hoá đơn chưa thu" if con_no is not None else "", "warn" if con_no is not None else "")]
     if db_b:
         cuoi = db_b["cuoi_ky_cu"] * 100
@@ -70,12 +70,14 @@ def _phan_phuong(ct, don_vi):
     q["ty_le_dt"] = (1 - q["tt_con_no"] / q["tong_tien"].replace(0, float("nan"))) * 100
     q["tt_con_no_tr"] = q["tt_con_no"] / 1e6
     q = q[q["so_hd"] >= 50].sort_values("tt_con_no", ascending=False)
-    cot = [ch.cot_chu("ten", "Phường / xã", None, pinned="left"), ch.cot_so("so_hd", "Số hoá đơn", 110), ch.cot_so("hd_con_no", "Còn nợ (HĐ)", 120),
-           ch.cot_so1("tt_con_no_tr", "Còn nợ (triệu đ)", 140), ch.cot_pct("ty_le_bill", "Thu theo bill", 110), ch.cot_pct("ty_le_dt", "Thu theo DT", 110)]
-    top = q.head(10).assign(ten=lambda x: x["ten"].str.replace("Phường ", "P. "))
-    return [html.Div(style={"height": "16px"}),
-            html.Div([card([ch.cot_ngang(top, "ten", "tt_con_no_tr", 340, mau=ch.CAM, chu="{:.0f} tr")], title="Phường / xã còn nợ nhiều nhất", desc="Triệu đồng, theo ảnh chụp công nợ mới nhất"),
-                      card([ch.bang_df("dvcn-quan", q, cot, 340)], title="Theo phường / xã", desc="Chỉ phường có từ 50 hoá đơn")], className="dv-hai-cot")]
+    top = q.head(12).assign(ten=lambda x: x["ten"].str.replace("Phường ", "P. "))
+    thap = q.sort_values("ty_le_bill").head(12).assign(ten=lambda x: x["ten"].str.replace("Phường ", "P. "))
+    mau = [ch.DO if v < 85 else (ch.CAM if v < 90 else ch.LUC) for v in thap.iloc[::-1]["ty_le_bill"]]
+    return [html.Div("Theo phường / xã", className="dv-tieu-nhom"),
+            html.Div([card([ch.cot_ngang(top, "ten", "tt_con_no_tr", 380, mau=ch.CAM, chu="{:.0f} triệu đ")], title="Phường / xã còn nợ nhiều nhất",
+                           desc="Số tiền còn nợ (triệu đồng), theo ảnh chụp công nợ mới nhất. Chỉ phường có từ 50 hoá đơn."),
+                      card([ch.cot_ngang(thap, "ten", "ty_le_bill", 380, mau_cot=mau, chu="{:.1f}%")], title="Phường / xã thu chậm nhất",
+                           desc="Tỷ lệ hoá đơn đã thu. Đỏ dưới 85%, cam dưới 90%, xanh từ 90% trở lên.")], className="dv-hai-cot")]
 
 
 def _phan_quan(cn):

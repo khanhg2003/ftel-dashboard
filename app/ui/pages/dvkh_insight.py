@@ -23,17 +23,10 @@ def _diem_nong(bd, cd):
     h = sl.diem_nong_phuong(bd, cd)
     if h.empty:
         return card([html.Div("Chưa đủ dữ liệu rời mạng / công nợ theo phường để ghép.", className="desc")], title="Điểm nóng theo phường / xã")
-    h = h.assign(ten=h["ten"].map(sl.ten_phuong))
-    cot = [ch.cot_chu("ten", "Phường / xã", None, pinned="left"), ch.cot_so("kh_active", "KH Active", 100), ch.cot_so1("sr_bd_1000", "SR bị động / 1.000 KH", 150),
-           {"field": "ty_le_roi_active", "headerName": "% rời mạng", "width": 110, "type": "numericColumn",
-            "valueFormatter": {"function": "params.value == null ? '–' : Number(params.value).toLocaleString('vi-VN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%'"}},
-           ch.cot_pct("ty_le_chua_thu", "% chưa thu nợ", 120), ch.cot_so1("sr_cd_1000", "SR chủ động / 1.000 KH", 160), ch.cot_so("so_chi_so_top3", "Số chỉ số trong top 3 xấu", 190)]
     ten, cot_nhiet, chuan, raw = kt.ma_tran_phuong(h)
-    nhiet = card([ve.ban_do_nhiet(ten, cot_nhiet, chuan, raw)], title="Bản đồ nhiệt các phường",
-                 desc="Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất) trong chính cột đó. Phường đỏ ở nhiều cột là điểm nóng.") if ten else None
-    bang = card([ch.bang_df("dvin-nong", h, cot, 420)], title="Điểm nóng theo phường / xã",
-                desc="Ghép ba nguồn: SR bị động, rời mạng, công nợ. Phường có từ 500 khách. Top 3 xấu ở nhiều chỉ số cùng lúc là nơi cần kế hoạch riêng.")
-    return html.Div([nhiet, html.Div(style={"height": "16px"}), bang]) if nhiet is not None else bang
+    return card([ve.ban_do_nhiet(ten, cot_nhiet, chuan, raw)], title="Điểm nóng theo phường / xã",
+                desc="Ghép bốn nguồn: SR bị động, SR chủ động, rời mạng, công nợ (phường có từ 500 khách). Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất) trong chính cột đó; "
+                     "phường xếp trên là phường xấu ở nhiều cột cùng lúc, cần kế hoạch riêng.")
 
 
 def _hai_nguon(bd, cd):

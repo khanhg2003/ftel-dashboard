@@ -103,13 +103,53 @@ def xep_chong(ct: pd.DataFrame, mau: dict | None = None, ngang: bool = True, pha
     return ch.khung(f, cao)
 
 
-def sankey(g: dict, cao: int = 340):
-    """Sankey từ `khai_thac.dong_giu_chan`: nhóm cuối cùng màu đỏ (đã chấm dứt), xanh lá (còn dùng)."""
-    mau_nut = [ch.XANH, ch.LUC, VANG, ch.DO, "#B8C4D3", ch.DO, ch.LUC]
-    mau_noi = [mau_nut[d] + "55" for d in g["dich"]]
-    f = go.Figure(go.Sankey(arrangement="snap", node={"label": g["nhan"], "color": mau_nut, "pad": 18, "thickness": 18, "line": {"width": 0}},
-                            link={"source": g["nguon"], "target": g["dich"], "value": g["gia_tri"], "color": mau_noi}))
+def sankey(g: dict, cao: int = 420):
+    """Sankey từ `khai_thac.dong_giu_chan`. Nhãn đậm kèm số SR, dải nối nhạt để chữ đè lên vẫn đọc được; nhóm cuối đỏ (đã chấm dứt), xanh lá (còn dùng)."""
+    mau_nut = [ch.XANH, ch.LUC, VANG, ch.DO, "#9AA7B8", ch.DO, ch.LUC]
+    tong = [0] * len(g["nhan"])
+    for d, v in zip(g["dich"], g["gia_tri"]):
+        tong[d] += v
+    tong[0] = g["tong"]
+    nhan = [f"<b>{t}</b>  {n:,}".replace(",", ".") for t, n in zip(g["nhan"], tong)]
+    f = go.Figure(go.Sankey(arrangement="snap", textfont={"size": 14, "color": "#17212E"},
+                            node={"label": nhan, "color": mau_nut, "pad": 30, "thickness": 26, "line": {"width": 0}},
+                            link={"source": g["nguon"], "target": g["dich"], "value": g["gia_tri"], "color": [mau_nut[d] + "30" for d in g["dich"]]}))
     return ch.khung(f, cao, legend=False)
+
+
+def ghi_ten(f: go.Figure, x, y, ten, toi_da: int = 8):
+    """Ghi tên bằng chú thích có đường dẫn, lệch mỗi tên một hướng (trái / phải / trên / dưới) để không đè lên chấm và không đè lên nhau."""
+    cac = sorted(zip(x, y, ten), key=lambda t: -t[1])[:toi_da]
+    huong = [(-64, -30), (64, -30), (-72, 28), (72, 28), (0, -50), (0, 48), (-100, 0), (100, 0)]
+    for i, (a, b, t) in enumerate(cac):
+        ax, ay = huong[i % len(huong)]
+        f.add_annotation(x=a, y=b, text=str(t), showarrow=True, arrowhead=0, arrowwidth=.8, arrowcolor="#9AA7B8", ax=ax, ay=ay, font={"size": 11, "color": "#2B3A4F"},
+                         bgcolor="rgba(255,255,255,.9)", bordercolor="#D8DFE8", borderwidth=.6, borderpad=3)
+
+
+def nhiet_bang(df: pd.DataFrame, cot_ten: str, chi_so: list[tuple], cao: int | None = None):
+    """Bản đồ nhiệt từ một bảng: mỗi dòng một đối tượng, mỗi cột một chỉ số. chi_so = [(cột, tên hiện, định dạng, thấp_là_xấu)]; thấp_là_xấu = None cho cột chỉ là quy mô.
+
+    Mỗi cột tô riêng từ xanh (tốt nhất trong cột) đến đỏ (xấu nhất); chữ trong ô là số thật. Dùng thay bảng số khi người xem cần thấy chỗ nào nổi lên."""
+    d = df.reset_index(drop=True)
+    raw = d[[c for c, _, _, _ in chi_so]].astype(float).to_numpy()
+    chuan = np.full(raw.shape, np.nan)
+    for j, (_, _, _, thap_xau) in enumerate(chi_so):
+        cot = raw[:, j]
+        if np.isnan(cot).all():
+            continue
+        if thap_xau is None:                                  # cột chỉ là quy mô (số SR): không tốt không xấu nên tô màu trung tính
+            chuan[:, j] = .3
+            continue
+        lo, hi = np.nanmin(cot), np.nanmax(cot)
+        r = (cot - lo) / (hi - lo if hi > lo else 1)
+        chuan[:, j] = 1 - r if thap_xau else r
+    chu = [[("–" if np.isnan(v) else chi_so[j][2].format(v)) for j, v in enumerate(row)] for row in raw]
+    f = go.Figure(go.Heatmap(z=chuan, x=[t for _, t, _, _ in chi_so], y=d[cot_ten].astype(str).tolist(), colorscale=THANG_NHIET, zmin=0, zmax=1, showscale=False,
+                             text=chu, texttemplate="%{text}", hovertemplate="%{y} · %{x}: %{text}<extra></extra>", xgap=3, ygap=3))
+    f.update_yaxes(autorange="reversed", automargin=True)
+    f.update_xaxes(side="top", tickangle=0)
+    return ch.khung(f, cao or max(240, 30 * len(d) + 100), legend=False)
 
 
 def ban_do_nhiet(ten: list[str], cot: list[str], chuan: np.ndarray, raw: np.ndarray, cao: int | None = None, dinh_dang: str = "{:,.1f}"):
@@ -184,10 +224,11 @@ def goc_phan_tu(hs: pd.DataFrame, cot_x: str, ten_x: str, cao: int = 420):
     f.add_shape(type="rect", x0=mx, x1=xmax, y0=my, y1=ymax, fillcolor="rgba(217,45,32,.06)", line={"width": 0}, layer="below")
     f.add_shape(type="rect", x0=mx, x1=xmax, y0=0, y1=my, fillcolor="rgba(0,166,80,.06)", line={"width": 0}, layer="below")
     for nhan, g in d.groupby("nhan"):
-        ghi = g["nhan_su"].where(g["nhan"].isin(["Cần hỗ trợ", "Làm tốt"]), "")
-        f.add_scatter(x=g[cot_x], y=g["ty_le_qua_han"], mode="markers+text", name=nhan or "Bình thường", text=ghi, textposition="top center", textfont={"size": 11},
+        f.add_scatter(x=g[cot_x], y=g["ty_le_qua_han"], mode="markers", name=nhan or "Bình thường",
                       marker={"size": 11, "color": MAU_NHAN[nhan], "line": {"width": 1, "color": "#fff"}, "opacity": .92},
                       customdata=g[["nhan_su", "tong_tai"]], hovertemplate="%{customdata[0]}<br>" + ten_x + ": %{x:,.0f}<br>Quá hạn: %{y:.1f}% · %{customdata[1]:.0f} SR<extra></extra>")
+    chu = d[d["nhan"].isin(["Cần hỗ trợ", "Làm tốt"])]
+    ghi_ten(f, chu[cot_x], chu["ty_le_qua_han"], chu["nhan_su"])
     f.add_vline(x=mx, line_dash="dot", line_color=ch.XAM)
     f.add_hline(y=my, line_dash="dot", line_color=ch.XAM)
     f.add_annotation(x=xmax, y=ymax, text="Nhiều việc và chậm: cần hỗ trợ", showarrow=False, xanchor="right", yanchor="top", font={"size": 11, "color": ch.DO})

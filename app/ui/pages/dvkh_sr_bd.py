@@ -62,16 +62,12 @@ def _tq(df):
     tt = sl.dem_theo(df, "tinh_trang")
     d = go.Figure(go.Pie(labels=tt["tinh_trang"], values=tt["so"], hole=.55, text=[f"{v:.0f}%" if v >= 4 else "" for v in tt["ty_trong"]], textinfo="text", sort=False,
                          marker={"colors": [ch.LUC, ch.XANH, ch.XAM, ch.CAM, DO_NHAT, TIM_NHAT, XAM_NHAT][:len(tt)]}))
-    cot = [ch.cot_chu("phuong", "Phường / xã", None), ch.cot_so("so_sr", "SR", 80), ch.cot_so1("sr_1000", "SR / 1.000 KH", 120),
-           ch.cot_so("ton", "Tồn", 80), ch.cot_pct("ty_le_qua_han", "Quá hạn", 90), ch.cot_so1("phan_hoi_p50", "Phản hồi (phút)", 120),
-           ch.cot_so("khieu_nai", "Khiếu nại", 100), ch.cot_so("thanh_ly", "Thanh lý", 90)]
     return html.Div([kpi_, html.Div([card([ch.khung(f, 300)], title="SR theo ngày", desc="Xếp chồng theo kết quả xử lý hiện tại"),
                                      card([ch.khung(d, 300)], title="Tình trạng xử lý", desc="Tỷ trọng theo trạng thái")], className="dv-hai-cot"),
                      html.Div(style={"height": "16px"}),
                      html.Div("Xu hướng", className="dv-tieu-nhom"), sau.xu_huong(df),
                      html.Div("Theo phường / xã", className="dv-tieu-nhom"),
-                     card([ch.bang_df("dvbd-phuong", _theo_phuong(df), cot, 380)], title="Theo phường / xã",
-                          desc="SR trên 1.000 khách lấy số khách đang hoạt động của bảng Rời mạng")])
+                     sau.theo_phuong(_theo_phuong(df))])
 
 
 DO_NHAT, TIM_NHAT, XAM_NHAT = "#E8A33D", "#8C6FD1", "#C9D2DE"
@@ -96,18 +92,13 @@ def _theo_phuong(df):
 
 def _nn(df, loai):
     theo = sl.theo_loai_yc(df)
-    cot = [ch.cot_chu("loai_yc", "Loại yêu cầu", None), ch.cot_so("so_sr", "SR", 80), ch.cot_pct("ty_trong", "Tỷ trọng", 90), ch.cot_so("ton", "Tồn", 80),
-           ch.cot_pct("ty_le_ton", "% tồn", 80), ch.cot_pct("ty_le_qua_han", "% quá hạn", 100), ch.cot_so1("xu_ly_p50", "Đóng (giờ, TV)", 130),
-           ch.cot_pct("ty_le_roi_mang_sau", "% đã chấm dứt HĐ", 140)]
     sub = df if loai in (None, "all") else df[df["loai_yc"] == loai]
     pl = sl.dem_theo(sub[sub["phan_loai"].notna()], "phan_loai", 10)
     n1 = sl.dem_theo(sub[sub["nguyen_nhan_1"].notna()], "nguyen_nhan_1", 10)
     n2 = sl.dem_theo(sub[sub["nguyen_nhan_2"].notna()], "nguyen_nhan_2", 10)
     gc = "Mỗi SR có thể có nhiều cấp nguyên nhân; nhóm nào không ghi thì không đếm."
     return html.Div([
-        card([ch.bang_df("dvbd-loai-bang", theo, cot)], title="Theo loại yêu cầu", desc="% đã chấm dứt HĐ: hợp đồng hiện đã chấm dứt sau khi có SR này"),
-        html.Div(style={"height": "16px"}),
-        card([sau.vong_nguyen_nhan(df)], title="Loại yêu cầu và phân loại", desc="Vòng trong là loại yêu cầu, vòng ngoài là phân loại. Bấm vào một phần để phóng to; bấm giữa để quay lại."),
+        html.Div([sau.loai_yeu_cau_nhiet(theo), sau.loai_va_phan_loai(df)], className="dv-hai-cot"),
         html.Div(style={"height": "16px"}),
         html.Div([card([ch.cot_ngang(pl, "phan_loai", "so", 330)], title="Phân loại khiếu nại / thay đổi / giải đáp", desc=gc),
                   card([ch.cot_ngang(n1, "nguyen_nhan_1", "so", 330, mau=ch.CAM)], title="Nguyên nhân cấp 1", desc="10 nguyên nhân nhiều nhất")], className="dv-hai-cot"),
@@ -123,9 +114,6 @@ def _kenh(df):
     g["ty_trong"] = g["so_sr"] * 100 / g["so_sr"].sum()
     g["ty_le_qua_han"] = g["qua_han"] * 100 / g["so_sr"]
     g = g.sort_values("so_sr", ascending=False)
-    cot = [ch.cot_chu("kenh", "Kênh tiếp nhận", None), ch.cot_chu("nhom_kenh", "Nhóm", 110), ch.cot_so("so_sr", "SR", 80), ch.cot_pct("ty_trong", "Tỷ trọng", 90),
-           ch.cot_so1("phan_hoi_p50", "Phản hồi (phút, TV)", 150), ch.cot_pct("trong_60", "≤ 60 phút", 100), ch.cot_pct("ty_le_qua_han", "% quá hạn", 100),
-           ch.cot_so("ton", "Tồn", 80)]
     nhom = df["nhom_kenh"].value_counts()
     hm = df.groupby(["thu", "gio"]).size().unstack(fill_value=0).reindex(index=range(7), columns=range(24), fill_value=0)
     f = go.Figure(go.Heatmap(z=hm.values, x=[f"{h}h" for h in hm.columns], y=THU, colorscale=[[0, "#F2F6FB"], [1, ch.XANH]], hovertemplate="%{y} %{x}: %{z} SR<extra></extra>",
@@ -142,7 +130,7 @@ def _kenh(df):
         ch.hang_kpi([("Kênh số (Zalo, Hi FPT, MobiX...)", ch.pct(nhom.get("Kênh số", 0) * 100 / max(len(df), 1), 0), f"{ch.so(nhom.get('Kênh số', 0))} SR", ""),
                      ("Thoại / quầy", ch.pct(nhom.get("Thoại / quầy", 0) * 100 / max(len(df), 1), 0), f"{ch.so(nhom.get('Thoại / quầy', 0))} SR", ""),
                      ("Giờ cao điểm", f"{int(gio.sort_values('so_sr').iloc[-1]['gio'])}h", f"{ch.so(gio['so_sr'].max())} SR trong khung giờ này", "")]),
-        card([ch.bang_df("dvbd-kenh", g, cot, 420)], title="Theo kênh tiếp nhận", desc="Phản hồi tính từ lúc tạo SR đến lần cập nhật đầu"),
+        sau.kenh_nhiet(g),
         html.Div(style={"height": "16px"}),
         html.Div([card([ch.khung(f, 300, legend=False)], title="Khi nào khách liên hệ", desc="Số SR theo thứ và giờ tạo"),
                   card([ch.khung(g2, 300)], title="Tải theo giờ và tỷ lệ quá hạn", desc="Giờ nào đông nhưng xử lý chậm")], className="dv-hai-cot")])
@@ -178,6 +166,7 @@ def _lap(df):
     return html.Div([ch.hang_kpi([("Hợp đồng gọi lặp", ch.so(k["hd_lap"]), "Từ 2 SR trở lên trong kỳ", "warn"),
                                   ("SR thuộc hợp đồng lặp", ch.pct(k["ty_le_lap"], 0), f"{ch.so(k['sr_lap'])} SR", ""),
                                   ("Hợp đồng gọi từ 4 lần", ch.so((pt >= 4).sum()), "Cần một người phụ trách đến khi ổn", "bad" if (pt >= 4).sum() else "ok")]),
+                     sau.phan_bo_lap(pt), html.Div(style={"height": "16px"}),
                      card([ch.bang_df("dvbd-lap", hd, cot, 520)], title="Hợp đồng gọi lặp nhiều nhất",
                           desc="Gọi lặp thường là lần xử lý trước chưa dứt điểm. 200 hợp đồng nhiều SR nhất.")])
 

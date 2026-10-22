@@ -4,7 +4,7 @@ Tách khỏi `dvkh_sr_bd.py` cho gọn file; trang mẹ import module này trong
 """
 from __future__ import annotations
 
-import plotly.express as px
+import pandas as pd
 import plotly.graph_objects as go
 from dash import html
 
@@ -130,15 +130,62 @@ def khach_dich_vu(df):
                      _khoang(), html.Div([_nguon_tao_ve(df), _phi_ve(df)], className="dv-hai-cot"), _khoang(), _duyet_ve(df)])
 
 
-# ------------------------------------------------------------------ vòng tròn nguyên nhân, tuổi tồn
-def vong_nguyen_nhan(df):
-    d = df.assign(p=df["phan_loai"].fillna("Không ghi phân loại"))
-    g = d.groupby(["loai_yc", "p"]).size().reset_index(name="so")
-    g.loc[g["so"] < 12, "p"] = "Khác"
-    g = g.groupby(["loai_yc", "p"], as_index=False)["so"].sum()
-    f = px.sunburst(g, path=["loai_yc", "p"], values="so", color_discrete_sequence=ch.DAY_MAU + ["#C9D2DE", "#5CC58B", "#E8A33D"])
-    f.update_traces(hovertemplate="%{label}: %{value} SR<extra></extra>", insidetextorientation="radial")
-    return ch.khung(f, 520, legend=False)
+# ------------------------------------------------------------------ biểu đồ thay bảng: phường, loại yêu cầu, kênh, hợp đồng lặp
+BANG_MAU_7 = [ch.XANH, ch.CAM, ch.LUC, ch.TIM, ch.XANH_NHAT, "#E8A33D", "#C2557F"]
+
+
+def theo_phuong(g):
+    """Phường / xã: cột xếp chồng (khiếu nại, thanh lý, việc khác) và bản đồ nhiệt các chỉ số chính, thay cho bảng số."""
+    g = g.sort_values("so_sr", ascending=False)
+    ct = g.set_index("phuong")[["khieu_nai", "thanh_ly"]].assign(khac=lambda x: g.set_index("phuong")["so_sr"] - x["khieu_nai"] - x["thanh_ly"])
+    ct.columns = ["Khiếu nại", "Thanh lý", "Việc khác"]
+    chi_so = [("sr_1000", "SR / 1.000<br>khách", "{:,.1f}", False), ("ty_le_qua_han", "% quá hạn", "{:.0f}%", False), ("ton", "Tồn", "{:,.0f}", False),
+              ("phan_hoi_p50", "Phản hồi<br>(phút)", "{:,.0f}", False)]
+    chi_so = [c for c in chi_so if c[0] in g and g[c[0]].notna().any()]
+    return html.Div([card([ve.xep_chong(ct, {"Khiếu nại": ch.CAM, "Thanh lý": ch.DO, "Việc khác": "#9CC9EA"}, cao=max(360, 34 * len(ct) + 90))], title="SR mỗi phường, theo loại việc",
+                          desc="Mỗi thanh là một phường, chia khiếu nại, thanh lý và việc khác."),
+                     card([ve.nhiet_bang(g, "phuong", chi_so)], title="Phường nào đáng chú ý",
+                          desc="Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất) trong chính cột đó. SR trên 1.000 khách lấy số khách đang hoạt động của bảng Rời mạng.")],
+                    className="dv-hai-cot")
+
+
+def loai_yeu_cau_nhiet(theo):
+    chi_so = [("so_sr", "SR", "{:,.0f}", None), ("ty_le_ton", "% tồn", "{:.0f}%", False), ("ty_le_qua_han", "% quá hạn", "{:.0f}%", False),
+              ("xu_ly_p50", "Đóng SR<br>(giờ, TV)", "{:,.1f}", False), ("ty_le_roi_mang_sau", "% đã chấm<br>dứt HĐ", "{:.0f}%", False)]
+    return card([ve.nhiet_bang(theo, "loai_yc", chi_so)], title="Theo loại yêu cầu",
+                desc="Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất). % đã chấm dứt HĐ: hợp đồng hiện đã chấm dứt sau khi có SR này.")
+
+
+def loai_va_phan_loai(df):
+    """Mỗi loại yêu cầu một thanh, chia theo phân loại (7 phân loại nhiều nhất, còn lại gộp "Khác"). Dễ đọc hơn vòng tròn nhiều lớp."""
+    ct = pd.crosstab(df["loai_yc"].fillna("(Chưa ghi)"), df["phan_loai"].fillna("Không ghi phân loại"))
+    co_ghi = [c for c in ct.columns if c != "Không ghi phân loại"]
+    top = ct[co_ghi].sum().sort_values(ascending=False).head(7).index.tolist()
+    out = ct[top].copy()
+    if len(co_ghi) > len(top):
+        out["Khác"] = ct[[c for c in co_ghi if c not in top]].sum(axis=1)
+    if "Không ghi phân loại" in ct.columns:
+        out["Không ghi phân loại"] = ct["Không ghi phân loại"]
+    out = out.loc[out.sum(axis=1).sort_values(ascending=False).index]
+    mau = {t: BANG_MAU_7[i] for i, t in enumerate(top)} | {"Khác": "#9AA7B8", "Không ghi phân loại": "#E3E8EF"}
+    return card([ve.xep_chong(out, mau, cao=max(380, 46 * len(out) + 110))], title="Loại yêu cầu và phân loại",
+                desc="Mỗi thanh là một loại yêu cầu, chia theo phân loại. Phần xám nhạt là SR chưa ghi phân loại.")
+
+
+def kenh_nhiet(g):
+    d = g.sort_values("so_sr", ascending=False).head(12)
+    chi_so = [("so_sr", "SR", "{:,.0f}", None), ("phan_hoi_p50", "Phản hồi<br>(phút, TV)", "{:,.0f}", False), ("trong_60", "Phản hồi<br>≤ 60 phút", "{:.0f}%", True),
+              ("ty_le_qua_han", "% quá hạn", "{:.0f}%", False), ("ton", "Tồn", "{:,.0f}", False)]
+    return card([ve.nhiet_bang(d, "kenh", chi_so)], title="Theo kênh tiếp nhận",
+                desc="12 kênh nhiều SR nhất. Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất); phản hồi tính từ lúc tạo SR đến lần cập nhật đầu.")
+
+
+def phan_bo_lap(pt):
+    """Số hợp đồng theo số lần gọi trong kỳ: 1 lần là bình thường, từ 2 lần là lặp."""
+    n = pd.Series([int((pt == 1).sum()), int((pt == 2).sum()), int((pt == 3).sum()), int((pt >= 4).sum())], index=["1 lần", "2 lần", "3 lần", "Từ 4 lần"])
+    f = go.Figure(go.Bar(x=n.index, y=n.values, marker_color=[ch.XANH_NHAT, ve.VANG, ch.CAM, ch.DO], text=[ch.so(v) for v in n.values], textposition="outside", cliponaxis=False))
+    f.update_yaxes(rangemode="tozero")
+    return card([ch.khung(f, 280, legend=False)], title="Hợp đồng gọi mấy lần", desc="Số hợp đồng theo số SR trong kỳ. Từ 2 lần trở đi là gọi lặp, từ 4 lần cần người phụ trách riêng.")
 
 
 def tuoi_ton(df):

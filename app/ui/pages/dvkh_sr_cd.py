@@ -59,8 +59,8 @@ def _tq(df):
                      html.Div(style={"height": "16px"}),
                      html.Div("Xu hướng", className="dv-tieu-nhom"), _xu_huong(df),
                      html.Div("Theo nhóm chương trình", className="dv-tieu-nhom"),
-                     card([ch.bang_df("dvcd-nhom-bang", sl.theo_chuong_trinh(df, "nhom_bc"), _cot_ct("nhom_bc", "Nhóm chương trình"))],
-                          title="Theo nhóm chương trình (như bảng BC)", desc="SOS = Ngưng kết nối + Dự đoán RM + nợ cước; KSRM T / T-1 = CSKH không PSLL vết T / T-1")])
+                     _nhiet_ct(sl.theo_chuong_trinh(df, "nhom_bc"), "nhom_bc", "Theo nhóm chương trình (như bảng BC)",
+                               "SOS = Ngưng kết nối + Dự đoán RM + nợ cước; KSRM T / T-1 = CSKH không PSLL vết T / T-1. Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất).")])
 
 
 def _xu_huong(df):
@@ -79,11 +79,12 @@ def _xu_huong(df):
                           desc="Mỗi cột là một ngày đổ về, chia theo tình trạng hiện nay. Ngày cũ mà vẫn còn cam là việc bị bỏ rơi.")], className="dv-hai-cot")
 
 
-def _cot_ct(ten_cot, tieu_de):
-    return [ch.cot_chu(ten_cot, tieu_de, None), ch.cot_so("so_sr", "SR", 80), ch.cot_pct("ty_trong", "Tỷ trọng", 90), ch.cot_so("ton", "Tồn", 80),
-            ch.cot_pct("ty_le_ton", "% tồn", 80), ch.cot_so("chua_phan_cong", "Chưa PC", 90), ch.cot_pct("ty_le_qua_han", "% quá hạn", 100),
-            ch.cot_pct("ty_le_khong_lien_lac", "% không LL", 100), ch.cot_pct("ty_le_khong_can_lh", "% không cần LH", 120),
-            ch.cot_pct("ty_le_dong_tu_dong", "% tự đóng", 100), ch.cot_so("muon_thanh_ly", "Muốn thanh lý", 120)]
+def _nhiet_ct(g, cot_ten, tieu_de, mo_ta):
+    """Bản đồ nhiệt các chỉ số của từng chương trình / nhóm chương trình (thay cho bảng nhiều cột)."""
+    chi_so = [("so_sr", "SR", "{:,.0f}", None), ("ty_le_ton", "% tồn", "{:.0f}%", False), ("ty_le_qua_han", "% quá hạn", "{:.0f}%", False),
+              ("ty_le_khong_lien_lac", "% không<br>liên lạc", "{:.0f}%", False), ("ty_le_khong_can_lh", "% không<br>cần LH", "{:.0f}%", False),
+              ("ty_le_dong_tu_dong", "% tự đóng", "{:.0f}%", False), ("muon_thanh_ly", "Đòi<br>thanh lý", "{:,.0f}", False)]
+    return card([ve.nhiet_bang(g, cot_ten, chi_so)], title=tieu_de, desc=mo_ta)
 
 
 def _ct(df):
@@ -92,8 +93,8 @@ def _ct(df):
     mau = [ch.DO if v >= 80 else (ch.CAM if v >= 40 else ch.XANH) for v in ct.head(12).iloc[::-1]["ty_le_ton"]]
     kll = ct[ct["thu"] >= 30].sort_values("ty_le_khong_lien_lac", ascending=False)
     return html.Div([
-        card([ch.bang_df("dvcd-ct", ct, _cot_ct("chuong_trinh", "Chương trình"), 420)], title="Theo chương trình",
-             desc="Chương trình tồn gần hết là chương trình chưa có người nhận. % không LL tính trên SR đã thử liên hệ."),
+        _nhiet_ct(ct, "chuong_trinh", "Theo chương trình",
+                  "Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất). Chương trình tồn gần hết là chương trình chưa có người nhận; % không liên lạc tính trên SR đã thử liên hệ."),
         html.Div(style={"height": "16px"}),
         card([ve.xep_chong(kt.theo_chuong_trinh_va_tinh_trang(df), ve.MAU_TT_CD, phan_tram=False, cao=420)], title="Mỗi chương trình đang ở đâu",
              desc="Số SR của 10 chương trình đông nhất, chia theo tình trạng. Phần cam là chưa ai xử lý: chương trình nào cam gần hết là chưa có người nhận."),
@@ -117,14 +118,19 @@ def _lh(df):
     cc["ty_le_gap"] = cc["gap"] * 100 / cc["thu"].replace(0, float("nan"))
     cc["ty_le_khong_lien_lac"] = cc["khong_lien_lac"] * 100 / cc["thu"].replace(0, float("nan"))
     cc = cc.sort_values("so_sr", ascending=False)
-    cot = [ch.cot_chu("cong_cu", "Công cụ liên hệ", None), ch.cot_so("so_sr", "SR", 80), ch.cot_so("thu", "Đã thử LH", 100), ch.cot_pct("ty_le_gap", "% gặp khách", 110),
-           ch.cot_pct("ty_le_khong_lien_lac", "% không LL", 110)]
+    nhan_cc = [f"{c}<br>({ch.so(n)} SR)" for c, n in zip(cc["cong_cu"], cc["so_sr"])]
+    fcc = go.Figure()
+    fcc.add_bar(x=nhan_cc, y=cc["ty_le_gap"], name="% gặp được khách", marker_color=ch.LUC, text=[ch.pct(v, 0) for v in cc["ty_le_gap"]], textposition="outside", cliponaxis=False)
+    fcc.add_bar(x=nhan_cc, y=cc["ty_le_khong_lien_lac"], name="% không liên lạc được", marker_color=ch.CAM, text=[ch.pct(v, 0) for v in cc["ty_le_khong_lien_lac"]],
+                textposition="outside", cliponaxis=False)
+    fcc.update_layout(barmode="group")
+    fcc.update_yaxes(ticksuffix="%", rangemode="tozero")
     tv = sl.dem_theo(df[df["ket_qua_tu_van"].notna()], "ket_qua_tu_van", 10)
     lh = sl.dem_theo(df[df["ly_do_khong_lh"].notna()], "ly_do_khong_lh", 8)
     sl_cs = sl.dem_theo(df[df["so_lan_cs"].notna()].assign(so_lan_cs=lambda x: x["so_lan_cs"].astype(int).astype(str) + " lần"), "so_lan_cs")
     return html.Div([
         html.Div([card([ch.khung(f, 330, legend=False)], title="Từ SR đổ về đến khách ở lại", desc="Phần trăm so với SR đổ về"),
-                  card([ch.bang_df("dvcd-cc", cc, cot)], title="Hiệu quả theo công cụ liên hệ", desc="Gọi tay, máy gọi tự động, CSKH mở rộng, tại quầy...")], className="dv-hai-cot"),
+                  card([ch.khung(fcc, 330)], title="Hiệu quả theo công cụ liên hệ", desc="Trên SR đã thử liên hệ. Gọi tay, máy gọi tự động, CSKH mở rộng, tại quầy...")], className="dv-hai-cot"),
         html.Div(style={"height": "16px"}),
         html.Div([card([ch.cot_ngang(tv, "ket_qua_tu_van", "so", 360)], title="Kết quả tư vấn", desc="10 kết quả nhiều nhất"),
                   card([ch.cot_ngang(lh, "ly_do_khong_lh", "so", 360, mau=ch.XAM)], title="Vì sao không cần liên hệ",
@@ -135,23 +141,30 @@ def _lh(df):
 
 def _rm(df):
     bac = sl.theo_bac_diem(df)
-    cot = [ch.cot_chu("bac_diem", "Bậc điểm nguy cơ", None), ch.cot_so("so_sr", "SR đã có kết quả", 140), ch.cot_so("muon_thanh_ly", "Đòi thanh lý", 110),
-           ch.cot_pct("ty_le_thanh_ly", "% đòi thanh lý", 120), ch.cot_pct("ty_le_o_lai", "% đồng ý dùng tiếp", 150)]
+    nhan_bac = [f"{b}<br>({ch.so(n)} SR)" for b, n in zip(bac["bac_diem"], bac["so_sr"])]
+    fb = go.Figure()
+    fb.add_bar(x=nhan_bac, y=bac["ty_le_thanh_ly"], name="% đòi thanh lý", marker_color=ch.DO, text=[ch.pct(v, 1) for v in bac["ty_le_thanh_ly"]], textposition="outside", cliponaxis=False)
+    fb.add_bar(x=nhan_bac, y=bac["ty_le_o_lai"], name="% đồng ý dùng tiếp", marker_color=ch.LUC, text=[ch.pct(v, 0) for v in bac["ty_le_o_lai"]], textposition="outside", cliponaxis=False)
+    fb.update_layout(barmode="group")
+    fb.update_yaxes(ticksuffix="%", rangemode="tozero")
     mk = sl.dem_theo(df[df["ly_do_mat_kn"].notna()], "ly_do_mat_kn")
     nguon = sl.dem_theo(df, "nguon_pp", 6)
     nc = df.groupby("nhom_bc").agg(so_sr=("ma_sr", "size"), no_cuoc=("no_cuoc", "sum"), ych=("ych", "sum")).reset_index()
     nc["ty_no"] = nc["no_cuoc"] * 100 / nc["so_sr"]
     nc["ty_ych"] = nc["ych"] * 100 / nc["so_sr"]
-    cot_nc = [ch.cot_chu("nhom_bc", "Nhóm chương trình", None), ch.cot_so("so_sr", "SR", 80), ch.cot_so("no_cuoc", "Hợp đồng nợ cước", 130), ch.cot_pct("ty_no", "% nợ cước", 100),
-              ch.cot_so("ych", "Trong danh sách YCH", 150), ch.cot_pct("ty_ych", "% YCH", 90)]
+    fn = go.Figure()
+    fn.add_bar(x=nc["nhom_bc"], y=nc["ty_no"], name="% hợp đồng đang nợ cước", marker_color=ch.CAM, text=[ch.pct(v, 0) for v in nc["ty_no"]], textposition="outside", cliponaxis=False)
+    fn.add_bar(x=nc["nhom_bc"], y=nc["ty_ych"], name="% trong danh sách yêu cầu huỷ", marker_color=ch.DO, text=[ch.pct(v, 0) for v in nc["ty_ych"]], textposition="outside", cliponaxis=False)
+    fn.update_layout(barmode="group")
+    fn.update_yaxes(ticksuffix="%", rangemode="tozero")
     return html.Div([
-        card([ch.bang_df("dvcd-diem", bac, cot)], title="Điểm nguy cơ rời mạng có đáng tin không?",
+        card([ch.khung(fb, 320)], title="Điểm nguy cơ rời mạng có đáng tin không?",
              desc="Điểm càng cao mà tỷ lệ khách đòi thanh lý không cao hơn thì điểm chưa giúp xếp ưu tiên. Chỉ SR đã có kết quả tư vấn mới xét."),
         html.Div(style={"height": "16px"}),
         html.Div([card([ch.cot_ngang(mk, "ly_do_mat_kn", "so", 220, mau=ch.CAM)], title="Lý do mất kết nối", desc="Cúp điện không cần CSKH gọi"),
                   card([ch.cot_ngang(nguon, "nguon_pp", "so", 220, mau=ch.XANH)], title="Nguồn phân phối SR", desc="SR do đơn vị nào đổ về")], className="dv-hai-cot"),
         html.Div(style={"height": "16px"}),
-        card([ch.bang_df("dvcd-nc", nc, cot_nc)], title="Nợ cước và yêu cầu huỷ trên SR chủ động",
+        card([ch.khung(fn, 320)], title="Nợ cước và yêu cầu huỷ trên SR chủ động",
              desc="Hợp đồng vừa bị chăm sóc vừa nợ cước nên gộp một lần gọi")])
 
 

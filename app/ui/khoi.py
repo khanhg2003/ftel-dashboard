@@ -9,11 +9,11 @@ from __future__ import annotations
 KD, DVKH, KT = "KD", "DVKH", "KT"
 KHOI = {
     KD: {"ten": "Kinh doanh", "ten_day_du": "Khối Kinh doanh", "mo_ta": "Sales & HR Performance", "trang_chu": "/", "tien_to": "", "san_sang": True,
-         "ten_ngan": "Khối Kinh doanh"},
+         "ten_ngan": "Khối KD"},
     DVKH: {"ten": "Dịch vụ khách hàng", "ten_day_du": "Khối Dịch vụ khách hàng", "mo_ta": "Customer Service Control", "trang_chu": "/dvkh",
            "tien_to": "/dvkh", "san_sang": True, "ten_ngan": "Khối DVKH"},
     KT: {"ten": "Kỹ thuật", "ten_day_du": "Khối Kỹ thuật", "mo_ta": "Technical Operations", "trang_chu": "/kt", "tien_to": "/kt", "san_sang": False,
-         "ten_ngan": "Khối Kỹ thuật"},
+         "ten_ngan": "Khối KT"},
 }
 THU_TU = [KD, DVKH, KT]
 TRANG_DUNG_CHUNG = {"/taikhoan", "/huongdan", "/quantri", "/settings"}

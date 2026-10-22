@@ -99,9 +99,11 @@ def _goc_phan_tu(q):
     ghi = xau & d["ty_le_roi_gross"].rank(ascending=False, method="first").le(6)          # chỉ ghi tên 6 phường xấu nhất, còn lại rê chuột để xem
     f = go.Figure()
     f.add_shape(type="rect", x0=mx, x1=float(d["ty_le_roi_active"].max()) * 1.1, y0=my, y1=float(d["ty_le_roi_gross"].max()) * 1.1, fillcolor="rgba(217,45,32,.06)", line={"width": 0}, layer="below")
-    f.add_scatter(x=d["ty_le_roi_active"], y=d["ty_le_roi_gross"], mode="markers+text", text=d["ten"].map(_ten_ngan).where(ghi, ""), textposition="top center",
+    f.add_scatter(x=d["ty_le_roi_active"], y=d["ty_le_roi_gross"], mode="markers",
                   marker={"size": 12, "color": [ch.DO if v else ch.XANH for v in xau], "opacity": .85, "line": {"width": 1, "color": "#fff"}},
                   customdata=d["ten"].map(_ten_ngan), hovertemplate="%{customdata}<br>Rời / Active: %{x:.2f}%<br>Rời / khách mới: %{y:.0f}%<extra></extra>")
+    chu = d[ghi]
+    ve.ghi_ten(f, chu["ty_le_roi_active"], chu["ty_le_roi_gross"], chu["ten"].map(_ten_ngan))
     f.add_vline(x=mx, line_dash="dot", line_color=ch.XAM)
     f.add_hline(y=my, line_dash="dot", line_color=ch.XAM)
     f.update_xaxes(title="% rời mạng / KH đang hoạt động", ticksuffix="%", gridcolor="#EDF1F6")

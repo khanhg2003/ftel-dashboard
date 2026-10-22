@@ -63,8 +63,31 @@ def _tai_va_cong_bang(hs):
         f.update_xaxes(tickangle=-60)
         trai = card([ch.khung(f, 360, legend=False)], title="Tải việc trên số khách phụ trách",
                     desc=f"SR được giao trên mỗi 1.000 khách của người đó. Cao hơn nhiều so với trung vị ({ch.so(d['sr_1000kh'].median())}) là người đang gánh nặng so với quy mô của mình.")
-    phai = card([ve.hop_theo_phong(hs)], title="Mức đều tay giữa các CSKH", desc="Mỗi chấm là một người; hộp thấp và hẹp là đồng đều. Vạch nét đứt là trung bình.")
+    d = hs[hs["tong_tai"] >= 30]
+    phai = card([_ket_luan_hop(d), ve.hop_theo_phong(d), _cach_doc_hop()], title="Mức đều tay giữa các CSKH",
+                desc="So % quá hạn của từng người trong mỗi phòng. Chỉ tính người từ 30 SR trở lên (người ít SR thì tỷ lệ dễ lệch).")
     return html.Div([trai, phai], className="dv-hai-cot")
+
+
+def _ket_luan_hop(d):
+    """Mỗi phòng một câu: một nửa số người nằm trong khoảng nào, ai thấp nhất, ai cao nhất."""
+    dong = []
+    for p, g in d.dropna(subset=["ty_le_qua_han"]).groupby("phong"):
+        q1, md, q3 = g["ty_le_qua_han"].quantile([.25, .5, .75])
+        cao, thap = g.loc[g["ty_le_qua_han"].idxmax()], g.loc[g["ty_le_qua_han"].idxmin()]
+        dong.append(html.Div([html.B(f"{p}: "), f"một nửa số CSKH có % quá hạn từ {q1:.0f}% đến {q3:.0f}% (người ở giữa {md:.0f}%). "
+                                                 f"Thấp nhất {thap['nhan_su']} {thap['ty_le_qua_han']:.0f}%, cao nhất {cao['nhan_su']} {cao['ty_le_qua_han']:.0f}%."]))
+    return html.Div(dong, className="dv-ket-luan")
+
+
+def _cach_doc_hop():
+    return chu_giai("Cách đọc biểu đồ này", [
+        ("Mỗi chấm", "Một CSKH. Rê chuột lên chấm để xem tên và % quá hạn của người đó."),
+        ("Hộp màu", "Chứa một nửa số CSKH ở giữa (từ phân vị 25 đến 75). Hộp càng thấp là cả phòng ít quá hạn; hộp càng hẹp là mọi người làm đều tay."),
+        ("Vạch ngang trong hộp", "Người ở giữa phòng (trung vị): một nửa số người cao hơn, một nửa thấp hơn."),
+        ("Vạch nét đứt", "Trung bình của phòng. Nếu nét đứt cao hơn vạch giữa thì có vài người quá hạn rất cao kéo trung bình lên."),
+        ("Râu (đường thẳng nối ra ngoài)", "Người thấp nhất và cao nhất trong phạm vi bình thường. Chấm nằm ngoài râu là trường hợp bất thường, nên hỏi riêng."),
+        ("So hai phòng", "Phòng nào có hộp thấp hơn thì ít quá hạn hơn; phòng nào hộp cao và dài thì có người làm tốt xen lẫn người rất chậm, cần cân lại việc.")])
 
 
 def _nhom_nguoi(hs):

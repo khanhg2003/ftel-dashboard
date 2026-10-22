@@ -163,7 +163,7 @@ body {
   gap: 6px; margin-top: 10px; font-weight: 500;
 }
 .sidebar .foot a:hover { color: #fff; }
-.sidebar .foot .foot-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.sidebar .foot .foot-links { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
 .sidebar .foot a.active { color: #fff; }
 .bang-thong-tin th { text-align: left; width: 150px; color: var(--text-muted); font-weight: 500; }
 
@@ -1756,7 +1756,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 /* Chuyển khối: một nút chữ cạnh "Thoát" ở chân menu, bấm thì xổ danh sách lên trên */
 .sidebar .foot { position: relative; }
 .khoi-doi { position: static; }
-.khoi-hien { list-style: none; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 10px; border-radius: 6px; font-weight: 600; color: #fff;
+.khoi-hien { list-style: none; display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 4px 10px; border-radius: 6px; font-weight: 600; color: #fff;
   background: rgba(255, 255, 255, .10); border: 1px solid rgba(255, 255, 255, .30); cursor: pointer; user-select: none;
   transition: background .16s var(--ease), border-color .16s var(--ease); }
 .khoi-hien::-webkit-details-marker { display: none; }
@@ -1792,7 +1792,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .dv-kpi-bang td.dv-ten { text-align: left; font-weight: 500; color: var(--text); }
 .dv-kpi-bang tr:last-child td { border-bottom: none; }
 .dv-kpi-bang tr:hover td { background: #F8FAFC; }
-.dv-luoi-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 16px; margin-bottom: 4px; }
+.dv-luoi-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr)); gap: 16px; margin-bottom: 4px; }
 .dv-luoi-kpi > .card { margin: 0; min-width: 0; }
 .dv-chua-co { color: var(--text-soft); font-weight: 500; font-size: 12px; }
 .dv-tot { color: var(--ok); } .dv-xau { color: var(--bad); } .dv-vang { color: #B7791F; }
@@ -1815,7 +1815,7 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .dv-huong-dan code { background: #EEF2F7; padding: 2px 6px; border-radius: 5px; font-size: 12px; }
 
 /* DVKH: thẻ chỉ số có xu hướng, dải cột nhỏ, thanh tiêu đề nhóm biểu đồ */
-.dv-the-luoi { display: grid; grid-template-columns: repeat(auto-fit, minmax(188px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.dv-the-luoi { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .dv-the { display: flex; flex-direction: column; min-width: 0; }
 .dv-the .value { margin-top: 6px; }
 .dv-xh-dong { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 6px; line-height: 1.3; }
@@ -1837,3 +1837,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .dv-nhom .desc { margin-bottom: 8px; }
 .dv-nguoi { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px dashed var(--border); font-size: 13px; }
 .dv-nguoi:first-of-type { border-top: 0; }
+.dv-kpi-bang th, .dv-kpi-bang td { white-space: nowrap; }
+.dv-kpi-bang td.dv-ten { white-space: normal; min-width: 170px; }
+.kpi .value .dv-so-dai { font-size: 20px; letter-spacing: -.4px; white-space: nowrap; }

@@ -86,6 +86,11 @@ def pct(v, nd: int = 1) -> str:
     return "–" if v is None or (isinstance(v, float) and math.isnan(v)) else f"{so_vn(v, nd)}%"
 
 
+def vnd(v) -> str:
+    """Tiền đầy đủ, dễ đọc: 2.845.123.456 đ (không rút gọn thành triệu)."""
+    return "–" if v is None or (isinstance(v, float) and math.isnan(v)) else f"{so_vn(v, 0)} đ"
+
+
 def muc_theo_nguong(v, tot, xau, cao_xau: bool = True) -> str:
     """Màu KPI: xanh khi đạt ngưỡng tốt, đỏ khi vượt ngưỡng xấu, giữa là vàng. cao_xau=False: số càng thấp càng xấu."""
     if v is None or (isinstance(v, float) and math.isnan(v)):
