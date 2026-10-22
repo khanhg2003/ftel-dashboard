@@ -24,13 +24,14 @@ _TRUNG_THE = re.compile(r"tốc độ|kết nối đồng thời", re.I)        
 
 
 def pane():
-    from app.ui.pages.giafpt import LOC_KHACH, LOC_NHOM, chon_khu_vuc
+    from app.ui.pages.giafpt import NHIEU_KHACH, NHIEU_NHOM, chon_khu_vuc
     return html.Div([
         html.Div([*chon_khu_vuc("gf"),
-                  field("Khách hàng", dcc.Dropdown(id="gf-khach", options=LOC_KHACH, value="all", clearable=False, searchable=False,
-                                                   className="gf-dd gf-dd-nho")),
-                  field("Nhóm sản phẩm", dcc.Dropdown(id="gf-nhom", options=LOC_NHOM, value="all", clearable=False, searchable=False,
-                                                      className="gf-dd gf-dd-nho")),
+                  field("Khách hàng", dcc.Dropdown(id="gf-khach", options=NHIEU_KHACH, value=["ca_nhan"], multi=True, searchable=False,
+                                                   placeholder="Tất cả", persistence=True, persistence_type="local", className="gf-dd gf-dd-nho")),
+                  field("Nhóm sản phẩm", dcc.Dropdown(id="gf-nhom", options=NHIEU_NHOM, value=["Internet"], multi=True, searchable=False,
+                                                      placeholder="Tất cả", closeOnSelect=False, persistence=True, persistence_type="local",
+                                                      className="gf-dd gf-dd-nho gf-dd-nhieu")),
                   html.Div(className="grow"),
                   html.Button([icon("refresh", 14), html.Span("Làm mới giá")], id="gf-moi", className="btn nt-nut",
                               title="Bỏ giá đang nhớ tạm và hỏi lại fpt.vn")], className="toolbar"),

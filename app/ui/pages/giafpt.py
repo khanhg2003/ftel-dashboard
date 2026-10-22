@@ -21,6 +21,8 @@ TAB = [("tra", "Tra giá"), ("sosanh", "So giá hai phường"), ("vung", "Giá 
 LOC_KHACH = [{"label": "Cá nhân và doanh nghiệp", "value": "all"}, {"label": "Cá nhân", "value": "ca_nhan"},
              {"label": "Doanh nghiệp", "value": "doanh_nghiep"}]
 LOC_NHOM = [{"label": "Mọi nhóm sản phẩm", "value": "all"}] + [{"label": n, "value": n} for n in gf.THU_TU_NHOM]
+NHIEU_KHACH = [{"label": v, "value": k} for k, v in gf.KHACH.items()]          # ô chọn nhiều của tab Tra giá: để trống = tất cả
+NHIEU_NHOM = [{"label": n, "value": n} for n in gf.THU_TU_NHOM]
 AN = {"display": "none"}
 DONG = "params.value == null ? '–' : Math.round(params.value).toLocaleString('vi-VN') + 'đ'"
 CHENH = ("params.value == null ? '–' : (params.value > 0 ? '+' : '') + Math.round(params.value).toLocaleString('vi-VN') + 'đ'")

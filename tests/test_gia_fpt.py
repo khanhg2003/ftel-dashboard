@@ -88,6 +88,8 @@ def test_gia_khac_nhau_theo_phuong_va_loc(mang_gia):
     assert {g["ten"]: g["gia"] for g in b["goi"]}["Internet Meta F1"] == 330000
     assert [g["ten"] for g in gf.loc_goi(a["goi"], "doanh_nghiep")] == ["Super300 Biz"]
     assert {g["ten"] for g in gf.loc_goi(a["goi"], "all", "FPT Play")} == {"Gói V.VIP 1"}
+    assert {g["ten"] for g in gf.loc_goi(a["goi"], ["ca_nhan"], ["Internet", "FPT Play"])} == {"Internet Sky", "Internet Meta F1", "Gói V.VIP 1"}   # chọn nhiều
+    assert len(gf.loc_goi(a["goi"], [], [])) == len(a["goi"]) == len(gf.loc_goi(a["goi"], ["all"], None))                              # để trống = tất cả
     assert gf.cac_nhom(a["goi"]) == ["Internet", "FPT Play"]
     assert all(g["ten"] != "Casper Smart TV" for g in a["goi"])            # Smart TV, Tăng tốc, Smart Home, thiết bị mạng không lấy (chủ app 22/10/2026)
 

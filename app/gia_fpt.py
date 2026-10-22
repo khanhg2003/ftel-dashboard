@@ -158,8 +158,16 @@ def goi_theo_phuong(tinh: int, phuong: int) -> dict:
     return kq
 
 
-def loc_goi(goi: list[dict], khach: str = "all", nhom: str = "all") -> list[dict]:
-    return [g for g in goi if (khach == "all" or g["khach"] == khach) and (nhom == "all" or g["nhom"] == nhom)]
+def _chon(v) -> set | None:
+    """Giá trị ô lọc (một chữ hoặc danh sách chọn nhiều) -> tập giá trị; None = không lọc (rỗng hoặc "all")."""
+    ds = {v} if isinstance(v, str) else set(v or [])
+    return None if not ds or "all" in ds else ds
+
+
+def loc_goi(goi: list[dict], khach="all", nhom="all") -> list[dict]:
+    """Lọc theo khách hàng và nhóm sản phẩm; mỗi ô nhận một giá trị hoặc nhiều giá trị (chọn nhiều thì lấy các gói thuộc BẤT KỲ giá trị nào)."""
+    k, n = _chon(khach), _chon(nhom)
+    return [g for g in goi if (k is None or g["khach"] in k) and (n is None or g["nhom"] in n)]
 
 
 def cac_nhom(goi: list[dict]) -> list[str]:

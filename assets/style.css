@@ -1913,3 +1913,4 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .gf-the:hover .gf-mui-xem { transform: translateX(3px); }
 .gf-mui-xem { transition: transform .15s; }
 .gf-ct-tieu { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin: 10px 0 6px; }
+.gf-dd-nhieu { min-width: 260px; }
