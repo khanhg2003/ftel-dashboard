@@ -1,5 +1,5 @@
 """Trang Tra cứu giá (khối Kinh doanh, mọi tài khoản): giá gói cước FPT theo phường / xã, lấy trực tiếp từ dịch vụ của fpt.vn
-(logic: app/gia_fpt.py). Ba tab: Tra giá một phường, So giá hai phường, Giá cả tỉnh (tab này ở giafpt_vung.py).
+(logic: app/gia_fpt.py). Ba tab: Tra giá một phường (giafpt_the.py), So giá hai phường, Giá cả tỉnh (giafpt_vung.py).
 
 Danh sách tỉnh / phường nạp bằng callback (không làm chậm `layout()`), giá nhớ tạm 15 phút; nút "Làm mới giá" bỏ nhớ tạm.
 Nút copy dùng chung `assets/sao_chep.js` (lớp nut-chep + data-chep) để dán thẳng vào Zalo / email gửi khách.
@@ -69,41 +69,6 @@ def _luoi(gid: str, cot: list, cao: int = 560):
                 cot_mac_dinh={"resizable": True, "sortable": True, "suppressMovable": True, "wrapHeaderText": True, "autoHeaderHeight": True})
 
 
-COT_TRA = [
-    {"field": "ten", "headerName": "Gói", "minWidth": 210, "flex": 2, "checkboxSelection": True, "headerCheckboxSelection": True},
-    {"field": "nhom", "headerName": "Nhóm", "width": 150},
-    {"field": "khach", "headerName": "Khách hàng", "width": 110, "valueFormatter": KHACH_CHU},
-    {"field": "gia", "headerName": "Giá / tháng", "width": 115, "type": "numericColumn", "valueFormatter": {"function": DONG}},
-    {"field": "toc_do", "headerName": "Tốc độ (tải xuống / lên)", "width": 170},
-    {"field": "thiet_bi", "headerName": "Thiết bị kết nối", "width": 100, "type": "numericColumn"},
-    {"field": "uu_dai", "headerName": "Ưu đãi nổi bật", "minWidth": 240, "flex": 3},
-    {"field": "ct", "headerName": "", "width": 120, "pinned": "right", "sortable": False, "resizable": False, "cellClass": "o-bam",
-     "valueFormatter": {"function": "params.value == null ? '' : 'Xem chi tiết ▸'"}},
-]
-
-
-def _pane_tra():
-    return html.Div([
-        html.Div([*chon_khu_vuc("gf"),
-                  field("Khách hàng", dcc.Dropdown(id="gf-khach", options=LOC_KHACH, value="all", clearable=False, searchable=False,
-                                                   className="gf-dd gf-dd-nho")),
-                  field("Nhóm sản phẩm", dcc.Dropdown(id="gf-nhom", options=LOC_NHOM, value="all", clearable=False, searchable=False,
-                                                      className="gf-dd gf-dd-nho")),
-                  html.Div(className="grow"),
-                  html.Button([icon("refresh", 14), html.Span("Làm mới giá")], id="gf-moi", className="btn nt-nut",
-                              title="Bỏ giá đang nhớ tạm và hỏi lại fpt.vn")], className="toolbar"),
-        html.Div(id="gf-tb"),
-        html.Div(id="gf-the", className="kpi-row"),
-        html.Div([html.Button([icon("copy", 14), html.Span("Copy bảng giá gửi khách")], id="gf-chep", n_clicks=0, className="btn nut-chep lon"),
-                  html.Span(id="gf-chep-ghi", className="desc", style={"margin": 0})], className="gf-hang-chep"),
-        _luoi("gf-luoi", COT_TRA),
-        ghi_chu("Giá là giá niêm yết trên website fpt.vn cho đúng phường đang chọn, đã gồm VAT. Chọn khác phường thì giá và danh sách gói có thể khác. "
-                "Tick ô đầu dòng để chỉ copy các gói đã chọn; không tick thì copy cả bảng đang hiện. Bấm \"Xem chi tiết\" để xem các lựa chọn "
-                "trả trước 3 / 6 / 13 tháng, phí lắp đặt và chính sách đang áp dụng.", style={"margin": "8px 0 0"}),
-        dcc.Store(id="gf-ctx"),
-    ], id="gf-pane-tra")
-
-
 COT_SS = [
     {"field": "ten", "headerName": "Gói", "minWidth": 240, "flex": 2, "checkboxSelection": True, "headerCheckboxSelection": True},
     {"field": "nhom", "headerName": "Nhóm", "width": 190},
@@ -140,11 +105,11 @@ def _pane_so_sanh():
 
 
 def layout():
-    from app.ui.pages import giafpt_vung
+    from app.ui.pages import giafpt_the, giafpt_vung
     return html.Div([
         html.Div(seg_control("gf-tab", TAB, "tra"), className="gf-tab"),
-        _pane_tra(), _pane_so_sanh(), giafpt_vung.pane(),
-        cua_so("gf-ct", ghi_chu="Các lựa chọn thời hạn và chính sách lấy từ fpt.vn cho đúng phường đang chọn."),
+        giafpt_the.pane(), _pane_so_sanh(), giafpt_vung.pane(),
+        cua_so("gf-ct", ghi_chu="Chỉ ghi những điểm khác với điều kiện chung của nhóm; phần chung nằm ngay dưới tiêu đề nhóm ở danh sách."),
     ])
 
 
@@ -167,27 +132,6 @@ def _loi(e: Exception):
     return alert(f"{e} Thử lại sau ít phút, hoặc xem giá trực tiếp ở fpt.vn.", "warn")
 
 
-def _gia_re_nhat(goi: list[dict], khach: str) -> tuple[str, str]:
-    ds = [g for g in goi if g["nhom"] == "Internet" and g["khach"] == khach and g["gia"]]
-    if not ds:
-        return "–", "Khu vực này chưa có gói"
-    g = min(ds, key=lambda x: x["gia"])
-    return gf.chu_tien(g["gia"]), g["ten"]
-
-
-def _the_tra(goi: list[dict], dang_hien: int, luc) -> list:
-    cn, ten_cn = _gia_re_nhat(goi, "ca_nhan")
-    dn, ten_dn = _gia_re_nhat(goi, "doanh_nghiep")
-    return [kpi("Gói đang bán ở phường này", f"{len(goi)}", f"Đang hiện {dang_hien} gói theo bộ lọc"),
-            kpi("Internet cá nhân rẻ nhất", cn, ten_cn), kpi("Internet doanh nghiệp rẻ nhất", dn, ten_dn),
-            kpi("Giá lấy lúc", chu_gio_vn(luc, "%H:%M"), "Từ fpt.vn, nhớ tạm 15 phút")]
-
-
-def _dong_tra(g: dict) -> dict:
-    return {**{k: g[k] for k in ("ten", "nhom", "khach", "gia", "toc_do", "thiet_bi", "uu_dai")},
-            "ct": f"{g['code']}|{g['gia'] or ''}|{g['ten']}"}
-
-
 def _nhan_xet(r: dict, ten_a: str, ten_b: str) -> str:
     tt = r["tinh_trang"]
     if tt == "chi_a":
@@ -201,7 +145,7 @@ def _nhan_xet(r: dict, ten_a: str, ten_b: str) -> str:
 
 # ------------------------------------------------------------------ callbacks
 def register(app):
-    from app.ui.pages import giafpt_ct, giafpt_vung
+    from app.ui.pages import giafpt_ct, giafpt_the, giafpt_vung
 
     app.clientside_callback(
         "function(t){return [t=='tra'?{}:{display:'none'}, t=='sosanh'?{}:{display:'none'}, t=='vung'?{}:{display:'none'}];}",
@@ -218,36 +162,6 @@ def register(app):
     for goc in ("gf", "gf2a", "gf2b"):
         app.callback(Output(f"{goc}-phuong", "options"), Output(f"{goc}-phuong", "value"),
                      Input(f"{goc}-tinh", "value"), State(f"{goc}-phuong", "value"))(_nap_phuong)
-
-    @app.callback(Output("gf-tb", "children"), Output("gf-the", "children"), Output("gf-luoi", "rowData"), Output("gf-ctx", "data"),
-                  Input("gf-tab", "value"), Input("gf-tinh", "value"), Input("gf-phuong", "value"), Input("gf-khach", "value"),
-                  Input("gf-nhom", "value"), Input("gf-moi", "n_clicks"))
-    def _tra(tab, tinh, phuong, khach, nhom, _moi):
-        _vao()
-        if tab != "tra":
-            raise PreventUpdate
-        if not tinh or not phuong:
-            return alert("Chọn tỉnh / thành và phường / xã ở trên để xem giá.", "info"), [], [], None
-        if ctx.triggered_id == "gf-moi":
-            xoa("gia_fpt")
-        try:
-            kq = gf.goi_theo_phuong(tinh, phuong)
-        except gf.LoiGia as e:
-            return _loi(e), [], [], None
-        hien = gf.loc_goi(kq["goi"], khach, nhom)
-        return (_canh_bao(kq), _the_tra(kq["goi"], len(hien), kq["luc"]), [_dong_tra(g) for g in hien],
-                {"khu_vuc": ten_khu_vuc(tinh, phuong), "luc": kq["luc"].isoformat()})
-
-    @app.callback(Output("gf-chep", "data-chep"), Output("gf-chep-ghi", "children"),
-                  Input("gf-luoi", "rowData"), Input("gf-luoi", "selectedRows"), State("gf-ctx", "data"))
-    def _chep_tra(dong, chon, c):
-        _vao()
-        if not dong or not c:
-            return "", ""
-        ds = chon or dong
-        from datetime import datetime
-        van_ban = gf.van_ban_bao_gia(c["khu_vuc"], ds, datetime.fromisoformat(c["luc"]))
-        return van_ban, f"Sẽ copy {len(ds)} gói {'đã tick' if chon else '(cả bảng đang hiện)'}"
 
     @app.callback(Output("gf2-tb", "children"), Output("gf2-the", "children"), Output("gf2-luoi", "columnDefs"),
                   Output("gf2-luoi", "rowData"), Output("gf2-ctx", "data"),
@@ -287,6 +201,7 @@ def register(app):
         from datetime import datetime
         return gf.van_ban_so_sanh(c["ten_a"], c["ten_b"], chon or dong, datetime.fromisoformat(c["luc"]))
 
+    giafpt_the.register(app)
     giafpt_ct.register(app)
     giafpt_vung.register(app)
 

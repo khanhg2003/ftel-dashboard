@@ -263,6 +263,10 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      lần (94 phường Đà Nẵng ~25 giây với 8 luồng, quá `HAN_QUET` thì trả phần đã quét) nên CHỈ chạy khi người dùng bấm, kết quả giữ ở trình duyệt
      (`dcc.Store` session) chứ không ở máy chủ vì Vercel có thể đổi máy giữa hai lượt; (5) ô chọn tỉnh / phường có `persistence` PHẢI có danh sách
      ngay từ lúc dựng trang, nếu để trống rồi nạp bằng callback thì Dash coi giá trị nhớ là sai và xoá mất. Không có tên khách trong dữ liệu này.
+     **Giao diện tab Tra giá (làm lại 22/10/2026 theo góp ý "chán, không trực quan"):** chỉ lấy Internet, Camera, FPT Play (KHÔNG Smart TV, Tăng tốc, Smart Home, thiết bị mạng); gói hiện thành THẺ gom theo nhóm,
+     bấm cả thẻ để xem chi tiết (`giafpt_the.py`, id thẻ dạng pattern-matching `gf-the`). Điều kiện giống hệt ở mọi gói cùng nhóm (cách thanh toán, số tháng tặng, phí lắp đặt, hạn chính sách...) nằm ở dải
+     "Chung cho cả nhóm" dưới tiêu đề nhóm; thẻ và cửa sổ chi tiết (`giafpt_ct.py`) chỉ ghi chỗ KHÁC (`gia_fpt.phan_chung` / `khac_biet`). Dựng hai lượt: lượt một chỉ cần danh sách gói, lượt hai (`gf-pha`)
+     nạp chi tiết CẢ phường song song (52 gói ~5 giây, đã nhớ tạm từng gói) để tính phần chung; chưa nạp xong thì hiện "Đang nạp điều kiện chung". Giá Camera là giá thiết bị một lần (không "/ tháng").
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền

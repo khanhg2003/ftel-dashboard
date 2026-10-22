@@ -42,7 +42,8 @@ def _dich_vu(duong, noi_dung, han=15):
         return [{"id": QUE_SON, "text": "Xã Quế Sơn"}, {"id": AN_HAI, "text": "Phường An Hải"}, {"id": QUANG_PHU, "text": "Phường Quảng Phú"}]
     if duong.endswith("packages/list"):
         bang = GIA_THEO_PHUONG[noi_dung["location"]["ward_id"]]
-        return [_goi(int(i), MAU[i][0], MAU[i][1], gia=g) for i, g in bang.items()] + [_goi(24, "goi-vvip1", "Gói V.VIP 1", "fpt-play", 130000)]
+        return [_goi(int(i), MAU[i][0], MAU[i][1], gia=g) for i, g in bang.items()] + [_goi(24, "goi-vvip1", "Gói V.VIP 1", "fpt-play", 130000),
+                                                                                                                           _goi(128, "casper", "Casper Smart TV", "smart-tivi", 3378531)]
     if duong.endswith("packages/get"):
         tu, den = utc_bay_gio() - timedelta(days=30), utc_bay_gio() + timedelta(days=30)
         het = utc_bay_gio() - timedelta(days=1)
@@ -52,10 +53,11 @@ def _dich_vu(duong, noi_dung, han=15):
                     "sale_platform_code": "INT.1", "effective_from": tu.strftime("%Y-%m-%d %H:%M:%S"),
                     "effective_to": hieu_luc_den.strftime("%Y-%m-%d %H:%M:%S"),
                     "summary": {"service_price": {"price": tong}, "fee_price": {"price": 500000}, "device_price": None}}
+        gia_an_hai = {m[0]: GIA_THEO_PHUONG[AN_HAI].get(i) for i, m in MAU.items()}.get(noi_dung["code"], 340000)
         return {"name": "Internet Meta F1", "price": {"price": 1020000, "contract_length_months": 3},     # giá theo thời hạn ngắn nhất, không phải giá tháng
                 "card_description": "Modem Wi-Fi 6\nKết nối 25 thiết bị",
                 "display_contents": {"promotion_contents": [{"contract_length_months": 13, "charge_type": "tra-truoc", "tag_line": "Tặng Camera"}]},
-                "product_offering_price": [chinh_sach(3, 1020000), chinh_sach(13, 4080000), chinh_sach(6, 2040000, hieu_luc_den=het)]}
+                "product_offering_price": [chinh_sach(3, 3 * gia_an_hai), chinh_sach(13, 12 * gia_an_hai), chinh_sach(6, 6 * gia_an_hai, hieu_luc_den=het)]}
     raise AssertionError(duong)
 
 
@@ -87,6 +89,7 @@ def test_gia_khac_nhau_theo_phuong_va_loc(mang_gia):
     assert [g["ten"] for g in gf.loc_goi(a["goi"], "doanh_nghiep")] == ["Super300 Biz"]
     assert {g["ten"] for g in gf.loc_goi(a["goi"], "all", "FPT Play")} == {"Gói V.VIP 1"}
     assert gf.cac_nhom(a["goi"]) == ["Internet", "FPT Play"]
+    assert all(g["ten"] != "Casper Smart TV" for g in a["goi"])            # Smart TV, Tăng tốc, Smart Home, thiết bị mạng không lấy (chủ app 22/10/2026)
 
 
 def test_dich_vu_loi_thi_dung_ban_cu_hoac_bao_loi(mang_gia, monkeypatch):
@@ -110,6 +113,20 @@ def test_chi_tiet_goi_tang_thang_va_bo_chinh_sach_het_han(mang_gia):
     assert (muoi_ba["thang_dong"], muoi_ba["tang"]) == (12, 1) and muoi_ba["binh_quan"] == 313846   # 13 tháng chỉ đóng 12
     assert muoi_ba["qua"] == "Tặng Camera" and muoi_ba["phi_lap"] == 500000
     assert ct["gia"] == 340000                                           # giá tháng lấy từ danh sách, không lấy giá theo thời hạn của dịch vụ chi tiết
+
+
+def test_dieu_kien_chung_cua_nhom_va_diem_rieng_cua_goi(mang_gia):
+    goi = [g for g in gf.goi_theo_phuong(TINH, AN_HAI)["goi"] if g["nhom"] == "Internet" and g["khach"] == "ca_nhan"]
+    ct = gf.chi_tiet_nhieu(TINH, AN_HAI, goi)
+    chung = gf.phan_chung(goi, ct)
+    assert chung["tra_truoc"] == [3, 13] and chung["tra_sau"] is False and chung["tang"] == {"13": 1.0}
+    assert chung["phi_lap"] == [500000, 500000] and chung["den"] and chung["so_goi"] == 2
+    dong = gf.dong_chung(chung)
+    assert "Thanh toán: trả trước 3 / 13 tháng" in dong and "Trả trước 13 tháng: tặng thêm 1 tháng" in dong and "Phí lắp đặt: 500.000đ" in dong
+    assert gf.khac_biet(goi[0], ct[goi[0]["code"]], chung).get("phi_lap") is None      # phí giống phần chung thì không nhắc lại ở từng gói
+    assert gf.phan_chung(goi[:1], ct) == {}                                             # một gói thì không có gì để gọi là chung
+    rieng = gf.khac_biet(goi[0], ct[goi[0]["code"]], {})                                # nhóm không có phần chung: ghi đủ ở gói
+    assert rieng["phi_lap"] == [500000, 500000]
 
 
 def test_so_sanh_hai_phuong(mang_gia):
@@ -152,13 +169,17 @@ def test_chu_copy_gui_khach(mang_gia):
     a, b = gf.goi_theo_phuong(TINH, AN_HAI), gf.goi_theo_phuong(TINH, QUANG_PHU)
     chu = gf.van_ban_bao_gia("Phường An Hải, Đà Nẵng", a["goi"], a["luc"])
     assert "Internet Meta F1: 340.000đ/tháng" in chu and "tốc độ 1 Gbps / 300 Mbps" in chu and "VAT" in chu
-    assert "INTERNET DOANH NGHIỆP" in chu                                  # gói doanh nghiệp có đề mục riêng
+    assert "INTERNET · DOANH NGHIỆP" in chu and "INTERNET · CÁ NHÂN" in chu          # mỗi nhóm một đề mục
     ss = gf.van_ban_so_sanh("An Hải", "Quảng Phú", gf.so_sanh(a["goi"], b["goi"]), a["luc"])
     assert "Internet Meta F1: An Hải 340.000đ · Quảng Phú 330.000đ" in ss
     assert gf.chu_tien(1234567) == "1.234.567đ" and gf.chu_tien(None) == "–"
 
 
 # ------------------------------------------------------------------ trang
+def _chu(node) -> str:
+    return json.dumps(node, ensure_ascii=False, default=lambda o: o.to_plotly_json() if hasattr(o, "to_plotly_json") else str(o))
+
+
 def _tk(role: str, scope: list[str] | None = None):
     from app.auth import SessionUser
     return SessionUser(SimpleNamespace(id=1, username=f"kiemthu.{role}", ho_ten="Kiểm thử", role=role, ma_nv=None, session_version=0,
@@ -191,14 +212,16 @@ def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia):
     with server.test_request_context("/"):
         login_user(_tk("nvkd", ["IBB7"]))
         giafpt.layout()
-    tb, the, dong, c = goi("gf-luoi.rowData", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, "all", "all", None)
-    assert tb is None and len(dong) == 4 and c["khu_vuc"] == "Phường An Hải, Đà Nẵng"
-    assert {r["ten"] for r in dong} >= {"Internet Meta F1", "Super300 Biz"} and all(r["ct"].count("|") == 2 for r in dong)
-    assert len(goi("gf-luoi.rowData", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, "doanh_nghiep", "all", None)[2]) == 1
+    tb, the, ds, chung, chu, ghi, pha = goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, "all", "all", None)
+    assert tb is None and pha["phuong"] == AN_HAI and "Gói đang hiện" not in ghi and "4 gói" in ghi
+    assert "Internet Meta F1: 340.000đ/tháng" in chu and "Phường An Hải, Đà Nẵng" in chu
+    mo_ta = _chu(ds)
+    assert "gf-the" in mo_ta and "Super300 Biz" in mo_ta and "Đang nạp điều kiện chung" in mo_ta     # lượt một: thẻ + chỗ chờ phần chung
+    assert "1 gói" in _chu(goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, "doanh_nghiep", "all", None)[2])
     with pytest.raises(PreventUpdate):
-        goi("gf-luoi.rowData", _tk("dvkh"), "tra", TINH, AN_HAI, "all", "all", None)           # khối khác: máy chủ chặn
+        goi("gf-tb.children", _tk("dvkh"), "tra", TINH, AN_HAI, "all", "all", None)           # khối khác: máy chủ chặn
     with pytest.raises(PreventUpdate):
-        goi("gf-luoi.rowData", _tk("nvkd", ["IBB7"]), "sosanh", TINH, AN_HAI, "all", "all", None)   # tab đang ẩn không tính
+        goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "sosanh", TINH, AN_HAI, "all", "all", None)   # tab đang ẩn không tính
 
 
 @pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
@@ -212,10 +235,10 @@ def test_trang_bao_loi_de_hieu_khi_fpt_khong_tra_loi(mang_gia, monkeypatch):
     def hong(*a, **k):
         raise gf.LoiGia("Chưa lấy được giá từ fpt.vn lúc này.")
     monkeypatch.setattr(gf, "_goi_dich_vu", hong)
-    ham = next(getattr(v["callback"], "__wrapped__", v["callback"]) for k, v in app.callback_map.items() if "callback" in v and "gf-luoi.rowData" in k)
+    ham = next(getattr(v["callback"], "__wrapped__", v["callback"]) for k, v in app.callback_map.items() if "callback" in v and "gf-tb.children" in k)
     with server.test_request_context("/"):
         login_user(_tk("admin"))
         context_value.set(AttributeDict(triggered_inputs=[], inputs_list=[], states_list=[], outputs_list=[]))
-        tb, the, dong, c = ham("tra", TINH, AN_HAI, "all", "all", None)
+        tb, the, ds, chung, chu_copy, ghi, pha = ham("tra", TINH, AN_HAI, "all", "all", None)
     chu = json.dumps(tb.to_plotly_json(), ensure_ascii=False)
-    assert "Chưa lấy được giá từ fpt.vn" in chu and dong == [] and c is None
+    assert "Chưa lấy được giá từ fpt.vn" in chu and ds == [] and pha is None
