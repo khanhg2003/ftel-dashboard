@@ -130,7 +130,8 @@ def _goi_callback(c, output: str, inputs: list[dict], state=None):
 
 
 def test_truong_phong_khong_goi_duoc_callback_quan_tri(tai_khoan):
-    out = "..qt-user-grid.columnDefs...qt-user-grid.rowData...qt-staff-grid.columnDefs...qt-staff-grid.rowData.."
+    from app.ui.app import app
+    out = next(k for k in app.callback_map if "qt-user-grid.columnDefs" in k)   # thêm Output sau này không vỡ test
     vao = [{"id": "qt-user-msg", "property": "children", "value": "x"},
            {"id": "qt-staff-msg", "property": "children", "value": None}]
     r = _goi_callback(_dang_nhap("zz_ht_phong"), out, vao)
@@ -158,14 +159,16 @@ def test_doi_mat_khau_kiem_tra_nhap_lai(tai_khoan):
     from app.ui.app import app, server
     ham = app.callback_map["..tk-mk-msg.children...tk-mk-cu.value...tk-mk-moi.value...tk-mk-lai.value.."]["callback"]
     goc = getattr(ham, "__wrapped__", ham)
-    with server.test_request_context("/"):
-        login_user(_user("zz_ht_phong"))
-        msg = goc(1, 0, MK, "MatKhauMoi@1", "khac")
-        assert "không khớp" in str(msg[0])
-        msg = goc(1, 0, MK, "MatKhauMoi@1", "MatKhauMoi@1")
-        assert "Đã đổi mật khẩu" in str(msg[0])
-    assert xac_thuc("zz_ht_phong", "MatKhauMoi@1")[0] is not None
-    _tao("zz_ht_phong", "phong", ["IBB2"])                      # trả lại mật khẩu cho các test khác
+    try:
+        with server.test_request_context("/"):
+            login_user(_user("zz_ht_phong"))
+            msg = goc(1, 0, MK, "MatKhauMoi@1", "khac")
+            assert "không khớp" in str(msg[0])
+            msg = goc(1, 0, MK, "MatKhauMoi@1", "MatKhauMoi@1")
+            assert "Đã đổi mật khẩu" in str(msg[0])
+            assert xac_thuc("zz_ht_phong", "MatKhauMoi@1")[0] is not None   # xac_thuc ghi session: cần request context
+    finally:
+        _tao("zz_ht_phong", "phong", ["IBB2"])                  # trả lại mật khẩu cho các test khác
 
 
 def _callback(chua: str):

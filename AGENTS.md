@@ -273,7 +273,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      dấu nháy kép**: câu có ": " (hai chấm + cách) làm YAML hỏng và agent bị bỏ qua lặng lẽ (lỗi thật lúc làm). Agent mới chỉ dùng được SAU KHI mở lại phiên Claude Code. Quy trình:
      CEO ra lệnh -> trợ lý điều phối (Claude Code chính) giao planner -> coder -> tester -> ui-reviewer -> báo CEO; commit / đẩy Vercel / ghi dữ liệu thật vẫn chờ CEO đồng ý.
      **Hook** (`scripts/claude_hook.py`, cấu hình `.claude/settings.json`): sau khi sửa file .py báo ngay lỗi cú pháp / tên chưa định nghĩa; trước mỗi lệnh Bash chặn `git add -A` / `git add .` (chữ trong dấu nháy và
-     heredoc không tính) và chặn `git commit` nếu `ruff` còn cảnh báo hoặc test mới lỗi (3 lỗi cũ ở `test_he_thong_hoa.py` được bỏ qua, danh sách `LOI_CU` trong hook: sửa xong ba lỗi đó thì xoá khỏi danh sách; mỗi lần commit
+     heredoc không tính) và chặn `git commit` nếu `ruff` còn cảnh báo hoặc có test lỗi (không còn lỗi cũ nào được bỏ qua; mỗi lần commit
      mất ~90 giây vì chạy cả bộ test); ghi nhật ký hoạt động vào `data/van_phong/su_kien.jsonl` (không lên GitHub, mỗi dòng một sự kiện: giao việc, agent bắt đầu / xong, công cụ vừa dùng, lệnh của CEO; đã che mật khẩu / token /
      đường dẫn kết nối). Hook đọc stdin bằng UTF-8 (Windows mặc định cp1252 làm vỡ đường dẫn có dấu của dự án). **Chủ app KHÔNG muốn giao diện văn phòng AI nằm trong app này** (gỡ trang `/vanphong` ngày 22/10/2026, đừng
      dựng lại): đó là giao diện pixel riêng của CEO, dùng chung cho mọi dự án, đọc nhật ký trên.
@@ -433,7 +433,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 3. **Thêm / sửa test** cho công thức hoặc hàm dữ liệu mới (`tests/`).
 4. Chạy:
    - `ruff check app --select F,E9`: không có lỗi;
-   - `python -m pytest -q`: toàn bộ pass. Hiện có 3 lỗi cũ ở `tests/test_he_thong_hoa.py`, không liên quan; không được có lỗi mới.
+   - `python -m pytest -q`: toàn bộ pass (22/10/2026: 579 test, không còn lỗi cũ); không được có test lỗi.
 5. **Nhìn thật trên giao diện** (bản xem thử `xem-thu`, cổng 8051, tự đăng nhập admin): trang mở được, bảng / biểu đồ ra số, không có lỗi console hay server. Sửa code Python thì phải khởi động lại bản xem thử.
 6. **Dữ liệu thật (Supabase):** chỉ đọc để đối chiếu. Mọi thao tác ghi / xoá phải được chủ app đồng ý rõ ràng, và phải sao lưu các dòng sẽ xoá trước.
 7. **Commit:**

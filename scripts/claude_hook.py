@@ -21,8 +21,6 @@ GOC = Path(__file__).resolve().parent.parent
 THU_MUC = GOC / "data" / "van_phong"
 NHAT_KY = THU_MUC / "su_kien.jsonl"
 TOI_DA_DONG = 3000
-LOI_CU = [f"tests/test_he_thong_hoa.py::{t}" for t in (
-    "test_truong_phong_khong_goi_duoc_callback_quan_tri", "test_doi_mat_khau_kiem_tra_nhap_lai", "test_trang_mo_dau_theo_vai_tro")]
 _NHAY_CAM = [(re.compile(r"[a-z][a-z0-9+.-]*://[^\s'\"]*@[^\s'\"]+", re.I), "[đường dẫn đã che]"),
              (re.compile(r"(password|passwd|token|secret|api[_-]?key|key)\s*[=:]\s*\S+", re.I), r"\1=[đã che]")]
 
@@ -74,14 +72,14 @@ def truoc_bash(d: dict) -> int:
     if ma != 0:
         print(f"Chặn commit: ruff còn cảnh báo (AGENTS.md mục 2.10):\n{ra[-1500:]}", file=sys.stderr)
         return 2
-    lenh_test = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *[a for t in LOI_CU for a in ("--deselect", t)]]
+    lenh_test = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
     try:
         ma, ra = chay(lenh_test, 280)
     except subprocess.TimeoutExpired:
         print("Chặn commit: chạy test quá 280 giây. Chạy tay `python -m pytest -q` rồi commit lại.", file=sys.stderr)
         return 2
     if ma != 0:
-        print("Chặn commit: còn test lỗi MỚI (3 lỗi cũ ở test_he_thong_hoa.py đã được bỏ qua):\n" + ra[-1800:], file=sys.stderr)
+        print("Chặn commit: còn test lỗi:\n" + ra[-1800:], file=sys.stderr)
         return 2
     return 0
 
