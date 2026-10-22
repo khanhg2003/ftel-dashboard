@@ -1815,7 +1815,10 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .dv-huong-dan code { background: #EEF2F7; padding: 2px 6px; border-radius: 5px; font-size: 12px; }
 
 /* DVKH: thẻ chỉ số có xu hướng, dải cột nhỏ, thanh tiêu đề nhóm biểu đồ */
-.dv-the-luoi { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.dv-the-luoi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }   /* sáu thẻ: 3 x 2, hoặc cả hàng khi màn rộng - không để 5 + 1 lẻ */
+@media (min-width: 1800px) { .dv-the-luoi { grid-template-columns: repeat(6, 1fr); } }
+@media (max-width: 900px) { .dv-the-luoi { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .dv-the-luoi { grid-template-columns: 1fr; } }
 .dv-the { display: flex; flex-direction: column; min-width: 0; }
 .dv-the .value { margin-top: 6px; }
 .dv-xh-dong { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 6px; line-height: 1.3; }
@@ -1842,3 +1845,16 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .dv-kpi-bang th { white-space: normal; line-height: 1.25; }
 .kpi .value .dv-so-dai { font-size: 20px; letter-spacing: -.4px; white-space: nowrap; }
 .dv-kpi-bang td.dv-ten .tip { margin-left: 6px; vertical-align: middle; }
+/* Thẻ chỉ số có ⓘ: chú thích bật ra ngoài mép thẻ nên thẻ không được cắt phần tràn (bản cũ cắt mất nửa chú thích) */
+.kpi:has(.tip) { overflow: visible; }
+.kpi:has(.tip)::after { border-radius: var(--radius) var(--radius) 0 0; }
+.kpi:has(.tip):hover, .kpi:has(.tip:focus-within) { z-index: 5; }
+.dv-the .tip-noi { max-width: 300px; }
+.dv-the:nth-child(3n) .tip-noi { left: auto; right: -10px; }
+.dv-the:nth-child(3n) .tip-noi::before { left: auto; right: 14px; }
+@media (min-width: 1800px) {
+  .dv-the:nth-child(3n) .tip-noi { left: -10px; right: auto; }
+  .dv-the:nth-child(3n) .tip-noi::before { left: 14px; right: auto; }
+  .dv-the:nth-child(n+5) .tip-noi { left: auto; right: -10px; }
+  .dv-the:nth-child(n+5) .tip-noi::before { left: auto; right: 14px; }
+}
