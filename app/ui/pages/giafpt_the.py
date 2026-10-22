@@ -1,15 +1,14 @@
 """Tab "Tra giá" của Tra cứu giá: chọn MỘT nhóm bằng các nút tròn (như trang gói cước của fpt.vn), nhóm đó hiện thành THẺ, bấm cả thẻ để xem
-chi tiết (chủ app chốt 22/10/2026: mỗi lần chỉ một nhóm cho đỡ rối).
+chi tiết (chủ app chốt 22/10/2026: mỗi lần chỉ một nhóm cho đỡ rối). Riêng "Internet · cá nhân" có thêm hàng nút nhỏ lọc tiếp theo nhu cầu
+(Wifi 7, gia đình, game thủ, combo Internet + Camera) - cách chia lấy từ các trang /internet/... của fpt.vn, xem `gia_fpt.PHAN_LOAI_CON`.
 
-Điều kiện giống hệt nhau ở mọi gói của nhóm (cách thanh toán, số tháng tặng, phí hòa mạng dùng chung, hạn chính sách...) nằm ở dải "Chung cho
-cả nhóm" dưới tiêu đề; trên thẻ và trong chi tiết chỉ ghi chỗ KHÁC (`gia_fpt.phan_chung` / `khac_biet`), riêng phí hòa mạng luôn ghi trên thẻ.
+Điều kiện giống hệt nhau ở mọi gói của nhóm (cách thanh toán, số tháng tặng, phí hòa mạng dùng chung, hạn chính sách...) nằm ở dải "Chính sách
+chung" dưới tiêu đề; trên thẻ và trong chi tiết chỉ ghi chỗ KHÁC (`gia_fpt.phan_chung` / `khac_biet`), riêng phí hòa mạng luôn ghi trên thẻ.
 Ba bước để trang hiện nhanh: `_tra` lấy danh sách gói (một lần gọi) và dựng nút nhóm; `_chi_tiet` nạp chi tiết CẢ phường song song (lần đầu ~5 giây,
 sau đó đã nhớ tạm) vào Store `gf-ctd`; `_ds` vẽ nhóm đang chọn từ hai thứ trên, vẽ lại khi chi tiết về hoặc khi đổi nút.
 Store `gf-ctd` mang khoá phường (`pha`) để kết quả của phường cũ về muộn không đè lên phường mới.
 """
 from __future__ import annotations
-
-from datetime import datetime
 
 from dash import Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
@@ -17,46 +16,31 @@ from dash.exceptions import PreventUpdate
 from app import gia_fpt as gf
 from app.bo_nho import xoa
 from app.thoi_gian import chu_gio_vn
-from app.ui.components import alert, ghi_chu, kpi
+from app.ui.components import alert, ghi_chu
 from app.ui.icons import icon
 
 KHOA_MAC_DINH = "Internet|ca_nhan"
+KHOA_CAMERA = "Internet + Camera An Tâm|ca_nhan"       # không có nút riêng: nằm trong nút nhỏ "Combo Internet + Camera" của Internet · cá nhân
 
 
 def pane():
     from app.ui.pages.giafpt import chon_khu_vuc
     return html.Div([
-        html.Div([*chon_khu_vuc("gf"), html.Div(className="grow"),
+        html.Div([*chon_khu_vuc("gf"), html.Div(className="grow"), html.Span(id="gf-luc", className="gf-luc"),
                   html.Button([icon("refresh", 14), html.Span("Làm mới giá")], id="gf-moi", className="btn nt-nut",
                               title="Bỏ giá đang nhớ tạm và hỏi lại fpt.vn")], className="toolbar"),
         html.Div(id="gf-tb"),
-        html.Div(id="gf-the", className="kpi-row"),
         dcc.RadioItems(id="gf-muc", options=[], value=None, className="gf-pills", labelClassName="gf-pill", inputClassName="gf-pill-in"),
-        html.Div([html.Div([icon("zoom_in", 14), html.Span("Bấm vào một gói để xem chi tiết: giá theo cách thanh toán, phí hòa mạng và điểm riêng của gói")],
-                           className="goi-y-bam"),
-                  html.Div(className="grow"),
-                  html.Span(id="gf-chep-ghi", className="desc", style={"margin": 0}),
-                  html.Button([icon("copy", 14), html.Span("Copy bảng giá gửi khách")], id="gf-chep", n_clicks=0, className="btn nut-chep lon")],
-                 className="gf-hang-chep"),
+        dcc.RadioItems(id="gf-con", options=[], value="all", className="gf-pills gf-pills-con", labelClassName="gf-pill", inputClassName="gf-pill-in",
+                       style={"display": "none"}),
         html.Div(id="gf-ds", className="gf-ds"),
-        ghi_chu("Giá là giá niêm yết trên website fpt.vn cho đúng phường đang chọn, đã gồm VAT. Chọn khác phường thì giá và danh sách gói có thể khác. "
-                "Nút Copy lấy các gói của nhóm đang xem.", style={"margin": "8px 0 0"}),
+        ghi_chu("Giá là giá niêm yết trên website fpt.vn cho đúng phường đang chọn, đã gồm VAT. Chọn khác phường thì giá và danh sách gói có thể khác.",
+                style={"margin": "8px 0 0"}),
         dcc.Store(id="gf-pha"), dcc.Store(id="gf-ctd"),
     ], id="gf-pane-tra")
 
 
 # ------------------------------------------------------------------ dựng thẻ
-def _kpi(goi: list[dict], luc) -> list:
-    def re_nhat(khach):
-        ds = [g for g in goi if g["nhom"] == "Internet" and g["khach"] == khach and g["gia"]]
-        g = min(ds, key=lambda x: x["gia"]) if ds else None
-        return (gf.chu_tien(g["gia"]), g["ten"]) if g else ("–", "Khu vực này chưa có gói")
-    cn, dn = re_nhat("ca_nhan"), re_nhat("doanh_nghiep")
-    return [kpi("Gói đang bán ở phường này", f"{len(goi)}", f"Chia thành {len({gf.khoa_nhom(g) for g in goi})} nhóm"),
-            kpi("Internet cá nhân rẻ nhất", cn[0], cn[1]), kpi("Internet doanh nghiệp rẻ nhất", dn[0], dn[1]),
-            kpi("Giá lấy lúc", chu_gio_vn(luc, "%H:%M"), "Từ fpt.vn, nhớ tạm 15 phút")]
-
-
 def _toc_do(chu: str | None):
     if not chu:
         return "–"
@@ -93,23 +77,20 @@ def _the(g: dict, kb: dict, ct: dict | None, re_nhat: bool):
     ], id={"type": "gf-the", "code": g["code"], "gia": g["gia"] or 0, "khoa": gf.khoa_nhom(g)}, n_clicks=0, className="gf-the")
 
 
-def _muc(khoa: str, goi: list[dict], chung: dict | None, ct: dict | None):
-    """Nhóm đang xem: tiêu đề + dải điều kiện chung + lưới thẻ. chung / ct là None khi chi tiết chưa nạp xong."""
+def _muc(khoa: str, goi: list[dict], chung: dict | None, ct: dict | None, tieu: str | None = None):
+    """Nhóm đang xem: tiêu đề + dải chính sách chung + lưới thẻ. chung / ct là None khi chi tiết chưa nạp xong."""
     re = min((g["gia"] for g in goi if g["gia"]), default=None) if len(goi) >= 3 else None
     the = []
     for g in goi:
         c = (ct or {}).get(g["code"])
         the.append(_the(g, gf.khac_biet(g, c, chung or {}), c, re is not None and g["gia"] == re and sum(1 for x in goi if x["gia"] == re) == 1))
     if chung is None:
-        dai = html.Div("Đang nạp điều kiện chung của nhóm (phí hòa mạng, cách thanh toán, hạn chính sách)…", className="gf-chung gf-cho")
+        dai = html.Div("Đang nạp chính sách chung của nhóm (phí hòa mạng, cách thanh toán, hạn chính sách)…", className="gf-chung gf-cho")
     else:
         dong = gf.dong_chung(chung)
-        dai = html.Div([html.Span("Chung cho cả nhóm", className="gf-chung-nhan"),
+        dai = html.Div([html.Span("Chính sách chung", className="gf-chung-nhan"),
                         html.Ul([html.Li(d) for d in dong])], className="gf-chung") if dong else None
-    tu = min((g["gia"] for g in goi if g["gia"]), default=None)
-    return html.Div([html.Div([html.H3(gf.tieu_de_nhom(khoa)), html.Span(f"{len(goi)} gói" + (f" · từ {gf.chu_tien(tu)}" if tu else ""), className="gf-muc-dem")],
-                              className="gf-muc-dau"),
-                     dai, html.Div(the, className="gf-luoi-the")], className="gf-muc")
+    return html.Div([html.Div(html.H3(tieu or gf.tieu_de_nhom(khoa)), className="gf-muc-dau"), dai, html.Div(the, className="gf-luoi-the")], className="gf-muc")
 
 
 def _nhom(goi: list[dict]) -> dict[str, list[dict]]:
@@ -120,14 +101,32 @@ def _nhom(goi: list[dict]) -> dict[str, list[dict]]:
 
 
 def _nut_nhom(goi: list[dict]) -> list[dict]:
-    return [{"label": f"{gf.tieu_de_nhom(k)} ({len(v)})", "value": k} for k, v in _nhom(goi).items()]
+    return [{"label": f"{gf.tieu_de_nhom(k)} ({len(v)})", "value": k} for k, v in _nhom(goi).items() if k != KHOA_CAMERA]
+
+
+def _nut_con(goi: list[dict]) -> list[dict]:
+    """Nút nhỏ của Internet · cá nhân: Tất cả + các nhu cầu có ít nhất một gói."""
+    ca_nhan = [g for g in goi if gf.khoa_nhom(g) == KHOA_MAC_DINH]
+    ra = [{"label": f"Tất cả ({len(ca_nhan)})", "value": "all"}]
+    for ma, nhan in gf.PHAN_LOAI_CON:
+        n = len(_goi_con(goi, ma))
+        if n:
+            ra.append({"label": f"{nhan} ({n})", "value": ma})
+    return ra
+
+
+def _goi_con(goi: list[dict], ma: str) -> list[dict]:
+    """Gói của một nút nhỏ. "Combo Internet + Camera" lấy nhóm An Tâm; các nút khác lọc trong Internet · cá nhân theo `gia_fpt.thuoc_con`."""
+    if ma == "camera":
+        return [g for g in goi if gf.khoa_nhom(g) == KHOA_CAMERA]
+    return [g for g in goi if gf.khoa_nhom(g) == KHOA_MAC_DINH and gf.thuoc_con(g, ma)]
 
 
 # ------------------------------------------------------------------ callbacks
 def register(app):
-    from app.ui.pages.giafpt import _canh_bao, _loi, _vao, ten_khu_vuc
+    from app.ui.pages.giafpt import _canh_bao, _loi, _vao
 
-    @app.callback(Output("gf-tb", "children"), Output("gf-the", "children"), Output("gf-muc", "options"), Output("gf-muc", "value"),
+    @app.callback(Output("gf-tb", "children"), Output("gf-luc", "children"), Output("gf-muc", "options"), Output("gf-muc", "value"),
                   Output("gf-ctd", "data"), Output("gf-pha", "data"),
                   Input("gf-tab", "value"), Input("gf-tinh", "value"), Input("gf-phuong", "value"), Input("gf-moi", "n_clicks"),
                   State("gf-muc", "value"))
@@ -136,18 +135,31 @@ def register(app):
         if tab != "tra":
             raise PreventUpdate
         if not tinh or not phuong:
-            return alert("Chọn tỉnh / thành và phường / xã ở trên để xem giá.", "info"), [], [], None, None, None
+            return alert("Chọn tỉnh / thành và phường / xã ở trên để xem giá.", "info"), "", [], None, None, None
         if ctx.triggered_id == "gf-moi":
             xoa("gia_fpt")
         try:
             kq = gf.goi_theo_phuong(tinh, phuong)
         except gf.LoiGia as e:
-            return _loi(e), [], [], None, None, None
+            return _loi(e), "", [], None, None, None
         nut = _nut_nhom(kq["goi"])
         co = {n["value"] for n in nut}
         chon = muc if muc in co else (KHOA_MAC_DINH if KHOA_MAC_DINH in co else (nut[0]["value"] if nut else None))
-        return (_canh_bao(kq), _kpi(kq["goi"], kq["luc"]), nut, chon, None,
+        return (_canh_bao(kq), f"Giá lấy lúc {chu_gio_vn(kq['luc'], '%H:%M')}", nut, chon, None,
                 {"tinh": tinh, "phuong": phuong, "luc": kq["luc"].isoformat(), "khoa": f"{tinh}-{phuong}"})
+
+    @app.callback(Output("gf-con", "options"), Output("gf-con", "value"), Output("gf-con", "style"),
+                  Input("gf-muc", "value"), Input("gf-pha", "data"), State("gf-con", "value"))
+    def _con(khoa, pha, con):
+        """Hàng nút nhỏ chỉ hiện khi đang xem Internet · cá nhân."""
+        _vao()
+        if khoa != KHOA_MAC_DINH or not pha:
+            return [], "all", {"display": "none"}
+        try:
+            nut = _nut_con(gf.goi_theo_phuong(pha["tinh"], pha["phuong"])["goi"])
+        except gf.LoiGia:
+            raise PreventUpdate
+        return nut, (con if con in {n["value"] for n in nut} else "all"), {}
 
     @app.callback(Output("gf-ctd", "data", allow_duplicate=True), Input("gf-pha", "data"), prevent_initial_call=True)
     def _chi_tiet(pha):
@@ -164,17 +176,22 @@ def register(app):
         gon = {code: {"phi_lap": c["phi_lap"], "thiet_bi": c["thiet_bi"]} for code, c in ct.items() if c}
         return {"pha": pha["khoa"], "ct": gon, "chung": chung}
 
-    @app.callback(Output("gf-ds", "children"), Output("gf-chep", "data-chep"), Output("gf-chep-ghi", "children"),
-                  Input("gf-muc", "value"), Input("gf-pha", "data"), Input("gf-ctd", "data"))
-    def _ds(khoa, pha, ctd):
+    @app.callback(Output("gf-ds", "children"), Input("gf-muc", "value"), Input("gf-con", "value"), Input("gf-pha", "data"), Input("gf-ctd", "data"))
+    def _ds(khoa, con, pha, ctd):
         _vao()
         if not khoa or not pha:
-            return [], "", ""
+            return []
         try:
-            goi = [g for g in gf.goi_theo_phuong(pha["tinh"], pha["phuong"])["goi"] if gf.khoa_nhom(g) == khoa]
+            tat_ca = gf.goi_theo_phuong(pha["tinh"], pha["phuong"])["goi"]
         except gf.LoiGia:
             raise PreventUpdate
+        tieu = None
+        if khoa == KHOA_MAC_DINH and con and con != "all":
+            goi = _goi_con(tat_ca, con)
+            tieu = f"Internet · cá nhân · {dict(gf.PHAN_LOAI_CON)[con]}"
+            khoa = KHOA_CAMERA if con == "camera" else khoa
+        else:
+            goi = _nhom(tat_ca).get(khoa, [])
         co_ct = bool(ctd) and ctd.get("pha") == pha["khoa"]
         ct, chung = (ctd["ct"], ctd["chung"]) if co_ct else (None, None)
-        chu = gf.van_ban_bao_gia(ten_khu_vuc(pha["tinh"], pha["phuong"]), goi, datetime.fromisoformat(pha["luc"]), chung, ct)
-        return _muc(khoa, goi, (chung or {}).get(khoa) if co_ct else None, ct), chu, f"Sẽ copy {len(goi)} gói của nhóm đang xem"
+        return _muc(khoa, goi, (chung or {}).get(khoa, {}) if co_ct else None, ct, tieu)

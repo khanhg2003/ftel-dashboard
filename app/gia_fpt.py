@@ -33,7 +33,11 @@ KHACH = {"ca_nhan": "Cá nhân", "doanh_nghiep": "Doanh nghiệp"}
 NHOM_THEO_LOAI = {"internet": "Internet", "fpt-camera": "Camera", "fpt-play": "FPT Play"}
 THU_TU_NHOM = ["Internet", "Combo Internet + V.VIP", "Internet + Camera An Tâm", "Camera", "FPT Play"]
 NHAN_PHU = {"Nổi bật", "Phổ biến", "Mới", "Hot"}   # nhãn của website, không phải ưu đãi
-DON_VI_GIA = {"Camera": "giá thiết bị"}          # các nhóm còn lại là giá mỗi tháng
+DON_VI_GIA = {"Camera": "giá thiết bị"}
+# Nút nhỏ của Internet · cá nhân (chủ app 22/10/2026). Website không có cột phân loại nên chia theo TÊN gói, lấy từ các trang
+# fpt.vn/internet/gia-dinh, /game-thu và mục Wi-Fi 7 (22/10/2026); một gói có thể nằm ở nhiều nút. Gói mới có tên khác thì phải bổ sung ở đây.
+PHAN_LOAI_CON = [("wifi7", "Wifi 7"), ("gia_dinh", "Internet gia đình"), ("game", "Internet game thủ"), ("camera", "Combo Internet + Camera")]
+_TEN_CON = {"wifi7": r"speedx", "gia_dinh": r"giga f1|sky f1|sky f2|meta", "game": r"f-game|meta|speedx\d+ pro"}          # các nhóm còn lại là giá mỗi tháng
 
 _GAN_NHAT: dict = {}          # bản giá lần gần nhất lấy được, dùng khi dịch vụ lỗi
 _khoa = threading.Lock()
@@ -90,7 +94,7 @@ def _spec(x: dict, *tu_khoa: str):
 
 def _la_doanh_nghiep(x: dict) -> bool:
     chu = f"{x.get('name') or ''} {x.get('tagline') or ''} {x.get('card_description') or ''}"
-    return bool(re.search(r"\bbiz\b|\blux\b|doanh nghiệp", chu, re.I))
+    return bool(re.search(r"\bbiz\b|lux|doanh nghiệp", chu, re.I))
 
 
 def _nhom(x: dict) -> str:
@@ -162,6 +166,11 @@ def _chon(v) -> set | None:
     """Giá trị ô lọc (một chữ hoặc danh sách chọn nhiều) -> tập giá trị; None = không lọc (rỗng hoặc "all")."""
     ds = {v} if isinstance(v, str) else set(v or [])
     return None if not ds or "all" in ds else ds
+
+
+def thuoc_con(g: dict, ma: str) -> bool:
+    """Gói thuộc nút nhỏ `ma` (không dùng cho "camera": đó là cả nhóm Internet + Camera An Tâm)."""
+    return bool(re.search(_TEN_CON[ma], g["ten"].lower())) if ma in _TEN_CON else False
 
 
 def loc_goi(goi: list[dict], khach="all", nhom="all") -> list[dict]:
@@ -427,30 +436,6 @@ def bien_dong(du_lieu: dict) -> list[dict]:
 
 
 # ------------------------------------------------------------------ chữ để copy gửi khách
-def van_ban_bao_gia(khu_vuc: str, goi: list[dict], luc, chung: dict | None = None, chi_tiet: dict | None = None) -> str:
-    """Chữ để dán gửi khách: theo nhóm, mỗi nhóm có dòng điều kiện chung (nếu đã có) rồi tới từng gói."""
-    chung = chung or {}
-    dong = [f"BẢNG GIÁ FPT TELECOM · {khu_vuc}", f"(Cập nhật {chu_gio_vn(luc)} · giá đã gồm VAT)"]
-    khoa_cu = None
-    for g in goi:
-        khoa = khoa_nhom(g)
-        if khoa != khoa_cu:
-            dong += ["", tieu_de_nhom(khoa).upper()]
-            dong += [f"  - {d}" for d in dong_chung(chung.get(khoa, {}))]
-            khoa_cu = khoa
-        don_vi = DON_VI_GIA.get(g["nhom"])
-        phan = [f"{g['ten']}: {chu_tien(g['gia'])}" + (f" ({don_vi})" if don_vi else "/tháng")]
-        if g["toc_do"]:
-            phan.append(f"tốc độ {g['toc_do']}")
-        phi = chu_phi_hoa_mang((chi_tiet or {}).get(g["code"]) if chi_tiet else None)
-        if phi and g["nhom"] != "Camera":
-            phan.append("miễn phí hòa mạng" if phi == "Miễn phí" else f"phí hòa mạng {phi}")
-        if g["uu_dai"] and g["uu_dai"] != chung.get(khoa, {}).get("uu_dai"):
-            phan.append(g["uu_dai"])
-        dong.append("• " + " · ".join(phan))
-    return "\n".join(dong)
-
-
 def van_ban_so_sanh(ten_a: str, ten_b: str, dong: list[dict], luc) -> str:
     kq = [f"SO GIÁ FPT TELECOM: {ten_a} và {ten_b}", f"(Cập nhật {chu_gio_vn(luc)} · giá đã gồm VAT)", ""]
     for r in dong:

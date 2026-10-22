@@ -1939,3 +1939,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .gf-pills .dash-options-list-option-wrapper { display: none; }
 .gf-pills .dash-options-list-option:has(input:checked) .gf-pill { background: #E8F1FA; border-color: var(--fpt-blue); color: var(--fpt-blue); font-weight: 650; }
 .gf-pills .dash-options-list-option:hover .gf-pill { border-color: var(--fpt-blue); }
+
+/* hàng nút nhỏ lọc tiếp trong Internet · cá nhân + giờ lấy giá ở góc thanh lọc */
+.gf-pills-con { margin-top: -6px; }
+.gf-pills-con .gf-pill { padding: 5px 12px; font-size: 12.5px; background: #F6F9FC; }
+.gf-luc { align-self: center; font-size: 12px; color: var(--text-muted); }

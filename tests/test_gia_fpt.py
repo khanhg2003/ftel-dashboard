@@ -129,7 +129,6 @@ def test_dieu_kien_chung_cua_nhom_va_diem_rieng_cua_goi(mang_gia):
     assert gf.phan_chung(goi[:1], ct) == {}                                             # một gói thì không có gì để gọi là chung
     assert gf.chu_phi_hoa_mang(ct[goi[0]["code"]]) == "500.000đ" and gf.chu_phi_hoa_mang(None) == ""
     assert gf.chu_phi_hoa_mang({"phi_lap": None}) == "Miễn phí"                          # dịch vụ không ghi khoản phí nào
-    assert "phí hòa mạng 500.000đ" in gf.van_ban_bao_gia("An Hải", goi, utc_bay_gio(), chung, ct)   # chữ copy có phí hòa mạng từng gói
     rieng = gf.khac_biet(goi[0], ct[goi[0]["code"]], {})                                # nhóm không có phần chung: ghi đủ ở gói
     assert rieng["phi_lap"] == [500000, 500000]
 
@@ -170,11 +169,18 @@ def test_quet_tinh_phuong_loi_thi_ghi_vao_loi(mang_gia, monkeypatch):
     assert du["loi"] == [str(QUE_SON)] and len(du["gia"]) == 2
 
 
-def test_chu_copy_gui_khach(mang_gia):
+def test_nut_nho_cua_internet_ca_nhan_theo_ten_goi():
+    def g(ten):
+        return {"ten": ten}
+    assert gf.thuoc_con(g("FPT SpeedX2 Pro"), "wifi7") and gf.thuoc_con(g("FPT SpeedX2 Pro"), "game") and not gf.thuoc_con(g("FPT SpeedX2 Pro"), "gia_dinh")
+    assert gf.thuoc_con(g("Internet Meta F1"), "gia_dinh") and gf.thuoc_con(g("Internet Meta F1"), "game")           # một gói nằm được nhiều nút
+    assert gf.thuoc_con(g("Internet F-Game"), "game") and not gf.thuoc_con(g("Internet F-Game"), "wifi7")
+    assert gf.thuoc_con(g("Internet Sky F2"), "gia_dinh") and not any(gf.thuoc_con(g("Internet Sky"), m) for m in ("wifi7", "gia_dinh", "game"))
+    assert gf._chuan_goi(_goi(9, "lux500", "Internet Lux500", gia=800000))["khach"] == "doanh_nghiep"                  # Lux500 là gói doanh nghiệp
+
+
+def test_chu_so_sanh_gui_khach(mang_gia):
     a, b = gf.goi_theo_phuong(TINH, AN_HAI), gf.goi_theo_phuong(TINH, QUANG_PHU)
-    chu = gf.van_ban_bao_gia("Phường An Hải, Đà Nẵng", a["goi"], a["luc"])
-    assert "Internet Meta F1: 340.000đ/tháng" in chu and "tốc độ 1 Gbps / 300 Mbps" in chu and "VAT" in chu
-    assert "INTERNET · DOANH NGHIỆP" in chu and "INTERNET · CÁ NHÂN" in chu          # mỗi nhóm một đề mục
     ss = gf.van_ban_so_sanh("An Hải", "Quảng Phú", gf.so_sanh(a["goi"], b["goi"]), a["luc"])
     assert "Internet Meta F1: An Hải 340.000đ · Quảng Phú 330.000đ" in ss
     assert gf.chu_tien(1234567) == "1.234.567đ" and gf.chu_tien(None) == "–"
@@ -217,28 +223,30 @@ def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia):
     with server.test_request_context("/"):
         login_user(_tk("nvkd", ["IBB7"]))
         giafpt.layout()
-    tb, the, nut, chon, ctd, pha = goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, None, None)
-    assert tb is None and pha["phuong"] == AN_HAI and ctd is None
+    sale = _tk("nvkd", ["IBB7"])
+    tb, luc, nut, chon, ctd, pha = goi("gf-tb.children", sale, "tra", TINH, AN_HAI, None, None)
+    assert tb is None and pha["phuong"] == AN_HAI and ctd is None and luc.startswith("Giá lấy lúc ")
     nhan = [n["label"] for n in nut]
     assert nhan[0].startswith("Internet · cá nhân (") and any(n.startswith("FPT Play") for n in nhan)       # mỗi nhóm một nút tròn, có số gói
     assert chon == "Internet|ca_nhan"                                                                    # mặc định Internet cá nhân
-    assert goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, None, "FPT Play|ca_nhan")[3] == "FPT Play|ca_nhan"   # giữ nhóm đang xem khi đổi phường
-    ds, chu, ghi = goi("gf-ds.children", _tk("nvkd", ["IBB7"]), chon, pha, None)
-    mo_ta = _chu(ds)
+    assert goi("gf-tb.children", sale, "tra", TINH, AN_HAI, None, "FPT Play|ca_nhan")[3] == "FPT Play|ca_nhan"   # giữ nhóm đang xem khi đổi phường
+    nut_con, con, kieu = goi("gf-con.options", sale, chon, pha, "all")
+    assert [n["value"] for n in nut_con] == ["all", "gia_dinh", "game"] and kieu == {} and con == "all"    # fake có Meta F1: gia đình + game thủ
+    assert goi("gf-con.options", sale, "FPT Play|ca_nhan", pha, "all")[2] == {"display": "none"}           # nhóm khác: ẩn hàng nút nhỏ
+    mo_ta = _chu(goi("gf-ds.children", sale, chon, "all", pha, None))
     assert "gf-the" in mo_ta and "Internet Meta F1" in mo_ta and "Super300 Biz" not in mo_ta              # chỉ nhóm đang chọn
-    assert "Đang nạp điều kiện chung" in mo_ta and "Sẽ copy 2 gói" in ghi                                   # chi tiết chưa về: có chỗ chờ
-    assert "Internet Meta F1: 340.000đ/tháng" in chu and "Super300 Biz" not in chu
-    chi_tiet = goi("gf-ctd.data@", _tk("nvkd", ["IBB7"]), pha)
+    assert "Đang nạp chính sách chung" in mo_ta and "Chung cho cả nhóm" not in mo_ta                      # chi tiết chưa về: có chỗ chờ
+    chi_tiet = goi("gf-ctd.data@", sale, pha)
     assert chi_tiet["pha"] == pha["khoa"] and chi_tiet["chung"] and chi_tiet["ct"]
-    ds2, chu2, _ = goi("gf-ds.children", _tk("nvkd", ["IBB7"]), chon, pha, chi_tiet)
-    mo_ta2 = _chu(ds2)
-    assert "Đang nạp điều kiện chung" not in mo_ta2 and "Phí hòa mạng" in mo_ta2 and "phí hòa mạng 500.000đ" in chu2
+    mo_ta2 = _chu(goi("gf-ds.children", sale, chon, "all", pha, chi_tiet))
+    assert "Đang nạp chính sách chung" not in mo_ta2 and "Phí hòa mạng" in mo_ta2 and "Chính sách chung" in mo_ta2
+    assert "Internet Sky" not in _chu(goi("gf-ds.children", sale, chon, "game", pha, chi_tiet)).replace("Internet Sky F", "")   # nút nhỏ Game thủ: chỉ Meta F1
     cu = dict(chi_tiet, pha="khac")                                                                      # kết quả của phường khác về muộn: bỏ qua
-    assert "Đang nạp điều kiện chung" in _chu(goi("gf-ds.children", _tk("nvkd", ["IBB7"]), chon, pha, cu)[0])
+    assert "Đang nạp chính sách chung" in _chu(goi("gf-ds.children", sale, chon, "all", pha, cu))
     with pytest.raises(PreventUpdate):
         goi("gf-tb.children", _tk("dvkh"), "tra", TINH, AN_HAI, None, None)                              # khối khác: máy chủ chặn
     with pytest.raises(PreventUpdate):
-        goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "sosanh", TINH, AN_HAI, None, None)                 # tab đang ẩn không tính
+        goi("gf-tb.children", sale, "sosanh", TINH, AN_HAI, None, None)                                  # tab đang ẩn không tính
 
 
 @pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
@@ -256,6 +264,6 @@ def test_trang_bao_loi_de_hieu_khi_fpt_khong_tra_loi(mang_gia, monkeypatch):
     with server.test_request_context("/"):
         login_user(_tk("admin"))
         context_value.set(AttributeDict(triggered_inputs=[], inputs_list=[], states_list=[], outputs_list=[]))
-        tb, the, nut, chon, ctd, pha = ham("tra", TINH, AN_HAI, None, None)
+        tb, luc, nut, chon, ctd, pha = ham("tra", TINH, AN_HAI, None, None)
     chu = json.dumps(tb.to_plotly_json(), ensure_ascii=False)
     assert "Chưa lấy được giá từ fpt.vn" in chu and nut == [] and pha is None
