@@ -88,8 +88,7 @@ def test_quyen_nhan_vien_kd_ibb7():
 
 
 def test_nhan_vien_kd_mo_app_la_vao_thang_bao_cao_ngay():
-    """Việc đầu tiên trong ngày của sale là báo cáo đầu ngày (chốt 24/09/2026).
-    (test_trang_mo_dau_theo_vai_tro trong test_he_thong_hoa đang hỏng sẵn vì môi trường, kiểm riêng ở đây.)"""
+    """Việc đầu tiên trong ngày của sale là báo cáo đầu ngày (chốt 24/09/2026)."""
     from app.ui.app import trang_mo_dau
     assert trang_mo_dau(_tk("nvkd", ["IBB7"])) == "/baocaongay"
     assert trang_mo_dau(_tk("phong", ["IBB7"])) == "/phong"

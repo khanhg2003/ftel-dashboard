@@ -41,9 +41,8 @@ def pane():
 
 
 # ------------------------------------------------------------------ dựng thẻ
-def _toc_do(chu: str | None):
-    if not chu:
-        return "–"
+def _toc_do(chu: str):
+    """Hai chiều chồng nhau (↓ trên, ↑ dưới); gói chỉ ghi một chiều thì một dòng."""
     xuong, _, len_ = chu.partition(" / ")
     return html.Span([html.Span([html.Span("↓", className="gf-mui"), xuong]), html.Span([html.Span("↑", className="gf-mui"), len_])] if len_ else [xuong],
                      className="gf-toc-do", title="Tốc độ tải xuống / tải lên")
@@ -54,8 +53,9 @@ def _dong(nhan: str, gia_tri, lop: str = ""):
 
 
 def _the(g: dict, kb: dict, ct: dict | None, re_nhat: bool):
-    """Thẻ có cấu trúc CỐ ĐỊNH để các thẻ cùng nhóm nhìn so được: tên, giá, rồi các dòng Tốc độ / Phí hòa mạng / Kết nối / Thiết bị, ưu đãi cuối."""
-    fact = _dong("Tốc độ", _toc_do(g["toc_do"]))
+    """Thẻ có cấu trúc CỐ ĐỊNH để các thẻ cùng nhóm nhìn so được: tên, giá, rồi các dòng Tốc độ / Phí hòa mạng / Kết nối / Thiết bị, ưu đãi cuối.
+    Id thẻ chỉ mang mã gói (ASCII): tên nhóm có chữ "â" bị Dash thoát ký tự khác với chữ trình duyệt gửi lên, callback mở chi tiết sẽ không nhận ra thẻ."""
+    fact = _dong("Tốc độ", _toc_do(g["toc_do"])) if g["toc_do"] else []
     if g["nhom"] != "Camera":
         phi = gf.chu_phi_hoa_mang(ct)
         fact += _dong("Phí hòa mạng", phi or "…", "gf-fv-xanh" if phi == "Miễn phí" else ("gf-fv-cho" if not phi else "gf-fv-phi"))
@@ -66,7 +66,7 @@ def _the(g: dict, kb: dict, ct: dict | None, re_nhat: bool):
     uu_dai = kb.get("uu_dai", "") if kb else g["uu_dai"]
     gia = f"{g['gia']:,.0f}".replace(",", ".") if g["gia"] else "–"
     return html.Button([
-        html.Div([html.Div(g["ten"], className="gf-the-ten"),
+        html.Div([html.Div(g["ten"], className="gf-the-ten", title=g["ten"]),
                   html.Span("Rẻ nhất", className="gf-nhan gf-nhan-re") if re_nhat else (html.Span(g["nhan"], className="gf-nhan") if g["nhan"] else None)],
                  className="gf-the-dau"),
         html.Div([html.Span(gia, className="gf-gia"), html.Span("đ", className="gf-dong"),
@@ -74,7 +74,7 @@ def _the(g: dict, kb: dict, ct: dict | None, re_nhat: bool):
         html.Div(fact, className="gf-facts"),
         html.Div(uu_dai, className="gf-uu-dai") if uu_dai else None,
         html.Div([html.Span("Xem chi tiết"), html.Span("›", className="gf-mui-xem")], className="gf-the-xem"),
-    ], id={"type": "gf-the", "code": g["code"], "gia": g["gia"] or 0, "khoa": gf.khoa_nhom(g)}, n_clicks=0, className="gf-the")
+    ], id={"type": "gf-the", "code": g["code"]}, n_clicks=0, className="gf-the")
 
 
 def _muc(khoa: str, goi: list[dict], chung: dict | None, ct: dict | None, tieu: str | None = None):

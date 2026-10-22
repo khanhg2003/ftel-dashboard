@@ -203,22 +203,30 @@ def test_moi_tai_khoan_khoi_kinh_doanh_vao_duoc_nhung_khoi_khac_thi_khong():
     assert not _tk("dvkh").vao_duoc("/giafpt")                           # vai trò chỉ ở khối DVKH
 
 
-@pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
-def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia):
+def _goi_callback(dau_ra, tai_khoan, *args, bam=None):
+    """Gọi thẳng callback có đầu ra `dau_ra` như một người dùng đã đăng nhập; `bam` là id (dict) của thẻ vừa được bấm."""
     from dash._callback_context import context_value
-    from dash._utils import AttributeDict
-    from dash.exceptions import PreventUpdate
+    from dash._utils import AttributeDict, stringify_id
     from flask_login import login_user
 
     from app.ui.app import app, server
+    ham = next(getattr(v["callback"], "__wrapped__", v["callback"]) for k, v in app.callback_map.items() if "callback" in v and dau_ra in k)
+    kich_hoat = [{"prop_id": f"{stringify_id(bam)}.n_clicks", "value": 1}] if bam else []
+    with server.test_request_context("/"):
+        login_user(tai_khoan)
+        context_value.set(AttributeDict(triggered_inputs=kich_hoat, inputs_list=[], states_list=[], outputs_list=[]))
+        return ham(*args)
+
+
+@pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
+def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia):
+    from dash.exceptions import PreventUpdate
+    from flask_login import login_user
+
+    from app.ui.app import server
     from app.ui.pages import giafpt
 
-    def goi(dau_ra, tai_khoan, *args):
-        ham = next(getattr(v["callback"], "__wrapped__", v["callback"]) for k, v in app.callback_map.items() if "callback" in v and dau_ra in k)
-        with server.test_request_context("/"):
-            login_user(tai_khoan)
-            context_value.set(AttributeDict(triggered_inputs=[], inputs_list=[], states_list=[], outputs_list=[]))
-            return ham(*args)
+    goi = _goi_callback
 
     with server.test_request_context("/"):
         login_user(_tk("nvkd", ["IBB7"]))
@@ -267,3 +275,89 @@ def test_trang_bao_loi_de_hieu_khi_fpt_khong_tra_loi(mang_gia, monkeypatch):
         tb, luc, nut, chon, ctd, pha = ham("tra", TINH, AN_HAI, None, None)
     chu = json.dumps(tb.to_plotly_json(), ensure_ascii=False)
     assert "Chưa lấy được giá từ fpt.vn" in chu and nut == [] and pha is None
+
+
+# ------------------------------------------------------------------ thẻ và cửa sổ chi tiết (sửa 22/10/2026)
+AN_TAM = [("sky-an-tam", "Sky An Tâm 7 - IQ4S"), ("meta-an-tam", "Meta An Tâm 7 - IQ4S")]
+
+
+@pytest.fixture
+def mang_gia_an_tam(mang_gia, monkeypatch):
+    """Dữ liệu giả có thêm hai gói An Tâm (tên có chữ "â"); không đưa vào `_dich_vu` chung để các test khác giữ nguyên số gói."""
+    def co_an_tam(duong, noi_dung, han=15):
+        kq = _dich_vu(duong, noi_dung, han)
+        if duong.endswith("packages/list"):
+            kq += [_goi(40 + i, ma, ten, gia=395000 + 10000 * i) for i, (ma, ten) in enumerate(AN_TAM)]
+        return kq
+    monkeypatch.setattr(gf, "_goi_dich_vu", co_an_tam)
+
+
+def _id_the(node) -> list[dict]:
+    ra = []
+    if isinstance(getattr(node, "id", None), dict) and node.id.get("type") == "gf-the":
+        ra.append(node.id)
+    kids = getattr(node, "children", None)
+    for k in kids if isinstance(kids, (list, tuple)) else [kids]:
+        if k is not None and not isinstance(k, (str, int, float)):
+            ra += _id_the(k)
+    return ra
+
+
+def _the_mau(**ghi_de):
+    from app.ui.pages import giafpt_the
+    g = {"code": "x", "ten": "Internet Sky", "nhom": "Internet", "khach": "ca_nhan", "gia": 200000, "toc_do": "1 Gbps / 300 Mbps", "thiet_bi": None,
+         "nhan": "", "uu_dai": ""}
+    return giafpt_the._the({**g, **ghi_de}, {}, None, False)
+
+
+@pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
+def test_the_goi_an_tam_bam_mo_duoc_chi_tiet(mang_gia_an_tam):
+    from dash._utils import stringify_id
+    from dash.exceptions import PreventUpdate
+
+    sale = _tk("nvkd", ["IBB7"])
+    pha = {"tinh": TINH, "phuong": AN_HAI, "luc": "x", "khoa": f"{TINH}-{AN_HAI}"}
+    chi_tiet = _goi_callback("gf-ctd.data@", sale, pha)
+    khoa_cam = "Internet + Camera An Tâm|ca_nhan"
+    assert chi_tiet["chung"][khoa_cam]                                                      # hai gói An Tâm nên có phần chung của nhóm
+    nut_con = _goi_callback("gf-con.options", sale, "Internet|ca_nhan", pha, "all")[0]
+    assert [n["value"] for n in nut_con] == ["all", "gia_dinh", "game", "camera"]
+    cay = {"internet": _goi_callback("gf-ds.children", sale, "Internet|ca_nhan", "all", pha, chi_tiet),
+           "combo": _goi_callback("gf-ds.children", sale, "Internet|ca_nhan", "camera", pha, chi_tiet),
+           "fpt_play": _goi_callback("gf-ds.children", sale, "FPT Play|ca_nhan", "all", pha, chi_tiet)}
+    for ten, c in cay.items():
+        ids = _id_the(c)
+        assert ids, ten
+        for i in ids:                                                                       # Dash thoát chữ "â" khác chữ trình duyệt gửi lên: id chỉ được mang chữ ASCII
+            assert all(not isinstance(v, str) or v.isascii() for v in i.values()), i
+            assert stringify_id(i).isascii()
+    assert {i["code"] for i in _id_the(cay["combo"])} == {m for m, _ in AN_TAM}
+
+    def mo(code):
+        return _goi_callback("gf-ct-than.children", sale, [1], TINH, AN_HAI, chi_tiet, bam={"type": "gf-the", "code": code})
+    lop, tieu, than = mo("sky-an-tam")                                                      # thẻ trong nút Combo Internet + Camera
+    assert lop == "modal mo" and tieu == "Sky An Tâm 7 - IQ4S"
+    assert "điều kiện chung của nhóm" in _chu(than)                                          # lấy đúng phần chung của nhóm An Tâm
+    lop, tieu, than = mo("meta-f1")                                                         # thẻ Internet thường
+    assert lop == "modal mo" and tieu == "Internet Meta F1"
+    with pytest.raises(PreventUpdate):                                                      # thẻ vừa dựng lại (không có lượt bấm) thì không mở
+        _goi_callback("gf-ct-than.children", sale, [0], TINH, AN_HAI, chi_tiet)
+
+
+def test_cot_bang_chi_tiet_cho_vua_man_800px():
+    from app.ui.pages import giafpt_ct
+    hang = [{"thoi_han": "Trả trước 3 tháng", "tong": 1, "binh_quan": 1, "tang": None, "phi_lap": 5, "thiet_bi": 0, "qua": None},
+            {"thoi_han": "Trả trước 13 tháng", "tong": 2, "binh_quan": 2, "tang": 1, "phi_lap": 5, "thiet_bi": 0, "qua": "Tặng Camera"}]
+    cot = {c["field"]: c for c in giafpt_ct._cot(hang)}
+    assert cot["qua"]["wrapText"] and cot["qua"]["autoHeight"] and cot["qua"]["minWidth"] <= 150
+    assert sum(c["minWidth"] for c in cot.values()) <= 700                                  # trường hợp thường gặp (phí, thiết bị giống nhau nên ẩn); hộp ở 800 px còn ~700 px cho bảng
+
+
+def test_the_khong_toc_do_thi_bo_dong_toc_do():
+    chu = _chu(_the_mau(toc_do=None))
+    assert "Tốc độ" not in chu and "–" not in chu                                            # mất hẳn dòng, không để dấu gạch ngang thay chỗ
+    assert "Phí hòa mạng" in chu
+    day_du = _chu(_the_mau())
+    assert "Tốc độ" in day_du and "gf-toc-do" in day_du
+    mot_chieu = _chu(_the_mau(toc_do="1 Gbps"))
+    assert "Tốc độ" in mot_chieu and "↑" not in mot_chieu

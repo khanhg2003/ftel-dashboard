@@ -25,24 +25,25 @@ def _hang_gia(ct: dict) -> list[dict]:
 
 
 def _cot(hang: list[dict]) -> list[dict]:
-    """Cột nào giống nhau ở mọi dòng thì bỏ (đã nói ở phần khác biệt), chỉ giữ cột có khác nhau giữa các cách thanh toán."""
+    """Cột nào giống nhau ở mọi dòng thì bỏ (đã nói ở phần khác biệt), chỉ giữ cột có khác nhau giữa các cách thanh toán.
+    Cột hẹp (minWidth) và bảng tự co theo khung (`columnSize`) để ở màn 800 px không phải cuộn ngang; cột Ưu đãi xuống dòng."""
     def doi(k):
         return len({h[k] for h in hang}) > 1
-    cot = [{"field": "thoi_han", "headerName": "Cách thanh toán", "minWidth": 150, "flex": 1},
-           {"field": "tong", "headerName": "Tổng tiền dịch vụ", "width": 150, "type": "numericColumn", "valueFormatter": DONG,
+    cot = [{"field": "thoi_han", "headerName": "Cách thanh toán", "minWidth": 120},
+           {"field": "tong", "headerName": "Tổng tiền dịch vụ", "minWidth": 130, "type": "numericColumn", "valueFormatter": DONG,
             "headerTooltip": "Số tiền dịch vụ khách đóng một lần cho cả thời hạn (chưa gồm phí lắp đặt)."},
-           {"field": "binh_quan", "headerName": "Bình quân / tháng", "width": 140, "type": "numericColumn", "valueFormatter": DONG,
+           {"field": "binh_quan", "headerName": "Bình quân / tháng", "minWidth": 120, "type": "numericColumn", "valueFormatter": DONG,
             "headerTooltip": "Tổng tiền dịch vụ chia cho cả thời hạn."}]
     if any(h["tang"] for h in hang):
-        cot.append({"field": "tang", "headerName": "Tặng thêm (tháng)", "width": 130, "type": "numericColumn",
+        cot.append({"field": "tang", "headerName": "Tặng thêm (tháng)", "minWidth": 100, "type": "numericColumn",
                     "valueFormatter": {"function": "params.value == null ? '–' : '+' + params.value.toLocaleString('vi-VN')"},
                     "cellStyle": {"styleConditions": [{"condition": "params.value > 0", "style": {"color": "#00844A", "fontWeight": "600"}}]}})
     if doi("phi_lap"):
-        cot.append({"field": "phi_lap", "headerName": "Phí hòa mạng", "width": 120, "type": "numericColumn", "valueFormatter": DONG})
+        cot.append({"field": "phi_lap", "headerName": "Phí hòa mạng", "minWidth": 105, "type": "numericColumn", "valueFormatter": DONG})
     if doi("thiet_bi"):
-        cot.append({"field": "thiet_bi", "headerName": "Thiết bị", "width": 110, "type": "numericColumn", "valueFormatter": DONG})
+        cot.append({"field": "thiet_bi", "headerName": "Thiết bị", "minWidth": 95, "type": "numericColumn", "valueFormatter": DONG})
     if doi("qua"):
-        cot.append({"field": "qua", "headerName": "Ưu đãi", "minWidth": 200, "flex": 2})
+        cot.append({"field": "qua", "headerName": "Ưu đãi", "minWidth": 140, "wrapText": True, "autoHeight": True})
     return cot
 
 
@@ -84,7 +85,7 @@ def than(g: dict, ct: dict, chung: dict, khu_vuc: str):
     if hang:
         nx = _nhan_xet(ct)
         cac.append(nx and alert(nx, "ok"))
-        luoi = bang("gf-ct-bang", _cot(hang), None, tuy_chon={"suppressCellFocus": True, "tooltipShowDelay": 300})
+        luoi = bang("gf-ct-bang", _cot(hang), None, tuy_chon={"suppressCellFocus": True, "tooltipShowDelay": 300}, columnSize="responsiveSizeToFit")
         luoi.rowData = hang
         cac += [html.Div("Giá theo cách thanh toán", className="gf-ct-tieu"), luoi]
     cs = {(z["ma"], z["den"]) for z in ct["lua_chon"] if z["ma"]}
@@ -96,7 +97,7 @@ def than(g: dict, ct: dict, chung: dict, khu_vuc: str):
 
 def register(app):
     @app.callback(Output("gf-ct", "className"), Output("gf-ct-tieu-de", "children"), Output("gf-ct-than", "children"),
-                  Input({"type": "gf-the", "code": ALL, "gia": ALL, "khoa": ALL}, "n_clicks"), State("gf-tinh", "value"),
+                  Input({"type": "gf-the", "code": ALL}, "n_clicks"), State("gf-tinh", "value"),
                   State("gf-phuong", "value"), State("gf-ctd", "data"), prevent_initial_call=True)
     def _mo(clicks, tinh, phuong, ctd):
         from app.ui.pages.giafpt import _vao, ten_khu_vuc
@@ -111,7 +112,7 @@ def register(app):
             ct = gf.chi_tiet_goi(g["code"], tinh, phuong, g["gia"])
         except gf.LoiGia as e:
             return "modal mo", bam["code"], alert(f"{e} Thử lại sau ít phút.", "warn")
-        return "modal mo", g["ten"], than(g, ct, ((ctd or {}).get("chung") or {}).get(bam["khoa"], {}), ten_khu_vuc(tinh, phuong))
+        return "modal mo", g["ten"], than(g, ct, ((ctd or {}).get("chung") or {}).get(gf.khoa_nhom(g), {}), ten_khu_vuc(tinh, phuong))
 
     @app.callback(Output("gf-ct", "className", allow_duplicate=True), Input("gf-ct-dong", "n_clicks"), Input("gf-ct-nen", "n_clicks"),
                   prevent_initial_call=True)
