@@ -2,8 +2,7 @@
 đi sâu một nhân viên), gói cước theo tỉnh, một ngày bán & online.
 
 Quản trị xem đủ ba cách xem. Nhân viên KD của phòng bật ở rules.yml (`ban_tinh`, hiện IBB7) chỉ thấy hai phần "Bán theo tỉnh" và
-"Ai bán ở tỉnh nào" (cách xem "Số online theo tỉnh"); số theo tỉnh / theo phòng là số chung, còn chi tiết từng nhân viên chỉ trong phòng mình
-(`phong_nhan_su`). Chặn cả ở máy chủ, không chỉ ẩn trên giao diện.
+"Ai bán ở tỉnh nào" (cách xem "Số online theo tỉnh"); số theo tỉnh / theo phòng là số chung, chi tiết nhân viên mọi phòng (22/10/2026). Chặn cả ở máy chủ, không chỉ ẩn trên giao diện.
 Tách khỏi app/ui/pages/phantich.py cho gọn; dùng chung kỳ, bảng, biểu đồ của trang đó."""
 from __future__ import annotations
 
@@ -23,15 +22,21 @@ from app.ui.icons import icon
 from app.ui.pages.phantich import MAU_GOI, PCT, SO, _dau_the, _fig, _graph, _grid, _ky, _ten_nhan_vien, _trong
 
 
+def _pham_vi_nv() -> list[str] | None:
+    """Phạm vi nhân viên của hai phần theo tỉnh. Ai đã được xem phần này (Quản trị, nvkd phòng bật ở rules.yml) thì thấy nhân viên MỌI phòng
+    (chủ app chốt 22/10/2026, thay quy tắc "chỉ phòng mình" của lần đầu); vai trò khác giữ phạm vi nhân sự thường."""
+    return None if current_user.duoc_xem_ban_tinh else current_user.phong_nhan_su()
+
+
 def _phong_nv_duoc_xem() -> list[dict]:
-    """Phòng hiện trong ô chọn ở bảng theo nhân viên: Quản trị mọi phòng, nvkd chỉ phòng mình."""
-    pham_vi = current_user.phong_nhan_su()
+    """Phòng hiện trong ô chọn ở bảng theo nhân viên."""
+    pham_vi = _pham_vi_nv()
     return [p for p in phong_order() if pham_vi is None or p["code"] in set(pham_vi)]
 
 
 def _acc_duoc_xem(acc_key: str, tu: str, den: str, scope) -> bool:
     """Người dùng giới hạn theo phòng chỉ được mở chi tiết nhân viên có số trong phòng mình (kiểm ở máy chủ, không tin dòng trình duyệt gửi lên)."""
-    pham_vi = current_user.phong_nhan_su()
+    pham_vi = _pham_vi_nv()
     if pham_vi is None:
         return True
     df = pt.online_theo_tinh(tu, den, loc_nhan_su(scope, pham_vi))
@@ -80,7 +85,7 @@ def the(den, ngays, xem_tinh: bool, admin: bool):
                             style={"margin": "0 0 8px"}),
                     html.Div([
                         dcc.Dropdown(id="pt-tinh-nv-phong", value="all", clearable=False, style={"width": "220px"},
-                                     options=[{"label": "Tất cả phòng" if admin else "Phòng của bạn", "value": "all"}] + [
+                                     options=[{"label": "Tất cả phòng" if admin or current_user.duoc_xem_ban_tinh else "Phòng của bạn", "value": "all"}] + [
                                          {"label": p["ten"], "value": p["code"]} for p in _phong_nv_duoc_xem()]),
                         dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
                                   className="o-tim"),
@@ -239,7 +244,7 @@ def register(app):
             df = df[df.phong_code == pv]
         if phong_nv and phong_nv != "all":
             df = df[df.phong_code == phong_nv]
-        pham_vi_nv = current_user.phong_nhan_su()                          # nvkd: chi tiết từng người chỉ trong phòng mình
+        pham_vi_nv = _pham_vi_nv()
         if pham_vi_nv is not None:
             df = df[df.phong_code.isin(set(pham_vi_nv))]
         if loai == "ngoai":
@@ -354,8 +359,8 @@ def register(app):
             df = df[df.phong_code == pv]
         ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
         ct = pt.chi_tiet_tinh(df, r["ma_tinh"], _ten_nhan_vien(), ten_phong)
-        pham_vi_nv = current_user.phong_nhan_su()
-        if pham_vi_nv is not None and len(ct["nv"]):                       # nvkd: danh sách nhân viên bán chỉ gồm người trong phòng mình
+        pham_vi_nv = _pham_vi_nv()
+        if pham_vi_nv is not None and len(ct["nv"]):                       # vai trò giới hạn: chỉ người trong phạm vi của mình
             ct["nv"] = ct["nv"][ct["nv"].phong_code.isin(set(pham_vi_nv))]
         tieu_de = f"{r['tinh']} · {ct['tong']:,} hợp đồng online {ky.nhan}".replace(",", ".")
         chips = [html.Span(f"{x.phong}: {int(x.so)} ({x.ty_trong:.0f}%)", className="chip")

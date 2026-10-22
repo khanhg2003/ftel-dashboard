@@ -87,33 +87,34 @@ def test_callback_cac_phan_an_khong_nhan_so_cho_nvkd():
     assert _goi("pt-nv.rowData", sale, TU, DEN, "all", "all", "all")[1] == []          # bảng chất lượng theo nhân viên: rỗng
 
 
-def test_nvkd_ibb7_nhan_so_bang_tinh_nhung_chi_nhan_vien_trong_phong_minh():
+def test_nvkd_ibb7_thay_nhan_vien_moi_phong_trong_bang_ai_ban_o_tinh_nao():
     from app.org import phong_order
     sale = _tk("nvkd", ["IBB7"])
     tinh = _goi("pt-tinh-bang.rowData", sale, TU, DEN, "all", "all", "tat_ca", "tong")
     assert tinh[5] and tinh[7]                                                         # bảng tỉnh và ma trận phòng có số (số chung)
     cot, dong = _goi("pt-tinh-nv.rowData", sale, "nv", "tong", TU, DEN, "all", "all", "tat_ca", "all")
+    assert len({d["phong"] for d in dong}) > 1                                         # chủ app chốt 22/10/2026: thấy cả phòng khác, không chỉ IBB7
     ten_ibb7 = next(p["ten"] for p in phong_order("2026-09") if p["code"] == "IBB7")
-    assert dong and {d["phong"] for d in dong} == {ten_ibb7}
+    assert ten_ibb7 in {d["phong"] for d in dong}
     admin = _goi("pt-tinh-nv.rowData", _tk("admin", []), "nv", "tong", TU, DEN, "all", "all", "tat_ca", "all")[1]
-    assert len({d["phong"] for d in admin}) > 1                                       # Quản trị vẫn thấy mọi phòng
+    assert {d["phong"] for d in admin} == {d["phong"] for d in dong}                  # cùng danh sách với Quản trị
 
 
-def test_nvkd_khong_mo_duoc_chi_tiet_nhan_vien_phong_khac():
+def test_nvkd_ibb7_mo_duoc_chi_tiet_nhan_vien_phong_khac():
     from app import phan_tich as pt
     df = pt.online_theo_tinh(TU, DEN, None)
     khac = df[(df.phong_code != "IBB7") & df.acc_norm.notna()].acc_norm.iloc[0]
     kq = _goi("pt-md-nv-tieu-de.children", _tk("nvkd", ["IBB7"]), [{"acc_key": khac, "ho_ten": "x", "phong": "x"}], TU, DEN, "all")
-    assert kq == ("modal", "", [])                                                     # người phòng khác: không mở cửa sổ chi tiết
-    cua_minh = df[(df.phong_code == "IBB7") & df.acc_norm.notna()].acc_norm.iloc[0]
-    kq = _goi("pt-md-nv-tieu-de.children", _tk("nvkd", ["IBB7"]), [{"acc_key": cua_minh, "ho_ten": "x", "phong": "x"}], TU, DEN, "all")
     assert kq[0] == "modal mo"
 
 
-def test_nvkd_chi_tiet_tinh_chi_liet_ke_nhan_vien_phong_minh():
+def test_nvkd_ibb7_chi_tiet_tinh_liet_ke_nhan_vien_moi_phong():
     sale = _tk("nvkd", ["IBB7"])
     tinh = _goi("pt-tinh-bang.rowData", sale, TU, DEN, "all", "all", "tat_ca", "tong")[5]
     ma = next(r["ma_tinh"] for r in tinh)
     _cls, _tieu, than = _goi("pt-md-tinh-tieu-de.children", sale, [{"ma_tinh": ma, "tinh": "x"}], TU, DEN, "all", "all")
     chu = json.dumps(than, default=lambda o: o.to_plotly_json() if hasattr(o, "to_plotly_json") else str(o))
     assert "pt-tinh-ct-nv" in chu
+    adm = _goi("pt-md-tinh-tieu-de.children", _tk("admin", []), [{"ma_tinh": ma, "tinh": "x"}], TU, DEN, "all", "all")[2]
+    chu_adm = json.dumps(adm, default=lambda o: o.to_plotly_json() if hasattr(o, "to_plotly_json") else str(o))
+    assert chu == chu_adm                                                             # nhân viên bán một tỉnh: giống hệt Quản trị

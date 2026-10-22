@@ -315,8 +315,8 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    (tỷ giá, page, tab Cấu hình). **Xem** Ads IBB7: Quản trị + Nhân viên KD của IBB7 (`duoc_xem_ads`): callback đọc
    dùng `callback_can_quyen(app, "duoc_xem_ads")`, callback ghi vẫn `"duoc_cau_hinh"`.
    **Bán theo tỉnh** (thẻ ở Phân tích bán hàng, `phantich_tinh.py`): Quản trị xem đủ ba cách xem; **nvkd của phòng bật ở `rules.yml` → `ban_tinh` (hiện IBB7, chủ app chốt 22/10/2026) chỉ thấy
-   hai phần "Bán theo tỉnh" và "Ai bán ở tỉnh nào"** (`duoc_xem_ban_tinh`; không có gói cước theo tỉnh, không có "Một ngày", không có Excel). Số theo tỉnh và theo phòng là số chung (như Quản trị); chi tiết từng nhân viên, danh sách
-   nhân viên trong cửa sổ một tỉnh và cửa sổ một nhân viên chỉ trong phòng mình (`phong_nhan_su`, kiểm ở máy chủ: `_acc_duoc_xem`). Với nvkd, mọi phần còn lại của trang `/phantich` bị ẩn VÀ callback của chúng trả rỗng / `PreventUpdate`
+   hai phần "Bán theo tỉnh" và "Ai bán ở tỉnh nào"** (`duoc_xem_ban_tinh`; không có gói cước theo tỉnh, không có "Một ngày", không có Excel). Số theo tỉnh và theo phòng là số chung (như Quản trị); **chi tiết nhân viên (bảng Ai bán ở tỉnh nào, danh sách nhân viên trong cửa sổ một tỉnh, cửa sổ một nhân viên)
+   cũng thấy MỌI phòng như Quản trị** (chủ app chốt 22/10/2026, thay quy tắc ban đầu "chỉ phòng mình"; `_pham_vi_nv()` trả None cho người có `duoc_xem_ban_tinh`, vai trò khác vẫn theo `phong_nhan_su`). Với nvkd, mọi phần còn lại của trang `/phantich` bị ẩn VÀ callback của chúng trả rỗng / `PreventUpdate`
    (ẩn trên giao diện là chưa đủ, nếu không số vẫn đi tới trình duyệt). Thêm phần nào cho nvkd thì phải gỡ cả hai lớp đó.
 4. **Nhập tồn và Báo cáo ngày là chỗ NHẬP LIỆU của đúng một phòng** (chốt 26/09/2026,
    `_phong_bat`): ngoài Quản trị (BGĐ), chỉ vào được khi phạm vi nhân sự của tài khoản nằm **TRỌN**
