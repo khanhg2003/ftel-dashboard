@@ -124,9 +124,12 @@ def test_dieu_kien_chung_cua_nhom_va_diem_rieng_cua_goi(mang_gia):
     assert chung["tra_truoc"] == [3, 13] and chung["tra_sau"] is False and chung["tang"] == {"13": 1.0}
     assert chung["phi_lap"] == [500000, 500000] and chung["den"] and chung["so_goi"] == 2
     dong = gf.dong_chung(chung)
-    assert "Thanh toán: trả trước 3 / 13 tháng" in dong and "Trả trước 13 tháng: tặng thêm 1 tháng" in dong and "Phí lắp đặt: 500.000đ" in dong
+    assert "Thanh toán: trả trước 3 / 13 tháng" in dong and "Trả trước 13 tháng: tặng thêm 1 tháng" in dong and "Phí hòa mạng: 500.000đ" in dong
     assert gf.khac_biet(goi[0], ct[goi[0]["code"]], chung).get("phi_lap") is None      # phí giống phần chung thì không nhắc lại ở từng gói
     assert gf.phan_chung(goi[:1], ct) == {}                                             # một gói thì không có gì để gọi là chung
+    assert gf.chu_phi_hoa_mang(ct[goi[0]["code"]]) == "500.000đ" and gf.chu_phi_hoa_mang(None) == ""
+    assert gf.chu_phi_hoa_mang({"phi_lap": None}) == "Miễn phí"                          # dịch vụ không ghi khoản phí nào
+    assert "phí hòa mạng 500.000đ" in gf.van_ban_bao_gia("An Hải", goi, utc_bay_gio(), chung, ct)   # chữ copy có phí hòa mạng từng gói
     rieng = gf.khac_biet(goi[0], ct[goi[0]["code"]], {})                                # nhóm không có phần chung: ghi đủ ở gói
     assert rieng["phi_lap"] == [500000, 500000]
 

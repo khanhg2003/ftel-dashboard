@@ -273,7 +273,6 @@ def phan_chung(goi: list[dict], chi_tiet: dict) -> dict:
     if len(cac) < 2:
         return {}
     ct = [c for _, c in cac]
-    mo_ta = [d for d in ct[0]["mo_ta"] if all(d in c["mo_ta"] for c in ct[1:])]
     uu_dai = {g["uu_dai"] for g, _ in cac}
     han = [{(z["hinh_thuc"], z["thang"]) for z in c["lua_chon"]} for c in ct]
     dung_chung = set.intersection(*han)
@@ -283,12 +282,19 @@ def phan_chung(goi: list[dict], chi_tiet: dict) -> dict:
         if len(v) == 1 and v != {0}:
             tang[thang] = v.pop()
     den = {z["den"] for c in ct for z in c["lua_chon"] if z["den"]}
-    return {"mo_ta": mo_ta, "uu_dai": uu_dai.pop() if len(uu_dai) == 1 else "",
+    return {"uu_dai": uu_dai.pop() if len(uu_dai) == 1 else "",
             "tra_sau": any(_la_tra_sau(h, t) for h, t in dung_chung),
             "tra_truoc": sorted(t for h, t in dung_chung if not _la_tra_sau(h, t)), "tang": {str(k): v for k, v in tang.items()},
             "phi_lap": ct[0]["phi_lap"] if all(c["phi_lap"] == ct[0]["phi_lap"] for c in ct) else None,
             "thiet_bi": ct[0]["thiet_bi"] if all(c["thiet_bi"] == ct[0]["thiet_bi"] for c in ct) else None,
             "den": min(den, key=lambda x: (x[6:], x[3:5], x[:2])) if den else "", "so_den": len(den), "so_goi": len(cac)}
+
+
+def chu_phi_hoa_mang(ct: dict | None) -> str:
+    """Phí hòa mạng (phí lắp đặt) của gói: số tiền hoặc khoảng; "Miễn phí" khi dịch vụ không ghi khoản phí nào; rỗng nếu chưa có chi tiết."""
+    if ct is None:
+        return ""
+    return chu_khoang(ct["phi_lap"]) or "Miễn phí"
 
 
 def chu_khoang(kh: list | None) -> str:
@@ -307,12 +313,11 @@ def dong_chung(c: dict) -> list[str]:
     for thang, tang in sorted(c.get("tang", {}).items(), key=lambda x: int(x[0])):
         d.append(f"Trả trước {thang} tháng: tặng thêm {tang:g} tháng")
     if c.get("phi_lap"):
-        d.append(f"Phí lắp đặt: {chu_khoang(c['phi_lap'])}")
+        d.append(f"Phí hòa mạng: {chu_khoang(c['phi_lap'])}")
     if c.get("thiet_bi"):
         d.append(f"Thiết bị đi kèm: {chu_khoang(c['thiet_bi'])}")
     if c.get("uu_dai"):
         d.append(c["uu_dai"])
-    d.extend(c.get("mo_ta") or [])
     if c.get("den"):
         d.append(f"Chính sách áp dụng đến hết {c['den']}" if c.get("so_den") == 1 else f"Chính sách sớm nhất hết hạn {c['den']}")
     return d
@@ -323,7 +328,7 @@ def khac_biet(g: dict, ct: dict | None, c: dict) -> dict:
     if not ct:
         return {}
     c = c or {}
-    kb = {"mo_ta": [d for d in ct["mo_ta"] if d not in c.get("mo_ta", [])]}
+    kb = {}
     if g["uu_dai"] and g["uu_dai"] != c.get("uu_dai"):
         kb["uu_dai"] = g["uu_dai"]
     if ct["phi_lap"] and ct["phi_lap"] != c.get("phi_lap"):
@@ -422,7 +427,7 @@ def bien_dong(du_lieu: dict) -> list[dict]:
 
 
 # ------------------------------------------------------------------ chữ để copy gửi khách
-def van_ban_bao_gia(khu_vuc: str, goi: list[dict], luc, chung: dict | None = None) -> str:
+def van_ban_bao_gia(khu_vuc: str, goi: list[dict], luc, chung: dict | None = None, chi_tiet: dict | None = None) -> str:
     """Chữ để dán gửi khách: theo nhóm, mỗi nhóm có dòng điều kiện chung (nếu đã có) rồi tới từng gói."""
     chung = chung or {}
     dong = [f"BẢNG GIÁ FPT TELECOM · {khu_vuc}", f"(Cập nhật {chu_gio_vn(luc)} · giá đã gồm VAT)"]
@@ -437,6 +442,9 @@ def van_ban_bao_gia(khu_vuc: str, goi: list[dict], luc, chung: dict | None = Non
         phan = [f"{g['ten']}: {chu_tien(g['gia'])}" + (f" ({don_vi})" if don_vi else "/tháng")]
         if g["toc_do"]:
             phan.append(f"tốc độ {g['toc_do']}")
+        phi = chu_phi_hoa_mang((chi_tiet or {}).get(g["code"]) if chi_tiet else None)
+        if phi and g["nhom"] != "Camera":
+            phan.append("miễn phí hòa mạng" if phi == "Miễn phí" else f"phí hòa mạng {phi}")
         if g["uu_dai"] and g["uu_dai"] != chung.get(khoa, {}).get("uu_dai"):
             phan.append(g["uu_dai"])
         dong.append("• " + " · ".join(phan))

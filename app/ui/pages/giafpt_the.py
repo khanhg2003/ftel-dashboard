@@ -7,7 +7,6 @@ kèm phần chung (lần đầu ~5 giây, sau đó đã nhớ tạm).
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime
 
 from dash import Input, Output, ctx, dcc, html
@@ -18,9 +17,6 @@ from app.bo_nho import xoa
 from app.thoi_gian import chu_gio_vn
 from app.ui.components import alert, field, ghi_chu, kpi
 from app.ui.icons import icon
-
-
-_TRUNG_THE = re.compile(r"tốc độ|kết nối đồng thời", re.I)          # đã có ở dòng tốc độ / số thiết bị của thẻ
 
 
 def pane():
@@ -37,7 +33,7 @@ def pane():
                               title="Bỏ giá đang nhớ tạm và hỏi lại fpt.vn")], className="toolbar"),
         html.Div(id="gf-tb"),
         html.Div(id="gf-the", className="kpi-row"),
-        html.Div([html.Div([icon("zoom_in", 14), html.Span("Bấm vào một gói để xem chi tiết: giá theo thời hạn, phí lắp đặt và những điểm riêng của gói")],
+        html.Div([html.Div([icon("zoom_in", 14), html.Span("Bấm vào một gói để xem chi tiết: giá theo cách thanh toán, phí hòa mạng và điểm riêng của gói")],
                            className="goi-y-bam"),
                   html.Div(className="grow"),
                   html.Span(id="gf-chep-ghi", className="desc", style={"margin": 0}),
@@ -64,22 +60,27 @@ def _kpi(goi: list[dict], dang_hien: int, luc) -> list:
 
 def _toc_do(chu: str | None):
     if not chu:
-        return None
+        return "–"
     xuong, _, len_ = chu.partition(" / ")
-    return html.Div([html.Span([html.Span("↓", className="gf-mui"), xuong]), html.Span([html.Span("↑", className="gf-mui"), len_])] if len_
-                    else [html.Span(xuong)], className="gf-toc-do", title="Tốc độ tải xuống / tải lên")
+    return html.Span([html.Span([html.Span("↓", className="gf-mui"), xuong]), html.Span([html.Span("↑", className="gf-mui"), len_])] if len_ else [xuong],
+                     className="gf-toc-do", title="Tốc độ tải xuống / tải lên")
 
 
-def _the(g: dict, kb: dict, re_nhat: bool):
-    chip = []
+def _dong(nhan: str, gia_tri, lop: str = ""):
+    return [html.Span(nhan, className="gf-fk"), html.Span(gia_tri, className=f"gf-fv {lop}".strip())]
+
+
+def _the(g: dict, kb: dict, ct: dict | None, re_nhat: bool):
+    """Thẻ có cấu trúc CỐ ĐỊNH để các thẻ cùng nhóm nhìn so được: tên, giá, rồi các dòng Tốc độ / Phí hòa mạng / Kết nối / Thiết bị, ưu đãi cuối."""
+    fact = _dong("Tốc độ", _toc_do(g["toc_do"]))
+    if g["nhom"] != "Camera":
+        phi = gf.chu_phi_hoa_mang(ct)
+        fact += _dong("Phí hòa mạng", phi or "…", "gf-fv-xanh" if phi == "Miễn phí" else ("gf-fv-cho" if not phi else "gf-fv-phi"))
     if g["thiet_bi"]:
-        chip.append(f"{g['thiet_bi']} thiết bị kết nối")
-    if kb.get("phi_lap"):
-        chip.append(f"Lắp đặt {gf.chu_khoang(kb['phi_lap'])}")
-    if kb.get("thiet_bi"):
-        chip.append(f"Thiết bị {gf.chu_khoang(kb['thiet_bi'])}")
+        fact += _dong("Kết nối", f"{g['thiet_bi']} thiết bị")
+    if ct and ct["thiet_bi"] and g["nhom"] != "Camera":
+        fact += _dong("Thiết bị đi kèm", gf.chu_khoang(ct["thiet_bi"]))
     uu_dai = kb.get("uu_dai", "") if kb else g["uu_dai"]
-    dong_rieng = [d for d in (kb.get("mo_ta") or []) if not _TRUNG_THE.match(d) and not (uu_dai and "camera" in d.lower())][:2]
     gia = f"{g['gia']:,.0f}".replace(",", ".") if g["gia"] else "–"
     return html.Button([
         html.Div([html.Div(g["ten"], className="gf-the-ten"),
@@ -87,10 +88,8 @@ def _the(g: dict, kb: dict, re_nhat: bool):
                  className="gf-the-dau"),
         html.Div([html.Span(gia, className="gf-gia"), html.Span("đ", className="gf-dong"),
                   html.Span(gf.DON_VI_GIA.get(g["nhom"], "/ tháng"), className="gf-dv")], className="gf-the-gia"),
-        _toc_do(g["toc_do"]),
-        html.Div([html.Span(c, className="gf-chip") for c in chip], className="gf-chips") if chip else None,
+        html.Div(fact, className="gf-facts"),
         html.Div(uu_dai, className="gf-uu-dai") if uu_dai else None,
-        html.Ul([html.Li(d) for d in dong_rieng], className="gf-rieng") if dong_rieng else None,
         html.Div([html.Span("Xem chi tiết"), html.Span("›", className="gf-mui-xem")], className="gf-the-xem"),
     ], id={"type": "gf-the", "code": g["code"], "gia": g["gia"] or 0, "khoa": gf.khoa_nhom(g)}, n_clicks=0, className="gf-the")
 
@@ -100,10 +99,10 @@ def _muc(khoa: str, goi: list[dict], chung: dict | None, ct: dict | None):
     re = min((g["gia"] for g in goi if g["gia"]), default=None) if len(goi) >= 3 else None
     the = []
     for g in goi:
-        kb = gf.khac_biet(g, ct.get(g["code"]) if ct else None, chung or {})
-        the.append(_the(g, kb, re is not None and g["gia"] == re and sum(1 for x in goi if x["gia"] == re) == 1))
+        c = ct.get(g["code"]) if ct else None
+        the.append(_the(g, gf.khac_biet(g, c, chung or {}), c, re is not None and g["gia"] == re and sum(1 for x in goi if x["gia"] == re) == 1))
     if chung is None:
-        dai = html.Div("Đang nạp điều kiện chung của nhóm (phí lắp đặt, cách thanh toán, hạn chính sách)…", className="gf-chung gf-cho")
+        dai = html.Div("Đang nạp điều kiện chung của nhóm (phí hòa mạng, cách thanh toán, hạn chính sách)…", className="gf-chung gf-cho")
     else:
         dong = gf.dong_chung(chung)
         dai = html.Div([html.Span("Chung cho cả nhóm", className="gf-chung-nhan"),
@@ -130,8 +129,8 @@ def _ve(goi: list[dict], ct: dict | None):
     return [_muc(k, v, chung[k] if chung is not None else None, ct) for k, v in nhom.items()], (chung or {})
 
 
-def _chep(khu_vuc: str, hien: list[dict], luc, chung: dict) -> tuple[str, str]:
-    return gf.van_ban_bao_gia(khu_vuc, hien, luc, chung), f"Sẽ copy {len(hien)} gói đang hiện"
+def _chep(khu_vuc: str, hien: list[dict], luc, chung: dict, ct: dict | None = None) -> tuple[str, str]:
+    return gf.van_ban_bao_gia(khu_vuc, hien, luc, chung, ct), f"Sẽ copy {len(hien)} gói đang hiện"
 
 
 # ------------------------------------------------------------------ callbacks
@@ -174,4 +173,4 @@ def register(app):
         ct = gf.chi_tiet_nhieu(pha["tinh"], pha["phuong"], kq["goi"])
         hien = gf.loc_goi(kq["goi"], pha["khach"], pha["nhom"])
         ds, chung = _ve(hien, ct)
-        return ds, chung, _chep(ten_khu_vuc(pha["tinh"], pha["phuong"]), hien, datetime.fromisoformat(pha["luc"]), chung)[0]
+        return ds, chung, _chep(ten_khu_vuc(pha["tinh"], pha["phuong"]), hien, datetime.fromisoformat(pha["luc"]), chung, ct)[0]

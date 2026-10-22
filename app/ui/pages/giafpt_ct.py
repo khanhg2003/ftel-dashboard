@@ -38,7 +38,7 @@ def _cot(hang: list[dict]) -> list[dict]:
                     "valueFormatter": {"function": "params.value == null ? '–' : '+' + params.value.toLocaleString('vi-VN')"},
                     "cellStyle": {"styleConditions": [{"condition": "params.value > 0", "style": {"color": "#00844A", "fontWeight": "600"}}]}})
     if doi("phi_lap"):
-        cot.append({"field": "phi_lap", "headerName": "Phí lắp đặt", "width": 120, "type": "numericColumn", "valueFormatter": DONG})
+        cot.append({"field": "phi_lap", "headerName": "Phí hòa mạng", "width": 120, "type": "numericColumn", "valueFormatter": DONG})
     if doi("thiet_bi"):
         cot.append({"field": "thiet_bi", "headerName": "Thiết bị", "width": 110, "type": "numericColumn", "valueFormatter": DONG})
     if doi("qua"):
@@ -60,20 +60,18 @@ def _nhan_xet(ct: dict) -> str | None:
     return f"Rẻ nhất khi trả trước {z['thang']} tháng: bình quân {gf.chu_tien(z['binh_quan'])}/tháng, thấp hơn giá tháng khoảng {re}%{tang}."
 
 
-def _khac_biet(g: dict, kb: dict, co_chung: bool):
-    """Khối "điểm riêng của gói": dòng mô tả khác phần chung, phí lắp đặt / thiết bị / ưu đãi riêng."""
-    dong = []
-    if kb.get("uu_dai"):
-        dong.append(html.Li([html.B("Ưu đãi: "), kb["uu_dai"]]))
-    if kb.get("phi_lap"):
-        dong.append(html.Li([html.B("Phí lắp đặt: "), gf.chu_khoang(kb["phi_lap"])]))
+def _thong_tin(g: dict, ct: dict, kb: dict, co_chung: bool):
+    """Thông tin chính của gói. Phí hòa mạng luôn ghi (sale dựa vào đó để tư vấn); ưu đãi / thiết bị đi kèm chỉ ghi khi khác phần chung của nhóm."""
+    dong = [html.Li([html.B("Phí hòa mạng: "), gf.chu_phi_hoa_mang(ct)])]
+    if g["toc_do"]:
+        dong.append(html.Li([html.B("Tốc độ: "), g["toc_do"].replace(" / ", " tải xuống · ") + " tải lên"]))
+    if g["thiet_bi"]:
+        dong.append(html.Li([html.B("Kết nối đồng thời: "), f"{g['thiet_bi']} thiết bị"]))
     if kb.get("thiet_bi"):
         dong.append(html.Li([html.B("Thiết bị đi kèm: "), gf.chu_khoang(kb["thiet_bi"])]))
-    dong.extend(html.Li(d) for d in kb.get("mo_ta") or [])
-    if not dong:
-        return html.Div("Gói này theo đúng điều kiện chung của nhóm (xem dải \"Chung cho cả nhóm\" ngay trên danh sách), không có điểm gì riêng.",
-                        className="desc", style={"margin": "0 0 12px"})
-    tieu = "Điểm riêng của gói này" if co_chung else "Thông tin của gói"
+    if kb.get("uu_dai"):
+        dong.append(html.Li([html.B("Ưu đãi: "), kb["uu_dai"]]))
+    tieu = "Thông tin chính" if not co_chung else "Thông tin chính (điều kiện chung của nhóm xem ngay trên danh sách)"
     return html.Div([html.Div(tieu, className="gf-ct-tieu"), html.Ul(dong, className="gf-mo-ta")])
 
 
@@ -82,7 +80,7 @@ def than(g: dict, ct: dict, chung: dict, khu_vuc: str):
     chips = html.Div([html.Span(f"Khu vực: {khu_vuc}", className="chip"), html.Span(gf.tieu_de_nhom(gf.khoa_nhom(g)), className="chip"),
                       html.Span(f"Giá niêm yết: {gf.chu_tien(ct['gia'])}", className="chip")], className="chips", style={"margin": "0 0 12px"})
     hang = _hang_gia(ct)
-    cac = [chips, _khac_biet(g, kb, bool(chung))]
+    cac = [chips, _thong_tin(g, ct, kb, bool(chung))]
     if hang:
         nx = _nhan_xet(ct)
         cac.append(nx and alert(nx, "ok"))
