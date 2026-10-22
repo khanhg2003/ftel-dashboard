@@ -69,6 +69,12 @@ def layout():
                     "Tỷ lệ bán kèm V.VIP / Camera, trả trước, online trong 1 ngày theo từng phòng và "
                     "nhân viên - màu so với mức chung chi nhánh. Mục ", html.B("Số tồn theo thời "
                     "gian chờ"), " có danh sách hợp đồng chờ từ 7 ngày để đôn đốc."]),
+                _muc("Tra cứu giá", "Giá gói cước theo phường / xã, đúng như website fpt.vn", [
+                    "Công cụ cho mọi tài khoản khối Kinh doanh. Chọn tỉnh và phường / xã để xem các gói đang bán và giá tại đó "
+                    "(lấy thẳng từ fpt.vn, đã gồm VAT). Bấm ", html.B("Xem chi tiết"), " để xem trả trước 3 / 6 / 13 tháng, phí lắp đặt và "
+                    "chính sách đang áp dụng. ", html.B("Copy bảng giá"), " để dán vào Zalo gửi khách. Tab ", html.B("So giá hai phường"),
+                    " cho biết phường nào rẻ hơn, gói nào chỉ bán ở một nơi; tab ", html.B("Giá cả tỉnh"),
+                    " quét mọi phường để thấy các mức giá trong tỉnh (mất khoảng nửa phút)."]),
                 _muc("Ads IBB7 (chỉ Quản trị)", "Chi tiêu quảng cáo Facebook và chi phí từng sale", [
                     "n8n gửi chi tiêu hôm qua lúc 7h30, bot Telegram gửi lead / PTTB thẳng vào app (Cấu hình → Kết "
                     "nối n8n). Người chạy page khai theo khoảng ngày, chi phí mỗi ngày chia đều hoặc theo tỷ lệ "

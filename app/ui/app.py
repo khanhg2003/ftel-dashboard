@@ -138,6 +138,7 @@ NAV = [
     ("Công cụ", [
         ("/soanmail", "Soạn email", "mail", "soanmail"),
         ("/danhba", "Danh bạ", "book", "soanmail"),
+        ("/giafpt", "Tra cứu giá", "tag", None),
     ]),
     ("Phòng & nhân sự", [
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
@@ -425,6 +426,9 @@ def _router(path, search=None, store=None):
     if path == "/nhapton":
         from app.ui.pages import nhapton
         return nhapton.layout(), nhapton.topbar()
+    if path == "/giafpt":
+        from app.ui.pages import giafpt
+        return giafpt.layout(), giafpt.topbar()
     if path in ("/soanmail", "/danhba"):
         from app.ui.pages import danhba, soanmail
         if not current_user.duoc_soan_mail:
@@ -497,11 +501,11 @@ def _register_pages():
     from app.ui import ngan_nhan_su, tro_ly
 
     from app.ui.pages import ads as ads_page
-    from app.ui.pages import baocaongay, danhba, nhapton, soanmail
+    from app.ui.pages import baocaongay, danhba, giafpt, nhapton, soanmail
     from app.ui.pages import dvkh as dvkh_page
     for mod in (dvkh_page, tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
-                danhba, soanmail):
+                danhba, soanmail, giafpt):
         mod.register(app)
 
 

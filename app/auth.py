@@ -46,7 +46,7 @@ ROLE_SETTINGS = {"admin"}
 ROLE_XEM_NHAN_SU = {"admin", "phong", "nvkd"}
 # Nhân viên KD (tài khoản dùng chung của một phòng, chốt 21/09/2026): chỉ vào đúng các trang này,
 # chi tiết nhân sự chỉ phòng mình, Ads chỉ khi phòng mình là phòng chạy Ads.
-TRANG_NVKD = {"/baocaongay", "/nhapton", "/soanmail", "/danhba", "/phong", "/ads", "/taikhoan", "/huongdan"}
+TRANG_NVKD = {"/baocaongay", "/nhapton", "/soanmail", "/danhba", "/giafpt", "/phong", "/ads", "/taikhoan", "/huongdan"}
 PHONG_ADS = "IBB7"
 
 

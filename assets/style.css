@@ -1858,3 +1858,25 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   .dv-the:nth-child(n+5) .tip-noi { left: auto; right: -10px; }
   .dv-the:nth-child(n+5) .tip-noi::before { left: auto; right: 14px; }
 }
+
+/* ===== Tra cứu giá (giafpt) ===== */
+.gf-tab { margin-bottom: 14px; }
+.gf-dd { min-width: 230px; }
+.gf-dd-nho { min-width: 200px; }
+.gf-hai-ben { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.gf-ben-khoi { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px 12px; background: var(--card, #fff); min-width: 0; }
+.gf-ben { font-size: 12px; font-weight: 650; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
+.gf-ben-o { display: flex; gap: 12px; flex-wrap: wrap; }
+.gf-ben-o .field { flex: 1 1 200px; min-width: 0; }
+.gf-ben-o .gf-dd { min-width: 0; }
+.gf-tick { align-self: center; font-size: 13px; }
+.gf-hang-chep { display: flex; align-items: center; gap: 12px; margin: 4px 0 10px; flex-wrap: wrap; }
+.gf-mo-ta { margin: 0 0 12px; padding-left: 18px; font-size: 13px; color: var(--text); }
+.gf-mo-ta li { margin: 2px 0; }
+.gf-nhom-gia { border-top: 1px solid var(--border); padding: 8px 0; }
+.gf-nhom-gia summary { cursor: pointer; font-weight: 600; font-size: 13.5px; padding: 2px 0; }
+.gf-nhom-gia .chips { margin-top: 8px; }
+@media (max-width: 900px) {
+  .gf-hai-ben { grid-template-columns: 1fr; }
+  .gf-dd, .gf-dd-nho { min-width: 0; width: 100%; }
+}

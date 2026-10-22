@@ -34,6 +34,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Nhập Báo cáo ngày bằng giọng nói | `app/giong_noi.py` (tách số, khớp tên, quyền) + `app/ui/pages/baocaongay_giong.py` + `assets/ghi_am.js` |
 | Theo dõi Online trong ngày (phiếu ca theo mã HĐ + khung giờ, nối với bảng Báo cáo ngày) | `app/online_ca.py` + `app/ui/pages/baocaongay_online.py` + `assets/online.js` |
 | Danh bạ liên hệ (đọc hai file PNC / TIN, gộp trùng, tra cứu, người sale tự thêm) | `app/danh_ba.py` + `app/ui/pages/danhba.py` |
+| Tra cứu giá gói cước theo phường / xã (lấy thẳng từ dịch vụ của fpt.vn, so hai phường, quét cả tỉnh, copy báo giá) | `app/gia_fpt.py` + `app/ui/pages/giafpt.py` (+ `giafpt_ct.py` cửa sổ chi tiết gói, `giafpt_vung.py` tab Giá cả tỉnh) |
 | Soạn email (khuôn 3 loại mail, gợi ý người nhận, Fox viết đoạn tình huống) + nút copy dùng chung | `app/soan_mail.py` + `app/ui/pages/soanmail.py` + `assets/sao_chep.js` |
 | Khối làm việc (Kinh doanh / DVKH / Kỹ thuật): định nghĩa, menu từng khối, đường dẫn thuộc khối nào | `app/ui/khoi.py` (menu KD vẫn ở `NAV` của `app/ui/app.py`) |
 | Khối DVKH: đọc file Excel, nạp database, số liệu, nhận định, phân tích chéo, xu hướng và dự báo, khai thác sâu | `app/dvkh/` (`doc_file.py`, `nap.py`, `so_lieu.py`, `tong_quan.py`, `insight.py`, `cheo.py`, `xu_huong.py`, `khai_thac.py`, `models.py`) + `scripts/nap_dvkh.py` |
@@ -249,6 +250,19 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      riêng (chủ app chốt 10/10/2026), chỉ là chi nhánh chọn sẵn khi mở trang (`chi_nhanh_mac_dinh`); miền lấy theo TÊN
      SHEET của hai file trước (`MIEN_THEO_SHEET`; file xếp Thanh Hóa / Nghệ An vào miền Bắc, Ninh Thuận / Lâm Đồng vào miền Nam thì theo file), sheet đô thị lớn (TĐĐT...) thì theo tên tỉnh (`TINH_THEO_MIEN`).
      Ô chọn chi nhánh gõ chữ để tìm (combobox dựng bằng JS, tiêu đề khu vực là thanh xanh dính đầu danh sách, mở ra là cuộn tới chi nhánh đang chọn). Màn dưới 900 px chuyển thành cây dọc. Người chỉ có trong file TIN cũ mà chi nhánh đã có bản PNC thì gắn nhãn "có thể cũ" và xếp cuối nhóm.
+   - *Tra cứu giá* (`app/gia_fpt.py`, chốt 22/10/2026, mọi tài khoản khối Kinh doanh, nằm trong `TRANG_NVKD`): giá lấy THẲNG từ dịch vụ mà
+     website fpt.vn gọi (`apis.fpt.vn/ecp/public`, POST `/v1/locations/provinces|wards/list`, `/v1.1/packages/list|get`, header `client-id: fptvn`,
+     không cần đăng nhập), gửi mã tỉnh + mã phường nên số khớp website (đã đối chiếu 22/10: Meta F1 340.000đ ở các phường nội đô Đà Nẵng,
+     330.000đ ở phần lớn Quảng Nam cũ; từ khi sáp nhập Quảng Nam nằm trong tỉnh Đà Nẵng, mã 511). **Đây KHÔNG phải API chính thức**: FPT đổi
+     cách gọi thì hỏng, nên mọi lỗi đổi thành `LoiGia` (trang báo bằng lời dễ hiểu) và `goi_theo_phuong` giữ bản lần trước làm dự phòng.
+     Không lưu giá vào database; nhớ tạm 15 phút / khu vực (danh sách tỉnh, phường một ngày). Giá đã gồm VAT. Điều cần nhớ khi sửa:
+     (1) `price.price` của dịch vụ `get` là giá theo thời hạn NGẮN NHẤT (990.000 cho 3 tháng), không phải giá tháng - giá tháng lấy từ `list`
+     và truyền vào `chi_tiet_goi(gia_thang)`; (2) tổng tiền trả trước / giá tháng = số tháng thực phải đóng, phần còn lại là tặng (13 tháng chỉ
+     đóng 12); chính sách có `effective_to` đã qua thì bỏ, giờ của dịch vụ là UTC; (3) khách cá nhân / doanh nghiệp chỉ đoán từ tên gói (Biz, Lux,
+     "doanh nghiệp") vì dịch vụ không có cột riêng: gói mới có tên khác thì phải bổ sung `_la_doanh_nghiep`; (4) quét cả tỉnh gọi mỗi phường một
+     lần (94 phường Đà Nẵng ~25 giây với 8 luồng, quá `HAN_QUET` thì trả phần đã quét) nên CHỈ chạy khi người dùng bấm, kết quả giữ ở trình duyệt
+     (`dcc.Store` session) chứ không ở máy chủ vì Vercel có thể đổi máy giữa hai lượt; (5) ô chọn tỉnh / phường có `persistence` PHẢI có danh sách
+     ngay từ lúc dựng trang, nếu để trống rồi nạp bằng callback thì Dash coi giá trị nhớ là sai và xoá mất. Không có tên khách trong dữ liệu này.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền
@@ -311,7 +325,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    Trước đây chỉ giao phạm vi với danh sách bật nên ai có IBB7 trong phạm vi là vào được (chủ app
    phát hiện qua tài khoản LongPH). Bật thêm phòng thì thêm mã phòng vào `rules.yml`, đừng nới quyền.
 5. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
-   Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Soạn email, Danh bạ, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Phân tích bán hàng nếu là IBB7 (chỉ phần Bán theo tỉnh, xem trên), Tài khoản,
+   Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Soạn email, Danh bạ, Tra cứu giá, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Phân tích bán hàng nếu là IBB7 (chỉ phần Bán theo tỉnh, xem trên), Tài khoản,
    Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel.
    **AI (đổi 28/09/2026):** KHÔNG còn quyền AI nào. Trước đây có một đường mở riêng để bấm nút
    "Fox viết giúp" ở Báo cáo ngày (`VAI_TRO_VIET_BAO_CAO` + tham số `chi_viet`); nút đó đã bỏ nên
