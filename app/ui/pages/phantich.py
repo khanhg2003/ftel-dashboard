@@ -19,9 +19,11 @@ from types import SimpleNamespace
 import pandas as pd
 import plotly.graph_objects as go
 from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
+from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
 from app import phan_tich as pt
+from app import tro_ly as ai
 from app import tro_ly_du_lieu as dl
 from app.du_bao import du_bao_thang
 from app.auth import ghi_log, loc_nhan_su
@@ -106,6 +108,7 @@ def layout(ky: dict | None = None):
     tu = ky.get("tu") if ky.get("tu") and den and ky["tu"] <= den else ((den[:8] + "01") if den else None)
     xem_nv = current_user.duoc_xem_nhan_su
     admin = current_user.role == "admin"
+    an = {"display": "none"} if current_user.role == "nvkd" else {}       # nvkd IBB7 chỉ thấy hai phần Bán theo tỉnh / Ai bán ở tỉnh nào (22/10/2026)
     lua_chon_phong = [{"label": "Mọi phòng được xem", "value": "all"}] + [
         {"label": p["ten"], "value": p["code"]} for p in phong_order()
         if current_user.phong_nhan_su() is None or p["code"] in set(current_user.phong_nhan_su())]
@@ -133,28 +136,31 @@ def layout(ky: dict | None = None):
             ], className="chon-ngay")),
             field("Chi nhánh", chi_nhanh_control("pt-cn", ky.get("cn", "all"))),
             html.Div(className="grow"),
-            field(" ", html.Button([icon("download", 14), html.Span("Excel")], id="pt-xls",
-                                   className="btn", title="Tải toàn bộ bảng của trang, mỗi bảng "
-                                                          "một sheet")),
+            html.Div(field(" ", html.Button([icon("download", 14), html.Span("Excel")], id="pt-xls",
+                                            className="btn", title="Tải toàn bộ bảng của trang, mỗi bảng "
+                                                                   "một sheet")), style=an),
         ], className="toolbar loc-trang"),
         dcc.Download(id="pt-tai-xuong"),
 
-        dcc.Loading(html.Div(id="pt-kpi", className="kpi-row kpi-6"), type="dot"),
-        tl.the_ai("pt", "Dự báo cuối tháng & nhận định chất lượng bán", tl.MO_TA_DU_BAO, html.Div(id="pt-du-bao")),
-        chu_giai("Cách tính các chỉ số", DINH_NGHIA),
+        html.Div([
+            dcc.Loading(html.Div(id="pt-kpi", className="kpi-row kpi-6"), type="dot"),
+            tl.the_ai("pt", "Dự báo cuối tháng & nhận định chất lượng bán", tl.MO_TA_DU_BAO, html.Div(id="pt-du-bao")),
+            chu_giai("Cách tính các chỉ số", DINH_NGHIA),
+
+            html.Div([
+                _dau_the("Chất lượng bán theo phòng", "pt-mo-ta-phong",
+                         seg_control("pt-nhom", [("tat_ca", "Tất cả phòng"), ("kd", "Phòng kinh doanh")],
+                                     "tat_ca")),
+                dcc.Loading(_grid("pt-phong", getRowStyle=ROW_STYLE, getRowId=lk.ROW_ID, dashGridOptions={
+                    "rowClassRules": {"dong-phu": "params.data.loai_dong == 'data' && "
+                                                  "!params.data.nhom_kd"}})),
+                html.Div(id="pt-chu-giai", className="desc", style={"margin": "10px 0 0"}),
+            ], className="card"),
+        ], style=an),
+
+        phantich_tinh.the(den, ngays, current_user.duoc_xem_ban_tinh, admin),
 
         html.Div([
-            _dau_the("Chất lượng bán theo phòng", "pt-mo-ta-phong",
-                     seg_control("pt-nhom", [("tat_ca", "Tất cả phòng"), ("kd", "Phòng kinh doanh")],
-                                 "tat_ca")),
-            dcc.Loading(_grid("pt-phong", getRowStyle=ROW_STYLE, getRowId=lk.ROW_ID, dashGridOptions={
-                "rowClassRules": {"dong-phu": "params.data.loai_dong == 'data' && "
-                                              "!params.data.nhom_kd"}})),
-            html.Div(id="pt-chu-giai", className="desc", style={"margin": "10px 0 0"}),
-        ], className="card"),
-
-        phantich_tinh.the(den, ngays, admin),
-
         html.Div([
             _dau_the("Số tồn theo thời gian chờ", "pt-mo-ta-ton",
                      seg_control("pt-ton-xem", [("phong", "Theo phòng"),
@@ -208,6 +214,7 @@ def layout(ky: dict | None = None):
                     "kinh doanh; nhân viên dưới 5 hợp đồng online không tô vì mẫu quá nhỏ.", nhan="Cách đọc màu",
                     style={"margin": "10px 0 0"}),
         ], className="card", style={} if xem_nv else {"display": "none"}),
+        ], style=an),
     ])
 
 
@@ -563,6 +570,8 @@ def register(app):
         Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
         Input("pt-nhom", "value"))
     def _cap_nhat(tu_iso, den_iso, chi_nhanh, nhom):
+        if current_user.role == "nvkd":                                     # trang này của nvkd chỉ có phần Bán theo tỉnh
+            raise PreventUpdate
         k = _ky(tu_iso, den_iso)
         ky = k
         if ky is None:
@@ -625,7 +634,7 @@ def register(app):
                   Input("pt-ton-phong-loc", "value"), Input("pt-ton-xem", "value"))
     def _ton_ds(den_iso, chi_nhanh, phong_loc, xem):
         ky = _ky(None, den_iso)
-        if xem != "ds" or ky is None or not current_user.duoc_xem_nhan_su:
+        if xem != "ds" or ky is None or not current_user.duoc_xem_nhan_su or current_user.role == "nvkd":
             return COT_DS_TON, []
         thang = ky.thang
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
@@ -640,7 +649,7 @@ def register(app):
                   Input("pt-nv-phong", "value"), Input("pt-nv-loc", "value"))
     def _nv(tu_iso, den_iso, chi_nhanh, phong_loc, loc):
         ky = _ky(tu_iso, den_iso)
-        if ky is None or not current_user.duoc_xem_nhan_su:
+        if ky is None or not current_user.duoc_xem_nhan_su or current_user.role == "nvkd":
             return [], [], ""
         thang, tu, den = ky.thang, ky.tu, ky.den
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
@@ -652,14 +661,19 @@ def register(app):
         return (_cot_nv(pt.muc_chung_kinh_doanh(df, thang), _nguong()),
                 [] if nv.empty else nv.to_dict("records"), mo_ta)
 
+    def _ngu_canh(nguoi, *gia_tri):
+        if nguoi.role == "nvkd":
+            raise ai.LoiAI("Trang này không có nhận xét.")
+        return dl.ngu_canh_phan_tich(nguoi, *gia_tri)
+
     tl.gan_nhan_xet(app, "pt", "phan_tich", [("pt-khoang", "end_date"), ("pt-cn", "value"),
-                                             ("pt-khoang", "start_date")], dl.ngu_canh_phan_tich,
+                                             ("pt-khoang", "start_date")], _ngu_canh,
                     dl.YEU_CAU_PHAN_TICH)
 
     @app.callback(Output("pt-du-bao", "children"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"))
     def _du_bao(den_iso, chi_nhanh):
         ky = _ky(None, den_iso)
-        if ky is None:
+        if ky is None or current_user.role == "nvkd":
             return ""
         thang, ngay = ky.thang, ky.ngay
         db = du_bao_thang(thang, ngay, loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang))
@@ -671,7 +685,7 @@ def register(app):
                   prevent_initial_call=True)
     def _excel(_n, tu_iso, den_iso, chi_nhanh):
         ky = _ky(tu_iso, den_iso)
-        if ky is None:
+        if ky is None or current_user.role == "nvkd":
             return no_update
         thang, ngay, tu, den = ky.thang, ky.ngay, ky.tu, ky.den
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)

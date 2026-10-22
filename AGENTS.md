@@ -283,7 +283,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      (`du_bao_cong_no`). Đổi cách dự báo thì phải thử lại trên một kỳ đã biết kết quả. (4) **Tải việc CSKH so trên số khách phụ trách** (`khai_thac.gan_so_khach`, SR trên 1.000 khách) để so công bằng; nhãn "Cần hỗ trợ / Cần nhắc / Làm tốt" theo trung vị tải và phân vị 75 / 25 của % quá hạn,
      người dưới 30 SR không gắn nhãn (`cho_nao_tot_xau`). Biểu đồ chấm KHÔNG ghi tên mọi người (bản cũ ghi hết nên rối): chỉ ghi nhóm cần hỗ trợ và làm tốt, còn lại rê chuột. (5) **Dòng chảy giữ chân khách** (Sankey, `dong_giu_chan`): thanh lý → kết quả tư vấn → hợp đồng hiện nay
      còn dùng hay đã chấm dứt (cột "Tình trạng NET hiện tại"). Số thật T10: 56% khách nói không ở lại đã chấm dứt thật, khách đang suy nghĩ chỉ 1/70 chấm dứt (còn cứu được); khách đồng ý ở lại không ai chấm dứt. (6) **Phí và miễn giảm** (`phi_mien_giam`): miễn giảm có thể vượt phí của chính loại việc đó
-     (khôi phục dịch vụ 112%). **Nguồn tạo SR** (`nguon_tao_nhom`): SR do phòng Kinh doanh tạo 90% là khiếu nại, phản ánh chất lượng bán, báo khối Kinh doanh. (7) **Tốc độ / dữ liệu đi ra của Supabase:** mỗi lần đọc bảng SR kéo ~2-3 MB nên kết quả đọc nhớ tạm `so_lieu.TTL` = 300 giây
+     (khôi phục dịch vụ 112%). **Nguồn tạo SR** (`nguon_tao_nhom`): SR do phòng Kinh doanh tạo 90% là khiếu nại, phản ánh chất lượng bán, báo khối Kinh doanh. (7) **Biểu đồ thay bảng (chủ app 22/10/2026):** cái gì thống kê và vẽ được thì vẽ (bản đồ nhiệt `ve.nhiet_bang`, cột xếp chồng `ve.xep_chong`, Sankey); chỉ DANH SÁCH chi tiết (SR tồn, hợp đồng gọi lặp, hợp đồng hai nguồn, thanh lý tồn), bảng hiệu suất từng CSKH, bảng phường của Rời mạng và bốn bảng chỉ số theo phòng ở Tổng quan (khớp bảng BC của file) mới để bảng. Tên trên biểu đồ chấm ghi bằng `ve.ghi_ten` (chú thích có đường dẫn, mỗi tên lệch một hướng) vì ghi chữ trực tiếp cạnh chấm sẽ đè lên chấm. Tiền hiện đầy đủ `2.844.588.000 đ` (`ch.vnd`), không rút gọn "triệu". Vòng tròn nhiều lớp (sunburst) đã bỏ vì chữ nhỏ khó đọc. **Tốc độ / dữ liệu đi ra của Supabase:** mỗi lần đọc bảng SR kéo ~2-3 MB nên kết quả đọc nhớ tạm `so_lieu.TTL` = 300 giây
      (gói free giới hạn 5 GB dữ liệu đi ra mỗi tháng và đã vượt); hệ quả: nạp file bằng script ở máy ngoài thì các máy chủ Vercel cần tới 5 phút mới thấy số mới. `nap.dam_bao_bang` chỉ kiểm tra bảng một lần mỗi tiến trình. Sau khi thêm tính năng đọc cột mới phải NẠP LẠI file thì phần mới mới hiện.
 3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
 4. Định dạng kiểu Việt Nam: `1.234`, `5,40 $`, `45%`. Khi tự `.replace(",", ".")` thì **chỉ áp lên con số**, không áp lên cả câu.
@@ -297,9 +297,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - *Số chung* (`phong_duoc_xem()`): theo phòng / bầy / chi nhánh.
    - *Chi tiết nhân sự* (`phong_nhan_su()`, `loc_nhan_su()`): tên, acc, số từng người.
    Dữ liệu từng người luôn đi qua lớp thứ hai.
-3. **Chỉ Quản trị:** Bán theo tỉnh, Cấu hình, file NSLĐ / danh mục nhân viên, và mọi thao tác SỬA của Ads IBB7
+3. **Chỉ Quản trị:** Cấu hình, file NSLĐ / danh mục nhân viên, và mọi thao tác SỬA của Ads IBB7
    (tỷ giá, page, tab Cấu hình). **Xem** Ads IBB7: Quản trị + Nhân viên KD của IBB7 (`duoc_xem_ads`): callback đọc
    dùng `callback_can_quyen(app, "duoc_xem_ads")`, callback ghi vẫn `"duoc_cau_hinh"`.
+   **Bán theo tỉnh** (thẻ ở Phân tích bán hàng, `phantich_tinh.py`): Quản trị xem đủ ba cách xem; **nvkd của phòng bật ở `rules.yml` → `ban_tinh` (hiện IBB7, chủ app chốt 22/10/2026) chỉ thấy
+   hai phần "Bán theo tỉnh" và "Ai bán ở tỉnh nào"** (`duoc_xem_ban_tinh`; không có gói cước theo tỉnh, không có "Một ngày", không có Excel). Số theo tỉnh và theo phòng là số chung (như Quản trị); chi tiết từng nhân viên, danh sách
+   nhân viên trong cửa sổ một tỉnh và cửa sổ một nhân viên chỉ trong phòng mình (`phong_nhan_su`, kiểm ở máy chủ: `_acc_duoc_xem`). Với nvkd, mọi phần còn lại của trang `/phantich` bị ẩn VÀ callback của chúng trả rỗng / `PreventUpdate`
+   (ẩn trên giao diện là chưa đủ, nếu không số vẫn đi tới trình duyệt). Thêm phần nào cho nvkd thì phải gỡ cả hai lớp đó.
 4. **Nhập tồn và Báo cáo ngày là chỗ NHẬP LIỆU của đúng một phòng** (chốt 26/09/2026,
    `_phong_bat`): ngoài Quản trị (BGĐ), chỉ vào được khi phạm vi nhân sự của tài khoản nằm **TRỌN**
    trong danh sách phòng đã bật ở `config/rules.yml`. Tài khoản được mở rộng xem nhiều phòng (cấp
@@ -307,7 +311,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    Trước đây chỉ giao phạm vi với danh sách bật nên ai có IBB7 trong phạm vi là vào được (chủ app
    phát hiện qua tài khoản LongPH). Bật thêm phòng thì thêm mã phòng vào `rules.yml`, đừng nới quyền.
 5. **Nhân viên KD** (`role = "nvkd"`, chốt 21/09/2026): tài khoản DÙNG CHUNG của một phòng, bắt buộc gán phòng.
-   Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Soạn email, Danh bạ, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Tài khoản,
+   Chỉ vào `TRANG_NVKD` (Báo cáo ngày, Nhập tồn, Soạn email, Danh bạ, Báo cáo phòng của phòng mình, Ads nếu là IBB7, Phân tích bán hàng nếu là IBB7 (chỉ phần Bán theo tỉnh, xem trên), Tài khoản,
    Hướng dẫn) - kiểm ở `vao_duoc()` trong router và menu; mở địa chỉ gốc thì tự sang Báo cáo ngày. Không nạp file, không xuất Excel.
    **AI (đổi 28/09/2026):** KHÔNG còn quyền AI nào. Trước đây có một đường mở riêng để bấm nút
    "Fox viết giúp" ở Báo cáo ngày (`VAI_TRO_VIET_BAO_CAO` + tham số `chi_viet`); nút đó đã bỏ nên

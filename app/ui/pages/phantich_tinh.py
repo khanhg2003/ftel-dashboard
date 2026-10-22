@@ -1,5 +1,9 @@
-"""Phân tích bán hàng - thẻ "Bán theo tỉnh" (chỉ Quản trị, chặn cả ở máy chủ): số online theo tỉnh + đi sâu một tỉnh,
-ai bán ở tỉnh nào (theo phòng / theo nhân viên + đi sâu một nhân viên), gói cước theo tỉnh, một ngày bán & online.
+"""Phân tích bán hàng - thẻ "Bán theo tỉnh": số online theo tỉnh + đi sâu một tỉnh, ai bán ở tỉnh nào (theo phòng / theo nhân viên +
+đi sâu một nhân viên), gói cước theo tỉnh, một ngày bán & online.
+
+Quản trị xem đủ ba cách xem. Nhân viên KD của phòng bật ở rules.yml (`ban_tinh`, hiện IBB7) chỉ thấy hai phần "Bán theo tỉnh" và
+"Ai bán ở tỉnh nào" (cách xem "Số online theo tỉnh"); số theo tỉnh / theo phòng là số chung, còn chi tiết từng nhân viên chỉ trong phòng mình
+(`phong_nhan_su`). Chặn cả ở máy chủ, không chỉ ẩn trên giao diện.
 Tách khỏi app/ui/pages/phantich.py cho gọn; dùng chung kỳ, bảng, biểu đồ của trang đó."""
 from __future__ import annotations
 
@@ -11,6 +15,7 @@ from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
 from app import phan_tich as pt
+from app.auth import loc_nhan_su
 from app.org import loc_chi_nhanh, phong_order
 from app.overview import TEN_PHAM_VI
 from app.ui.components import cua_so, field, ghi_chu, seg_control
@@ -18,8 +23,23 @@ from app.ui.icons import icon
 from app.ui.pages.phantich import MAU_GOI, PCT, SO, _dau_the, _fig, _graph, _grid, _ky, _ten_nhan_vien, _trong
 
 
-def the(den, ngays, admin: bool):
-    """Thẻ 'Bán theo tỉnh' (chỉ Quản trị) + hai cửa sổ chi tiết một tỉnh / một nhân viên."""
+def _phong_nv_duoc_xem() -> list[dict]:
+    """Phòng hiện trong ô chọn ở bảng theo nhân viên: Quản trị mọi phòng, nvkd chỉ phòng mình."""
+    pham_vi = current_user.phong_nhan_su()
+    return [p for p in phong_order() if pham_vi is None or p["code"] in set(pham_vi)]
+
+
+def _acc_duoc_xem(acc_key: str, tu: str, den: str, scope) -> bool:
+    """Người dùng giới hạn theo phòng chỉ được mở chi tiết nhân viên có số trong phòng mình (kiểm ở máy chủ, không tin dòng trình duyệt gửi lên)."""
+    pham_vi = current_user.phong_nhan_su()
+    if pham_vi is None:
+        return True
+    df = pt.online_theo_tinh(tu, den, loc_nhan_su(scope, pham_vi))
+    return bool((df.acc_norm.fillna(df.acc_nhan_vien.str.lower()) == acc_key).any())
+
+
+def the(den, ngays, xem_tinh: bool, admin: bool):
+    """Thẻ 'Bán theo tỉnh' + hai cửa sổ chi tiết một tỉnh / một nhân viên. `xem_tinh`: được thấy thẻ; `admin`: được đổi sang gói cước / một ngày."""
     return html.Div([
         html.Div([
             _dau_the("Bán theo tỉnh", "pt-mo-ta-tinh",
@@ -28,7 +48,7 @@ def the(den, ngays, admin: bool):
                      seg_control("pt-tinh-loai", [("tat_ca", "Tất cả tỉnh"), ("ngoai", "Chỉ ngoại tỉnh")], "tat_ca")),
             html.Div(seg_control("pt-tinh-xem", [("tong", "Số online theo tỉnh"), ("goi", "Gói cước theo tỉnh"),
                                                  ("ngay", "Một ngày: bán & online")], "tong"),
-                     style={"margin": "2px 0 12px"}),
+                     style={"margin": "2px 0 12px"} if admin else {"display": "none"}),
             html.Div([
                 html.Div(id="pt-tinh-tom-tat", className="chips", style={"margin": "4px 0 10px"}),
                 html.Div([
@@ -60,8 +80,8 @@ def the(den, ngays, admin: bool):
                             style={"margin": "0 0 8px"}),
                     html.Div([
                         dcc.Dropdown(id="pt-tinh-nv-phong", value="all", clearable=False, style={"width": "220px"},
-                                     options=[{"label": "Tất cả phòng", "value": "all"}] + [
-                                         {"label": p["ten"], "value": p["code"]} for p in phong_order()]),
+                                     options=[{"label": "Tất cả phòng" if admin else "Phòng của bạn", "value": "all"}] + [
+                                         {"label": p["ten"], "value": p["code"]} for p in _phong_nv_duoc_xem()]),
                         dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
                                   className="o-tim"),
                         html.Div([icon("zoom_in", 14), html.Span("Bấm vào tên nhân viên để xem chi tiết bán + online "
@@ -94,7 +114,7 @@ def the(den, ngays, admin: bool):
                         "ngày (có thể tạo từ hôm trước). Tỉnh theo CN quản lý của hợp đồng (nơi khách ở). Ngày đang "
                         "cập nhật thì số còn tăng.", style={"margin": "8px 0 0"}),
             ], id="pt-tinh-v-ngay", hidden=True),
-        ], className="card", style={} if admin else {"display": "none"}),
+        ], className="card", style={} if xem_tinh else {"display": "none"}),
         cua_so("pt-md-tinh"),
         cua_so("pt-md-nv"),
     ])
@@ -108,7 +128,7 @@ def register(app):
                   Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
                   Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"), Input("pt-tinh-xem", "value"))
     def _tinh(tu_iso, den_iso, chi_nhanh, pv, loai, xem):
-        if current_user.role != "admin" or xem not in (None, "tong"):
+        if not current_user.duoc_xem_ban_tinh or xem not in (None, "tong"):
             raise PreventUpdate
         ky = _ky(tu_iso, den_iso)
         if ky is None:
@@ -207,7 +227,7 @@ def register(app):
                   Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
                   Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"), Input("pt-tinh-nv-phong", "value"))
     def _nv_tinh(xem, xem_tinh, tu_iso, den_iso, chi_nhanh, pv, loai, phong_nv):
-        if xem != "nv" or xem_tinh not in (None, "tong") or current_user.role != "admin":
+        if xem != "nv" or xem_tinh not in (None, "tong") or not current_user.duoc_xem_ban_tinh:
             raise PreventUpdate
         ky = _ky(tu_iso, den_iso)
         if ky is None:
@@ -219,6 +239,9 @@ def register(app):
             df = df[df.phong_code == pv]
         if phong_nv and phong_nv != "all":
             df = df[df.phong_code == phong_nv]
+        pham_vi_nv = current_user.phong_nhan_su()                          # nvkd: chi tiết từng người chỉ trong phòng mình
+        if pham_vi_nv is not None:
+            df = df[df.phong_code.isin(set(pham_vi_nv))]
         if loai == "ngoai":
             df = df[~df.ma_tinh.isin(NOI_TINH)]
         ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
@@ -246,13 +269,15 @@ def register(app):
                   Input("pt-tinh-nv", "selectedRows"), Input("pt-khoang", "start_date"),
                   Input("pt-khoang", "end_date"), Input("pt-cn", "value"))
     def _ct_nv_tinh(chon, tu_iso, den_iso, chi_nhanh):
-        if current_user.role != "admin":
+        if not current_user.duoc_xem_ban_tinh:
             raise PreventUpdate
         r = (chon or [None])[0]
         ky = _ky(tu_iso, den_iso)
         if not r or not r.get("acc_key") or ky is None:
             return "modal", "", []
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
+        if not _acc_duoc_xem(r["acc_key"], ky.tu, ky.den, scope):
+            return "modal", "", []
         ct = pt.chi_tiet_nv_tinh(r["acc_key"], ky.tu, ky.den, scope)
         luoi = "ag-theme-quartz ag-theme-ftel luoi-ke"
         so0 = {"function": "params.value ? params.value : ''"}
@@ -317,7 +342,7 @@ def register(app):
                   Input("pt-tinh-bang", "selectedRows"), Input("pt-khoang", "start_date"),
                   Input("pt-khoang", "end_date"), Input("pt-cn", "value"), Input("pt-tinh-pv", "value"))
     def _ct_tinh(chon, tu_iso, den_iso, chi_nhanh, pv):
-        if current_user.role != "admin":
+        if not current_user.duoc_xem_ban_tinh:
             raise PreventUpdate
         r = (chon or [None])[0]
         ky = _ky(tu_iso, den_iso)
@@ -329,6 +354,9 @@ def register(app):
             df = df[df.phong_code == pv]
         ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
         ct = pt.chi_tiet_tinh(df, r["ma_tinh"], _ten_nhan_vien(), ten_phong)
+        pham_vi_nv = current_user.phong_nhan_su()
+        if pham_vi_nv is not None and len(ct["nv"]):                       # nvkd: danh sách nhân viên bán chỉ gồm người trong phòng mình
+            ct["nv"] = ct["nv"][ct["nv"].phong_code.isin(set(pham_vi_nv))]
         tieu_de = f"{r['tinh']} · {ct['tong']:,} hợp đồng online {ky.nhan}".replace(",", ".")
         chips = [html.Span(f"{x.phong}: {int(x.so)} ({x.ty_trong:.0f}%)", className="chip")
                  for x in ct["phong"].head(8).itertuples()]

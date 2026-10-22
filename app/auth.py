@@ -137,6 +137,17 @@ class SessionUser(UserMixin):
         """Phòng được dùng Soạn email + Danh bạ (nvkd của phòng bật ở rules.yml; BGĐ / admin dùng được mọi lúc)."""
         return self._phong_bat("soan_mail")
 
+    def phong_ban_tinh(self) -> list[str]:
+        """Phòng được xem hai phần "Bán theo tỉnh" và "Ai bán ở tỉnh nào" của Phân tích bán hàng (nvkd của phòng bật ở rules.yml)."""
+        return self._phong_bat("ban_tinh")
+
+    @property
+    def duoc_xem_ban_tinh(self) -> bool:
+        """Bán theo tỉnh: Quản trị (BGĐ + tài khoản kỹ thuật) và nvkd đúng phòng bật ở rules.yml (IBB7, chủ app chốt 22/10/2026).
+
+        nvkd chỉ thấy đúng hai phần đó; chi tiết nhân viên vẫn bị giới hạn ở phòng mình (`phong_nhan_su`)."""
+        return self.role == "admin" or self.la_superadmin or (self.role == "nvkd" and bool(self.phong_ban_tinh()))
+
     @property
     def duoc_soan_mail(self) -> bool:
         """Soạn email + Danh bạ: admin (BGĐ + tài khoản kỹ thuật) và nvkd đúng phòng IBB7 (chủ app chốt 10/10/2026)."""
@@ -168,7 +179,9 @@ class SessionUser(UserMixin):
         khoi = khoi_cua_duong_dan(path)
         if khoi is not None and khoi not in self.khoi_duoc_xem():
             return False
-        return self.role != "nvkd" or path in TRANG_NVKD
+        if self.role != "nvkd":
+            return True
+        return path in TRANG_NVKD or (path == "/phantich" and self.duoc_xem_ban_tinh)
 
     def phong_duoc_xem(self) -> list[str] | None:
         """Phạm vi SỐ CHUNG. None = toàn chi nhánh, ngược lại là danh sách mã phòng."""

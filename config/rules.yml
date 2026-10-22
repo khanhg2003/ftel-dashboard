@@ -84,6 +84,10 @@ soan_mail:
   cc_bat_buoc:
     IBB7: [PhucVHD@fpt.com]
 
+# Phân tích bán hàng -> hai phần "Bán theo tỉnh" và "Ai bán ở tỉnh nào" cho nvkd của phòng nào (chốt 22/10/2026). Chỉ hai phần đó, không mở thêm phần nào khác của trang.
+ban_tinh:
+  phong: [IBB7]
+
 nhap_ton:
   phong: [IBB7]
   han_tra_ve_ngay: 3

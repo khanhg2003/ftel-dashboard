@@ -80,9 +80,9 @@ def test_quyen_nhan_vien_kd_ibb7():
     assert tk.duoc_xem_nhan_su and tk.phong_nhan_su() == ["IBB7"]
     assert tk.phong_nhap_ton() == ["IBB7"] and tk.duoc_nhap_ton
     assert tk.duoc_xem_ads and not tk.duoc_cau_hinh                # Ads chỉ xem, không sửa
-    for trang in ("/nhapton", "/phong", "/ads"):
+    for trang in ("/nhapton", "/phong", "/ads", "/phantich"):         # /phantich: chỉ hai phần Bán theo tỉnh (22/10/2026, xem tests/test_ban_tinh.py)
         assert tk.vao_duoc(trang)
-    for trang in ("/", "/hr", "/phantich", "/upload", "/quantri", "/tracking"):
+    for trang in ("/", "/hr", "/upload", "/quantri", "/tracking"):
         assert not tk.vao_duoc(trang), trang
     assert not tk.duoc_upload
 
