@@ -1837,6 +1837,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .dv-nhom .desc { margin-bottom: 8px; }
 .dv-nguoi { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px dashed var(--border); font-size: 13px; }
 .dv-nguoi:first-of-type { border-top: 0; }
-.dv-kpi-bang th, .dv-kpi-bang td { white-space: nowrap; }
-.dv-kpi-bang td.dv-ten { white-space: normal; min-width: 170px; }
+.dv-kpi-bang td { white-space: nowrap; }
+.dv-kpi-bang td.dv-ten { white-space: normal; min-width: 160px; }
+.dv-kpi-bang th { white-space: normal; line-height: 1.25; }
+.dv-luoi-kpi > .card { overflow-x: auto; }
 .kpi .value .dv-so-dai { font-size: 20px; letter-spacing: -.4px; white-space: nowrap; }

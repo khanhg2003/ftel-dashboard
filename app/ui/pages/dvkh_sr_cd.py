@@ -118,12 +118,13 @@ def _lh(df):
     cc["ty_le_gap"] = cc["gap"] * 100 / cc["thu"].replace(0, float("nan"))
     cc["ty_le_khong_lien_lac"] = cc["khong_lien_lac"] * 100 / cc["thu"].replace(0, float("nan"))
     cc = cc.sort_values("so_sr", ascending=False)
-    nhan_cc = [f"{c}<br>({ch.so(n)} SR)" for c, n in zip(cc["cong_cu"], cc["so_sr"])]
+    nhan_cc = [f"{ch.xuong_dong(c)}<br>({ch.so(n)} SR)" for c, n in zip(cc["cong_cu"], cc["so_sr"])]
     fcc = go.Figure()
     fcc.add_bar(x=nhan_cc, y=cc["ty_le_gap"], name="% gặp được khách", marker_color=ch.LUC, text=[ch.pct(v, 0) for v in cc["ty_le_gap"]], textposition="outside", cliponaxis=False)
     fcc.add_bar(x=nhan_cc, y=cc["ty_le_khong_lien_lac"], name="% không liên lạc được", marker_color=ch.CAM, text=[ch.pct(v, 0) for v in cc["ty_le_khong_lien_lac"]],
                 textposition="outside", cliponaxis=False)
     fcc.update_layout(barmode="group")
+    fcc.update_xaxes(tickangle=0)
     fcc.update_yaxes(ticksuffix="%", rangemode="tozero")
     tv = sl.dem_theo(df[df["ket_qua_tu_van"].notna()], "ket_qua_tu_van", 10)
     lh = sl.dem_theo(df[df["ly_do_khong_lh"].notna()], "ly_do_khong_lh", 8)
@@ -146,6 +147,7 @@ def _rm(df):
     fb.add_bar(x=nhan_bac, y=bac["ty_le_thanh_ly"], name="% đòi thanh lý", marker_color=ch.DO, text=[ch.pct(v, 1) for v in bac["ty_le_thanh_ly"]], textposition="outside", cliponaxis=False)
     fb.add_bar(x=nhan_bac, y=bac["ty_le_o_lai"], name="% đồng ý dùng tiếp", marker_color=ch.LUC, text=[ch.pct(v, 0) for v in bac["ty_le_o_lai"]], textposition="outside", cliponaxis=False)
     fb.update_layout(barmode="group")
+    fb.update_xaxes(tickangle=0)
     fb.update_yaxes(ticksuffix="%", rangemode="tozero")
     mk = sl.dem_theo(df[df["ly_do_mat_kn"].notna()], "ly_do_mat_kn")
     nguon = sl.dem_theo(df, "nguon_pp", 6)
@@ -153,9 +155,10 @@ def _rm(df):
     nc["ty_no"] = nc["no_cuoc"] * 100 / nc["so_sr"]
     nc["ty_ych"] = nc["ych"] * 100 / nc["so_sr"]
     fn = go.Figure()
-    fn.add_bar(x=nc["nhom_bc"], y=nc["ty_no"], name="% hợp đồng đang nợ cước", marker_color=ch.CAM, text=[ch.pct(v, 0) for v in nc["ty_no"]], textposition="outside", cliponaxis=False)
-    fn.add_bar(x=nc["nhom_bc"], y=nc["ty_ych"], name="% trong danh sách yêu cầu huỷ", marker_color=ch.DO, text=[ch.pct(v, 0) for v in nc["ty_ych"]], textposition="outside", cliponaxis=False)
+    fn.add_bar(x=nc["nhom_bc"].map(ch.xuong_dong), y=nc["ty_no"], name="% hợp đồng đang nợ cước", marker_color=ch.CAM, text=[ch.pct(v, 0) for v in nc["ty_no"]], textposition="outside", cliponaxis=False)
+    fn.add_bar(x=nc["nhom_bc"].map(ch.xuong_dong), y=nc["ty_ych"], name="% trong danh sách yêu cầu huỷ", marker_color=ch.DO, text=[ch.pct(v, 0) for v in nc["ty_ych"]], textposition="outside", cliponaxis=False)
     fn.update_layout(barmode="group")
+    fn.update_xaxes(tickangle=0)
     fn.update_yaxes(ticksuffix="%", rangemode="tozero")
     return html.Div([
         card([ch.khung(fb, 320)], title="Điểm nguy cơ rời mạng có đáng tin không?",

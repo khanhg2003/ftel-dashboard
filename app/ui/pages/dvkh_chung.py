@@ -102,10 +102,10 @@ def muc_theo_nguong(v, tot, xau, cao_xau: bool = True) -> str:
 
 # ----------------------------------------------------------------------------- biểu đồ
 def khung(fig: go.Figure, cao: int = 320, legend: bool = True, ten_truc_y: str | None = None) -> dcc.Graph:
-    fig.update_layout(height=cao, margin={"l": 44, "r": 16, "t": 16, "b": 36}, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+    fig.update_layout(height=cao, margin={"l": 44, "r": 16, "t": 40 if legend else 16, "b": 36}, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                       font={"family": "Inter, sans-serif", "size": 12, "color": "#44546A"}, colorway=DAY_MAU, showlegend=legend,
-                      legend={"orientation": "h", "y": -0.18, "x": 0, "font": {"size": 11}}, hoverlabel={"font_size": 12},
-                      yaxis_title=ten_truc_y)
+                      legend={"orientation": "h", "y": 1.0, "yanchor": "bottom", "x": 0, "font": {"size": 11}},      # chú giải ở trên: nhãn trục dưới dài / xoay không đè lên được
+                      hoverlabel={"font_size": 12}, yaxis_title=ten_truc_y)
     fig.update_xaxes(showgrid=False, linecolor="#D8DFE8")
     fig.update_yaxes(gridcolor="#EDF1F6", zeroline=False)
     return dcc.Graph(figure=fig, config={"displayModeBar": False}, style={"width": "100%"})
@@ -114,11 +114,11 @@ def khung(fig: go.Figure, cao: int = 320, legend: bool = True, ten_truc_y: str |
 def cot_ngang(df: pd.DataFrame, nhan: str, gia_tri: str, cao: int = 300, mau: str = XANH, hau_to: str = "", top: int = 12,
               mau_cot: list | None = None, chu: str | None = None) -> dcc.Graph:
     d = df.head(top).iloc[::-1]
-    f = go.Figure(go.Bar(y=d[nhan].astype(str).str.slice(0, 46), x=d[gia_tri], orientation="h", marker_color=mau_cot or mau,
+    f = go.Figure(go.Bar(y=d[nhan].astype(str).str.slice(0, 80).map(lambda t: xuong_dong(t, 30)), x=d[gia_tri], orientation="h", marker_color=mau_cot or mau,
                          text=[so_vn(v, 0) + hau_to if chu is None else chu.format(v) for v in d[gia_tri]], textposition="outside",
                          cliponaxis=False, hovertemplate="%{y}: %{x:,.0f}<extra></extra>"))
     f.update_xaxes(showgrid=True, gridcolor="#EDF1F6", visible=False)
-    f.update_yaxes(showgrid=False)
+    f.update_yaxes(showgrid=False, automargin=True)
     return khung(f, cao, legend=False)
 
 
@@ -178,6 +178,12 @@ def danh_sach_nhan_dinh(ds: list[dict], toi_da: int | None = None) -> html.Div:
 
 def tab_nho(id_: str, tabs: list[tuple[str, str]], value: str):
     return html.Div(seg_control(id_, tabs, value), className="tab-lon")
+
+
+def xuong_dong(ten, rong: int = 13) -> str:
+    """Ngắt nhãn dài thành nhiều dòng (<br>) để nhãn cột nằm ngang, không xoay và không đè nhau."""
+    import textwrap
+    return "<br>".join(textwrap.wrap(str(ten), rong)) or str(ten)
 
 
 def toi_da(v, gioi_han: float):

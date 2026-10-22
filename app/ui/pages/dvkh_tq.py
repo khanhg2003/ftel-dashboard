@@ -11,7 +11,7 @@ from app.ui.components import card, seg_control
 from app.ui.pages import dvkh_chung as ch, dvkh_ve as ve
 
 CHE_DO = [("luy_ke", "Luỹ kế tháng"), ("ngay", "Trong ngày")]
-COT = ["DNG1", "DNG2", "Tổng DNG", "QNM", "Cùng kỳ tháng trước", "Chênh"]
+COT = ["DNG1", "DNG2", "Tổng DNG", "QNM", "Cùng kỳ T trước", "Chênh"]
 GHI_CHU_DU_LIEU = ("Số SR lấy từ file mới nhất, mỗi mã SR tính một lần (không cộng các lần nạp). Rời mạng và công nợ là số chốt sẵn trong file. "
                    "“–” là chưa có dữ liệu, không phải kết quả tốt hay xấu. QNM chưa có nguồn dữ liệu.")
 
@@ -69,7 +69,7 @@ def _dong(ten, hien, truoc, lay, fmt, tot_khi=None, ghi=None):
             return None
     cac = [fmt(v(hien, p)) if v(hien, p) is not None else None for p in ("DNG1", "DNG2", "DNG")]
     cung_ky = v(truoc, "DNG")
-    return (ten, cac + [html.Span("chưa có nguồn", className="dv-chua-co"), fmt(cung_ky) if cung_ky is not None else None,
+    return (ten, cac + [html.Span("–", className="dv-chua-co", title="QNM chưa có nguồn dữ liệu"), fmt(cung_ky) if cung_ky is not None else None,
                         _chenh(v(hien, "DNG"), cung_ky, fmt, tot_khi)], ghi)
 
 
