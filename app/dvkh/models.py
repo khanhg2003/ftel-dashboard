@@ -173,6 +173,35 @@ class DvCongNoChot(Base):
     ty_le_bill: Mapped[float | None] = mapped_column(Float, nullable=True)         # %
 
 
+class DvSrBdThem(Base):
+    """Cột bổ sung của SR bị động (gói dịch vụ hiện tại, đơn vị tạo SR, duyệt đề xuất, số lần trùng).
+
+    Tách bảng riêng, khoá cùng Mã SR, để thêm phân tích mà không phải sửa cấu trúc bảng SR đã có trên Supabase.
+    """
+    __tablename__ = "dv_sr_bd_them"
+    ma_sr: Mapped[str] = mapped_column(String(60), primary_key=True)
+    batch_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    goi_net: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    goi_pay: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    goi_cam: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    don_vi_tao: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    duyet_de_xuat: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    trung: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class DvAuKh(Base):
+    """Số khách hàng mỗi CSKH (Account IS) phụ trách, lấy từ bảng "Count of Acc NVVP" của sheet BC SR bị động.
+
+    Dùng làm mẫu số để so tải việc công bằng giữa các CSKH (người phụ trách nhiều khách thì nhiều SR là bình thường).
+    """
+    __tablename__ = "dv_au_kh"
+    __table_args__ = (UniqueConstraint("ngay_chot", "acc", name="uq_dv_au_kh"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ngay_chot: Mapped[date] = mapped_column(Date, index=True)
+    acc: Mapped[str] = mapped_column(String(60))
+    so_kh: Mapped[int] = mapped_column(Integer)
+
+
 class DvDanhSach(Base):
     """Hai danh sách hợp đồng dùng để gắn cờ SR: YCH (yêu cầu huỷ) và nợ cước."""
     __tablename__ = "dv_danh_sach"

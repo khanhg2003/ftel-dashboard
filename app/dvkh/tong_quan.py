@@ -6,12 +6,13 @@
 """
 from __future__ import annotations
 
+import calendar
 from datetime import date
 
 import pandas as pd
 
 from app.bo_nho import nho
-from app.dvkh import so_lieu as sl
+from app.dvkh import cheo, so_lieu as sl, xu_huong as xh
 
 PHONG_XEM = ("DNG1", "DNG2", "DNG")                      # DNG = tổng Đà Nẵng
 TEN_ROI_MANG = {"DNG-01": "DNG1", "DNG-02": "DNG2", "05.Da Nang": "DNG"}
@@ -51,7 +52,7 @@ def _roi_mang(ngay: date, truoc: bool = False) -> dict[str, dict]:
 
 
 def _cong_no(ngay: date) -> tuple[dict, dict, str | None, int | None]:
-    """({phòng: {dt, bill}}, kỳ trước cùng ngày thu, kỳ nợ, ngày thu thứ mấy). Kỳ nợ = tháng của ngày xem nếu đã có số."""
+    """({phòng: {dt, bill}}, kỳ trước cùng ngày lịch, kỳ nợ, ngày trong tháng). Kỳ nợ = tháng của ngày xem nếu đã có số."""
     cn = sl.cong_no_ngay()
     if cn.empty:
         return {}, {}, None, None
@@ -80,9 +81,33 @@ def _cong_no(ngay: date) -> tuple[dict, dict, str | None, int | None]:
     return lay(hien, so_ngay), (lay(kt, so_ngay) if kt else {}), hien, so_ngay
 
 
-@nho("dvkh", 60)
+@nho("dvkh", sl.TTL)
 def tinh(ngay: date, che_do: str = "luy_ke") -> dict:
     cong_no, cong_no_truoc, ky_no, so_ngay = _cong_no(ngay)
     return {"sr": _sr(ngay, che_do), "sr_truoc": _sr(ngay, che_do, truoc=True), "roi_mang": _roi_mang(ngay),
             "roi_mang_truoc": _roi_mang(ngay, truoc=True), "cong_no": cong_no, "cong_no_truoc": cong_no_truoc,
             "ky_no": ky_no, "so_ngay_thu": so_ngay}
+
+
+@nho("dvkh", sl.TTL)
+def suc_khoe(ngay: date) -> dict:
+    """Số liệu cho dải thẻ "sức khoẻ" ở đầu trang tổng quan: vào - ra - tồn theo ngày, hướng đi, dự báo tháng, dự báo thu nợ, rời mạng, thanh lý chờ.
+
+    Chỉ lấy SR của tháng chứa ngày xem tới hết ngày xem. Mọi dự báo kèm số ngày dữ liệu để người đọc biết độ tin cậy."""
+    d0 = pd.Timestamp(ngay)
+    dau = d0.replace(day=1)
+    bd = sl.loc(sl.sr_bi_dong(), None, dau, d0, "ngay_yc")
+    cd = sl.loc(sl.sr_chu_dong(), None, dau, d0, "ngay_do")
+    l_bd, l_cd = xh.luong_theo_ngay(bd, "ngay_yc"), xh.luong_theo_ngay(cd, "ngay_do")
+    so_ngay_thang = calendar.monthrange(d0.year, d0.month)[1]
+    cn = sl.cong_no_ngay()
+    rm = sl.roi_mang()
+    rm = rm[(rm["cap"] == "phong") & (rm["ten"] == "05.Da Nang")].sort_values("ngay_chot") if not rm.empty else rm
+    tl = cheo.thanh_ly_ton(sl.sr_bi_dong(), sl.sr_chu_dong())
+    return {"bd": bd, "cd": cd, "luong_bd": l_bd, "luong_cd": l_cd, "kpi_bd": sl.kpi_bd(bd) if len(bd) else None, "kpi_cd": sl.kpi_cd(cd) if len(cd) else None,
+            "huong_vao_bd": xh.huong(l_bd["vao"]), "huong_ton_bd": xh.huong(l_bd["ton_cuoi_ngay"]),
+            "huong_vao_cd": xh.huong(l_cd["vao"]), "huong_ton_cd": xh.huong(l_cd["ton_cuoi_ngay"]),
+            "du_bao_bd": xh.du_bao_thang(l_bd["vao"], so_ngay_thang), "du_bao_cd": xh.du_bao_thang(l_cd["vao"], so_ngay_thang),
+            "du_bao_no": xh.du_bao_cong_no(cn, "To tal DNG CN 30"), "du_bao_no_dt": xh.du_bao_cong_no(cn, "To tal DNG CN 30", "ty_le_dt"),
+            "roi_mang_lich_su": rm, "so_thanh_ly_cho": len(tl), "thanh_ly_cu_nhat": tl["thoi_gian"].min() if len(tl) else None,
+            "theo_thu_bd": xh.theo_thu(l_bd)}

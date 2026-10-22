@@ -16,7 +16,8 @@ from app.models import User
 from app.ui import khoi
 
 COT_SR_BD = ["Chi nhánh", "Quận huyện", "Mã SR", "Số hợp đồng", "Loại yêu cầu", "Kết quả tư vấn", "Thời gian yêu cầu", "Thời gian cập nhật lần đầu",
-             "Tình trạng xử lý", "Người xử lý", "Đơn vị xử lý", "Quá hạn", "Tình trạng NET hiện tại", "Cột lạ không cần"]
+             "Tình trạng xử lý", "Người xử lý", "Đơn vị xử lý", "Quá hạn", "Tình trạng NET hiện tại", "Cột lạ không cần",
+             "Gói dịch vụ Net hiện tại", "Đơn vị của account tạo", "Account tạo", "Phí", "Miễn giảm phí"]
 COT_SR_CD = ["Mã chi nhánh", "Quận huyện", "Mã SR", "Số hợp đồng", "Nhóm chương trình", "Chương trình", "Thời gian đổ dữ liệu", "Kết quả liên hệ",
              "Kết quả tư vấn", "Tình trạng xử lý", "Người xử lý", "Quá hạn", "Thời gian phân công nhân sự xử lý", "Thời gian cập nhật lần đầu", "Điểm nguy cơ RM"]
 TIEU_DE_RM = ["", "KH hiện hành", "KH đầu kỳ", "Gross PTTB", "Hủy SSD", "CTBDV", "CTBDV khôi phục DV", "HSSD khôi phục", "CTBDV chuyển HSSD", "Chờ thanh lý",
@@ -37,7 +38,9 @@ def _sr_bd(n: int = 40, thanh_ly: int = 10, khong_dong_y: int = 6):
         rows.append(["DNG_01" if i % 2 == 0 else "DNG_02", "Phường Thanh Khê", f"SR-{i}", f"DA{i % 30:03d}", "Thanh lý" if tl else "Thắc mắc", tv,
                      datetime(2026, 10, 1 + i % 5, 9, 0), datetime(2026, 10, 1 + i % 5, 9, 20), "Đang xử lý" if dang else "Đã hoàn tất",
                      "NhanVienA" if i % 2 else "nhanvienb", "Phòng dịch vụ khách hàng 1", "Quá hạn đang xử lý " if dang else "Hoàn tất trong hạn",
-                     "Đã chấm dứt hợp đồng" if i < 3 else "Bình thường", "x"])
+                     "Đã chấm dứt hợp đồng" if i < 3 else "Bình thường", "x",
+                     "Sky" if i % 3 else "Giga F1", "Phòng Kinh doanh 3" if i % 5 == 0 else "Phòng dịch vụ khách hàng 1", "kd1" if i % 5 == 0 else "cskh1",
+                     220000 if i % 8 == 0 else 0, 110000 if i % 16 == 0 else 0])
     return rows
 
 
@@ -62,6 +65,10 @@ def tao_file(sr_bd=None, sr_cd=None, dao_cot: bool = False) -> bytes:
         h, data = h[::-1], [r[::-1] for r in data]
     ws.append(h)
     for r in data:
+        ws.append(r)
+    ws = wb.create_sheet("BC SR bị động")
+    for r in (["SR", "Account IS", "Phân công"], ["Q. Liên Chiểu", "NhanVienA", 20], [], [], ["Row Labels", "Count of Acc NVVP "], ["NhanVienA", 4000], ["nhanvienb", 2000],
+              ["Grand Total", 6000]):
         ws.append(r)
     ws = wb.create_sheet("SR chủ động")
     ws.append(COT_SR_CD)
@@ -96,9 +103,9 @@ def tao_file(sr_bd=None, sr_cd=None, dao_cot: bool = False) -> bytes:
 def sach_dvkh():
     """Mỗi phép kiểm bắt đầu và kết thúc với các bảng dv_* trống (database kiểm thử dùng chung)."""
     def don():
-        nap.dam_bao_bang()
+        nap.dam_bao_bang(them=True)
         with engine.begin() as c:
-            for t in ("dv_nap", "dv_sr_bi_dong", "dv_sr_chu_dong", "dv_roi_mang", "dv_cong_no", "dv_cong_no_chot", "dv_danh_sach"):
+            for t in ("dv_nap", "dv_sr_bi_dong", "dv_sr_chu_dong", "dv_roi_mang", "dv_cong_no", "dv_cong_no_chot", "dv_danh_sach", "dv_sr_bd_them", "dv_au_kh"):
                 c.execute(text(f"DELETE FROM {t}"))
     don()
     yield
@@ -228,3 +235,44 @@ def test_phan_quyen_theo_khoi():
     assert not nvkd.vao_duoc("/dvkh") and nvkd.vao_duoc("/baocaongay")
     assert admin.duoc_nap_dvkh and dvkh.duoc_nap_dvkh and not phong.duoc_nap_dvkh and not nvkd.duoc_nap_dvkh
     assert dvkh.phong_duoc_xem() == [] and dvkh.phong_nhan_su() == []                  # không xem được số liệu bán hàng của khối KD
+
+
+# ------------------------------------------------------------------ cột bổ sung, số khách mỗi CSKH, ngày công nợ theo lịch
+def test_nap_cot_bo_sung_va_so_khach_phu_trach(sach_dvkh):
+    kq = nap.nap_file(tao_file(), date(2026, 10, 21), "t.xlsx", "tester")
+    assert kq["sr_bd_them"] == 40 and kq["so_kh_au"] == 2
+    kh = sl.so_kh_au().set_index("acc")["so_kh"]
+    assert kh.to_dict() == {"nhanviena": 4000, "nhanvienb": 2000}
+    bd = sl.sr_bi_dong().set_index("ma_sr")
+    assert bd.loc["SR-1", "goi_net_nhom"] == "Sky" and bd.loc["SR-4", "goi_net_nhom"] == "Sky" and bd.loc["SR-3", "goi_net_nhom"] == "Giga"
+    assert bd.loc["SR-0", "nguon_tao_nhom"] == "Phòng Kinh doanh" and bd.loc["SR-1", "nguon_tao_nhom"] == "Phòng DVKH"
+    assert bd["phi"].sum() == 220000 * 5 and bd["mien_giam_phi"].sum() == 110000 * 3
+
+
+def test_nap_lai_khong_nhan_doi_cot_bo_sung(sach_dvkh):
+    nap.nap_file(tao_file(), date(2026, 10, 21), "t.xlsx")
+    nap.nap_file(tao_file(), date(2026, 10, 21), "t.xlsx")
+    with engine.connect() as c:
+        assert c.execute(text("SELECT COUNT(*) FROM dv_sr_bd_them")).scalar() == 40
+        assert c.execute(text("SELECT COUNT(*) FROM dv_au_kh")).scalar() == 2
+
+
+def test_bang_bo_sung_chua_co_thi_trang_van_doc_duoc(monkeypatch):
+    """Chưa nạp lại file sau khi thêm tính năng: các cột bổ sung để trống chứ không lỗi."""
+    monkeypatch.setattr(nap, "co_bang", lambda ten: False)
+    df = sl._them_bo_sung_bd(pd.DataFrame({"ma_sr": ["a"], "acc_tao": ["khách hàng"]}))
+    assert df["goi_net"].isna().all() and df.loc[0, "nguon_tao_nhom"] == "Khách tự tạo"
+
+
+def test_cong_no_ngay_theo_ngay_trong_thang_khong_theo_so_dong(sach_dvkh):
+    """Tháng 9 có số từ ngày 3, tháng 10 từ ngày 1: cùng một ngày lịch phải cùng so_ngay (lỗi thật đã gặp: lệch 2 ngày làm số so sánh sai)."""
+    dong = [("2026-08", date(2026, 9, 3), 0.3), ("2026-08", date(2026, 9, 14), 0.9), ("2026-09", date(2026, 10, 1), 0.1), ("2026-09", date(2026, 10, 14), 0.91)]
+    with engine.begin() as c:
+        for ky, ngay, v in dong:
+            c.execute(text("INSERT INTO dv_cong_no (ky_no, ngay, cap, ten, ty_le_dt, ty_le_bill) VALUES (:k, :n, 'phong', 'DNG', :v, :v)"), {"k": ky, "n": ngay.isoformat(), "v": v})
+    from app.bo_nho import xoa
+    xoa("dvkh")
+    cn = sl.cong_no_ngay()
+    assert cn.groupby("ky_no")["so_ngay"].apply(list).to_dict() == {"2026-08": [3, 14], "2026-09": [1, 14]}
+    t = tong_quan._cong_no(date(2026, 10, 14))
+    assert t[3] == 14 and t[2] == "2026-09"

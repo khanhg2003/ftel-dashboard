@@ -2,19 +2,6 @@
 from __future__ import annotations
 
 import pandas as pd
-from sqlalchemy import text
-
-from app.bo_nho import nho
-from app.db import engine
-from app.dvkh import nap
-
-
-@nho("dvkh", 30)
-def tap_hop_dong(loai: str) -> set[str]:
-    """Danh sách hợp đồng ych (yêu cầu huỷ) hoặc no_cuoc (nợ cước) đã nạp."""
-    nap.dam_bao_bang()
-    with engine.connect() as c:
-        return {r[0] for r in c.execute(text("SELECT so_hd FROM dv_danh_sach WHERE loai = :l"), {"l": loai})}
 
 
 def _noi_chuoi(df: pd.DataFrame, khoa: str, cot: str, ten: str, toi_da: int = 70) -> pd.Series:
@@ -45,14 +32,3 @@ def thanh_ly_ton(bd: pd.DataFrame, cd: pd.DataFrame) -> pd.DataFrame:
     b = cd[cd["muon_thanh_ly"] & cd["ton"]][["ma_sr", "so_hd", "phong", "quan", "nguoi_xu_ly", "tinh_trang", "tg_do"]].rename(columns={"tg_do": "thoi_gian"})
     b["nguon"] = "SR chủ động: khách đòi thanh lý"
     return pd.concat([a, b], ignore_index=True).sort_values("thoi_gian") if len(a) + len(b) else pd.DataFrame()
-
-
-def thanh_ly_va_no_cuoc(bd: pd.DataFrame) -> dict:
-    """Trong các hợp đồng yêu cầu thanh lý, bao nhiêu hợp đồng đang nợ cước (thanh lý để tránh nợ?)."""
-    no = tap_hop_dong("no_cuoc")
-    tl = bd[bd["loai_yc"] == "Thanh lý"]["so_hd"].dropna().unique()
-    tat_ca = bd["so_hd"].dropna().unique()
-    n_tl = sum(1 for h in tl if h in no)
-    n_all = sum(1 for h in tat_ca if h in no)
-    return {"hd_thanh_ly": len(tl), "thanh_ly_no_cuoc": n_tl, "ty_le_thanh_ly": n_tl * 100 / max(len(tl), 1),
-            "hd_tat_ca": len(tat_ca), "tat_ca_no_cuoc": n_all, "ty_le_tat_ca": n_all * 100 / max(len(tat_ca), 1)}

@@ -36,8 +36,8 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Danh bạ liên hệ (đọc hai file PNC / TIN, gộp trùng, tra cứu, người sale tự thêm) | `app/danh_ba.py` + `app/ui/pages/danhba.py` |
 | Soạn email (khuôn 3 loại mail, gợi ý người nhận, Fox viết đoạn tình huống) + nút copy dùng chung | `app/soan_mail.py` + `app/ui/pages/soanmail.py` + `assets/sao_chep.js` |
 | Khối làm việc (Kinh doanh / DVKH / Kỹ thuật): định nghĩa, menu từng khối, đường dẫn thuộc khối nào | `app/ui/khoi.py` (menu KD vẫn ở `NAV` của `app/ui/app.py`) |
-| Khối DVKH: đọc file Excel, nạp database, số liệu, nhận định, phân tích chéo | `app/dvkh/` (`doc_file.py`, `nap.py`, `so_lieu.py`, `tong_quan.py`, `insight.py`, `cheo.py`, `models.py`) + `scripts/nap_dvkh.py` |
-| Trang khối DVKH (đường dẫn `/dvkh/...`) | `app/ui/pages/dvkh.py` (định tuyến) + `dvkh_tq.py`, `dvkh_sr_bd.py`, `dvkh_sr_cd.py`, `dvkh_roi_mang.py`, `dvkh_cong_no.py`, `dvkh_nhan_su.py`, `dvkh_insight.py`, `dvkh_nap.py`; thành phần chung `dvkh_chung.py` |
+| Khối DVKH: đọc file Excel, nạp database, số liệu, nhận định, phân tích chéo, xu hướng và dự báo, khai thác sâu | `app/dvkh/` (`doc_file.py`, `nap.py`, `so_lieu.py`, `tong_quan.py`, `insight.py`, `cheo.py`, `xu_huong.py`, `khai_thac.py`, `models.py`) + `scripts/nap_dvkh.py` |
+| Trang khối DVKH (đường dẫn `/dvkh/...`) | `app/ui/pages/dvkh.py` (định tuyến) + `dvkh_tq.py`, `dvkh_sr_bd.py` (+ `dvkh_sr_bd_sau.py`: giữ chân, khách và dịch vụ), `dvkh_sr_cd.py`, `dvkh_roi_mang.py`, `dvkh_cong_no.py`, `dvkh_nhan_su.py`, `dvkh_insight.py`, `dvkh_nap.py`; thành phần chung `dvkh_chung.py`, biểu đồ và thẻ xu hướng dùng chung `dvkh_ve.py` |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 
@@ -273,6 +273,18 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      nặng 15 MB nên trên Vercel (giới hạn vài MB mỗi yêu cầu) nạp bằng `python scripts/nap_dvkh.py <file> --ngay YYYY-MM-DD`; chạy app
      trên máy chủ riêng thì tải thẳng ở trang Cập nhật Excel. Đọc file theo kiểu dừng sau 200 dòng trống liên tiếp (file khai báo hơn 1 triệu dòng
      mỗi sheet SR nhưng chỉ vài nghìn dòng có chữ).
+     **Nâng cấp phân tích sâu (22/10/2026, chủ app yêu cầu "chưa sâu, nhiều biểu đồ hơn, thấy được xu hướng tốt hay xấu"):**
+     (1) **Ngày công nợ phải theo NGÀY TRONG THÁNG** (`so_ngay = ngay.dt.day`), không đếm theo số dòng có số: tháng 9 có số từ ngày 3, tháng 10 từ ngày 1 nên đếm theo dòng làm "ngày 14" của hai tháng
+     lệch nhau 2 ngày lịch (lỗi thật: báo nhầm "thu nợ chậm hơn 3,5 điểm" trong khi cùng ngày 14 là 89,93% so với 89,76%, nhỉnh hơn; có test chặn). (2) **Bảng bổ sung** `dv_sr_bd_them` (gói Net / Pay / Cam hiện tại, đơn vị tạo SR, duyệt đề xuất,
+     số lần trùng) và `dv_au_kh` (số khách mỗi CSKH phụ trách, từ bảng "Count of Acc NVVP" ở sheet BC SR bị động) nằm RIÊNG để không phải sửa bảng SR đã có trên Supabase; chỉ được tạo ở `nap.nap` (`dam_bao_bang(them=True)`), còn
+     trang đọc qua `nap.co_bang()` nên chưa nạp lại file thì phần đó để trống chứ không lỗi. Thêm cột nào cho dữ liệu đã có sẵn thì làm kiểu này (bảng phụ khoá cùng Mã SR), không `ALTER TABLE` từ app. (3) **Luồng vào - ra - tồn** (`xu_huong.luong_theo_ngay`): vào = SR phát sinh / đổ về
+     trong ngày, ra = SR đã rời hàng chờ (xong, tự đóng, chuyển, không thành công) theo ngày cập nhật lần cuối, tồn cuối ngày = vào luỹ kế trừ ra luỹ kế. Hướng đi (`xu_huong.huong`) = trung bình 3 ngày gần nhất so với các ngày trước đó, chênh dưới 7% là đi ngang; màu tốt / xấu theo
+     chiều của chỉ số (`danh_gia_huong`: tồn tăng là xấu). **Dự báo cuối tháng** chỉ là "giữ nhịp trung bình các ngày đã có" kèm khoảng phân vị 25 - 75 và số ngày dữ liệu, dưới 14 ngày ghi "độ tin cậy thấp"; **dự báo thu nợ cuối kỳ** cho phần chưa thu giảm theo đúng hình dạng đường thu của kỳ trước đã chạy hết
+     (`du_bao_cong_no`). Đổi cách dự báo thì phải thử lại trên một kỳ đã biết kết quả. (4) **Tải việc CSKH so trên số khách phụ trách** (`khai_thac.gan_so_khach`, SR trên 1.000 khách) để so công bằng; nhãn "Cần hỗ trợ / Cần nhắc / Làm tốt" theo trung vị tải và phân vị 75 / 25 của % quá hạn,
+     người dưới 30 SR không gắn nhãn (`cho_nao_tot_xau`). Biểu đồ chấm KHÔNG ghi tên mọi người (bản cũ ghi hết nên rối): chỉ ghi nhóm cần hỗ trợ và làm tốt, còn lại rê chuột. (5) **Dòng chảy giữ chân khách** (Sankey, `dong_giu_chan`): thanh lý → kết quả tư vấn → hợp đồng hiện nay
+     còn dùng hay đã chấm dứt (cột "Tình trạng NET hiện tại"). Số thật T10: 56% khách nói không ở lại đã chấm dứt thật, khách đang suy nghĩ chỉ 1/70 chấm dứt (còn cứu được); khách đồng ý ở lại không ai chấm dứt. (6) **Phí và miễn giảm** (`phi_mien_giam`): miễn giảm có thể vượt phí của chính loại việc đó
+     (khôi phục dịch vụ 112%). **Nguồn tạo SR** (`nguon_tao_nhom`): SR do phòng Kinh doanh tạo 90% là khiếu nại, phản ánh chất lượng bán, báo khối Kinh doanh. (7) **Tốc độ / dữ liệu đi ra của Supabase:** mỗi lần đọc bảng SR kéo ~2-3 MB nên kết quả đọc nhớ tạm `so_lieu.TTL` = 300 giây
+     (gói free giới hạn 5 GB dữ liệu đi ra mỗi tháng và đã vượt); hệ quả: nạp file bằng script ở máy ngoài thì các máy chủ Vercel cần tới 5 phút mới thấy số mới. `nap.dam_bao_bang` chỉ kiểm tra bảng một lần mỗi tiến trình. Sau khi thêm tính năng đọc cột mới phải NẠP LẠI file thì phần mới mới hiện.
 3. **Số hiện ra phải có ngữ cảnh**: khoảng ngày, phạm vi, so với gì. Hai số trông mâu thuẫn (VD "bán" và "online") thì ghi rõ cách hiểu ngay cạnh.
 4. Định dạng kiểu Việt Nam: `1.234`, `5,40 $`, `45%`. Khi tự `.replace(",", ".")` thì **chỉ áp lên con số**, không áp lên cả câu.
 

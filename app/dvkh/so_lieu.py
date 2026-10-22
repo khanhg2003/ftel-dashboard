@@ -21,6 +21,7 @@ from app.db import engine
 from app.dvkh import nap
 from app.dvkh.doc_file import QUAN_CU, bo_dau
 
+TTL = 300                                       # giây nhớ tạm kết quả đọc: dữ liệu chỉ đổi khi nạp file, mà mỗi lần đọc kéo vài MB từ Supabase (gói free giới hạn dữ liệu đi ra)
 PHONG = {"DNG_01": "DNG1", "DNG_02": "DNG2"}
 DA_XU_LY = ("Đã xử lý", "Đã hoàn tất")
 TON_BD = ("Chưa xử lý", "Đang xử lý", "Chưa phân công")
@@ -46,6 +47,7 @@ def ten_phuong(ten) -> str:
     return _TEN_PHUONG.get(bo_dau(ten), str(ten))
 
 
+@nho("dvkh", 60)
 def co_du_lieu() -> bool:
     nap.dam_bao_bang()
     with engine.connect() as c:
@@ -58,14 +60,48 @@ def _them_chung(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-@nho("dvkh", 30)
+COT_THEM_BD = ("goi_net", "goi_pay", "goi_cam", "don_vi_tao", "duyet_de_xuat", "trung")
+NHOM_GOI_NET = ("Sky", "Giga", "Meta")
+NHOM_GOI_PAY = ("V.VIP", "MAXY", "Max", "VIP", "ZPlay")
+NHOM_DON_VI_TAO = (("dịch vụ khách hàng", "Phòng DVKH"), ("kinh doanh", "Phòng Kinh doanh"), ("triển khai", "Triển khai bảo trì"),
+                   ("hỗ trợ khách hàng", "Hỗ trợ khách hàng"))
+
+
+def _nhom_theo_tu_khoa(s: pd.Series, bang: tuple, khac: str) -> pd.Series:
+    thap = s.fillna("").str.lower()
+    out = pd.Series(khac, index=s.index)
+    for tu_khoa, ten in reversed(bang):
+        out = out.where(~thap.str.contains(tu_khoa, regex=False), ten)
+    return out
+
+
+def _them_bo_sung_bd(df: pd.DataFrame) -> pd.DataFrame:
+    """Gắn cột bổ sung (gói dịch vụ, đơn vị tạo SR, duyệt đề xuất) nếu file đã được nạp sau khi có tính năng này; chưa có thì để trống."""
+    for c in COT_THEM_BD:
+        df[c] = None
+    if nap.co_bang("dv_sr_bd_them"):
+        them = pd.read_sql_query(text("SELECT ma_sr, " + ", ".join(COT_THEM_BD) + " FROM dv_sr_bd_them"), engine)
+        if not them.empty:
+            df = df.drop(columns=list(COT_THEM_BD)).merge(them, on="ma_sr", how="left")
+    goi = df["goi_net"].fillna("")
+    df["goi_net_nhom"] = goi.map(lambda g: next((n for n in NHOM_GOI_NET if g.startswith(n)), "Khác" if g else None))
+    pay = df["goi_pay"].fillna("")
+    df["goi_pay_nhom"] = pay.map(lambda g: next((n for n in NHOM_GOI_PAY if g == n), "Khác" if g else None))
+    acc = df["acc_tao"].fillna("").str.lower()
+    df["nguon_tao_nhom"] = np.select(
+        [acc.eq("khách hàng"), acc.str.contains("daisy|system|auto"), df["don_vi_tao"].notna()],
+        ["Khách tự tạo", "Hệ thống / bot", _nhom_theo_tu_khoa(df["don_vi_tao"], NHOM_DON_VI_TAO, "Đơn vị khác")], "Chưa rõ")
+    return df
+
+
+@nho("dvkh", TTL)
 def sr_bi_dong() -> pd.DataFrame:
     """SR bị động kèm các cột suy ra (giờ phản hồi, thời gian đóng, cờ tồn / quá hạn / khách rời mạng sau SR, SR lặp)."""
     nap.dam_bao_bang()
     df = pd.read_sql_query(text("SELECT * FROM dv_sr_bi_dong"), engine, parse_dates=["tg_yc", "tg_cn_dau", "tg_cn_cuoi"])
     if df.empty:
         return df
-    df = _them_chung(df)
+    df = _them_bo_sung_bd(_them_chung(df))
     df["ngay_yc"] = pd.to_datetime(df["tg_yc"]).dt.normalize()
     p = (df["tg_cn_dau"] - df["tg_yc"]).dt.total_seconds() / 60
     df["phan_hoi_phut"] = p.where(p >= 0)
@@ -89,7 +125,7 @@ def sr_bi_dong() -> pd.DataFrame:
     return df
 
 
-@nho("dvkh", 30)
+@nho("dvkh", TTL)
 def sr_chu_dong() -> pd.DataFrame:
     """SR chủ động kèm nhóm chương trình theo bảng BC, bậc điểm nguy cơ, cờ liên hệ / tồn / quá hạn."""
     nap.dam_bao_bang()
@@ -119,29 +155,38 @@ def sr_chu_dong() -> pd.DataFrame:
     return df
 
 
-@nho("dvkh", 30)
+@nho("dvkh", TTL)
+def so_kh_au() -> pd.DataFrame:
+    """Số khách mỗi CSKH phụ trách (ngày chốt mới nhất có số). Rỗng nếu file chưa được nạp lại sau khi có tính năng này."""
+    if not nap.co_bang("dv_au_kh"):
+        return pd.DataFrame(columns=["acc", "so_kh"])
+    return pd.read_sql_query(text("SELECT acc, so_kh FROM dv_au_kh WHERE ngay_chot = (SELECT MAX(ngay_chot) FROM dv_au_kh)"), engine)
+
+
+@nho("dvkh", TTL)
 def roi_mang() -> pd.DataFrame:
     nap.dam_bao_bang()
     return pd.read_sql_query(text("SELECT * FROM dv_roi_mang ORDER BY ngay_chot, id"), engine, parse_dates=["ngay_chot"])
 
 
-@nho("dvkh", 30)
+@nho("dvkh", TTL)
 def cong_no_ngay() -> pd.DataFrame:
     nap.dam_bao_bang()
     df = pd.read_sql_query(text("SELECT * FROM dv_cong_no ORDER BY ky_no, ngay"), engine, parse_dates=["ngay"])
     if not df.empty:
-        df["ngay_thu"] = df.groupby(["ky_no", "cap", "ten"]).cumcount() + 1
-        df["so_ngay"] = (df["ngay"] - df.groupby("ky_no")["ngay"].transform("min")).dt.days + 1
+        # So kỳ này với kỳ trước phải theo NGÀY TRONG THÁNG (ngày 14 với ngày 14). Đếm theo dòng có số làm lệch: tháng 9 có số từ ngày 3,
+        # tháng 10 từ ngày 1, nên "ngày thứ 14" của hai tháng cách nhau 2 ngày lịch (lỗi thật đã gặp, có test chặn).
+        df["so_ngay"] = df["ngay"].dt.day
     return df
 
 
-@nho("dvkh", 30)
+@nho("dvkh", TTL)
 def cong_no_chot() -> pd.DataFrame:
     nap.dam_bao_bang()
     return pd.read_sql_query(text("SELECT * FROM dv_cong_no_chot ORDER BY ngay_chot, id"), engine, parse_dates=["ngay_chot"])
 
 
-@nho("dvkh", 30)
+@nho("dvkh", TTL)
 def ngay_du_lieu() -> dict[str, date | None]:
     """Ngày mới nhất của từng nguồn (để báo "số tới ngày nào" ngay trên trang)."""
     nap.dam_bao_bang()
@@ -327,6 +372,18 @@ def theo_bac_diem(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ----------------------------------------------------------------------- hiệu suất nhân sự (cả hai loại SR)
+NHOM_HAN = {"Hoàn tất trong hạn": "xong_dung_han", "Hoàn tất quá hạn": "xong_qua_han", "Quá hạn đang xử lý": "dang_qua_han", "Chưa xử lý": "chua_xu_ly"}
+
+
+def han_theo_nguoi(bd: pd.DataFrame, cd: pd.DataFrame) -> pd.DataFrame:
+    """Mỗi CSKH: số SR (cả hai loại) xong đúng hạn, xong nhưng quá hạn, đang xử lý đã quá hạn, chưa xử lý - theo cột Quá hạn của file."""
+    gop = pd.concat([bd[bd["nguoi_xu_ly"].notna() & bd["la_dvkh"]][["nguoi_xu_ly", "qua_han"]],
+                     cd[cd["nguoi_xu_ly"].notna() & ~cd["tu_dong"]][["nguoi_xu_ly", "qua_han"]]], ignore_index=True)
+    nhom = gop["qua_han"].fillna("").str.strip().map(NHOM_HAN)
+    ct = pd.crosstab(gop["nguoi_xu_ly"], nhom).reindex(columns=list(NHOM_HAN.values()), fill_value=0)
+    return ct.rename_axis("nhan_su").reset_index()
+
+
 def hieu_suat_nhan_su(bd: pd.DataFrame, cd: pd.DataFrame) -> pd.DataFrame:
     """Một dòng mỗi CSKH: tải việc (SR bị động + chủ động), tồn, quá hạn, phản hồi, không liên lạc được."""
     a = theo_nhan_su_bd(bd).rename(columns=lambda c: c if c in ("nhan_su", "phong") else "bd_" + c)
@@ -342,6 +399,7 @@ def hieu_suat_nhan_su(bd: pd.DataFrame, cd: pd.DataFrame) -> pd.DataFrame:
     m["tong_qua_han"] = m["bd_qua_han"] + m["cd_qua_han"]
     m["ty_le_qua_han"] = m["tong_qua_han"] * 100 / m["tong_tai"].replace(0, np.nan)
     m["ty_le_ton"] = m["tong_ton"] * 100 / m["tong_tai"].replace(0, np.nan)
+    m = m.merge(han_theo_nguoi(bd, cd), on="nhan_su", how="left")
     return m.drop(columns=[c for c in m.columns if c.endswith("_cd") and c.startswith("phong")]).sort_values("tong_tai", ascending=False)
 
 

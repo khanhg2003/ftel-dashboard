@@ -9,9 +9,10 @@ from dash import Input, Output, dcc, html
 from app.dvkh import so_lieu as sl
 from app.dvkh.doc_file import bo_dau
 from app.ui.components import card
-from app.ui.pages import dvkh_chung as ch
+from app.ui.pages import dvkh_chung as ch, dvkh_sr_bd_sau as sau
 
-TAB = [("tq", "Tổng quan"), ("nn", "Loại yêu cầu & nguyên nhân"), ("kenh", "Kênh & thời gian"), ("ton", "SR tồn"), ("lap", "Hợp đồng gọi lặp")]
+TAB = [("tq", "Tổng quan"), ("gc", "Giữ chân khách"), ("nn", "Loại yêu cầu & nguyên nhân"), ("kd", "Khách & dịch vụ"), ("kenh", "Kênh & thời gian"),
+       ("ton", "SR tồn"), ("lap", "Hợp đồng gọi lặp")]
 THU = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
 
 
@@ -67,6 +68,8 @@ def _tq(df):
     return html.Div([kpi_, html.Div([card([ch.khung(f, 300)], title="SR theo ngày", desc="Xếp chồng theo kết quả xử lý hiện tại"),
                                      card([ch.khung(d, 300)], title="Tình trạng xử lý", desc="Tỷ trọng theo trạng thái")], className="dv-hai-cot"),
                      html.Div(style={"height": "16px"}),
+                     html.Div("Xu hướng", className="dv-tieu-nhom"), sau.xu_huong(df),
+                     html.Div("Theo phường / xã", className="dv-tieu-nhom"),
                      card([ch.bang_df("dvbd-phuong", _theo_phuong(df), cot, 380)], title="Theo phường / xã",
                           desc="SR trên 1.000 khách lấy số khách đang hoạt động của bảng Rời mạng")])
 
@@ -103,6 +106,8 @@ def _nn(df, loai):
     gc = "Mỗi SR có thể có nhiều cấp nguyên nhân; nhóm nào không ghi thì không đếm."
     return html.Div([
         card([ch.bang_df("dvbd-loai-bang", theo, cot)], title="Theo loại yêu cầu", desc="% đã chấm dứt HĐ: hợp đồng hiện đã chấm dứt sau khi có SR này"),
+        html.Div(style={"height": "16px"}),
+        card([sau.vong_nguyen_nhan(df)], title="Loại yêu cầu và phân loại", desc="Vòng trong là loại yêu cầu, vòng ngoài là phân loại. Bấm vào một phần để phóng to; bấm giữa để quay lại."),
         html.Div(style={"height": "16px"}),
         html.Div([card([ch.cot_ngang(pl, "phan_loai", "so", 330)], title="Phân loại khiếu nại / thay đổi / giải đáp", desc=gc),
                   card([ch.cot_ngang(n1, "nguyen_nhan_1", "so", 330, mau=ch.CAM)], title="Nguyên nhân cấp 1", desc="10 nguyên nhân nhiều nhất")], className="dv-hai-cot"),
@@ -144,6 +149,7 @@ def _kenh(df):
 
 
 def _ton(df):
+    tuoi = sau.tuoi_ton(df)
     t = df[df["ton"]].copy()
     moc = df["tg_yc"].max()
     t["tuoi_gio"] = ((moc - t["tg_yc"]).dt.total_seconds() / 3600).round(1)
@@ -157,6 +163,7 @@ def _ton(df):
     return html.Div([ch.hang_kpi([("SR tồn", ch.so(len(t)), f"Tính tới SR mới nhất trong file: {moc:%d/%m %H:%M}", ""),
                                   ("Tồn quá 24 giờ", ch.so((t["tuoi_gio"] > 24).sum()), "", "warn" if (t["tuoi_gio"] > 24).sum() else "ok"),
                                   ("Chưa phân công", ch.so(t["nguoi_xu_ly"].isna().sum()), "Không có người xử lý", "")]),
+                     *([tuoi, html.Div(style={"height": "16px"})] if tuoi is not None else []),
                      card([ch.bang_df("dvbd-ton", t, cot, 520)], title="Danh sách SR tồn", desc="Cũ nhất lên đầu. Lọc được theo từng cột.")])
 
 
@@ -183,10 +190,10 @@ def register(app):
         if df.empty:
             return html.Div("Chưa có SR bị động.", className="desc")
         df = _khoang(sl.loc(df, ch.phong_ma(phong)), tu, den)
-        if tab in ("tq", "kenh", "ton", "lap") and loai not in (None, "all"):
+        if tab in ("tq", "kenh", "ton", "lap", "kd") and loai not in (None, "all"):
             df = df[df["loai_yc"] == loai]
         if df.empty:
             return html.Div("Không có SR nào trong phạm vi đã chọn.", className="desc")
         if tab == "nn":
             return _nn(df, loai)
-        return {"tq": _tq, "kenh": _kenh, "ton": _ton, "lap": _lap}.get(tab, _tq)(df)
+        return {"tq": _tq, "gc": sau.giu_chan, "kd": sau.khach_dich_vu, "kenh": _kenh, "ton": _ton, "lap": _lap}.get(tab, _tq)(df)

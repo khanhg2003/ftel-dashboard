@@ -6,9 +6,9 @@ from datetime import date
 import plotly.graph_objects as go
 from dash import Input, Output, dcc, html
 
-from app.dvkh import so_lieu as sl
+from app.dvkh import khai_thac as kt, so_lieu as sl, xu_huong as xh
 from app.ui.components import card
-from app.ui.pages import dvkh_chung as ch
+from app.ui.pages import dvkh_chung as ch, dvkh_ve as ve
 
 TAB = [("tq", "Tổng quan"), ("ct", "Theo chương trình"), ("lh", "Hiệu quả liên hệ"), ("rm", "Điểm nguy cơ & lý do"), ("ton", "SR tồn")]
 MAU_TT = {"Đã hoàn tất": ch.LUC, "Đã xử lý": "#5CC58B", "Đóng tự động bởi hệ thống": ch.XAM, "Đang xử lý": ch.XANH, "Chưa xử lý": ch.CAM,
@@ -57,8 +57,26 @@ def _tq(df):
     return html.Div([kpi_, html.Div([card([ch.khung(f, 300)], title="SR đổ về theo ngày", desc="Xếp chồng theo nhóm chương trình"),
                                      card([ch.khung(d, 300)], title="Tình trạng xử lý", desc="Tỷ trọng theo trạng thái")], className="dv-hai-cot"),
                      html.Div(style={"height": "16px"}),
+                     html.Div("Xu hướng", className="dv-tieu-nhom"), _xu_huong(df),
+                     html.Div("Theo nhóm chương trình", className="dv-tieu-nhom"),
                      card([ch.bang_df("dvcd-nhom-bang", sl.theo_chuong_trinh(df, "nhom_bc"), _cot_ct("nhom_bc", "Nhóm chương trình"))],
                           title="Theo nhóm chương trình (như bảng BC)", desc="SOS = Ngưng kết nối + Dự đoán RM + nợ cước; KSRM T / T-1 = CSKH không PSLL vết T / T-1")])
+
+
+def _xu_huong(df):
+    luong = xh.luong_theo_ngay(df, "ngay_do")
+    if len(luong) < 2:
+        return html.Div("Cần ít nhất 2 ngày dữ liệu để vẽ xu hướng.", className="desc")
+    h = xh.huong(luong["ton_cuoi_ngay"])
+    cau = {"giam": "Tồn đang giảm: dọn nhanh hơn việc đổ về.", "tang": "Tồn đang tăng: việc đổ về nhiều hơn khả năng xử lý.", "di_ngang": "Tồn đi ngang.", None: ""}[h["huong"] if h else None]
+    coh = kt.theo_ngay_do_va_tinh_trang(df)
+    cu = coh.iloc[:-1]
+    bo = cu["Chưa xử lý / chưa phân công"].sum() if len(cu) else 0
+    ket = f"{cau} Trong các ngày đổ về trước ngày mới nhất, còn {ch.so(bo)} SR chưa ai xử lý." if len(cu) else cau
+    return html.Div([card([html.Div([html.B("Xu hướng: "), ket], className="dv-ket-luan"), ve.vao_ra_ton(luong, "SR chủ động đổ về")], title="SR vào, ra và tồn theo ngày",
+                          desc="Ngày đổ nhiều thì tồn nhảy lên; xem sau đó mấy ngày mới dọn xong. Cột lá là SR đã xử lý xong hoặc hệ thống tự đóng."),
+                     card([ve.xep_chong(coh, ve.MAU_TT_CD, ngang=False, cao=320)], title="SR đổ về mỗi ngày giờ ra sao",
+                          desc="Mỗi cột là một ngày đổ về, chia theo tình trạng hiện nay. Ngày cũ mà vẫn còn cam là việc bị bỏ rơi.")], className="dv-hai-cot")
 
 
 def _cot_ct(ten_cot, tieu_de):
@@ -76,6 +94,9 @@ def _ct(df):
     return html.Div([
         card([ch.bang_df("dvcd-ct", ct, _cot_ct("chuong_trinh", "Chương trình"), 420)], title="Theo chương trình",
              desc="Chương trình tồn gần hết là chương trình chưa có người nhận. % không LL tính trên SR đã thử liên hệ."),
+        html.Div(style={"height": "16px"}),
+        card([ve.xep_chong(kt.theo_chuong_trinh_va_tinh_trang(df), ve.MAU_TT_CD, phan_tram=False, cao=420)], title="Mỗi chương trình đang ở đâu",
+             desc="Số SR của 10 chương trình đông nhất, chia theo tình trạng. Phần cam là chưa ai xử lý: chương trình nào cam gần hết là chưa có người nhận."),
         html.Div(style={"height": "16px"}),
         html.Div([card([ch.cot_ngang(ct, "chuong_trinh", "ty_le_ton", 360, hau_to="%", mau_cot=mau, chu="{:.0f}%")],
                        title="Tỷ lệ tồn theo chương trình", desc="Đỏ từ 80%, cam từ 40%"),
@@ -149,9 +170,14 @@ def _ton(df):
     for c in cot:
         c["filter"] = True
     cao = int(t["do_uu_tien"].eq("Rất cao").sum())
+    tuoi = kt.tuoi_ton(df, "tg_do", "nhom_bc")
+    bieu_do_tuoi = card([ve.xep_chong(tuoi.loc[tuoi.sum(axis=1).sort_values(ascending=False).index], {"Dưới 1 ngày": ch.LUC, "1 đến 3 ngày": ve.VANG, "3 đến 7 ngày": ch.CAM,
+                                                                                                    "Trên 7 ngày": ch.DO}, cao=300)],
+                        title="SR tồn đã chờ bao lâu", desc="Mỗi nhóm chương trình, chia theo tuổi tính từ lúc đổ về. Phần cam và đỏ là SR bị bỏ quên.") if len(tuoi) else None
     return html.Div([ch.hang_kpi([("SR tồn", ch.so(len(t)), f"Tính tới SR mới nhất: {moc:%d/%m %H:%M}", ""),
                                   ("Ưu tiên rất cao còn tồn", ch.so(cao), "Xử lý trước", "bad" if cao else "ok"),
                                   ("Chưa phân công", ch.so(t["nguoi_xu_ly"].isna().sum()), "Chưa có người nhận", "warn")]),
+                     *([bieu_do_tuoi, html.Div(style={"height": "16px"})] if bieu_do_tuoi is not None else []),
                      card([ch.bang_df("dvcd-ton", t, cot, 520)], title="Danh sách SR tồn", desc="Ưu tiên rất cao lên đầu, cũ nhất trước. Lọc được theo từng cột.")])
 
 

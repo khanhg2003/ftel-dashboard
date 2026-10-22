@@ -8,7 +8,7 @@ from __future__ import annotations
 import pandas as pd
 
 from app.bo_nho import nho
-from app.dvkh import cheo, so_lieu as sl
+from app.dvkh import cheo, khai_thac as kt, so_lieu as sl, xu_huong as xh
 
 NGHIEM_TRONG, CAN_CHU_Y, THONG_TIN, TOT = "Nghiêm trọng", "Cần chú ý", "Thông tin", "Tốt"
 THU_TU_MUC = {NGHIEM_TRONG: 0, CAN_CHU_Y: 1, THONG_TIN: 2, TOT: 3}
@@ -18,7 +18,7 @@ NGUONG_KHONG_LIEN_LAC = (20, 30)      # % không liên lạc được trên SR �
 NGUONG_THU_NO_CHAM = 1.0              # điểm % thu nợ thấp hơn cùng ngày kỳ trước thì cần chú ý
 MAU_TOI_THIEU = 30
 CHU_DE = ["Giữ chân khách", "Chất lượng xử lý", "Tốc độ", "Nguyên nhân", "Tài chính", "Nguồn lực", "Hiệu quả liên hệ", "Dự báo rời mạng", "Công nợ",
-          "Rời mạng", "Điểm nóng", "SR bị động", "SR chủ động"]
+          "Rời mạng", "Điểm nóng", "SR bị động", "SR chủ động", "Xu hướng", "Chất lượng bán", "Khách và dịch vụ"]
 
 
 def _s(v, nd: int = 0) -> str:
@@ -42,6 +42,12 @@ def _muc(v, nguong, cao_xau: bool = True) -> str:
         return THONG_TIN
     a, b = nguong
     return NGHIEM_TRONG if v >= b else (CAN_CHU_Y if v >= a else TOT) if cao_xau else TOT
+
+
+def _vuot_phi(bd: pd.DataFrame) -> str:
+    g = kt.phi_mien_giam(bd)
+    v = g[g["mien_giam"] > g["phi"]]
+    return "".join(f" {r.loai_yc}: miễn giảm {_s(r.mien_giam / 1e6, 1)} triệu, vượt cả phí {_s(r.phi / 1e6, 1)} triệu của chính loại việc này." for r in v.itertuples())
 
 
 # ------------------------------------------------------------------ SR bị động
@@ -93,7 +99,7 @@ def _bd(bd: pd.DataFrame) -> list[dict]:
     if k["phi"] > 0:
         out.append(_nd(THONG_TIN, "Tài chính",
                        f"Miễn giảm phí bằng {_p(k['mien_giam'] * 100 / k['phi'], 0)} số phí phát sinh",
-                       f"Phí phát sinh {_s(k['phi'] / 1e6, 1)} triệu đồng, đã miễn giảm {_s(k['mien_giam'] / 1e6, 1)} triệu đồng.",
+                       f"Phí phát sinh {_s(k['phi'] / 1e6, 1)} triệu đồng, đã miễn giảm {_s(k['mien_giam'] / 1e6, 1)} triệu đồng." + _vuot_phi(bd),
                        "Kiểm tra nhóm lý do miễn giảm để chặn sớm các trường hợp lặp."))
     ns = sl.theo_nhan_su_bd(bd)
     if len(ns) >= 5:
@@ -194,7 +200,7 @@ def _roi_mang_va_cong_no(bd: pd.DataFrame, cd: pd.DataFrame) -> list[dict]:
                 chenh = (a.iloc[0]["ty_le_dt"] - b.iloc[-1]["ty_le_dt"]) * 100
                 chenh_b = (a.iloc[0]["ty_le_bill"] - b.iloc[-1]["ty_le_bill"]) * 100
                 out.append(_nd(CAN_CHU_Y if chenh < -NGUONG_THU_NO_CHAM else (TOT if chenh > NGUONG_THU_NO_CHAM else THONG_TIN), "Công nợ",
-                               f"Thu nợ tháng {moi[-2:]} {'chậm hơn' if chenh < 0 else 'nhanh hơn'} tháng trước {_s(abs(chenh), 1)} điểm % cùng ngày thu thứ {ngay}",
+                               f"Thu nợ tháng {moi[-2:]} {'chậm hơn' if chenh < 0 else 'nhanh hơn'} tháng trước {_s(abs(chenh), 1)} điểm % cùng ngày {ngay} hằng tháng",
                                f"Theo doanh thu {_p(a.iloc[0]['ty_le_dt'] * 100)} (kỳ trước {_p(b.iloc[-1]['ty_le_dt'] * 100)}); theo số hoá đơn {_p(a.iloc[0]['ty_le_bill'] * 100)} "
                                f"(kỳ trước {_p(b.iloc[-1]['ty_le_bill'] * 100)}, chênh {_s(chenh_b, 1)} điểm).",
                                "Dồn lực gọi nhắc vào phường thu chậm nhất (tab Công nợ, bảng theo phường)."))
@@ -226,12 +232,93 @@ def _cheo(bd: pd.DataFrame, cd: pd.DataFrame) -> list[dict]:
     return out
 
 
-@nho("dvkh", 60)
+def _giu_chan(bd: pd.DataFrame) -> list[dict]:
+    g = kt.dong_giu_chan(bd)
+    if g is None:
+        return []
+    t = kt.tom_tat_giu_chan(g)
+    if t["khong_dong_y"] < 20:
+        return []
+    ty = t["chet_trong_khong_dong_y"] * 100 / t["khong_dong_y"]
+    return [_nd(CAN_CHU_Y if ty >= 40 else THONG_TIN, "Giữ chân khách",
+                f"{_p(ty, 0)} khách nói không ở lại đã chấm dứt hợp đồng thật; còn {_s(t['con_cuu_duoc'])} khách đang suy nghĩ vẫn cứu được",
+                f"Trong {_s(t['khong_dong_y'])} khách không đồng ý, {_s(t['chet_trong_khong_dong_y'])} đã chấm dứt. {_s(t['dang_nghi'])} khách còn đang suy nghĩ, "
+                f"chỉ {_s(t['dang_nghi'] - t['con_cuu_duoc'])} đã chấm dứt. Khách đồng ý ở lại không có ai chấm dứt.",
+                "Gọi lại nhóm đang suy nghĩ trong 24 giờ kèm phương án giữ khách (đổi gói, miễn giảm có điều kiện). Xem biểu đồ dòng chảy ở tab Giữ chân khách.")]
+
+
+def _khach_dich_vu(bd: pd.DataFrame) -> list[dict]:
+    out: list[dict] = []
+    nguon = kt.theo_nguon_tao(bd)
+    if not nguon.empty:
+        kd = nguon[(nguon["nguon_tao_nhom"] == "Phòng Kinh doanh") & (nguon["so_sr"] >= 100)]
+        if len(kd) and kd.iloc[0]["khieu_nai"] * 100 / kd.iloc[0]["so_sr"] >= 50:
+            r = kd.iloc[0]
+            out.append(_nd(CAN_CHU_Y, "Chất lượng bán", f"{_p(r['khieu_nai'] * 100 / r['so_sr'], 0)} SR do phòng Kinh doanh tạo là khiếu nại, phàn nàn",
+                           f"Phòng Kinh doanh tạo {_s(r['so_sr'])} SR ({_p(r['ty_trong'], 0)} tổng SR bị động), trong đó {_s(r['khieu_nai'])} là khiếu nại. Đây thường là khách sau bán gặp vấn đề.",
+                           "Gửi danh sách SR này cho khối Kinh doanh để rà lại chất lượng tư vấn bán và cam kết với khách."))
+    for cot, ten in (("goi_pay_nhom", "gói FPT Play"), ("goi_net_nhom", "gói Internet")):
+        g = kt.theo_goi(bd, cot)
+        if len(g) >= 3:
+            chung = g["thanh_ly"].sum() * 100 / g["so_sr"].sum()
+            cao = g.sort_values("ty_le_thanh_ly", ascending=False).iloc[0]
+            thap = g.sort_values("ty_le_thanh_ly").iloc[0]
+            if cao["ty_le_thanh_ly"] >= 1.4 * chung and cao["so_sr"] >= 100:
+                out.append(_nd(THONG_TIN, "Khách và dịch vụ", f"{ten[0].upper() + ten[1:]} {cao[cot]} có tỷ lệ SR thanh lý {_p(cao['ty_le_thanh_ly'], 0)}, gấp {_s(cao['ty_le_thanh_ly'] / max(thap['ty_le_thanh_ly'], .1), 1)} lần gói {thap[cot]}",
+                               f"Mức chung {_p(chung, 0)}. Gói {cao[cot]} có {_s(cao['so_sr'])} SR, {_s(cao['thanh_ly'])} là thanh lý (tính trên số SR của gói, không phải trên số khách).",
+                               "Rà nguyên nhân thanh lý của gói này (giá, chất lượng, thiết bị) trước khi đưa ra ưu đãi giữ khách."))
+    ct = kt.duyet_de_xuat(bd)
+    if not ct.empty and "Chưa xử lý" in ct.columns:
+        kr = ct.loc["Duyệt khóa rời mạng", "Chưa xử lý"] if "Duyệt khóa rời mạng" in ct.index else 0
+        if kr >= 10:
+            out.append(_nd(CAN_CHU_Y, "Giữ chân khách", f"{_s(kr)} đề xuất duyệt khóa rời mạng đang chờ xử lý",
+                           f"Mỗi đề xuất là một khách yêu cầu thanh lý đang chờ duyệt. Còn {_s(int(ct['Chưa xử lý'].sum()))} đề xuất các loại chưa xử lý.",
+                           "Duyệt hoặc từ chối trong ngày để khách không chờ lâu rồi đổi ý sang nhà mạng khác."))
+    return out
+
+
+def _xu_huong(bd: pd.DataFrame, cd: pd.DataFrame) -> list[dict]:
+    out: list[dict] = []
+    for df, cot, ten in ((bd, "ngay_yc", "SR bị động"), (cd, "ngay_do", "SR chủ động")):
+        luong = xh.luong_theo_ngay(df, cot)
+        h = xh.huong(luong["ton_cuoi_ngay"]) if len(luong) else None
+        if not h or h["huong"] == "di_ngang" or len(luong) < 5:
+            continue
+        cuoi = luong.iloc[-1]
+        dinh = luong.loc[luong["ton_cuoi_ngay"].idxmax()]
+        giam = h["huong"] == "giam"
+        out.append(_nd(TOT if giam else CAN_CHU_Y, "Xu hướng", f"Tồn {ten} đang {'giảm' if giam else 'tăng'}: {_s(h['gan'])} so với {_s(h['truoc'])} (trung bình tồn cuối ngày, 3 ngày gần nhất so với trước đó)",
+                       f"Tồn cuối ngày cao nhất {_s(dinh['ton_cuoi_ngay'])} vào {dinh['ngay']:%d/%m}, hiện {_s(cuoi['ton_cuoi_ngay'])} ({cuoi['ngay']:%d/%m}). Số vào trung bình {_s(luong['vao'].mean())} SR mỗi ngày, số ra {_s(luong['ra'].mean())}.",
+                       "Giữ nhịp xử lý hiện tại." if giam else "Số xử lý đang thấp hơn số đổ về: cân lại nhân sự hoặc lọc bớt SR từ nguồn đổ.",))
+        db = xh.du_bao_thang(luong["vao"], int(df[cot].max().days_in_month))
+        if db:
+            out.append(_nd(THONG_TIN, "Xu hướng", f"Dự báo cả tháng khoảng {_s(round(db['du_bao'], -1))} {ten} nếu giữ nhịp hiện tại",
+                           f"{_s(db['so_ngay_co'])} ngày đã có {_s(db['da_co'])} SR, trung bình {_s(db['trung_binh_ngay'])} mỗi ngày; khoảng ước tính {_s(round(db['thap'], -1))} đến {_s(round(db['cao'], -1))}."
+                           + (" Độ tin cậy còn thấp vì chưa đủ hai tuần dữ liệu." if db["tin_cay"] == "thấp" else ""), "Dùng để chuẩn bị nhân sự cho cả tháng; cập nhật lại khi có thêm ngày."))
+    return out
+
+
+def _tai_viec_theo_khach(bd: pd.DataFrame, cd: pd.DataFrame) -> list[dict]:
+    hs = kt.gan_so_khach(sl.hieu_suat_nhan_su(bd, cd), sl.so_kh_au())
+    d = hs[hs["tong_tai"] >= 30].dropna(subset=["sr_1000kh"])
+    if len(d) < 8:
+        return []
+    tb = d["sr_1000kh"].median()
+    cao = d.sort_values("sr_1000kh", ascending=False).head(3)
+    if cao.iloc[0]["sr_1000kh"] < 1.4 * tb:
+        return []
+    return [_nd(THONG_TIN, "Nguồn lực", f"Có CSKH nhận tải gấp {_s(cao.iloc[0]['sr_1000kh'] / tb, 1)} lần mức trung vị khi tính trên số khách phụ trách",
+                "Số SR trên 1.000 khách phụ trách: " + "; ".join(f"{r.nhan_su} {_s(r.sr_1000kh, 0)}" for r in cao.itertuples()) + f" (trung vị {_s(tb, 0)}).",
+                "Chia lại SR theo số khách mỗi người phụ trách thay vì chia đều theo số lượng.")]
+
+
+@nho("dvkh", sl.TTL)
 def tao_nhan_dinh(phong: str | None = None) -> list[dict]:
     """Toàn bộ nhận định, nghiêm trọng nhất lên đầu. `phong` = DNG1 / DNG2 / None (cả Đà Nẵng)."""
     if not sl.co_du_lieu():
         return []
     bd = sl.loc(sl.sr_bi_dong(), phong)
     cd = sl.loc(sl.sr_chu_dong(), phong, cot_ngay="ngay_do")
-    ds = _bd(bd) + _cd(cd) + _cheo(bd, cd) + _roi_mang_va_cong_no(sl.sr_bi_dong(), sl.sr_chu_dong())
+    ds = (_bd(bd) + _cd(cd) + _cheo(bd, cd) + _giu_chan(bd) + _khach_dich_vu(bd) + _xu_huong(bd, cd) + _tai_viec_theo_khach(bd, cd)
+          + _roi_mang_va_cong_no(sl.sr_bi_dong(), sl.sr_chu_dong()))
     return sorted(ds, key=lambda x: THU_TU_MUC[x["muc"]])

@@ -40,8 +40,12 @@ COT_SR_CD = {
     "Số lần chăm sóc": "so_lan_cs", "Lý do không cần liên hệ": "ly_do_khong_lh", "Lý do mất kết nối": "ly_do_mat_kn",
     "Quá hạn": "qua_han", "Trùng SR bị đông": "sr_bd_trung",
 }
+COT_SR_BD_THEM = {
+    "Mã SR": "ma_sr", "Gói dịch vụ Net hiện tại": "goi_net", "Gói dịch vụ Pay hiện tại": "goi_pay", "Gói dịch vụ Cam hiện tại": "goi_cam",
+    "Đơn vị của account tạo": "don_vi_tao", "Tình trạng duyệt đề xuất": "duyet_de_xuat", "Trùng": "trung",
+}
 COT_THOI_GIAN = {"tg_yc", "tg_cn_dau", "tg_cn_cuoi", "tg_do", "tg_phan_cong"}
-COT_SO = {"phi", "mien_giam_phi", "so_lan_cap_nhat", "diem_rm", "so_lan_cs"}
+COT_SO = {"phi", "mien_giam_phi", "so_lan_cap_nhat", "diem_rm", "so_lan_cs", "trung"}
 # tiêu đề bảng rời mạng (bỏ dấu, chữ thường) -> cột database
 COT_ROI_MANG = {
     "kh hien hanh": "kh_active", "kh active hien hanh": "kh_active", "kh dau ky": "kh_dau_ky", "kh active dau ky": "kh_dau_ky",
@@ -250,9 +254,25 @@ def _dong_chot(cap, chi_nhanh, ten, ky, so) -> dict:
     return {"cap": cap, "chi_nhanh": chi_nhanh, "ten": ten, "ky_no": ky, **dict(zip(ten_cot, so))}
 
 
+# ------------------------------------------------------------------ số khách mỗi CSKH phụ trách
+def doc_so_kh_au(dong: list[list]) -> list[dict]:
+    """Bảng "Count of Acc NVVP" nằm cuối sheet BC SR bị động: mỗi CSKH (Account IS) đang phụ trách bao nhiêu khách."""
+    for i, r in enumerate(dong):
+        if len(r) > 1 and str(r[0]).strip() == "Row Labels" and "nvvp" in bo_dau(r[1]):
+            out: dict[str, int] = {}
+            k = i + 1
+            while k < len(dong) and dong[k] and dong[k][0] not in ("", None):
+                ten, so = str(dong[k][0]).strip().lower(), _so(dong[k][1]) if len(dong[k]) > 1 else None
+                if so and not ten.startswith("grand total"):
+                    out[ten] = int(so)
+                k += 1
+            return [{"acc": a, "so_kh": n} for a, n in out.items()]
+    return []
+
+
 # ------------------------------------------------------------------ cả file
 def doc_file(noi_dung: bytes | str) -> dict:
-    """Đọc cả workbook. Trả {"sr_bd", "sr_cd", "roi_mang", "chuoi_cong_no", "chot_cong_no", "ych", "no_cuoc", "canh_bao"}."""
+    """Đọc cả workbook. Trả {"sr_bd", "sr_bd_them", "sr_cd", "roi_mang", "chuoi_cong_no", "chot_cong_no", "ych", "no_cuoc", "so_kh_au", "canh_bao"}."""
     wb = load_workbook(BytesIO(noi_dung) if isinstance(noi_dung, bytes) else noi_dung, read_only=True, data_only=True)
     ten = {bo_dau(n): n for n in wb.sheetnames}
     canh_bao: list[str] = []
@@ -264,8 +284,11 @@ def doc_file(noi_dung: bytes | str) -> dict:
         canh_bao.append(f"Thiếu sheet “{khoa[0]}” trong file.")
         return []
 
-    sr_bd = _chuan_hoa_sr(_bang_tu_dong(sheet("sr bi dong"), COT_SR_BD), ("loai_dv",))
+    dong_bd = sheet("sr bi dong")
+    sr_bd = _chuan_hoa_sr(_bang_tu_dong(dong_bd, COT_SR_BD), ("loai_dv",))
+    sr_bd_them = _bang_tu_dong(dong_bd, COT_SR_BD_THEM)
     sr_cd = _chuan_hoa_sr(_bang_tu_dong(sheet("sr chu dong"), COT_SR_CD), ())
+    so_kh_au = doc_so_kh_au(doc_sheet(wb[ten["bc sr bi dong"]])) if "bc sr bi dong" in ten else []
     roi = doc_roi_mang(sheet("roi mang"))
     chuoi, chot = doc_cong_no(sheet("cong no"))
     ds = sheet("data")
@@ -275,5 +298,5 @@ def doc_file(noi_dung: bytes | str) -> dict:
         canh_bao.append("Không đọc được dòng SR bị động nào.")
     if sr_cd.empty:
         canh_bao.append("Không đọc được dòng SR chủ động nào.")
-    return {"sr_bd": sr_bd, "sr_cd": sr_cd, "roi_mang": roi, "chuoi_cong_no": chuoi, "chot_cong_no": chot,
-            "ych": ych, "no_cuoc": no, "canh_bao": canh_bao}
+    return {"sr_bd": sr_bd, "sr_bd_them": sr_bd_them, "sr_cd": sr_cd, "roi_mang": roi, "chuoi_cong_no": chuoi, "chot_cong_no": chot,
+            "ych": ych, "no_cuoc": no, "so_kh_au": so_kh_au, "canh_bao": canh_bao}

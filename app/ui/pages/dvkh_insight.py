@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from dash import Input, Output, dcc, html
 
-from app.dvkh import cheo, insight, so_lieu as sl
+from app.dvkh import cheo, insight, khai_thac as kt, so_lieu as sl
 from app.ui.components import card
-from app.ui.pages import dvkh_chung as ch
+from app.ui.pages import dvkh_chung as ch, dvkh_ve as ve
 
 
 def topbar():
@@ -28,8 +28,12 @@ def _diem_nong(bd, cd):
            {"field": "ty_le_roi_active", "headerName": "% rời mạng", "width": 110, "type": "numericColumn",
             "valueFormatter": {"function": "params.value == null ? '–' : Number(params.value).toLocaleString('vi-VN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%'"}},
            ch.cot_pct("ty_le_chua_thu", "% chưa thu nợ", 120), ch.cot_so1("sr_cd_1000", "SR chủ động / 1.000 KH", 160), ch.cot_so("so_chi_so_top3", "Số chỉ số trong top 3 xấu", 190)]
-    return card([ch.bang_df("dvin-nong", h, cot, 420)], title="Điểm nóng theo phường / xã",
+    ten, cot_nhiet, chuan, raw = kt.ma_tran_phuong(h)
+    nhiet = card([ve.ban_do_nhiet(ten, cot_nhiet, chuan, raw)], title="Bản đồ nhiệt các phường",
+                 desc="Mỗi cột tô từ xanh (tốt nhất) đến đỏ (xấu nhất) trong chính cột đó. Phường đỏ ở nhiều cột là điểm nóng.") if ten else None
+    bang = card([ch.bang_df("dvin-nong", h, cot, 420)], title="Điểm nóng theo phường / xã",
                 desc="Ghép ba nguồn: SR bị động, rời mạng, công nợ. Phường có từ 500 khách. Top 3 xấu ở nhiều chỉ số cùng lúc là nơi cần kế hoạch riêng.")
+    return html.Div([nhiet, html.Div(style={"height": "16px"}), bang]) if nhiet is not None else bang
 
 
 def _hai_nguon(bd, cd):

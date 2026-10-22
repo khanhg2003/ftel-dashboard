@@ -8,21 +8,42 @@ from __future__ import annotations
 from datetime import date
 
 import pandas as pd
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, inspect, select
 
 from app.bo_nho import ghi
 from app.db import Base, engine, session_scope
 from app.dvkh import doc_file as df_
-from app.dvkh.models import (DvCongNo, DvCongNoChot, DvDanhSach, DvNap, DvRoiMang, DvSrBiDong, DvSrChuDong)
+from app.dvkh.models import (DvAuKh, DvCongNo, DvCongNoChot, DvDanhSach, DvNap, DvRoiMang, DvSrBdThem, DvSrBiDong, DvSrChuDong)
 from app.models import AuditLog
 
 BANG = [DvNap, DvSrBiDong, DvSrChuDong, DvRoiMang, DvCongNo, DvCongNoChot, DvDanhSach]
+BANG_THEM = [DvSrBdThem, DvAuKh]            # bảng bổ sung: chỉ được tạo khi nạp file (người nạp chủ động), trang chỉ đọc nếu đã có
 KICH_CO_LO = 500
+_DA_CO_BANG: set[str] = set()
+_DA_TAO = {"goc": False, "them": False}
 
 
-def dam_bao_bang() -> None:
-    """Tạo các bảng dv_* nếu chưa có (không đụng bảng khác)."""
-    Base.metadata.create_all(engine, tables=[m.__table__ for m in BANG])
+def dam_bao_bang(them: bool = False) -> None:
+    """Tạo các bảng dv_* nếu chưa có (không đụng bảng khác). `them=True` tạo cả bảng bổ sung (chỉ lúc nạp file).
+
+    Mỗi bảng chỉ kiểm tra một lần cho mỗi tiến trình: kiểm tra mỗi lượt mở trang là bảy câu hỏi database thừa."""
+    khoa = "them" if them else "goc"
+    if _DA_TAO[khoa]:
+        return
+    Base.metadata.create_all(engine, tables=[m.__table__ for m in BANG + (BANG_THEM if them else [])])
+    _DA_TAO[khoa] = True
+    if them:
+        _DA_TAO["goc"] = True
+
+
+def co_bang(ten: str) -> bool:
+    """Bảng bổ sung đã có trong database chưa. Chưa nạp lại file sau khi thêm tính năng thì trang bỏ qua phần đó thay vì lỗi."""
+    if ten in _DA_CO_BANG:
+        return True
+    if inspect(engine).has_table(ten):
+        _DA_CO_BANG.add(ten)
+        return True
+    return False
 
 
 def _gia_tri(v):
@@ -67,10 +88,28 @@ def _thay_sr(s, model, df: pd.DataFrame, them: dict, ma_hd_flag: dict[str, set[s
     return len(dong)
 
 
+def _thay_them(s, df: pd.DataFrame | None, batch_id: int) -> None:
+    """Cột bổ sung của SR bị động: xoá dòng cùng Mã SR rồi chèn bản mới, như bảng SR chính."""
+    if df is None or df.empty:
+        return
+    dong = _dong(df, {c.name for c in DvSrBdThem.__table__.columns}, {"batch_id": batch_id})
+    ma = [d["ma_sr"] for d in dong]
+    for i in range(0, len(ma), KICH_CO_LO):
+        s.execute(delete(DvSrBdThem).where(DvSrBdThem.ma_sr.in_(ma[i:i + KICH_CO_LO])))
+    _chen_lo(s, DvSrBdThem, dong)
+
+
+def _thay_so_kh_au(s, ds: list[dict], ngay_chot: date) -> None:
+    if not ds:
+        return
+    s.execute(delete(DvAuKh).where(DvAuKh.ngay_chot == ngay_chot))
+    _chen_lo(s, DvAuKh, [{**d, "ngay_chot": ngay_chot} for d in ds])
+
+
 @ghi("dvkh")
 def nap(kq: dict, ngay_chot: date, ten_file: str, nguoi: str | None = None) -> dict:
     """Ghi kết quả của `doc_file.doc_file` vào database. Trả số dòng đã ghi."""
-    dam_bao_bang()
+    dam_bao_bang(them=True)
     ych, no = set(kq["ych"]), set(kq["no_cuoc"])
     with session_scope() as s:
         lo = DvNap(ngay_chot=ngay_chot, ten_file=ten_file[:200], nap_boi=nguoi)
@@ -83,6 +122,9 @@ def nap(kq: dict, ngay_chot: date, ten_file: str, nguoi: str | None = None) -> d
             lo.tg_sr_bd_moi_nhat = _gia_tri(kq["sr_bd"]["tg_yc"].max())
         if not kq["sr_cd"].empty:
             lo.tg_sr_cd_moi_nhat = _gia_tri(kq["sr_cd"]["tg_do"].max())
+
+        _thay_them(s, kq.get("sr_bd_them"), lo.id)
+        _thay_so_kh_au(s, kq.get("so_kh_au") or [], ngay_chot)
 
         s.execute(delete(DvRoiMang).where(DvRoiMang.ngay_chot == ngay_chot))
         cot_rm = {c.name for c in DvRoiMang.__table__.columns} - {"id"}
@@ -106,7 +148,8 @@ def nap(kq: dict, ngay_chot: date, ten_file: str, nguoi: str | None = None) -> d
         s.add(AuditLog(username=nguoi, action="dvkh_nap",
                        detail=f"{ten_file[:80]} | ngày chốt {ngay_chot} | SR bị động {lo.so_sr_bd} | SR chủ động {lo.so_sr_cd}"))
         return {"id": lo.id, "sr_bd": lo.so_sr_bd, "sr_cd": lo.so_sr_cd, "roi_mang": lo.so_dong_roi_mang,
-                "cong_no": lo.so_dong_cong_no, "chot_cong_no": len(kq["chot_cong_no"]), "ych": len(ych), "no_cuoc": len(no)}
+                "cong_no": lo.so_dong_cong_no, "chot_cong_no": len(kq["chot_cong_no"]), "ych": len(ych), "no_cuoc": len(no),
+                "sr_bd_them": 0 if kq.get("sr_bd_them") is None else len(kq["sr_bd_them"]), "so_kh_au": len(kq.get("so_kh_au") or [])}
 
 
 def nap_file(duong_dan_hoac_bytes, ngay_chot: date | None = None, ten_file: str = "", nguoi: str | None = None) -> dict:
