@@ -154,11 +154,10 @@ def cot_chu(field: str, ten: str, rong: int | None = None, **kw) -> dict:
 # ----------------------------------------------------------------------------- bảng KPI nhỏ và thẻ nhận định
 def bang_kpi(tieu_de: str, mo_ta: str, cot: list[str], dong: list[tuple]) -> html.Div:
     """Một nhóm KPI dạng bảng nhỏ: mỗi dòng (tên chỉ số, [giá trị theo cột], ghi chú). Ô None hiện '–'."""
-    head = html.Tr([html.Th("Chỉ số")] + [html.Th(c) for c in cot] + [html.Th("")])
+    head = html.Tr([html.Th("Chỉ số")] + [html.Th(c) for c in cot])
     rows = []
-    for ten, vals, ghi in dong:
-        rows.append(html.Tr([html.Td(ten, className="dv-ten")] + [html.Td(v if v not in (None, "") else "–") for v in vals] +
-                            [html.Td(tip(ghi) if ghi else "")]))
+    for ten, vals, ghi in dong:                                   # ⓘ nằm cạnh tên chỉ số: cột riêng ở cuối làm bảng rộng ra và chú thích bị cắt mép khung
+        rows.append(html.Tr([html.Td([ten, tip(ghi) if ghi else None], className="dv-ten")] + [html.Td(v if v not in (None, "") else "–") for v in vals]))
     return card([html.Table([html.Thead(head), html.Tbody(rows)], className="dv-kpi-bang")], title=tieu_de, desc=mo_ta)
 
 
