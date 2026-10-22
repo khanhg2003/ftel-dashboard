@@ -1924,3 +1924,18 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .gf-fv-cho { color: var(--text-muted); font-weight: 400; }
 .gf-toc-do { display: inline-flex; gap: 10px; justify-content: flex-end; }
 .gf-fv, .gf-toc-do > span { white-space: nowrap; }
+/* nút tròn chọn nhóm (giống trang gói cước fpt.vn) + sửa thẻ tràn khung */
+.gf-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.gf-pill { display: inline-flex; align-items: center; padding: 8px 16px; border: 1px solid var(--border); border-radius: 999px; background: #fff; cursor: pointer;
+  font-size: 13.5px; font-weight: 550; color: var(--text); transition: border-color .15s, background .15s, color .15s; }
+.gf-pill:hover { border-color: var(--fpt-blue); }
+.gf-pill:has(input:checked) { background: #E8F1FA; border-color: var(--fpt-blue); color: var(--fpt-blue); font-weight: 650; }
+.gf-pill-in { display: none; }
+.gf-facts { grid-template-columns: auto minmax(0, 1fr); }
+.gf-fv { white-space: normal; }
+.gf-toc-do { flex-wrap: wrap; gap: 0 10px; }
+.gf-pills { gap: 8px; }
+.gf-pills .dash-options-list-option { margin: 0; padding: 0; display: inline-flex; }
+.gf-pills .dash-options-list-option-wrapper { display: none; }
+.gf-pills .dash-options-list-option:has(input:checked) .gf-pill { background: #E8F1FA; border-color: var(--fpt-blue); color: var(--fpt-blue); font-weight: 650; }
+.gf-pills .dash-options-list-option:hover .gf-pill { border-color: var(--fpt-blue); }

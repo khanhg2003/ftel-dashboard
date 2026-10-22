@@ -97,8 +97,8 @@ def than(g: dict, ct: dict, chung: dict, khu_vuc: str):
 def register(app):
     @app.callback(Output("gf-ct", "className"), Output("gf-ct-tieu-de", "children"), Output("gf-ct-than", "children"),
                   Input({"type": "gf-the", "code": ALL, "gia": ALL, "khoa": ALL}, "n_clicks"), State("gf-tinh", "value"),
-                  State("gf-phuong", "value"), State("gf-chung", "data"), prevent_initial_call=True)
-    def _mo(clicks, tinh, phuong, chung):
+                  State("gf-phuong", "value"), State("gf-ctd", "data"), prevent_initial_call=True)
+    def _mo(clicks, tinh, phuong, ctd):
         from app.ui.pages.giafpt import _vao, ten_khu_vuc
         _vao()
         bam = ctx.triggered_id
@@ -111,7 +111,7 @@ def register(app):
             ct = gf.chi_tiet_goi(g["code"], tinh, phuong, g["gia"])
         except gf.LoiGia as e:
             return "modal mo", bam["code"], alert(f"{e} Thử lại sau ít phút.", "warn")
-        return "modal mo", g["ten"], than(g, ct, (chung or {}).get(bam["khoa"], {}), ten_khu_vuc(tinh, phuong))
+        return "modal mo", g["ten"], than(g, ct, ((ctd or {}).get("chung") or {}).get(bam["khoa"], {}), ten_khu_vuc(tinh, phuong))
 
     @app.callback(Output("gf-ct", "className", allow_duplicate=True), Input("gf-ct-dong", "n_clicks"), Input("gf-ct-nen", "n_clicks"),
                   prevent_initial_call=True)

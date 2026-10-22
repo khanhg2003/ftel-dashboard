@@ -217,16 +217,28 @@ def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia):
     with server.test_request_context("/"):
         login_user(_tk("nvkd", ["IBB7"]))
         giafpt.layout()
-    tb, the, ds, chung, chu, ghi, pha = goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, "all", "all", None)
-    assert tb is None and pha["phuong"] == AN_HAI and "Gói đang hiện" not in ghi and "4 gói" in ghi
-    assert "Internet Meta F1: 340.000đ/tháng" in chu and "Phường An Hải, Đà Nẵng" in chu
+    tb, the, nut, chon, ctd, pha = goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, None, None)
+    assert tb is None and pha["phuong"] == AN_HAI and ctd is None
+    nhan = [n["label"] for n in nut]
+    assert nhan[0].startswith("Internet · cá nhân (") and any(n.startswith("FPT Play") for n in nhan)       # mỗi nhóm một nút tròn, có số gói
+    assert chon == "Internet|ca_nhan"                                                                    # mặc định Internet cá nhân
+    assert goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, None, "FPT Play|ca_nhan")[3] == "FPT Play|ca_nhan"   # giữ nhóm đang xem khi đổi phường
+    ds, chu, ghi = goi("gf-ds.children", _tk("nvkd", ["IBB7"]), chon, pha, None)
     mo_ta = _chu(ds)
-    assert "gf-the" in mo_ta and "Super300 Biz" in mo_ta and "Đang nạp điều kiện chung" in mo_ta     # lượt một: thẻ + chỗ chờ phần chung
-    assert "1 gói" in _chu(goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "tra", TINH, AN_HAI, "doanh_nghiep", "all", None)[2])
+    assert "gf-the" in mo_ta and "Internet Meta F1" in mo_ta and "Super300 Biz" not in mo_ta              # chỉ nhóm đang chọn
+    assert "Đang nạp điều kiện chung" in mo_ta and "Sẽ copy 2 gói" in ghi                                   # chi tiết chưa về: có chỗ chờ
+    assert "Internet Meta F1: 340.000đ/tháng" in chu and "Super300 Biz" not in chu
+    chi_tiet = goi("gf-ctd.data@", _tk("nvkd", ["IBB7"]), pha)
+    assert chi_tiet["pha"] == pha["khoa"] and chi_tiet["chung"] and chi_tiet["ct"]
+    ds2, chu2, _ = goi("gf-ds.children", _tk("nvkd", ["IBB7"]), chon, pha, chi_tiet)
+    mo_ta2 = _chu(ds2)
+    assert "Đang nạp điều kiện chung" not in mo_ta2 and "Phí hòa mạng" in mo_ta2 and "phí hòa mạng 500.000đ" in chu2
+    cu = dict(chi_tiet, pha="khac")                                                                      # kết quả của phường khác về muộn: bỏ qua
+    assert "Đang nạp điều kiện chung" in _chu(goi("gf-ds.children", _tk("nvkd", ["IBB7"]), chon, pha, cu)[0])
     with pytest.raises(PreventUpdate):
-        goi("gf-tb.children", _tk("dvkh"), "tra", TINH, AN_HAI, "all", "all", None)           # khối khác: máy chủ chặn
+        goi("gf-tb.children", _tk("dvkh"), "tra", TINH, AN_HAI, None, None)                              # khối khác: máy chủ chặn
     with pytest.raises(PreventUpdate):
-        goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "sosanh", TINH, AN_HAI, "all", "all", None)   # tab đang ẩn không tính
+        goi("gf-tb.children", _tk("nvkd", ["IBB7"]), "sosanh", TINH, AN_HAI, None, None)                 # tab đang ẩn không tính
 
 
 @pytest.mark.skipif(not (DATA_DIR / "kiemthu.db").exists(), reason="Chưa dựng được database kiểm thử (xem tests/conftest.py)")
@@ -244,6 +256,6 @@ def test_trang_bao_loi_de_hieu_khi_fpt_khong_tra_loi(mang_gia, monkeypatch):
     with server.test_request_context("/"):
         login_user(_tk("admin"))
         context_value.set(AttributeDict(triggered_inputs=[], inputs_list=[], states_list=[], outputs_list=[]))
-        tb, the, ds, chung, chu_copy, ghi, pha = ham("tra", TINH, AN_HAI, "all", "all", None)
+        tb, the, nut, chon, ctd, pha = ham("tra", TINH, AN_HAI, None, None)
     chu = json.dumps(tb.to_plotly_json(), ensure_ascii=False)
-    assert "Chưa lấy được giá từ fpt.vn" in chu and ds == [] and pha is None
+    assert "Chưa lấy được giá từ fpt.vn" in chu and nut == [] and pha is None
