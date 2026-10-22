@@ -242,8 +242,11 @@ def test_bao_cao_tong_khop_google_sheet_goc_ngay_11():
             s = s.replace(".", "")
         return float(s.replace(",", "."))
 
+    # `mt_ngay` CỐ TÌNH không đối chiếu với sheet: sheet dùng một con số cố định nhập tay, app tính
+    # ngược từ phần còn thiếu của mục tiêu tháng (chủ app chốt 28/09/2026 - xem `_mt_ngay_can`).
+    # Ví dụ IBB4 ngày 11: sheet ghi 9, app ra 10 vì còn thiếu 183 chia 20 ngày là 9,15.
     kiem = ["mt_internet", "so_ton", "online", "ck_online", "fpl_combo", "cnql", "vvip", "mt_camera",
-            "mt_ngay", "ngay_ban_moi", "ngay_online"]
+            "ngay_ban_moi", "ngay_online"]
     for _, r in sheet.iterrows():
         ten = unicodedata.normalize("NFC", str(r.phong)).strip()
         if ten in ("IBB6", "Phòng CUS DNG2", "ANCS") or ten.startswith("BẦY DNG_1"):

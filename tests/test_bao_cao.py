@@ -202,3 +202,62 @@ def test_top_hut_so_khop_khoi_d2():
     assert (int(d.loc["DNG.TraLT8"].ky1), int(d.loc["DNG.TraLT8"].ky2)) == (14, 7)
     assert (int(d.loc["DNG.Quyenlb4"].ky1), int(d.loc["DNG.Quyenlb4"].ky2)) == (8, 2)
     assert (int(d.loc["QNM.Vantn7"].ky1), int(d.loc["QNM.Vantn7"].ky2)) == (10, 2)
+
+
+# ---------------------------------------------------- mục tiêu ngày (chốt 28/09/2026)
+def test_muc_tieu_ngay_tinh_tu_phan_con_thieu():
+    """Mục tiêu của riêng một ngày = còn thiếu bao nhiêu chia số ngày còn lại của tháng.
+
+    Trước đây là con số cố định nhập tay, nên cuối tháng phòng hụt xa vẫn "Đạt"."""
+    import pandas as pd
+    from datetime import date
+    from app.overview import _mt_ngay_can
+
+    mt = pd.Series({"A": 600.0})
+    # ngày 11/09: đã online 200 tính đến hết ngày 10 -> còn thiếu 400, còn 20 ngày -> 20/ngày
+    assert _mt_ngay_can(mt, pd.Series({"A": 200.0}), date(2026, 9, 11))["A"] == 20
+    # cùng phòng đó nhưng hụt hơn: còn thiếu 500 trong 20 ngày -> 25/ngày, mục tiêu tự nặng lên
+    assert _mt_ngay_can(mt, pd.Series({"A": 100.0}), date(2026, 9, 11))["A"] == 25
+    # làm tròn LÊN: thiếu 101 chia 3 ngày là 33,67 -> phải 34 mới đủ
+    assert _mt_ngay_can(pd.Series({"A": 101.0}), pd.Series({"A": 0.0}), date(2026, 9, 28))["A"] == 34
+    # ngày cuối tháng gánh hết phần còn thiếu
+    assert _mt_ngay_can(mt, pd.Series({"A": 570.0}), date(2026, 9, 30))["A"] == 30
+    # đã đủ mục tiêu tháng thì không còn phải online thêm
+    assert _mt_ngay_can(mt, pd.Series({"A": 640.0}), date(2026, 9, 20))["A"] == 0
+    # chưa nhập mục tiêu tháng thì không đòi gì
+    assert _mt_ngay_can(pd.Series({"A": 0.0}), pd.Series({"A": 30.0}), date(2026, 9, 20))["A"] == 0
+
+
+def test_muc_tieu_ngay_nang_dan_khi_phong_hut_tien_do():
+    """Mỗi ngày trôi qua mà chưa bù được thì mục tiêu hôm sau phải nặng hơn hôm trước."""
+    import pandas as pd
+    from datetime import date
+    from app.overview import _mt_ngay_can
+
+    mt, luy_ke = pd.Series({"A": 600.0}), 0.0
+    truoc = None
+    for ngay in (10, 15, 20, 25):
+        can = _mt_ngay_can(mt, pd.Series({"A": luy_ke}), date(2026, 9, ngay))["A"]
+        if truoc is not None:
+            assert can > truoc, f"ngày {ngay}: mục tiêu phải nặng hơn hôm trước"
+        truoc, luy_ke = can, luy_ke + 10          # mỗi ngày chỉ online 10, hụt xa
+
+
+def test_ket_luan_van_ghi_dat_khi_ca_chi_nhanh_du_chi_tieu():
+    """Cuối tháng cả chi nhánh đủ chỉ tiêu thì mục tiêu ngày về 0 hết - lúc đó cột Kết luận
+    phải vẫn ghi "Đạt", không được biến thành "—" đúng lúc đang làm tốt nhất."""
+    import pandas as pd
+    from app.overview import _them_ty_le
+
+    def bang(mt_internet, mt_ngay, ngay_online):
+        return pd.DataFrame([{"loai_dong": "data", "mt_internet": mt_internet, "mt_ngay": mt_ngay,
+                              "ngay_online": ngay_online, "online": 600, "ck_online": 500,
+                              "fpl_combo": 0, "cnql": 0, "mttn": 0, "vvip": 0, "camera": 0, "mt_camera": 0}])
+
+    # đã đủ mục tiêu tháng -> mục tiêu ngày 0 -> vẫn phải là "Đạt"
+    assert _them_ty_le(bang(600, 0, 0)).ket_luan.iloc[0] == "Đạt"
+    # còn phải online 25 mà chỉ được 10 -> Không đạt
+    assert _them_ty_le(bang(600, 25, 10)).ket_luan.iloc[0] == "Không đạt"
+    assert _them_ty_le(bang(600, 25, 10), tam_tinh=True).ket_luan.iloc[0] == "Chưa đạt"
+    # chưa nhập mục tiêu tháng cho phòng nào thì mới ghi "—"
+    assert _them_ty_le(bang(0, 0, 10)).ket_luan.iloc[0] == "—"

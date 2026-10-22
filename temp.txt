@@ -1,0 +1,13 @@
+ển đổi</div>
+        <p class="vd"><b>Nút thắt</b>Lead về nhưng không rõ ai phụ trách; gọi trễ thì khách đã chọn
+          nhà mạng khác.</p>
+        <div class="lm"><b>Đã làm</b>
+          <ul>
+            <li>Lead vào thẳng SOP và gán tên sale ngay khi có thông tin</li>
+            <li>Sale gọi điện tư vấn trực tiếp, không qua khâu trung gian</li>
+            <li>Sale bám ca tới khi khách chốt, cập nhật trạng thái ngay trên SOP</li>
+          </ul>
+        </div>
+        <span class="chip sale">Sale</span>
+      </div>
+      <div class="gd rong hi">
