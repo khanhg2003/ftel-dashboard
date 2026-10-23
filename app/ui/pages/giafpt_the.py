@@ -24,10 +24,13 @@ from app.ui.icons import icon
 def pane():
     from app.ui.pages.giafpt import chon_khu_vuc
     return html.Div([
-        html.Div([*chon_khu_vuc("gf"), html.Div(className="grow"), html.Span(id="gf-luc", className="gf-luc"),
-                  html.Button([icon("refresh", 14), html.Span("Làm mới giá")], id="gf-moi", className="btn nt-nut",
-                              title="Bỏ giá đang nhớ tạm và hỏi lại fpt.vn")], className="toolbar"),
+        html.Div([*chon_khu_vuc("gf"), html.Div(className="grow"),
+                  html.Div([html.Span(id="gf-luc", className="gf-luc"),
+                            html.Button([icon("refresh", 14), html.Span("Làm mới giá")], id="gf-moi", className="btn nt-nut",
+                                        title="Bỏ giá đang nhớ tạm và hỏi lại fpt.vn")], className="gf-moi-hang")], className="toolbar"),
         html.Div(id="gf-tb"),
+        alert("Trong bảng giá không có giá gói Internet tặng camera. Tính theo Combo Internet + V.VIP, cộng thêm 10.000đ - 20.000đ tùy khu vực.",
+              "info gf-luu-y"),
         dcc.RadioItems(id="gf-muc", options=[], value=None, className="gf-pills", labelClassName="gf-pill", inputClassName="gf-pill-in"),
         html.Div(id="gf-ds", className="gf-ds"),
         ghi_chu("Giá là giá niêm yết trên website fpt.vn cho đúng phường đang chọn, đã gồm VAT. Chọn khác phường thì giá và danh sách gói có thể khác.",

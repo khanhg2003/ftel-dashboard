@@ -1934,7 +1934,10 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 
 /* giờ lấy giá ở góc thanh lọc; 7 nút nhóm thu gọn để xuống dòng gọn ở màn 800 px */
 .gf-pills .gf-pill { padding: 7px 13px; font-size: 13px; }
-.gf-luc { align-self: center; font-size: 12px; color: var(--text-muted); }
+.gf-moi-hang { display: flex; align-items: center; gap: 14px; }
+.gf-moi-hang .nt-nut { margin: 0; }
+.gf-luc { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.gf-luu-y { margin: 0 0 12px; padding: 9px 14px; }
 
 /* bảng "Giá theo cách thanh toán" trong cửa sổ chi tiết: cột Ưu đãi xuống dòng gọn, không giãn dòng */
 #gf-ct-bang .ag-cell-wrap-text { line-height: 1.4; padding-top: 6px; padding-bottom: 6px; word-break: break-word; }

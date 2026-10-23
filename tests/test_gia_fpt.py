@@ -104,6 +104,11 @@ def mang_gia(monkeypatch):
     LAN_GOI.clear()
 
 
+def test_bo_dong_qua_tang_camera_nhung_giu_uu_dai_khac():
+    assert gf._chuan_goi(_goi(1, "a", "Internet Sky", tagline="Nhận Camera AI + Cloud 12T miễn phí"))["uu_dai"] == ""
+    assert gf._chuan_goi(_goi(2, "b", "Internet Sky", tagline="Tặng 12T FPT Play"))["uu_dai"] == "Tặng 12 tháng FPT Play"
+
+
 def test_phan_loai_goi_theo_ten():
     c = gf._chuan_goi(_goi(1, "a", "Super500 Biz Plus", gia=1))
     assert c["khach"] == "doanh_nghiep" and "nhom" not in c                          # nhóm không còn đoán theo tên: lấy từ website (gia_fpt_nhom)

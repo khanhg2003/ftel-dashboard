@@ -117,7 +117,8 @@ def _chuan_goi(x: dict) -> dict:
             "khach": "doanh_nghiep" if dn else "ca_nhan",
             "gia": gia.get("price") if gia.get("price") is not None else gia.get("min_price"),
             "toc_do": _toc_do(x, mo_ta), "thiet_bi": int(tb) if str(tb or "").isdigit() else None,
-            "uu_dai": "" if (x.get("tagline") or "") in NHAN_PHU else (x.get("tagline") or "").replace("12T", "12 tháng"),   # website lúc ghi 12T lúc 12 tháng
+            "uu_dai": "" if ((x.get("tagline") or "") in NHAN_PHU or "camera" in (x.get("tagline") or "").lower())
+            else (x.get("tagline") or "").replace("12T", "12 tháng"),   # website lúc ghi 12T lúc 12 tháng; CEO bỏ dòng quà tặng Camera AI + Cloud (23/10/2026)
             "nhan": x.get("tagline") if (x.get("tagline") or "") in NHAN_PHU else "", "mo_ta": mo_ta}
 
 
