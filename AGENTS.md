@@ -271,7 +271,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - *Nhân viên AI* (chốt 22/10/2026, chủ app là CEO): **agent theo vai trò** là các file `.claude/agents/*.md` (planner chỉ đọc, coder, tester chỉ sửa `tests/`,
      ui-reviewer chỉ xem), nằm trong git (`.gitignore` mở riêng `.claude/agents/` và `.claude/settings.json`, phần còn lại của `.claude/` vẫn bị bỏ qua). **Phần `description` trong frontmatter PHẢI đặt trong
      dấu nháy kép**: câu có ": " (hai chấm + cách) làm YAML hỏng và agent bị bỏ qua lặng lẽ (lỗi thật lúc làm). Agent mới chỉ dùng được SAU KHI mở lại phiên Claude Code. Quy trình:
-     CEO ra lệnh -> trợ lý điều phối (Claude Code chính) giao planner -> coder -> tester -> ui-reviewer -> báo CEO; commit / đẩy Vercel / ghi dữ liệu thật vẫn chờ CEO đồng ý.
+     Quy trình tuỳ độ phức tạp của việc (chốt 23/10/2026, xem mục 7): việc ĐƠN GIẢN trợ lý sửa thẳng rồi đẩy Vercel; việc PHỨC TẠP đi planner -> coder -> ui-reviewer -> tester rồi báo CEO. Ghi / xoá dữ liệu thật (Supabase) và đổi công thức đã chốt thì vẫn phải chờ CEO đồng ý rõ ràng.
      **Hook** (`scripts/claude_hook.py`, cấu hình `.claude/settings.json`): sau khi sửa file .py báo ngay lỗi cú pháp / tên chưa định nghĩa; trước mỗi lệnh Bash chặn `git add -A` / `git add .` (chữ trong dấu nháy và
      heredoc không tính) và chặn `git commit` nếu `ruff` còn cảnh báo hoặc có test lỗi (không còn lỗi cũ nào được bỏ qua; mỗi lần commit
      mất ~90 giây vì chạy cả bộ test); ghi nhật ký hoạt động vào `data/van_phong/su_kien.jsonl` (không lên GitHub, mỗi dòng một sự kiện: giao việc, agent bắt đầu / xong, công cụ vừa dùng, lệnh của CEO; đã che mật khẩu / token /
@@ -428,6 +428,22 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 
 ## 7. Quy trình mỗi lần sửa
 
+### 7.0 Chọn đường: việc đơn giản hay phức tạp (chốt 23/10/2026, chủ app muốn nhanh và tiết kiệm token mà chất lượng vẫn tốt)
+
+**Việc ĐƠN GIẢN: trợ lý TỰ SỬA THẲNG, không gọi nhân viên AI, rồi đẩy Vercel luôn (không chờ hỏi).** Thoả TẤT CẢ:
+- sửa khoảng 3 file trở xuống, chỗ sửa rõ ràng (chữ, lời giải thích, tên gọi, màu / CSS nhỏ, bố cục nhỏ, lỗi một chỗ, thêm / chỉnh test cho đúng chỗ đó);
+- KHÔNG đổi công thức, cách đếm, quyền xem, cấu trúc database, đường nạp file, và KHÔNG ghi dữ liệu thật.
+Cách làm: sửa → `ruff check app --select F,E9` + chỉ chạy test của vùng vừa sửa → nhìn nhanh giao diện nếu thay đổi nhìn thấy được (vùng đã đổi, một độ rộng laptop) → commit từng file (mục 7.7; hook commit đã tự chạy ruff + cả bộ test, đừng chạy tay thêm lần nữa ngay trước đó) → `git push origin main` → báo ngắn.
+
+**Việc PHỨC TẠP đi đúng trình tự planner → coder → ui-reviewer → tester**, rồi báo chủ app. Là việc phức tạp khi có BẤT KỲ điều nào: đụng công thức / số liệu / quyền / database / nạp file; hơn ~3 file; tính năng hoặc trang mới; dựng lại giao diện; chưa rõ nguyên nhân lỗi. Bỏ bước nào không áp dụng (không có thay đổi nhìn thấy thì bỏ ui-reviewer). Sau khi tester xác nhận pass và ui-reviewer báo ổn thì commit + đẩy Vercel luôn; **ngoại lệ vẫn PHẢI hỏi chủ app trước:** ghi / xoá dữ liệu thật (Supabase), và đổi công thức / quy tắc nghiệp vụ đã chốt (mục 4).
+
+**Tiết kiệm thời gian và token mà không giảm chất lượng:**
+- Chuyển việc cho nhân viên AI thì viết brief ĐỦ ngữ cảnh (file nào, làm gì, thế nào là xong, đừng làm gì) để họ không phải đọc lại cả dự án. Không giao hai người cùng một file cùng lúc; hai việc độc lập (vd test và xem giao diện) chạy song song.
+- Mỗi người chạy phần của mình một lượt: coder chỉ chạy test của vùng sửa; tester chạy cả bộ `pytest` MỘT lần ở cuối. Đừng chạy hai lượt `pytest` cùng lúc (chung `data/kiemthu.db` nên đỏ giả).
+- ui-reviewer chỉ khi có thay đổi nhìn thấy, chỉ kiểm vùng đã đổi (1300 và 800 px, thêm 1900 nếu cần), không đo lại cả trang. Trước khi mở bản xem thử, tắt tiến trình xem thử cũ còn giữ cổng 8053.
+- Lỗi chưa rõ nguyên nhân thì planner tìm trước, đừng để coder đoán nhiều vòng.
+- Báo cáo của mọi người ngắn: đã đổi gì, kiểm thế nào, còn gì; không dán lại code.
+
 1. Đọc code liên quan và quy tắc nghiệp vụ. Không chắc về số / quy tắc → hỏi chủ app **trước** khi viết.
 2. Sửa ít nhất có thể, đúng chỗ theo bản đồ ở mục 1.
 3. **Thêm / sửa test** cho công thức hoặc hàm dữ liệu mới (`tests/`).
@@ -441,5 +457,6 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - không đưa lên `data/`, `*.csv`, `*.xlsx`, `*.db`, `.env`, file bí mật;
    - tác giả `git -c user.name=khanhg2003 commit`;
    - lời commit nói rõ *đổi gì, vì sao*;
-   - cuối lời commit có dòng: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+   - cuối lời commit có dòng: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`;
+   - đẩy lên: `git push origin main` (Vercel tự triển khai sau khoảng nửa phút; kiểm bằng `/healthz` và một lớp CSS mới ở `/assets/style.css`). Việc đơn giản và việc phức tạp đã qua tester đều đẩy luôn, xem 7.0.
 8. **Báo lại cho chủ app** bằng tiếng Việt ngắn gọn: đã đổi gì, kiểm tra thế nào, còn gì chưa làm hoặc cần họ quyết.
