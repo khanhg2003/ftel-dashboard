@@ -1941,7 +1941,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   border-color: #EBC688; border-left: 5px solid var(--warn); background: #FFF4DC; color: #6B4208; }
 .gf-luu-y > svg { flex: none; margin-top: 2px; color: var(--warn); }
 .gf-luu-y-dau { font-weight: 750; font-size: 14.5px; color: #8A5000; margin-bottom: 1px; }
-.gf-luu-y b { color: #7A4300; font-weight: 750; }
 
 /* bảng "Giá theo cách thanh toán" trong cửa sổ chi tiết: cột Ưu đãi xuống dòng gọn, không giãn dòng */
 #gf-ct-bang .ag-cell-wrap-text { line-height: 1.4; padding-top: 6px; padding-bottom: 6px; word-break: break-word; }
