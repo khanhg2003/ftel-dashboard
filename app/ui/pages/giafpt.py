@@ -70,7 +70,7 @@ def _luoi(gid: str, cot: list, cao: int = 560):
 
 COT_SS = [
     {"field": "ten", "headerName": "Gói", "minWidth": 240, "flex": 2, "checkboxSelection": True, "headerCheckboxSelection": True},
-    {"field": "nhom", "headerName": "Nhóm", "width": 190},
+    {"field": "nhom", "headerName": "Nhóm", "width": 260},
     {"field": "khach", "headerName": "Khách hàng", "width": 130, "valueFormatter": KHACH_CHU},
     {"field": "gia_a", "headerName": "Giá bên trái", "width": 150, "type": "numericColumn", "valueFormatter": {"function": DONG}},
     {"field": "gia_b", "headerName": "Giá bên phải", "width": 150, "type": "numericColumn", "valueFormatter": {"function": DONG}},

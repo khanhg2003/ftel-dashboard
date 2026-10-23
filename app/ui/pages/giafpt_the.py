@@ -1,6 +1,6 @@
-"""Tab "Tra giá" của Tra cứu giá: chọn MỘT trong 7 nhóm bằng một hàng nút tròn (như trang gói cước của fpt.vn), nhóm đó hiện thành THẺ,
-bấm cả thẻ để xem chi tiết (chủ app chốt 22/10/2026: mỗi lần chỉ một nhóm cho đỡ rối). Các nhóm LOẠI TRỪ nhau (`gia_fpt.NHOM`): mỗi gói
-đúng một nhóm nên số trên các nút cộng lại bằng tổng số gói.
+"""Tab "Tra giá" của Tra cứu giá: chọn MỘT nhóm bằng một hàng nút tròn (như trang gói cước của fpt.vn), nhóm đó hiện thành THẺ,
+bấm cả thẻ để xem chi tiết (chủ app chốt 22/10/2026: mỗi lần chỉ một nhóm cho đỡ rối). Nhóm chia đúng như website (`gia_fpt_nhom`): một gói có
+thể nằm ở nhiều nhóm nên số trên các nút không cần cộng ra tổng số gói. Mỗi lượt callback lấy cấu hình nhóm MỘT lần (`gia_fpt_nhom.cau_hinh`).
 
 Điều kiện giống hệt nhau ở mọi gói của nhóm (cách thanh toán, số tháng tặng, phí hòa mạng dùng chung, hạn chính sách...) nằm ở dải "Chính sách
 chung" dưới tiêu đề; trên thẻ và trong chi tiết chỉ ghi chỗ KHÁC (`gia_fpt.phan_chung` / `khac_biet`), riêng phí hòa mạng luôn ghi trên thẻ.
@@ -14,6 +14,7 @@ from dash import Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
 
 from app import gia_fpt as gf
+from app import gia_fpt_nhom as gn
 from app.bo_nho import xoa
 from app.thoi_gian import chu_gio_vn
 from app.ui.components import alert, ghi_chu
@@ -90,9 +91,9 @@ def _muc(nhom: str, goi: list[dict], chung: dict | None, ct: dict | None):
     return html.Div([html.Div(html.H3(nhom), className="gf-muc-dau"), dai, html.Div(the, className="gf-luoi-the")], className="gf-muc")
 
 
-def _nut_nhom(goi: list[dict]) -> list[dict]:
-    """Một nút cho mỗi nhóm CÓ gói, theo thứ tự cố định, nhãn "Tên (số gói)"."""
-    return [{"label": f"{n} ({len(v)})", "value": n} for n, v in gf.theo_nhom(goi).items()]
+def _nut_nhom(goi: list[dict], ch: dict) -> list[dict]:
+    """Một nút cho mỗi nhóm CÓ gói, theo thứ tự của website, nhãn "Tên (số gói)"."""
+    return [{"label": f"{n} ({len(v)})", "value": n} for n, v in gf.theo_nhom(goi, ch).items()]
 
 
 # ------------------------------------------------------------------ callbacks
@@ -115,10 +116,11 @@ def register(app):
             kq = gf.goi_theo_phuong(tinh, phuong)
         except gf.LoiGia as e:
             return _loi(e), "", [], None, None, None
-        nut = _nut_nhom(kq["goi"])
+        ch = gn.cau_hinh()
+        nut = _nut_nhom(kq["goi"], ch)
         co = {n["value"] for n in nut}
         chon = muc if muc in co else (gf.NHOM_MAC_DINH if gf.NHOM_MAC_DINH in co else (nut[0]["value"] if nut else None))
-        return (_canh_bao(kq), f"Giá lấy lúc {chu_gio_vn(kq['luc'], '%H:%M')}", nut, chon, None,
+        return (_canh_bao(kq), f"Giá lấy lúc {chu_gio_vn(kq['luc'], '%H:%M')}" + (" · nhóm theo danh sách lưu sẵn" if ch["nguon"] == "luu_san" else ""), nut, chon, None,
                 {"tinh": tinh, "phuong": phuong, "luc": kq["luc"].isoformat(), "khoa": f"{tinh}-{phuong}"})
 
     @app.callback(Output("gf-ctd", "data", allow_duplicate=True), Input("gf-pha", "data"), prevent_initial_call=True)
@@ -132,7 +134,7 @@ def register(app):
         except gf.LoiGia:
             raise PreventUpdate
         ct = gf.chi_tiet_nhieu(pha["tinh"], pha["phuong"], kq["goi"])
-        chung = {k: gf.phan_chung(v, ct) for k, v in gf.theo_nhom(kq["goi"]).items()}
+        chung = {k: gf.phan_chung(v, ct) for k, v in gf.theo_nhom(kq["goi"], gn.cau_hinh()).items()}
         gon = {code: {"phi_nhom": c["phi_nhom"], "thiet_bi": c["thiet_bi"]} for code, c in ct.items() if c}
         return {"pha": pha["khoa"], "ct": gon, "chung": chung}
 
@@ -146,4 +148,4 @@ def register(app):
         except gf.LoiGia:
             raise PreventUpdate
         co_ct = bool(ctd) and ctd.get("pha") == pha["khoa"]
-        return _muc(nhom, gf.theo_nhom(tat_ca).get(nhom, []), (ctd["chung"].get(nhom) or {}) if co_ct else None, ctd["ct"] if co_ct else None)
+        return _muc(nhom, gf.theo_nhom(tat_ca, gn.cau_hinh()).get(nhom, []), (ctd["chung"].get(nhom) or {}) if co_ct else None, ctd["ct"] if co_ct else None)

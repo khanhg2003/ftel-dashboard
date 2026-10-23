@@ -5,8 +5,8 @@ Giá lấy THẲNG từ dịch vụ mà website fpt.vn đang gọi (`apis.fpt.vn
 không trả lời thì hàm ném `LoiGia` (trang báo bằng lời dễ hiểu), và `goi_theo_phuong` trả lại bản lần gần nhất đã lấy được.
 Không lưu giá vào database; mỗi khu vực nhớ tạm `TTL_GOI` giây trong máy chủ.
 
-Giá trên website đã gồm VAT. Chỉ lấy gói Internet (kể cả combo kèm Camera / V.VIP), chia thành 7 nhóm LOẠI TRỪ nhau theo TÊN gói
-(`NHOM`, `phan_nhom`): mỗi gói đúng một nhóm. Gói có nhiều lựa chọn thời hạn (1 tháng trả sau, 3 / 6 / 13 / 26 tháng trả trước):
+Giá trên website đã gồm VAT. Chỉ lấy gói Internet (kể cả combo kèm Camera / V.VIP). Nhóm gói chia đúng như website (`gia_fpt_nhom`:
+đọc danh sách nhóm trên fpt.vn, có bản chụp dự phòng); một gói có thể nằm ở nhiều nhóm. Gói có nhiều lựa chọn thời hạn (1 tháng trả sau, 3 / 6 / 13 / 26 tháng trả trước):
 `chi_tiet_goi` đọc các lựa chọn đó. Quét cả tỉnh (`quet_tinh`) gọi mỗi phường một lần nên chỉ chạy khi người dùng bấm.
 
 Dịch vụ `packages/get` thỉnh thoảng (đo 22/10/2026: khoảng 1 trong 5 lượt) trả THIẾU: danh sách chính sách rỗng, hoặc mất dòng
@@ -22,6 +22,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as HetGio, as_completed
 from datetime import datetime, timedelta
 
+from app import gia_fpt_nhom as gn
 from app.bo_nho import nho
 from app.thoi_gian import LECH_GIO_VN, chu_gio_vn, utc_bay_gio
 
@@ -36,13 +37,7 @@ TINH_MAC_DINH = 511           # Đà Nẵng (đã gồm Quảng Nam cũ)
 LOAI_LAY = "internet"         # chỉ Internet (chủ app chốt 22/10/2026: không Camera lẻ, FPT Play lẻ, Smart TV, Tăng tốc, Smart Home, thiết bị mạng)
 LAN_THU = 4                   # số lần gọi `packages/get` cho một gói khi dịch vụ trả thiếu
 NHAN_PHU = {"Nổi bật", "Phổ biến", "Mới", "Hot"}   # nhãn của website, không phải ưu đãi
-# 7 nhóm theo thứ tự nút trên trang. Website không có cột phân loại nên chia theo TÊN gói (các trang fpt.vn/internet/gia-dinh, /game-thu, 22/10/2026).
-# Gói mới có tên khác thì phải bổ sung ở `_NHOM_THEO_TEN` / `_la_doanh_nghiep`, không thì rơi vào "Internet cá nhân".
-NHOM = ["Internet cá nhân", "Internet gia đình", "Internet game thủ", "Combo Internet + Camera", "Internet doanh nghiệp",
-        "Combo Internet + V.VIP", "Combo Internet + V.VIP doanh nghiệp"]
-NHOM_MAC_DINH = NHOM[0]
-# Gói cá nhân khớp nhiều nhóm thì lấy nhóm ĐẦU danh sách này (Meta F1 khớp cả hai nên vào game thủ). Đổi ưu tiên = đổi thứ tự hai dòng.
-_NHOM_THEO_TEN = [("Internet game thủ", r"f-game|meta|speedx\d+ pro"), ("Internet gia đình", r"giga f1|sky f1|sky f2|meta")]
+NHOM_MAC_DINH = "Internet cá nhân"      # nút chọn sẵn khi mở trang
 
 _GAN_NHAT: dict = {}          # bản giá lần gần nhất lấy được, dùng khi dịch vụ lỗi
 _khoa = threading.Lock()
@@ -102,18 +97,6 @@ def _la_doanh_nghiep(x: dict) -> bool:
     return bool(re.search(r"\bbiz\b|lux|doanh nghiệp", chu, re.I))
 
 
-def phan_nhom(ten: str, doanh_nghiep: bool) -> str:
-    """Nhóm DUY NHẤT của một gói. Ưu tiên: Combo Camera (tên có "An Tâm") > Combo V.VIP > doanh nghiệp > game thủ > gia đình > còn lại."""
-    t = ten.lower()
-    if "an tâm" in t:
-        return "Combo Internet + Camera"
-    if re.search(r"v\.?vip", t):
-        return "Combo Internet + V.VIP doanh nghiệp" if doanh_nghiep else "Combo Internet + V.VIP"
-    if doanh_nghiep:
-        return "Internet doanh nghiệp"
-    return next((nhom for nhom, mau in _NHOM_THEO_TEN if re.search(mau, t)), NHOM_MAC_DINH)
-
-
 def _toc_do(x: dict, mo_ta: list[str]) -> str | None:
     xuong, len_ = _spec(x, "download"), _spec(x, "upload")
     if xuong and len_:
@@ -131,7 +114,7 @@ def _chuan_goi(x: dict) -> dict:
     tb = _spec(x, "thiết bị")
     ten, dn = x.get("name") or x.get("title") or "", _la_doanh_nghiep(x)
     return {"id": int(x["id"]), "code": x.get("code") or x.get("slug"), "ten": ten,
-            "nhom": phan_nhom(ten, dn), "khach": "doanh_nghiep" if dn else "ca_nhan",
+            "khach": "doanh_nghiep" if dn else "ca_nhan",
             "gia": gia.get("price") if gia.get("price") is not None else gia.get("min_price"),
             "toc_do": _toc_do(x, mo_ta), "thiet_bi": int(tb) if str(tb or "").isdigit() else None,
             "uu_dai": "" if (x.get("tagline") or "") in NHAN_PHU else (x.get("tagline") or "").replace("12T", "12 tháng"),   # website lúc ghi 12T lúc 12 tháng
@@ -139,7 +122,7 @@ def _chuan_goi(x: dict) -> dict:
 
 
 def _thu_tu(g: dict):
-    return (NHOM.index(g["nhom"]) if g["nhom"] in NHOM else len(NHOM), g["gia"] or 0, g["ten"])
+    return (g["gia"] or 0, g["ten"])
 
 
 def _doc_goi(tinh: int, phuong: int) -> list[dict]:
@@ -179,10 +162,9 @@ def loc_goi(goi: list[dict], khach="all") -> list[dict]:
     return [g for g in goi if k is None or g["khach"] in k]
 
 
-def theo_nhom(goi: list[dict]) -> dict[str, list[dict]]:
-    """{nhóm: các gói} theo thứ tự `NHOM`, nhóm không có gói thì bỏ. Mỗi gói nằm đúng một nhóm nên số gói cộng lại bằng tổng."""
-    ra = {n: [g for g in goi if g["nhom"] == n] for n in NHOM}
-    return {n: v for n, v in ra.items() if v}
+def theo_nhom(goi: list[dict], ch: dict | None = None) -> dict[str, list[dict]]:
+    """{nhóm: các gói} chia như website (`gia_fpt_nhom.chia_nhom`); `ch` là cấu hình đã lấy sẵn ở đầu lượt callback."""
+    return gn.chia_nhom(goi, ch)
 
 
 # ------------------------------------------------------------------ chi tiết một gói
@@ -404,6 +386,7 @@ def khac_biet(g: dict, ct: dict | None, c: dict) -> dict:
 def so_sanh(goi_a: list[dict], goi_b: list[dict]) -> list[dict]:
     """Mỗi dòng một gói có ở ít nhất một bên. chenh = giá B - giá A (âm: B rẻ hơn)."""
     a, b = {g["id"]: g for g in goi_a}, {g["id"]: g for g in goi_b}
+    nhom = gn.nhom_cua_goi(goi_a + [g for g in goi_b if g["id"] not in a])
     dong = []
     for i in a.keys() | b.keys():
         g = a.get(i) or b[i]
@@ -417,9 +400,9 @@ def so_sanh(goi_a: list[dict], goi_b: list[dict]) -> list[dict]:
         else:
             tt = "b_re" if gb < ga else "b_dat"
         chenh = gb - ga if ga is not None and gb is not None else None
-        dong.append({"id": i, "ten": g["ten"], "nhom": g["nhom"], "khach": g["khach"], "gia_a": ga, "gia_b": gb,
+        dong.append({"id": i, "ten": g["ten"], "nhom": nhom.get(g["code"], ""), "khach": g["khach"], "gia_a": ga, "gia_b": gb,
                      "chenh": chenh, "pct": round(chenh * 100 / ga, 1) if chenh is not None and ga else None, "tinh_trang": tt})
-    dong.sort(key=lambda r: _thu_tu({"nhom": r["nhom"], "gia": r["gia_a"] or r["gia_b"], "ten": r["ten"]}))
+    dong.sort(key=lambda r: _thu_tu({"gia": r["gia_a"] or r["gia_b"], "ten": r["ten"]}))
     return dong
 
 
@@ -457,11 +440,15 @@ def quet_tinh(tinh: int) -> dict:
                 continue
             gia[str(pid)] = {str(g["id"]): g["gia"] for g in ds}
             for g in ds:
-                goi.setdefault(str(g["id"]), {"ten": g["ten"], "nhom": g["nhom"], "khach": g["khach"]})
+                goi.setdefault(str(g["id"]), {"ten": g["ten"], "code": g["code"], "gia": g["gia"], "khach": g["khach"]})
     except HetGio:
         loi.extend(p["id"] for f, p in cho.items() if f not in xong)
     finally:
         ex.shutdown(wait=False, cancel_futures=True)
+    nhom = gn.nhom_cua_goi([{"code": tt["code"], "gia": tt["gia"], "ten": tt["ten"]} for tt in goi.values()])   # lấy cấu hình MỘT lần, không mỗi phường
+    for tt in goi.values():
+        tt["nhom"] = nhom.get(tt.pop("code"), "")
+        tt.pop("gia")
     return {"tinh": tinh, "luc": utc_bay_gio().isoformat(), "phuong": {str(p["id"]): p["ten"] for p in phuong},
             "gia": gia, "goi": goi, "loi": [str(i) for i in loi]}
 
@@ -482,7 +469,7 @@ def bien_dong(du_lieu: dict) -> list[dict]:
         gia = [b.get(goi_id) for b in du_lieu["gia"].values() if b.get(goi_id) is not None]
         if not gia:
             continue
-        dong.append({"id": goi_id, "ten": tt["ten"], "nhom": tt["nhom"], "khach": tt["khach"], "thap": min(gia), "cao": max(gia),
+        dong.append({"id": goi_id, "ten": tt["ten"], "nhom": tt.get("nhom", ""), "khach": tt["khach"], "thap": min(gia), "cao": max(gia),
                      "chenh": max(gia) - min(gia), "so_muc": len(set(gia)), "ban": len(gia), "khong_ban": tong - len(gia)})
     dong.sort(key=lambda r: (-r["chenh"], -r["khong_ban"], r["ten"]))
     return dong

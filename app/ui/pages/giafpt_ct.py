@@ -77,9 +77,9 @@ def _thong_tin(g: dict, ct: dict, kb: dict, co_chung: bool):
     return html.Div([html.Div(tieu, className="gf-ct-tieu"), html.Ul(dong, className="gf-mo-ta")])
 
 
-def than(g: dict, ct: dict, chung: dict, khu_vuc: str):
+def than(g: dict, ct: dict, chung: dict, khu_vuc: str, nhom: str | None = None):
     kb = gf.khac_biet(g, ct, chung)
-    chips = html.Div([html.Span(f"Khu vực: {khu_vuc}", className="chip"), html.Span(g["nhom"], className="chip"),
+    chips = html.Div([html.Span(f"Khu vực: {khu_vuc}", className="chip"), html.Span(nhom, className="chip") if nhom else None,
                       html.Span(f"Giá niêm yết: {gf.chu_tien(ct['gia'])}", className="chip")], className="chips", style={"margin": "0 0 12px"})
     hang = _hang_gia(ct)
     cac = [chips, _thong_tin(g, ct, kb, bool(chung))]
@@ -99,8 +99,8 @@ def than(g: dict, ct: dict, chung: dict, khu_vuc: str):
 def register(app):
     @app.callback(Output("gf-ct", "className"), Output("gf-ct-tieu-de", "children"), Output("gf-ct-than", "children"),
                   Input({"type": "gf-the", "code": ALL}, "n_clicks"), State("gf-tinh", "value"),
-                  State("gf-phuong", "value"), State("gf-ctd", "data"), prevent_initial_call=True)
-    def _mo(clicks, tinh, phuong, ctd):
+                  State("gf-phuong", "value"), State("gf-ctd", "data"), State("gf-muc", "value"), prevent_initial_call=True)
+    def _mo(clicks, tinh, phuong, ctd, muc):
         from app.ui.pages.giafpt import _vao, ten_khu_vuc
         _vao()
         bam = ctx.triggered_id
@@ -113,7 +113,7 @@ def register(app):
             ct = gf.chi_tiet_goi(g["code"], tinh, phuong, g["gia"])
         except gf.LoiGia as e:
             return "modal mo", bam["code"], alert(f"{e} Thử lại sau ít phút.", "warn")
-        return "modal mo", g["ten"], than(g, ct, ((ctd or {}).get("chung") or {}).get(g["nhom"], {}), ten_khu_vuc(tinh, phuong))
+        return "modal mo", g["ten"], than(g, ct, ((ctd or {}).get("chung") or {}).get(muc, {}), ten_khu_vuc(tinh, phuong), muc)
 
     @app.callback(Output("gf-ct", "className", allow_duplicate=True), Input("gf-ct-dong", "n_clicks"), Input("gf-ct-nen", "n_clicks"),
                   prevent_initial_call=True)
