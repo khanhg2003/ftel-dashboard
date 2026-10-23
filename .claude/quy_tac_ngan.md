@@ -19,9 +19,9 @@ AGENTS.md rất dài (hàng chục nghìn token). Chỉ mở đúng đoạn cầ
 - Phẳng: chữ + viền mảnh, không gradient / thẻ kính / biểu tượng nhiều màu. Màu đánh giá tối đa 3 mức (xanh / vàng / đỏ).
 - Dùng được ở màn laptop hẹp ~800 px. Bảng dài thì đặt chiều cao cố định.
 
-## Cách làm (TDD, tiết kiệm)
-1. Đọc đúng file nhiệm vụ được giao + đúng file code cần sửa. Không đọc lan man.
-2. Viết / sửa test TRƯỚC cho phần dữ liệu (tests/, dữ liệu giả nhỏ, không gọi mạng thật, không ghi database thật), rồi mới sửa code.
-3. Kiểm bằng CÔNG CỤ, không bằng đọc đoán: `ruff check app --select F,E9` rồi `python -m pytest -q <file test của vùng sửa>`. Cả bộ `pytest` để người điều phối chạy một lần ở cuối (không chạy hai pytest cùng lúc: chung `data/kiemthu.db`).
-4. Tối đa 2 vòng sửa-chạy lại. Vòng thứ 3 vẫn lỗi thì DỪNG, báo nguyên văn log lỗi cuối + nghi ngờ nguyên nhân cho người điều phối. Không tự cãi đi cãi lại.
-5. KHÔNG commit, KHÔNG push. Báo cáo ngắn: đã đổi file nào, kết quả ruff / pytest, còn gì dang dở. Không dán lại code.
+## Cách làm (tự chủ, tiết kiệm)
+1. Chỉ đọc file code liên quan; cần quy tắc một chức năng thì Grep trong AGENTS.md.
+2. Viết / sửa test cho phần dữ liệu (tests/, dữ liệu giả nhỏ, không gọi mạng thật, không ghi database thật), rồi sửa code.
+3. Kiểm bằng CÔNG CỤ, không đoán: `ruff check app --select F,E9` rồi `python -m pytest -q <file test của vùng sửa>`. Cả bộ `pytest` để người điều phối chạy một lần ở cuối (không chạy hai pytest cùng lúc: chung `data/kiemthu.db`).
+4. Lỗi thì tự đọc log và sửa. Kẹt cùng một lỗi sau 3 lần thử khác nhau thì DỪNG, báo nguyên văn log lỗi cuối.
+5. KHÔNG commit, KHÔNG push. Báo cáo ngắn: đã đổi file nào, kiểm thế nào, còn gì dang dở. Không dán lại code.
