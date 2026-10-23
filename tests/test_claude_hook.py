@@ -19,6 +19,7 @@ def hook(tmp_path, monkeypatch):
     spec.loader.exec_module(mod)
     monkeypatch.setattr(mod, "THU_MUC", tmp_path)
     monkeypatch.setattr(mod, "NHAT_KY", tmp_path / "su_kien.jsonl")
+    monkeypatch.setattr(mod, "VONG_CODER", tmp_path / "vong_coder.json")
     return mod
 
 
@@ -66,3 +67,14 @@ def test_doc_dau_vao_hong_khong_lam_vo_hook(hook, monkeypatch):
     assert hook.doc_dau_vao() == {}
     monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps({"p": "E:/App Báo cáo"}, ensure_ascii=False).encode("utf-8"))))
     assert hook.doc_dau_vao() == {"p": "E:/App Báo cáo"}                                          # đường dẫn có dấu giữ nguyên
+
+
+def test_gioi_han_so_lan_goi_coder(hook, capsys):
+    coder = {"session_id": "abcdef123456", "tool_input": {"subagent_type": "coder", "description": "x"}}
+    khac = {"session_id": "abcdef123456", "tool_input": {"subagent_type": "design", "description": "x"}}
+    assert [hook.gioi_han(coder) for _ in range(hook.TOI_DA_CODER)] == [0] * hook.TOI_DA_CODER
+    assert hook.gioi_han(coder) == 2 and "báo CEO" in capsys.readouterr().err                   # lần thứ 4: dừng lại cho CEO quyết
+    assert hook.gioi_han(khac) == 0                                                              # agent khác không bị đếm
+    assert hook.gioi_han({**coder, "session_id": "zzzzzzzz9999"}) == 0                           # phiên khác đếm riêng
+    hook.ghi({"hook_event_name": "UserPromptSubmit", "session_id": "abcdef123456", "prompt": "việc mới"})
+    assert hook.gioi_han(coder) == 0                                                             # lệnh mới của CEO: đếm lại từ đầu

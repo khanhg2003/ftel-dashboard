@@ -5,7 +5,9 @@
     ],
     "PreToolUse": [
       {"matcher": "Bash", "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" truoc_bash", "timeout": 340}]},
-      {"matcher": "Agent|Task", "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
+      {"matcher": "Agent|Task", "hooks": [
+        {"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" gioi_han", "timeout": 15},
+        {"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" ghi", "async": true, "timeout": 15}]}
     ],
     "PostToolUse": [
       {"matcher": "Edit|Write", "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/claude_hook.py\" sau_sua", "timeout": 90}]},

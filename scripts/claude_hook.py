@@ -2,6 +2,7 @@
 
 - `sau_sua`   : sau khi Edit / Write file .py -> báo ngay lỗi cú pháp / tên chưa định nghĩa (chạy ruff trên đúng file đó).
 - `truoc_bash`: trước mỗi lệnh Bash -> chặn `git add -A` / `git add .` (AGENTS.md mục 7) và chặn `git commit` nếu ruff hoặc test mới đang lỗi.
+- `gioi_han`  : trước khi giao việc cho agent `coder` -> chặn nếu đã gọi quá `TOI_DA_CODER` lần cho MỘT lệnh của CEO (lần đầu + 2 vòng sửa), để agent không tự cãi nhau đốt token.
 - `ghi`       : ghi sự kiện (giao việc, agent bắt đầu / xong, dùng công cụ nào) vào `data/van_phong/su_kien.jsonl` để giao diện văn phòng AI bên ngoài app đọc.
 
 Thoát mã 2 = chặn / báo lỗi cho Claude (stderr là lời nhắn); mã 0 = không có ý kiến. Nhật ký chỉ nằm ở `data/` (không lên GitHub); câu lệnh và lời
@@ -21,6 +22,8 @@ GOC = Path(__file__).resolve().parent.parent
 THU_MUC = GOC / "data" / "van_phong"
 NHAT_KY = THU_MUC / "su_kien.jsonl"
 TOI_DA_DONG = 3000
+VONG_CODER = THU_MUC / "vong_coder.json"
+TOI_DA_CODER = 3            # lần đầu + 2 vòng sửa cho một lệnh của CEO; lệnh mới của CEO thì đếm lại
 _NHAY_CAM = [(re.compile(r"[a-z][a-z0-9+.-]*://[^\s'\"]*@[^\s'\"]+", re.I), "[đường dẫn đã che]"),
              (re.compile(r"(password|passwd|token|secret|api[_-]?key|key)\s*[=:]\s*\S+", re.I), r"\1=[đã che]")]
 
@@ -96,6 +99,35 @@ def tom_tat_cong_cu(ten: str, vao: dict) -> str:
     return ""
 
 
+def gioi_han(d: dict) -> int:
+    """Chặn lần gọi `coder` thứ `TOI_DA_CODER` + 1 trong cùng một lệnh của CEO: dừng lại báo CEO thay vì để hai agent sửa qua sửa lại."""
+    if str((d.get("tool_input") or {}).get("subagent_type") or "") != "coder":
+        return 0
+    phien = str(d.get("session_id") or "")[:8]
+    try:
+        dem = json.loads(VONG_CODER.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        dem = {}
+    n = int(dem.get(phien, 0)) + 1
+    if n > TOI_DA_CODER:
+        print(f"Chặn: đã giao việc cho coder {TOI_DA_CODER} lần cho lệnh này của CEO (lần đầu + 2 vòng sửa). Dừng lại, báo CEO "
+              "log lỗi cuối và nghi ngờ nguyên nhân để CEO quyết; đừng gọi coder thêm.", file=sys.stderr)
+        return 2
+    dem[phien] = n
+    THU_MUC.mkdir(parents=True, exist_ok=True)
+    VONG_CODER.write_text(json.dumps(dem), encoding="utf-8")
+    return 0
+
+
+def dem_lai(phien: str) -> None:
+    try:
+        dem = json.loads(VONG_CODER.read_text(encoding="utf-8"))
+        if dem.pop(phien, None) is not None:
+            VONG_CODER.write_text(json.dumps(dem), encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+
+
 def ghi(d: dict) -> int:
     ten = d.get("hook_event_name") or ""
     ev = {"ts": round(time.time(), 1), "su_kien": ten, "agent": d.get("agent_type") or "", "agent_id": d.get("agent_id") or "",
@@ -109,6 +141,7 @@ def ghi(d: dict) -> int:
         ev["ket_qua"] = che(str(d.get("last_assistant_message") or ""))[:400]
     elif ten == "UserPromptSubmit":
         ev["lenh"] = che(str(d.get("prompt") or ""))[:160]
+        dem_lai(ev["phien"])                                       # lệnh mới của CEO: đếm lại số lần gọi coder
     THU_MUC.mkdir(parents=True, exist_ok=True)
     with NHAT_KY.open("a", encoding="utf-8") as f:
         f.write(json.dumps(ev, ensure_ascii=False) + "\n")
@@ -118,7 +151,7 @@ def ghi(d: dict) -> int:
     return 0
 
 
-VIEC = {"sau_sua": sau_sua, "truoc_bash": truoc_bash, "ghi": ghi}
+VIEC = {"sau_sua": sau_sua, "truoc_bash": truoc_bash, "gioi_han": gioi_han, "ghi": ghi}
 
 if __name__ == "__main__":
     for luong in (sys.stdout, sys.stderr):                      # Windows mặc định cp1252: lời nhắn tiếng Việt sẽ bị vỡ chữ

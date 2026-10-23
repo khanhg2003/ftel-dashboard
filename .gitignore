@@ -21,6 +21,7 @@ __pycache__/
 .claude/*
 !.claude/agents/
 !.claude/settings.json
+!.claude/quy_tac_ngan.md
 
 # mã khôi phục / file bí mật cá nhân - không bao giờ đưa lên GitHub
 recovery-codes*.txt
