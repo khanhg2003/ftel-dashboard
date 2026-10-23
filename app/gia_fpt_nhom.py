@@ -2,11 +2,12 @@
 
 Website lấy danh sách gói của từng nhóm từ cấu hình CMS nằm ngay trong HTML (dữ liệu của Next.js, dấu nháy bị escape `\\"`).
 Mã `product_code` ở đó TRÙNG chuỗi `code` của dịch vụ `packages/list` nên ghép thẳng được. Ba trang được đọc:
-- fpt.vn/vi: 5 tab (cá nhân, gia đình, Wifi 7, game thủ, Combo Internet Camera);
+- fpt.vn/vi: 4 tab (cá nhân, gia đình, game thủ, Combo Internet Camera; tab Wifi 7 CEO bỏ 23/10/2026);
 - fpt.vn/internet/doanh-nghiep: khối "spdv-internet-doanh-nghiep";
 - fpt.vn/internet/ca-nhan: khối "spdv-internet-truyen-hinh" (Combo Internet + V.VIP).
 Một gói được nằm ở NHIỀU nhóm nếu website đặt nó ở nhiều nhóm (vd Lux800). Gói có ở dịch vụ giá mà không nằm trong danh sách nào
-thì vào nhóm cuối "Gói khác"; gói website liệt kê mà phường đó không bán thì bỏ qua.
+thì KHÔNG hiện (CEO bỏ nhóm "Gói khác" ngày 23/10/2026); gói website liệt kê mà phường đó không bán thì bỏ qua.
+Thứ tự nút do app đặt (`THU_TU_NUT`), trong mỗi nhóm xếp giá thấp -> cao; `AN_TRONG_NHOM` ẩn riêng một gói khỏi một nhóm.
 
 Đây không phải API chính thức nên có `BAN_CHUP` (bản chụp ngày 23/10/2026) làm dự phòng: chỉ nhận kết quả đọc được khi ĐỦ mọi nhóm,
 không thì dùng nguyên bản chụp (không trộn nửa thật nửa chụp). FPT đổi cấu hình trang chủ thì cập nhật `BAN_CHUP`.
@@ -24,7 +25,10 @@ from app.bo_nho import nho
 TTL_NHOM = 21600              # cấu hình website ít đổi: nhớ tạm 6 giờ
 NGHI_SAU_LOI = 300            # lỗi thì nghỉ 5 phút không gọi lại (website chặn thì khỏi tốn 5 giây x 3 trang mỗi lượt)
 HAN_TAI = 5                   # giây chờ một trang
-NHOM_KHAC = "Gói khác"
+# Thứ tự nút và việc ẩn gói do CEO chốt 23/10/2026 (không theo thứ tự của website).
+THU_TU_NUT = ["Internet cá nhân", "Combo Internet + V.VIP", "Internet gia đình", "Internet game thủ", "Internet doanh nghiệp",
+              "Combo Internet Camera"]
+AN_TRONG_NHOM = {"Internet cá nhân": {"goi-speedx1"}}
 TRANG_CHU, TRANG_DN, TRANG_CN = "https://fpt.vn/vi", "https://fpt.vn/internet/doanh-nghiep", "https://fpt.vn/internet/ca-nhan"
 _TRINH_DUYET = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
@@ -32,7 +36,6 @@ _TRINH_DUYET = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KH
 NGUON = [
     ("Internet cá nhân", TRANG_CHU, "internet-ca-nhan-trang-chu"),
     ("Internet gia đình", TRANG_CHU, "internet-gia-dinh-trang-chu"),
-    ("Wifi 7", TRANG_CHU, "wifi-7-trang-chu"),
     ("Internet game thủ", TRANG_CHU, "internet-game-thu-trang-chu"),
     ("Combo Internet Camera", TRANG_CHU, "combo-internet-camera-trang-internet"),
     ("Internet doanh nghiệp", TRANG_DN, "spdv-internet-doanh-nghiep"),
@@ -43,8 +46,6 @@ NGUON = [
 BAN_CHUP = [
     ("Internet cá nhân", ["goi-speedx1", "goi-giga", "goi-sky", "goi-sky-f1", "goi-sky-f2"]),
     ("Internet gia đình", ["goi-speedx1-f1", "goi-sky-f1", "goi-sky-f2", "goi-meta-f1"]),
-    ("Wifi 7", ["goi-speedx1", "goi-speedx1-f1", "combo-internet-speedx1-vvip-lite", "combo-internet-speedx1-f1-vvip-lite",
-                "fpt-speedx2", "speed-x2-pro", "combo-internet-speedx2-vvip-lite"]),
     ("Internet game thủ", ["goi-speedx1", "goi-f-game"]),
     ("Combo Internet Camera", ["goi-giga-eyes3-play4", "goi-giga-eyes3-iq4s", "goi-sky-eyes3-play4", "goi-sky-eyes3-iq4s"]),
     ("Internet doanh nghiệp", ["super-300-biz", "super-300-biz-plus", "combo-internet-lux800-vvip-lite"]),
@@ -132,19 +133,17 @@ def cau_hinh() -> dict:
 
 
 def chia_nhom(goi: list[dict], ch: dict | None = None) -> dict[str, list[dict]]:
-    """{nhãn: các gói} theo thứ tự nút, bỏ nhóm rỗng, "Gói khác" cuối. Trong nhóm giữ thứ tự `items` của website; một gói có thể ở nhiều nhóm."""
+    """{nhãn: các gói} theo `THU_TU_NUT`, bỏ nhóm rỗng. Trong nhóm xếp giá thấp -> cao (rồi theo tên); một gói có thể ở nhiều nhóm.
+    Gói không thuộc nhóm nào của website thì không hiện."""
     ch = ch or cau_hinh()
     theo_ma = {g["code"]: g for g in goi}
+    theo_nhan = dict(ch["nhom"])
     ra: dict[str, list[dict]] = {}
-    da: set = set()
-    for nhan, ma in ch["nhom"]:
-        gs = [theo_ma[m] for m in ma if m in theo_ma]
+    for nhan in THU_TU_NUT:
+        an = AN_TRONG_NHOM.get(nhan, set())
+        gs = [theo_ma[m] for m in theo_nhan.get(nhan, []) if m in theo_ma and m not in an]
         if gs:
-            ra[nhan] = gs
-            da.update(g["code"] for g in gs)
-    khac = sorted((g for g in goi if g["code"] not in da), key=lambda g: (g["gia"] or 0, g["ten"]))
-    if khac:
-        ra[NHOM_KHAC] = khac
+            ra[nhan] = sorted(gs, key=lambda g: (g["gia"] is None, g["gia"] or 0, g["ten"]))
     return ra
 
 

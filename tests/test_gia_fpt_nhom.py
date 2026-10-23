@@ -108,7 +108,7 @@ def test_phan_tich_html_rac_rong_hoac_thieu_khoi_thi_bao_loi(mang):
         with pytest.raises(gn.LoiNhom):
             gn._phan_tich(trang)
     with pytest.raises(gn.LoiNhom):                                                     # thiếu MỘT khối là bỏ cả kết quả
-        gn._phan_tich(_html_day_du(bo="wifi-7-trang-chu"))
+        gn._phan_tich(_html_day_du(bo="internet-game-thu-trang-chu"))
     with pytest.raises(gn.LoiNhom):                                                     # khối có mà không có mã nào
         gn._phan_tich(_html_day_du(doi={"internet-game-thu-trang-chu": []}))
 
@@ -180,21 +180,27 @@ def test_nhieu_luot_nguoi_cung_luc_chi_tai_mot_lan(mang):
 
 
 # ------------------------------------------------------------------ chia nhóm
-CH = {"nhom": [("Internet cá nhân", ["b", "a"]), ("Internet doanh nghiệp", ["lux", "biz"]), ("Combo Internet + V.VIP", ["lux", "ko-co"]),
-               ("Wifi 7", ["ko-co"])], "nguon": "website"}
+CH = {"nhom": [("Internet cá nhân", ["b", "a", "goi-speedx1"]), ("Internet doanh nghiệp", ["lux", "biz"]), ("Combo Internet + V.VIP", ["lux", "ko-co"]),
+               ("Internet game thủ", ["goi-speedx1", "nulo"]), ("Wifi 7", ["ko-co"])], "nguon": "website"}
 
 
-def test_chia_nhom_theo_items_goi_hai_nhom_va_goi_khac_theo_gia():
+def test_chia_nhom_dung_thu_tu_nut_xep_gia_tang_an_goi_va_bo_goi_khac():
     goi = [_g("a", "Gói A", 300), _g("b", "Gói B", 100), _g("lux", "Combo Lux 800", 900), _g("biz", "Super300 Biz", 450),
-           _g("z2", "Z 2", 200), _g("z1", "Z 1", 200), _g("z0", "Rẻ", 50)]
+           _g("goi-speedx1", "Gói SpeedX1", 350), _g("z0", "Rẻ", 50)]
     nhom = gf.theo_nhom(goi, CH)
-    assert list(nhom) == ["Internet cá nhân", "Internet doanh nghiệp", "Combo Internet + V.VIP", "Gói khác"]   # nhóm rỗng ("Wifi 7") bỏ, "Gói khác" cuối
-    assert [g["code"] for g in nhom["Internet cá nhân"]] == ["b", "a"]                   # thứ tự items của website, không theo giá
-    assert [g["code"] for g in nhom["Internet doanh nghiệp"]] == ["lux", "biz"]
+    # thứ tự nút của CEO; "Wifi 7" (không còn là nút) và gói không thuộc nhóm nào ("z0") không hiện
+    assert list(nhom) == ["Internet cá nhân", "Combo Internet + V.VIP", "Internet game thủ", "Internet doanh nghiệp"]
+    assert [g["code"] for g in nhom["Internet cá nhân"]] == ["b", "a"]                   # giá thấp -> cao; SpeedX1 bị ẩn khỏi nhóm này
+    assert [g["code"] for g in nhom["Internet doanh nghiệp"]] == ["biz", "lux"]          # 450 trước 900
     assert [g["code"] for g in nhom["Combo Internet + V.VIP"]] == ["lux"]                # Lux800 hiện ở CẢ HAI nút; mã website có mà API không có thì bỏ qua
-    assert [g["code"] for g in nhom["Gói khác"]] == ["z0", "z1", "z2"]                   # còn lại: giá rồi tên
-    assert gn.nhom_cua_goi(goi, CH)["lux"] == "Internet doanh nghiệp · Combo Internet + V.VIP"
-    assert gn.nhom_cua_goi(goi, CH)["z1"] == "Gói khác"
+    assert [g["code"] for g in nhom["Internet game thủ"]] == ["goi-speedx1"]                 # SpeedX1 chỉ ẩn ở Internet cá nhân
+    assert gn.nhom_cua_goi(goi, CH)["lux"] == "Combo Internet + V.VIP · Internet doanh nghiệp"
+    assert "z0" not in gn.nhom_cua_goi(goi, CH)
+
+
+def test_gia_thieu_xep_cuoi_nhom():
+    goi = [_g("a", "A", None), _g("b", "B", 100)]
+    assert [g["code"] for g in gf.theo_nhom(goi, {"nhom": [("Internet cá nhân", ["a", "b"])], "nguon": "website"})["Internet cá nhân"]] == ["b", "a"]
 
 
 def test_chia_nhom_khong_co_goi_nao_thi_rong_va_khong_goi_mang(mang):

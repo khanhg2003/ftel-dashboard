@@ -353,7 +353,7 @@ def test_trang_tra_gia_dung_duoc_va_callback_kiem_quyen(mang_gia_an_tam):
     tb, luc, nut, chon, ctd, pha = goi("gf-tb.children", sale, "tra", TINH, AN_HAI, None, None)
     assert tb is None and pha["phuong"] == AN_HAI and ctd is None and luc.startswith("Giá lấy lúc ")
     nhan = [n["label"] for n in nut]
-    assert nhan == ["Internet cá nhân (1)", "Internet gia đình (1)", "Internet game thủ (1)", "Combo Internet Camera (2)", "Internet doanh nghiệp (1)"]   # thứ tự website, nhóm trống bỏ
+    assert nhan == ["Internet cá nhân (1)", "Internet gia đình (1)", "Internet game thủ (1)", "Internet doanh nghiệp (1)", "Combo Internet Camera (2)"]   # thứ tự nút của CEO, nhóm trống bỏ
     assert "lưu sẵn" not in luc                                                                            # nhóm lấy từ website
     assert chon == "Internet cá nhân"                                                                      # mặc định Internet cá nhân
     assert goi("gf-tb.children", sale, "tra", TINH, AN_HAI, None, "Internet doanh nghiệp")[3] == "Internet doanh nghiệp"    # giữ nhóm đang xem khi đổi phường
