@@ -257,6 +257,7 @@ def khung_phan_hoi():
     opts, mac_dinh = muc_theo_quyen(current_user)
     return html.Div([
         dcc.Store(id="ph-cap-nhat"),
+        html.Div(id="ph-nen", className="ph-nen"),
         html.Div([
             html.Div([
                 html.Div([
@@ -413,14 +414,15 @@ def register(app):
         Output("ph-msg", "children", allow_duplicate=True),
         Input("ph-nut-mo", "n_clicks"),
         Input("ph-dong", "n_clicks"),
+        Input("ph-nen", "n_clicks"),
         State("ph-khung", "className"),
         State("url", "pathname"),
         prevent_initial_call=True,
     )
-    def _bat_tat_popup(_mo, _dong, cls_hien, path):
+    def _bat_tat_popup(_mo, _dong, _nen, cls_hien, path):
         trig = ctx.triggered_id
         dang_mo = "mo" in (cls_hien or "")
-        if trig == "ph-dong" or (trig == "ph-nut-mo" and dang_mo):
+        if trig in ("ph-dong", "ph-nen") or (trig == "ph-nut-mo" and dang_mo):
             return "ph-khung", no_update, no_update, ""
         opts, mac_dinh = muc_theo_quyen(current_user, path)
         return "ph-khung mo", opts, mac_dinh, ""

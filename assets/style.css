@@ -2021,14 +2021,22 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   position: absolute; top: 4px; right: 4px; padding: 0 5px; font-size: 10px;
 }
 
-.ph-khung { display: none; position: fixed; left: 12px; bottom: 52px; z-index: 1100; }
-.ph-khung.mo { display: block; animation: ph-hien .16s ease-out; }
-@keyframes ph-hien { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.ph-khung { display: none; position: fixed; inset: 0; z-index: 1200; }
+.ph-khung.mo { display: flex; align-items: center; justify-content: center; }
+.ph-nen {
+  position: fixed; inset: 0; background: rgba(11, 28, 48, .52);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  animation: ph-nen-hien .16s ease-out;
+}
+@keyframes ph-nen-hien { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ph-hien { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
 .ph-hop {
-  width: min(440px, calc(100vw - 24px)); background: #FFFFFF; border: 1px solid #D0D5DD;
-  border-radius: 10px; padding: 18px 20px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, .22), 0 2px 8px rgba(15, 23, 42, .08);
+  position: relative; z-index: 1201;
+  width: min(460px, calc(100vw - 32px)); background: #FFFFFF; border: 1px solid #D0D5DD;
+  border-radius: 12px; padding: 20px 22px;
+  box-shadow: 0 24px 60px rgba(6, 24, 44, .32), 0 4px 12px rgba(6, 24, 44, .12);
+  animation: ph-hien .18s ease-out;
 }
 .ph-dau { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .ph-dau-trai { display: flex; align-items: center; gap: 8px; }
