@@ -1972,3 +1972,31 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   .pheu-phai { padding-right: 10px; font-size: 11px; }
   .pheu-dong.pheu-ranh-con::after { left: 76px; }
 }
+
+/* --- So sánh phễu giữa các phòng (Lưới phễu & Bảng so sánh) --- */
+.pheu-ss-khung { margin-top: 18px; padding-top: 16px; border-top: 1px solid #E2E8F0; }
+.pheu-ss-dau { margin-bottom: 12px; }
+.pheu-ss-tieu-de { margin: 0; font-size: 14px; font-weight: 700; color: #0F172A; }
+.pheu-nho-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.pheu-nho-the { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03); }
+.pheu-nho-dau { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+.pheu-nho-dau-trai { display: flex; align-items: center; gap: 2px; }
+.pheu-nho-ten { font-size: 14px; font-weight: 700; color: #0F172A; }
+.pheu-nho-phu { font-size: 12px; font-weight: 500; color: #64748B; }
+.pheu-nho-huy-hieu { font-size: 11px; font-weight: 600; color: #0D6EFD; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.pheu-nho-dong { display: grid; grid-template-columns: 74px 1fr; align-items: center; height: 42px; }
+.pheu-nho-nhan { position: relative; font-size: 11.5px; color: #334155; font-weight: 500; display: flex; align-items: center; }
+.pheu-nho-nhan::after { content: ""; flex: 1; border-bottom: 1px dashed #CBD5E1; margin: 0 6px; }
+.pheu-nho-nhan-chu { white-space: nowrap; }
+.pheu-nho-thap { height: 42px; padding: 1.5px 0; display: flex; align-items: stretch; justify-content: center; }
+.pheu-nho-so { font-size: 12.5px; font-weight: 700; line-height: 1.1; }
+.pheu-nho-pct { font-size: 10.5px; font-weight: 500; opacity: .95; line-height: 1.1; margin-top: 1px; }
+.pheu-nho-the .tip-noi { top: calc(100% + 6px); bottom: auto; width: 250px; }
+.pheu-ss-bang-boc { overflow-x: auto; border: 1px solid #CBD5E1; border-radius: 8px; }
+.pheu-ss-bang { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
+.pheu-ss-bang th, .pheu-ss-bang td { padding: 7px 10px; border-bottom: 1px solid #E2E8F0; text-align: center; white-space: nowrap; }
+.pheu-ss-bang thead th { background: #F1F5F9; color: #1E293B; font-weight: 700; font-size: 12px; border-bottom: 1px solid #CBD5E1; }
+.pheu-ss-bang th.o-trai, .pheu-ss-bang td.o-trai { text-align: left; }
+.pheu-ss-bang .khoi-dau { border-left: 1.5px solid #CBD5E1; }
+.pheu-ss-bang tbody tr:hover { background: #F8FAFC; }
+.pheu-ss-bang tr.pheu-ss-tong td { background: #DCE8F5; font-weight: 700; color: #002B4E; border-top: 1.5px solid #94A3B8; }
