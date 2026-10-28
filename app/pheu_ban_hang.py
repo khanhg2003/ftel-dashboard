@@ -42,16 +42,27 @@ _DU_LIEU_MAU = (
 
 CAC_TANG = (
     ("thu_thap", "THU THẬP", "PROSPECT", "#0052B4", "polygon(0% 0%, 100% 0%, 91.5% 100%, 8.5% 100%)",
-     "Khách hàng tiềm năng thu thập được trong kỳ (Chuyển đổi + Chưa chuyển đổi)."),
+     "Tổng lượng khách hàng tiềm năng thô vừa ghi nhận vào hệ thống. Khách đến từ nhắn tin hoặc bạn tự tạo"),
     ("lien_he", "LIÊN HỆ", "", "#0D6EFD", "polygon(8.5% 0%, 91.5% 0%, 83% 100%, 17% 100%)",
-     "Khách hàng đã chuyển sang bước Liên hệ. Tỷ lệ % = Liên hệ / Thu thập."),
+     "Số lượng khách hàng có SĐT xác thực đang chờ được liên hệ"),
     ("tu_van", "TƯ VẤN", "LEAD", "#1D8CF8", "polygon(17% 0%, 83% 0%, 75% 100%, 25% 100%)",
-     "Khách hàng đã liên hệ thành công và chuyển sang Tư vấn. Tỷ lệ % = Tư vấn / Liên hệ."),
+     "Số lượng khách hàng thực sự phát sinh tương tác, tìm hiểu chi tiết về sản phẩm/dịch vụ và đã được sale tư vấn"),
     ("len_don", "LÊN ĐƠN", "", "#3BA1FF", "polygon(25% 0%, 75% 0%, 67.5% 100%, 32.5% 100%)",
-     "Khách hàng đồng ý đăng ký và chuyển sang Lên đơn. Tỷ lệ % = Lên đơn / Tư vấn."),
+     "Số lượng khách hàng đã được xác nhận nhu cầu mua hàng và tiến tới giai đoạn tạo đơn hàng"),
     ("hoan_tat", "HOÀN TẤT", "CUSTOMER", "#63B8FF", "polygon(32.5% 0%, 67.5% 0%, 67.5% 100%, 32.5% 100%)",
-     "Đơn hàng bước vào giai đoạn Hoàn tất triển khai. Tỷ lệ % = Hoàn tất / Lên đơn."),
+     "Số lượng khách hàng đã hoàn tất đơn hàng và kích hoạt sử dụng dịch vụ thành công"),
 )
+
+MO_TA_PHEU = [
+    html.Div("Phễu phản ánh hành trình chuyển đổi từ lúc thu thập dữ liệu thô đến khi chốt đơn thành công.",
+             style={"marginBottom": "6px"}),
+    html.Div("◦ Số tuyệt đối: số lượng khách hàng tại mỗi bước.", style={"paddingLeft": "8px", "marginBottom": "3px"}),
+    html.Div("◦ Tỷ lệ %: Hiệu suất chuyển đổi so với bước ngay trước đó", style={"paddingLeft": "8px", "marginBottom": "8px"}),
+    html.Div("Nếu tỉ lệ chuyển đổi tại bước nào đang thấp đột biến, hãy chú ý vì đó có thể là điểm nghẽn khiến "
+             "bạn mất doanh thu tiềm năng. Bạn có thể so sánh con số này với các nguồn khách hàng khác hoặc với "
+             "cùng kỳ tháng trước để tìm ra nguyên nhân gốc rễ (do chất lượng data hay do kỹ năng tư vấn). Tập "
+             "trung tối ưu khâu vận hành tại đó để tránh lãng phí nguồn lực."),
+]
 
 
 def _map_don_vi() -> dict[str, str]:
@@ -161,12 +172,9 @@ def _pct(v: float | None) -> str:
 
 def the_pheu(chi_nhanh: str = "all") -> html.Div:
     """Thẻ Phễu bán hàng đặt dưới phần Dự báo ở Báo cáo Tổng."""
-    mo_ta = ("Số liệu từ file Phễu bán hàng nạp tại mục Nạp dữ liệu. "
-             "Mỗi tầng hiển thị tổng cơ hội ở bước đó (Chuyển đổi + Chưa chuyển đổi). "
-             "Tỷ lệ % là tỷ lệ chuyển đổi từ bước ngay phía trên xuống bước hiện tại.")
     return html.Div([
         html.Div([
-            html.Div([html.H3(["Phân tích cơ hội và giá trị theo giai đoạn", tip(mo_ta)],
+            html.Div([html.H3(["Phân tích cơ hội và giá trị theo giai đoạn", tip(MO_TA_PHEU)],
                               className="tieu-de-tip")], className="the-ten"),
             html.Div([
                 dcc.Dropdown(id="tq-pheu-dv", value="all", clearable=False, searchable=False,
@@ -208,7 +216,7 @@ def ve_pheu(df: pd.DataFrame) -> html.Div:
                          title=chi_tiet.replace(". ", "\n")),
                 className="pheu-giua",
             ),
-            html.Div([html.Span(t["nhan"], className="pheu-ten-tang"), tip(chi_tiet, trai=True)],
+            html.Div([html.Span(t["nhan"], className="pheu-ten-tang"), tip([html.Span(t["mo_ta"])], trai=True)],
                      className="pheu-phai"),
         ], className=lop_dong))
     return html.Div(dong, className="pheu-khung")

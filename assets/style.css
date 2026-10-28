@@ -1961,6 +1961,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .pheu-so { font-size: 15px; font-weight: 700; line-height: 1.2; }
 .pheu-pct { font-size: 12px; font-weight: 500; opacity: .95; line-height: 1.2; margin-top: 2px; }
 .pheu-phai { padding-right: 22px; display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 12px; font-weight: 600; color: #334155; z-index: 2; }
+.pheu-phai .tip-noi { top: auto; bottom: calc(100% + 8px); width: 250px; }
+.pheu-phai .tip-noi::before { top: auto; bottom: -5px; }
+.the-pheu .the-ten .tip-noi { width: 340px; }
 .pheu-ten-tang { letter-spacing: 0.02em; }
 @media (max-width: 768px) {
   .pheu-dong { grid-template-columns: 76px 1fr 96px; min-height: 54px; }
