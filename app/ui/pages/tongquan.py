@@ -193,7 +193,7 @@ def layout(ky: dict | None = None):
         tl.the_ai("tq", "Dự báo cuối tháng & nhận xét", tl.MO_TA_DU_BAO,
                   html.Div([tl.bang_du_bao("tq-du-bao"),
                             html.Div(id="tq-du-bao-loi", style={"marginTop": "8px"})])),
-        pbh.the_pheu(),
+        pbh.the_pheu(ky.get("cn", "all")),
     ])
 
 
@@ -483,7 +483,6 @@ def register(app):
                                      db.attrs.get("nhip")))
 
     @app.callback(Output("tq-pheu-than", "children"), Output("tq-pheu-dv", "options"),
-                  Output("tq-pheu-dv", "value"),
                   Input("tq-cn", "value"), Input("tq-pheu-dv", "value"))
     def _pheu(chi_nhanh, don_vi):
         chi_nhanh = chi_nhanh or "all"
@@ -491,7 +490,7 @@ def register(app):
         opts = pbh.don_vi_options(chi_phong=scope, chi_nhanh=chi_nhanh)
         hop_le = {o["value"] for o in opts}
         dv = don_vi if don_vi in hop_le else "all"
-        return pbh.ve_pheu(pbh.loc_pheu(chi_phong=scope, chi_nhanh=chi_nhanh, don_vi=dv)), opts, dv
+        return pbh.ve_pheu(pbh.loc_pheu(chi_phong=scope, chi_nhanh=chi_nhanh, don_vi=dv)), opts
     kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),
            chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     # Điện thoại: mở trang là dùng bảng Gọn luôn

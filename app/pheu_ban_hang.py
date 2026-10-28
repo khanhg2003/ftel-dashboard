@@ -12,7 +12,7 @@ from sqlalchemy import text
 
 from app.bo_nho import nho
 from app.config import rules_config
-from app.db import engine
+from app.db import engine, session_scope
 from app.models import FactPheu
 from app.org import phong_order
 from app.ui.components import tip
@@ -21,6 +21,23 @@ COT_SO_PHEU = (
     "thu_thap_cd", "thu_thap_ccd", "lien_he_cd", "lien_he_ccd",
     "tu_van_cd", "tu_van_ccd", "len_don_cd", "len_don_ccd",
     "hoan_tat_cd", "hoan_tat_ccd", "kh_cham_soc",
+)
+
+# Dữ liệu khởi tạo lần đầu từ file mẫu khi bảng trên máy chủ mới chưa nạp
+_DU_LIEU_MAU = (
+    ("Khác", 12, 11, 3, 9, 2, 1, 2, 0, 1, 1, 1),
+    ("DNGB1", 12418, 3485, 685, 11733, 668, 17, 532, 136, 324, 208, 324),
+    ("DNGB2", 5631, 3578, 676, 4955, 546, 130, 315, 231, 4, 311, 4),
+    ("DNGB3", 22021, 2977, 563, 21458, 526, 37, 377, 149, 133, 244, 133),
+    ("DNGB4", 706, 478, 562, 144, 503, 59, 367, 136, 158, 209, 158),
+    ("DNGB5", 2073, 1219, 1617, 456, 1188, 429, 950, 238, 660, 290, 660),
+    ("DNGB6", 5192, 2285, 590, 4602, 462, 128, 256, 206, 27, 229, 27),
+    ("DNGB7", 8561, 4547, 2582, 5979, 2259, 323, 1898, 361, 1504, 394, 1504),
+    ("DNGBT1", 163, 7, 161, 2, 161, 0, 142, 19, 0, 142, 0),
+    ("DNGBT2", 479, 21, 367, 112, 367, 0, 316, 51, 0, 316, 0),
+    ("DNGCS1", 130, 0, 130, 0, 130, 0, 98, 32, 0, 98, 0),
+    ("DNGCS2", 194, 3730, 182, 12, 182, 0, 139, 43, 0, 139, 0),
+    ("DNGDA", 2, 0, 2, 0, 2, 0, 1, 1, 0, 1, 0),
 )
 
 CAC_TANG = (
@@ -35,8 +52,6 @@ CAC_TANG = (
     ("hoan_tat", "HOÀN TẤT", "CUSTOMER", "#63B8FF", "polygon(32.5% 0%, 67.5% 0%, 67.5% 100%, 32.5% 100%)",
      "Đơn hàng bước vào giai đoạn Hoàn tất triển khai. Tỷ lệ % = Hoàn tất / Lên đơn."),
 )
-
-FactPheu.__table__.create(engine, checkfirst=True)
 
 
 def _map_don_vi() -> dict[str, str]:
@@ -57,11 +72,39 @@ def gan_don_vi(don_vi: str) -> tuple[str | None, str]:
     return phong_code, "DNG"
 
 
+def _df_mau() -> pd.DataFrame:
+    rows = []
+    for dv, *so in _DU_LIEU_MAU:
+        phong_code, chi_nhanh = gan_don_vi(dv)
+        rows.append({"don_vi": dv, "phong_code": phong_code, "chi_nhanh": chi_nhanh,
+                     **dict(zip(COT_SO_PHEU, so))})
+    return pd.DataFrame(rows)
+
+
+def _seed_neu_trong() -> None:
+    from app.ingest.commit import _upsert
+    try:
+        FactPheu.__table__.create(engine, checkfirst=True)
+        with session_scope() as s:
+            n = s.execute(text("SELECT COUNT(*) FROM fact_pheu_ban_hang")).scalar() or 0
+            if n == 0:
+                _upsert(s, FactPheu, _df_mau().to_dict("records"), "don_vi")
+    except Exception:
+        pass
+
+
 @nho("so_lieu")
 def bang_pheu() -> pd.DataFrame:
     """Đọc toàn bộ bảng phễu bán hàng (đã nhớ tạm theo nhóm `so_lieu`)."""
-    FactPheu.__table__.create(engine, checkfirst=True)
-    return pd.read_sql_query(text("SELECT * FROM fact_pheu_ban_hang ORDER BY don_vi"), engine)
+    try:
+        FactPheu.__table__.create(engine, checkfirst=True)
+        df = pd.read_sql_query(text("SELECT * FROM fact_pheu_ban_hang ORDER BY don_vi"), engine)
+        if df.empty:
+            _seed_neu_trong()
+            df = pd.read_sql_query(text("SELECT * FROM fact_pheu_ban_hang ORDER BY don_vi"), engine)
+        return df if not df.empty else _df_mau()
+    except Exception:
+        return _df_mau()
 
 
 def loc_pheu(chi_phong: list[str] | None = None, chi_nhanh: str = "all",
@@ -116,7 +159,7 @@ def _pct(v: float | None) -> str:
     return "" if v is None else f"{v:.2f}%"
 
 
-def the_pheu() -> html.Div:
+def the_pheu(chi_nhanh: str = "all") -> html.Div:
     """Thẻ Phễu bán hàng đặt dưới phần Dự báo ở Báo cáo Tổng."""
     mo_ta = ("Số liệu từ file Phễu bán hàng nạp tại mục Nạp dữ liệu. "
              "Mỗi tầng hiển thị tổng cơ hội ở bước đó (Chuyển đổi + Chưa chuyển đổi). "
@@ -127,11 +170,11 @@ def the_pheu() -> html.Div:
                               className="tieu-de-tip")], className="the-ten"),
             html.Div([
                 dcc.Dropdown(id="tq-pheu-dv", value="all", clearable=False, searchable=False,
-                             options=[{"label": "Tất cả đơn vị", "value": "all"}],
+                             options=don_vi_options(chi_nhanh=chi_nhanh),
                              className="pheu-chon-dv"),
             ], className="the-nut"),
         ], className="the-dau"),
-        html.Div(id="tq-pheu-than"),
+        html.Div(ve_pheu(loc_pheu(chi_nhanh=chi_nhanh)), id="tq-pheu-than"),
     ], className="card the-pheu")
 
 
