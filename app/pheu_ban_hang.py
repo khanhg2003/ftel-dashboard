@@ -129,6 +129,9 @@ def dam_bao_bang_pheu() -> None:
         pass
 
 
+dam_bao_bang_pheu()
+
+
 @nho("so_lieu")
 def bang_pheu() -> pd.DataFrame:
     """Đọc toàn bộ bảng phễu bán hàng (đã nhớ tạm theo nhóm `so_lieu`)."""
