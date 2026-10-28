@@ -67,12 +67,12 @@ def layout():
             html.Div(id="up-dung-luong", className="desc", style={"marginTop": "8px"}),
             html.Div(style={"height": "6px"}),
             html.Div([
-                html.Div([html.Label("Tháng NSLĐ (chỉ khi app không tự nhận được)"),
+                html.Div([html.Label("Tháng áp dụng (NSLĐ / Phễu bán hàng)"),
                           dcc.Dropdown(id="up-thang", options=_thang_options(), value=None,
                                        placeholder="Chọn tháng", clearable=True,
                                        style={"width": "190px"})],
                          className="field",
-                         style={} if _duoc_nap("nhan_su") else {"display": "none"}),
+                         style={} if (_duoc_nap("nhan_su") or _duoc_nap("pheu_ban_hang")) else {"display": "none"}),
                 html.Div("File bán hàng tự lấy ngày trong file. File NSLĐ tự nhận tháng từ dữ liệu "
                          "(Ngày tính lương + Tháng NSLĐ) hoặc tên file - nạp nhiều tháng một lượt được."
                          if _duoc_nap("nhan_su") else
@@ -221,6 +221,18 @@ def thang_nsld(res, ten_file: str, thang_chon: str | None = None) -> tuple[str |
     return None, ""
 
 
+def thang_pheu(ten_file: str, thang_chon: str | None = None) -> tuple[str, str]:
+    """(tháng của file Phễu bán hàng, cách nhận ra). Ưu tiên ô chọn tháng, rồi tên file, rồi tháng mới nhất."""
+    if thang_chon:
+        return thang_chon, "lấy theo ô Tháng bạn chọn"
+    theo_ten = thang_tu_ten_file(ten_file)
+    if theo_ten:
+        return theo_ten, "tự nhận theo tên file"
+    ds = cac_thang_co_du_lieu()
+    mac_dinh = ds[-1] if ds else f"{date.today():%Y-%m}"
+    return mac_dinh, "mặc định tháng hiện tại (đổi được ở ô Tháng áp dụng)"
+
+
 def _ten_thang(t: str) -> str:
     return f"{t[5:7]}/{t[:4]}"
 
@@ -248,6 +260,10 @@ def _khoi_ui(res, ten_file: str) -> html.Div:
         ten = f"{ten} tháng {_ten_thang(t)}" if t else ten
         thang_ghi = [badge(f"Tháng {_ten_thang(t)} · {cach}", "ok") if t else
                      badge("Chưa nhận ra tháng - chọn ở ô Tháng NSLĐ trước khi lưu", "bad")]
+    elif res.dataset == "pheu_ban_hang":
+        t, cach = thang_pheu(ten_file)
+        ten = f"{ten} tháng {_ten_thang(t)}"
+        thang_ghi = [badge(f"Tháng {_ten_thang(t)} · {cach}", "ok")]
     body = [
         html.Div(thang_ghi + [
             badge(f"{res.rows_valid:,} dòng hợp lệ".replace(",", "."), "ok"),
@@ -432,6 +448,9 @@ def register(app):
                                 dong.append(("bad", f"{ten} · {ten_file}",
                                              "Chưa lưu: không nhận ra tháng. Chọn ô Tháng NSLĐ rồi lưu lại."))
                                 continue
+                            ten = f"{ten} tháng {_ten_thang(thang_file)}"
+                        elif res.dataset == "pheu_ban_hang":
+                            thang_file, _ = thang_pheu(ten_file, thang)
                             ten = f"{ten} tháng {_ten_thang(thang_file)}"
                         st = commit_result(s, res, nguon_file=ten_file, hash_file=h,
                                            user=current_user.username, thang=thang_file or None)

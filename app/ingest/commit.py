@@ -296,23 +296,27 @@ def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
             stats["phong_chua_khai_bao"] = sorted(set(bo_qua))
 
     elif res.dataset == "pheu_ban_hang":
-        from app.pheu_ban_hang import COT_SO_PHEU, gan_don_vi
-        FactPheu.__table__.create(engine, checkfirst=True)
+        from app.pheu_ban_hang import COT_SO_PHEU, THANG_MAU, dam_bao_bang_pheu, gan_don_vi
+        dam_bao_bang_pheu()
+        thang_luu = thang or thang_tu_ten_file(nguon_file) or THANG_MAU
+        batch.thang = thang_luu
         seen, uniq, before = set(), [], 0
         for r in res.df.to_dict("records"):
             dv = norm_text(r.get("don_vi"))
             if not dv or dv.lower().startswith("tổng"):
                 continue
             before += 1
-            if dv in seen:
+            khoa = f"{thang_luu}|{dv}"
+            if khoa in seen:
                 continue
-            seen.add(dv)
+            seen.add(khoa)
             phong_code, chi_nhanh = gan_don_vi(dv)
-            uniq.append({"don_vi": dv, "phong_code": phong_code, "chi_nhanh": chi_nhanh, "batch_id": batch.id,
+            uniq.append({"khoa": khoa, "thang": thang_luu, "don_vi": dv,
+                         "phong_code": phong_code, "chi_nhanh": chi_nhanh, "batch_id": batch.id,
                          **{c: int(r.get(c) or 0) for c in COT_SO_PHEU}})
         stats["trung_trong_file"] = before - len(uniq)
-        new, upd = _upsert(session, FactPheu, uniq, "don_vi")
-        stats.update(them_moi=new, cap_nhat=upd)
+        new, upd = _upsert(session, FactPheu, uniq, "khoa")
+        stats.update(them_moi=new, cap_nhat=upd, thang=thang_luu)
 
     batch.rows_new = stats.get("them_moi", 0)
     batch.rows_updated = stats.get("cap_nhat", 0)

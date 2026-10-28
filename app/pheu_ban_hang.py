@@ -1,14 +1,15 @@
 """Số liệu và giao diện Phễu bán hàng trên Báo cáo Tổng (chốt 28/10/2026).
 
-Đọc từ bảng `fact_pheu_ban_hang` (nạp từ file Excel "Danh sách khách hàng chưa chuyển đổi theo từng đơn vị"
-ở trang Nạp dữ liệu). Mỗi tầng của phễu = Chuyển đổi + Chưa chuyển đổi của giai đoạn đó; tỷ lệ % ở mỗi tầng
-từ tầng 2 trở đi = số tầng hiện tại / số tầng ngay phía trên × 100%.
+Đọc từ bảng `fact_pheu_ban_hang` theo đúng tháng đang xem trên Báo cáo Tổng (nạp từ file Excel
+"Danh sách khách hàng chưa chuyển đổi theo từng đơn vị" ở trang Nạp dữ liệu). Mỗi tầng của phễu =
+Chuyển đổi + Chưa chuyển đổi của giai đoạn đó; tỷ lệ % ở mỗi tầng từ tầng 2 trở đi = số tầng hiện tại
+chia số tầng ngay phía trên × 100%.
 """
 from __future__ import annotations
 
 import pandas as pd
 from dash import dcc, html
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 from app.bo_nho import nho
 from app.config import rules_config
@@ -17,12 +18,15 @@ from app.models import FactPheu
 from app.org import phong_order
 from app.ui.components import seg_control, tip
 
+THANG_MAU = "2026-10"
+
 COT_SO_PHEU = (
     "thu_thap_cd", "thu_thap_ccd", "lien_he_cd", "lien_he_ccd",
     "tu_van_cd", "tu_van_ccd", "len_don_cd", "len_don_ccd",
     "hoan_tat_cd", "hoan_tat_ccd", "kh_cham_soc",
 )
 
+# Dữ liệu khởi tạo của kỳ 10/2026 từ file mẫu
 _DU_LIEU_MAU = (
     ("Khác", 12, 11, 3, 9, 2, 1, 2, 0, 1, 1, 1),
     ("DNGB1", 12418, 3485, 685, 11733, 668, 17, 532, 136, 324, 208, 324),
@@ -33,7 +37,7 @@ _DU_LIEU_MAU = (
     ("DNGB6", 5192, 2285, 590, 4602, 462, 128, 256, 206, 27, 229, 27),
     ("DNGB7", 8561, 4547, 2582, 5979, 2259, 323, 1898, 361, 1504, 394, 1504),
     ("DNGBT1", 163, 7, 161, 2, 161, 0, 142, 19, 0, 142, 0),
-    ("DNGBT2", 479, 21, 367, 112, 367, 0, 316, 51, 0, 316, 0),
+    ("DNGBT2", 479, 21, 367, 112, 367, 0, 316, 51, 0, 142 * 0 + 316, 0),
     ("DNGCS1", 130, 0, 130, 0, 130, 0, 98, 32, 0, 98, 0),
     ("DNGCS2", 194, 3730, 182, 12, 182, 0, 139, 43, 0, 139, 0),
     ("DNGDA", 2, 0, 2, 0, 2, 0, 1, 1, 0, 1, 0),
@@ -52,7 +56,6 @@ CAC_TANG = (
      "Số lượng khách hàng đã hoàn tất đơn hàng và kích hoạt sử dụng dịch vụ thành công"),
 )
 
-# Bảng màu cho các phễu phòng đặt cạnh nhau (tương tự hàng phễu con trong ảnh mẫu)
 MAU_PHEU_CON = (
     ("#1E00B8", "#351AE6", "#503AF7", "#6B5BFF", "#8477FF"),
     ("#1E7E00", "#2F9E0F", "#44B820", "#64CF42", "#8BE06E"),
@@ -96,23 +99,32 @@ def gan_don_vi(don_vi: str) -> tuple[str | None, str]:
     return phong_code, "DNG"
 
 
-def _df_mau() -> pd.DataFrame:
+def _df_mau(thang: str = THANG_MAU) -> pd.DataFrame:
     rows = []
     for dv, *so in _DU_LIEU_MAU:
         phong_code, chi_nhanh = gan_don_vi(dv)
-        rows.append({"don_vi": dv, "phong_code": phong_code, "chi_nhanh": chi_nhanh,
+        rows.append({"khoa": f"{thang}|{dv}", "thang": thang, "don_vi": dv,
+                     "phong_code": phong_code, "chi_nhanh": chi_nhanh,
                      **dict(zip(COT_SO_PHEU, so))})
     return pd.DataFrame(rows)
 
 
-def _seed_neu_trong() -> None:
+def dam_bao_bang_pheu() -> None:
+    """Tạo bảng (hoặc nâng cấp bảng cũ chưa có cột `thang`) và khởi tạo dữ liệu mẫu T10/2026."""
     from app.ingest.commit import _upsert
     try:
+        insp = inspect(engine)
+        if "fact_pheu_ban_hang" in insp.get_table_names():
+            cot = {c["name"] for c in insp.get_columns("fact_pheu_ban_hang")}
+            if "thang" not in cot or "khoa" not in cot:
+                with engine.begin() as c:
+                    c.execute(text("DROP TABLE fact_pheu_ban_hang"))
         FactPheu.__table__.create(engine, checkfirst=True)
         with session_scope() as s:
-            n = s.execute(text("SELECT COUNT(*) FROM fact_pheu_ban_hang")).scalar() or 0
+            n = s.execute(text("SELECT COUNT(*) FROM fact_pheu_ban_hang WHERE thang = :t"),
+                          {"t": THANG_MAU}).scalar() or 0
             if n == 0:
-                _upsert(s, FactPheu, _df_mau().to_dict("records"), "don_vi")
+                _upsert(s, FactPheu, _df_mau(THANG_MAU).to_dict("records"), "khoa")
     except Exception:
         pass
 
@@ -121,22 +133,21 @@ def _seed_neu_trong() -> None:
 def bang_pheu() -> pd.DataFrame:
     """Đọc toàn bộ bảng phễu bán hàng (đã nhớ tạm theo nhóm `so_lieu`)."""
     try:
-        FactPheu.__table__.create(engine, checkfirst=True)
-        df = pd.read_sql_query(text("SELECT * FROM fact_pheu_ban_hang ORDER BY don_vi"), engine)
-        if df.empty:
-            _seed_neu_trong()
-            df = pd.read_sql_query(text("SELECT * FROM fact_pheu_ban_hang ORDER BY don_vi"), engine)
-        return df if not df.empty else _df_mau()
+        dam_bao_bang_pheu()
+        df = pd.read_sql_query(text("SELECT * FROM fact_pheu_ban_hang ORDER BY thang DESC, don_vi"), engine)
+        return df if not df.empty else _df_mau(THANG_MAU)
     except Exception:
-        return _df_mau()
+        return _df_mau(THANG_MAU)
 
 
 def loc_pheu(chi_phong: list[str] | None = None, chi_nhanh: str = "all",
-             don_vi: str | None = None) -> pd.DataFrame:
-    """Lọc bảng phễu theo phạm vi phòng được xem, chi nhánh và đơn vị đang chọn."""
+             don_vi: str | None = None, thang: str | None = None) -> pd.DataFrame:
+    """Lọc bảng phễu theo tháng của bảng tổng, phạm vi phòng, chi nhánh và đơn vị."""
     df = bang_pheu()
     if df.empty:
         return df
+    if thang and "thang" in df.columns:
+        df = df[df["thang"] == thang]
     if chi_nhanh in ("DNG", "QNM"):
         df = df[df["chi_nhanh"] == chi_nhanh]
     if chi_phong is not None:
@@ -160,10 +171,11 @@ def loc_nhom_don_vi(df: pd.DataFrame, nhom: str = "ibb") -> pd.DataFrame:
     return df
 
 
-def don_vi_options(chi_phong: list[str] | None = None, chi_nhanh: str = "all") -> list[dict]:
+def don_vi_options(chi_phong: list[str] | None = None, chi_nhanh: str = "all",
+                   thang: str | None = None) -> list[dict]:
     """Danh sách đơn vị cho ô lọc góc phải của thẻ Phễu bán hàng."""
-    df = loc_pheu(chi_phong=chi_phong, chi_nhanh=chi_nhanh, don_vi="all")
-    ten_phong = {p["code"]: p["ten"] for p in phong_order()}
+    df = loc_pheu(chi_phong=chi_phong, chi_nhanh=chi_nhanh, don_vi="all", thang=thang)
+    ten_phong = {p["code"]: p["ten"] for p in phong_order(thang)}
     opts = [{"label": "Tất cả đơn vị", "value": "all"}]
     for _, r in df.iterrows():
         dv = r["don_vi"]
@@ -196,8 +208,11 @@ def _pct(v: float | None) -> str:
     return "" if v is None else f"{v:.2f}%"
 
 
+def ten_thang_pheu(thang: str | None) -> str:
+    return f"Tháng {thang[5:7]}/{thang[:4]}" if thang and len(thang) >= 7 else ""
+
+
 def _ten_hien_thi_dv(r: pd.Series, ten_phong: dict[str, str]) -> tuple[str, str]:
-    """(Tên chính ưu tiên IBB1..IBB7, mã đơn vị phụ DNGB1..)."""
     dv = str(r.get("don_vi") or "")
     p = ten_phong.get(r.get("phong_code"), "")
     if p and p.upper() != dv.upper():
@@ -205,20 +220,24 @@ def _ten_hien_thi_dv(r: pd.Series, ten_phong: dict[str, str]) -> tuple[str, str]
     return dv, ""
 
 
-def the_pheu(chi_nhanh: str = "all") -> html.Div:
+def the_pheu(chi_nhanh: str = "all", thang: str | None = THANG_MAU) -> html.Div:
     """Thẻ Phễu bán hàng + khối so sánh giữa các phòng đặt dưới phần Dự báo ở Báo cáo Tổng."""
-    df_all = loc_pheu(chi_nhanh=chi_nhanh)
+    thang = thang or THANG_MAU
+    df_all = loc_pheu(chi_nhanh=chi_nhanh, thang=thang)
     return html.Div([
         html.Div([
-            html.Div([html.H3(["Phân tích cơ hội và giá trị theo giai đoạn", tip(MO_TA_PHEU)],
-                              className="tieu-de-tip")], className="the-ten"),
             html.Div([
+                html.H3(["Phân tích cơ hội và giá trị theo giai đoạn", tip(MO_TA_PHEU)],
+                        className="tieu-de-tip"),
+            ], className="the-ten"),
+            html.Div([
+                html.Span(ten_thang_pheu(thang), id="tq-pheu-ky", className="badge muted"),
                 dcc.Dropdown(id="tq-pheu-dv", value="all", clearable=False, searchable=False,
-                             options=don_vi_options(chi_nhanh=chi_nhanh),
+                             options=don_vi_options(chi_nhanh=chi_nhanh, thang=thang),
                              className="pheu-chon-dv"),
             ], className="the-nut"),
         ], className="the-dau"),
-        html.Div(ve_pheu(df_all), id="tq-pheu-than"),
+        html.Div(ve_pheu(df_all, thang=thang), id="tq-pheu-than"),
         html.Div([
             html.Div([
                 html.Div([
@@ -238,17 +257,18 @@ def the_pheu(chi_nhanh: str = "all") -> html.Div:
                     ], "luoi"),
                 ], className="the-nut"),
             ], className="the-dau pheu-ss-dau"),
-            html.Div(ve_so_sanh_phong(df_all, "ibb", "luoi"), id="tq-pheu-ss-than"),
+            html.Div(ve_so_sanh_phong(df_all, "ibb", "luoi", thang=thang), id="tq-pheu-ss-than"),
         ], className="pheu-ss-khung"),
     ], className="card the-pheu")
 
 
-def ve_pheu(df: pd.DataFrame) -> html.Div:
+def ve_pheu(df: pd.DataFrame, thang: str | None = None) -> html.Div:
     """Dựng 5 tầng của phễu lớn giống 100% mẫu thiết kế."""
     if df.empty:
+        nhan_ky = ten_thang_pheu(thang) or "kỳ đang chọn"
         return html.Div([
-            html.Div("Chưa có dữ liệu phễu bán hàng cho phạm vi đang chọn. "
-                     "Vào mục Nạp dữ liệu để tải lên file Excel Phễu bán hàng.",
+            html.Div(f"Chưa có dữ liệu phễu bán hàng của {nhan_ky}. "
+                     f"Vào mục Nạp dữ liệu để tải lên file Excel Phễu bán hàng của {nhan_ky.lower()}.",
                      className="ai-goi-y"),
         ])
     tang = tinh_pheu(df)
@@ -327,7 +347,6 @@ def _the_pheu_nho(r: pd.Series, bang_mau: tuple[str, ...], ten_phong: dict[str, 
 
 
 def _mau_pct_so_sanh(val: float | None, tb: float | None) -> dict:
-    """Tô màu ô % chuyển đổi so với mức chung của nhóm (xanh khi tốt hơn, vàng/đỏ khi hụt)."""
     if val is None or tb is None:
         return {}
     chenh = val - tb
@@ -414,163 +433,16 @@ def _bang_so_sanh(df: pd.DataFrame, ten_phong: dict[str, str]) -> html.Div:
     ], className="pheu-ss-bang-boc")
 
 
-def ve_so_sanh_phong(df: pd.DataFrame, nhom: str = "ibb", kieu: str = "luoi") -> html.Div:
+def ve_so_sanh_phong(df: pd.DataFrame, nhom: str = "ibb", kieu: str = "luoi",
+                     thang: str | None = None) -> html.Div:
     """Dựng khối so sánh các phòng bên dưới phễu tổng (chế độ Lưới phễu hoặc Bảng so sánh)."""
     sub = loc_nhom_don_vi(df, nhom or "ibb")
     if sub.empty:
-        return html.Div("Không có đơn vị nào trong nhóm đang chọn.", className="ai-goi-y")
-    ten_phong = {p["code"]: p["ten"] for p in phong_order()}
+        nhan_ky = ten_thang_pheu(thang) or "kỳ đang chọn"
+        return html.Div(f"Chưa có dữ liệu so sánh phòng của {nhan_ky}.", className="ai-goi-y")
+    ten_phong = {p["code"]: p["ten"] for p in phong_order(thang)}
     if kieu == "bang":
         return _bang_so_sanh(sub, ten_phong)
     the = [_the_pheu_nho(r, MAU_PHEU_CON[idx % len(MAU_PHEU_CON)], ten_phong)
            for idx, (_, r) in enumerate(sub.iterrows())]
     return html.Div(the, className="pheu-nho-luoi")
-
-
-def _the_pheu_nho(r: pd.Series, bang_mau: tuple[str, ...], ten_phong: dict[str, str]) -> html.Div:
-    """Một thẻ phễu nhỏ của 1 phòng (bố cục giống 3 phễu nhỏ bên dưới trong ảnh mẫu)."""
-    df_1 = pd.DataFrame([r])
-    tang = tinh_pheu(df_1)
-    ten_chinh, ma_phu = _ten_hien_thi_dv(r, ten_phong)
-    tt_tong = tang[0]["tong"]
-    ht_tong = tang[-1]["tong"]
-    kh_cs = int(r.get("hoan_tat_cd") or 0)
-    ty_le_chung = round(ht_tong / tt_tong * 100, 2) if tt_tong > 0 else 0.0
-
-    dong_nho = []
-    for j, t in enumerate(tang):
-        noi_dung = [html.Div(_so(t["tong"]), className="pheu-nho-so")]
-        if t["ty_le"] is not None:
-            noi_dung.append(html.Div(_pct(t["ty_le"]), className="pheu-nho-pct"))
-        chi_tiet = (f"{ten_chinh} · {t['nhan']}: {_so(t['tong'])}\n"
-                    f"Chuyển đổi: {_so(t['cd'])} · Chưa chuyển đổi: {_so(t['ccd'])}")
-        dong_nho.append(html.Div([
-            html.Div(html.Span(TEN_TANG_NGAN[t["ma"]], className="pheu-nho-nhan-chu"),
-                     className="pheu-nho-nhan"),
-            html.Div(
-                html.Div(noi_dung, className="pheu-khoi",
-                         style={"background": bang_mau[j], "clipPath": t["clip"]},
-                         title=chi_tiet),
-                className="pheu-nho-thap",
-            ),
-        ], className="pheu-nho-dong"))
-
-    mo_ta_phong = [
-        html.Div(f"{ten_chinh}" + (f" (Mã đơn vị: {ma_phu})" if ma_phu else ""), style={"fontWeight": "700", "marginBottom": "4px"}),
-        html.Div(f"◦ Tổng thu thập: {_so(tt_tong)} → Hoàn tất: {_so(ht_tong)} ({_pct(ty_le_chung)})"),
-        html.Div(f"◦ Khách chăm sóc hiện có (Hoàn tất chuyển đổi): {_so(kh_cs)}"),
-    ]
-    return html.Div([
-        html.Div([
-            html.Div([
-                html.Span(ten_chinh, className="pheu-nho-ten"),
-                html.Span(f" · {ma_phu}", className="pheu-nho-phu") if ma_phu else None,
-                tip(mo_ta_phong, trai=True),
-            ], className="pheu-nho-dau-trai"),
-            html.Span(f"HT/TT: {_pct(ty_le_chung)}", className="pheu-nho-huy-hieu",
-                      title="Tỷ lệ Hoàn tất / Thu thập"),
-        ], className="pheu-nho-dau"),
-        html.Div(dong_nho, className="pheu-nho-than"),
-    ], className="pheu-nho-the")
-
-
-def _mau_pct_so_sanh(val: float | None, tb: float | None) -> dict:
-    """Tô màu ô % chuyển đổi so với mức chung của nhóm (xanh khi tốt hơn, vàng/đỏ khi hụt)."""
-    if val is None or tb is None:
-        return {}
-    chenh = val - tb
-    if chenh >= 3:
-        return {"backgroundColor": "#DCF5E6", "color": "#0A5B31", "fontWeight": "700"}
-    if chenh <= -8:
-        return {"backgroundColor": "#FBE3E1", "color": "#93241C", "fontWeight": "600"}
-    if chenh <= -3:
-        return {"backgroundColor": "#FDF1D8", "color": "#8A5709", "fontWeight": "600"}
-    return {"fontWeight": "600", "color": "#1E293B"}
-
-
-def _bang_so_sanh(df: pd.DataFrame, ten_phong: dict[str, str]) -> html.Div:
-    """Bảng so sánh trực diện 5 bước + tỷ lệ % chuyển đổi giữa các phòng."""
-    tang_chung = tinh_pheu(df)
-    tb_lh = tang_chung[1]["ty_le"]
-    tb_tv = tang_chung[2]["ty_le"]
-    tb_ld = tang_chung[3]["ty_le"]
-    tb_ht = tang_chung[4]["ty_le"]
-    tt_all = tang_chung[0]["tong"]
-    tb_chot = round(tang_chung[4]["tong"] / tt_all * 100, 2) if tt_all > 0 else 0.0
-
-    hang = []
-    for _, r in df.iterrows():
-        ten_chinh, ma_phu = _ten_hien_thi_dv(r, ten_phong)
-        t = tinh_pheu(pd.DataFrame([r]))
-        tt, lh, tv, ld, ht = [x["tong"] for x in t]
-        kh_cs = int(r.get("hoan_tat_cd") or 0)
-        chot = round(ht / tt * 100, 2) if tt > 0 else 0.0
-        hang.append(html.Tr([
-            html.Td([html.B(ten_chinh), html.Span(f" ({ma_phu})", className="pheu-nho-phu") if ma_phu else None],
-                    className="o-trai"),
-            html.Td(_so(tt), className="o-so"),
-            html.Td(_so(lh), className="o-so khoi-dau"),
-            html.Td(_pct(t[1]["ty_le"]), className="o-pct", style=_mau_pct_so_sanh(t[1]["ty_le"], tb_lh)),
-            html.Td(_so(tv), className="o-so khoi-dau"),
-            html.Td(_pct(t[2]["ty_le"]), className="o-pct", style=_mau_pct_so_sanh(t[2]["ty_le"], tb_tv)),
-            html.Td(_so(ld), className="o-so khoi-dau"),
-            html.Td(_pct(t[3]["ty_le"]), className="o-pct", style=_mau_pct_so_sanh(t[3]["ty_le"], tb_ld)),
-            html.Td(_so(ht), className="o-so khoi-dau"),
-            html.Td(_pct(t[4]["ty_le"]), className="o-pct", style=_mau_pct_so_sanh(t[4]["ty_le"], tb_ht)),
-            html.Td(_so(kh_cs), className="o-so khoi-dau"),
-            html.Td(_pct(chot), className="o-pct", style=_mau_pct_so_sanh(chot, tb_chot)),
-        ]))
-
-    kh_cs_all = int(df["hoan_tat_cd"].sum()) if not df.empty else 0
-    hang.append(html.Tr([
-        html.Td("TỔNG NHÓM ĐANG XEM", className="o-trai"),
-        html.Td(_so(tang_chung[0]["tong"]), className="o-so"),
-        html.Td(_so(tang_chung[1]["tong"]), className="o-so khoi-dau"),
-        html.Td(_pct(tb_lh), className="o-pct"),
-        html.Td(_so(tang_chung[2]["tong"]), className="o-so khoi-dau"),
-        html.Td(_pct(tb_tv), className="o-pct"),
-        html.Td(_so(tang_chung[3]["tong"]), className="o-so khoi-dau"),
-        html.Td(_pct(tb_ld), className="o-pct"),
-        html.Td(_so(tang_chung[4]["tong"]), className="o-so khoi-dau"),
-        html.Td(_pct(tb_ht), className="o-pct"),
-        html.Td(_so(kh_cs_all), className="o-so khoi-dau"),
-        html.Td(_pct(tb_chot), className="o-pct"),
-    ], className="pheu-ss-tong"))
-
-    return html.Div([
-        html.Table([
-            html.Thead([
-                html.Tr([
-                    html.Th("Phòng / Đơn vị", rowSpan=2, className="o-trai"),
-                    html.Th("Thu thập", rowSpan=2),
-                    html.Th("Liên hệ", colSpan=2, className="khoi-dau"),
-                    html.Th("Tư vấn", colSpan=2, className="khoi-dau"),
-                    html.Th("Lên đơn", colSpan=2, className="khoi-dau"),
-                    html.Th("Hoàn tất", colSpan=2, className="khoi-dau"),
-                    html.Th("Tổng kết", colSpan=2, className="khoi-dau"),
-                ]),
-                html.Tr([
-                    html.Th("Số lượng", className="khoi-dau"), html.Th("% LH/TT"),
-                    html.Th("Số lượng", className="khoi-dau"), html.Th("% TV/LH"),
-                    html.Th("Số lượng", className="khoi-dau"), html.Th("% LĐ/TV"),
-                    html.Th("Số lượng", className="khoi-dau"), html.Th("% HT/LĐ"),
-                    html.Th("KH chăm sóc", className="khoi-dau"), html.Th("% HT/TT"),
-                ]),
-            ]),
-            html.Tbody(hang),
-        ], className="pheu-ss-bang"),
-    ], className="pheu-ss-bang-boc")
-
-
-def ve_so_sanh_phong(df: pd.DataFrame, nhom: str = "ibb", kieu: str = "luoi") -> html.Div:
-    """Dựng khối so sánh các phòng bên dưới phễu tổng (chế độ Lưới phễu hoặc Bảng so sánh)."""
-    sub = loc_nhom_don_vi(df, nhom or "ibb")
-    if sub.empty:
-        return html.Div("Không có đơn vị nào trong nhóm đang chọn.", className="ai-goi-y")
-    ten_phong = {p["code"]: p["ten"] for p in phong_order()}
-    if kieu == "bang":
-        return _bang_so_sanh(sub, ten_phong)
-    the = [_the_pheu_nho(r, MAU_PHEU_CON[idx % len(MAU_PHEU_CON)], ten_phong)
-           for idx, (_, r) in enumerate(sub.iterrows())]
-    return html.Div(the, className="pheu-nho-luoi")
-

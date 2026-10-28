@@ -184,14 +184,15 @@ def test_nap_file_pheu_ban_hang_hai_dong_tieu_de(tmp_path):
     kq = load_file(p)
     assert len(kq) == 1 and kq[0].dataset == "pheu_ban_hang" and kq[0].rows_valid == 2
     with session_scope() as s:
-        st = commit_result(s, kq[0], nguon_file=p.name, hash_file=file_hash(p), user="zz_test_pheu")
+        st = commit_result(s, kq[0], nguon_file=p.name, hash_file=file_hash(p), user="zz_test_pheu", thang="2026-09")
         assert st["them_moi"] == 2 and st["cap_nhat"] == 0
     try:
-        df = pbh.bang_pheu()
+        df = pbh.loc_pheu(thang="2026-09")
         sub = df[df["don_vi"].isin(["ZZ_DNGB1", "ZZ_DNGB7"])]
         tang = pbh.tinh_pheu(sub)
         assert [t["tong"] for t in tang] == [450, 300, 180, 120, 90]
         assert [t["ty_le"] for t in tang] == [None, 66.67, 60.0, 66.67, 75.0]
+        assert pbh.loc_pheu(thang="2026-08").empty
     finally:
         with session_scope() as s:
             s.execute(delete(FactPheu).where(FactPheu.don_vi.like("ZZ_%")))

@@ -181,9 +181,11 @@ class FactCamera(Base, _FactCommon):
 
 
 class FactPheu(Base):
-    """Số liệu Phễu bán hàng theo từng đơn vị (bản chụp mới nhất, chốt 28/10/2026)."""
+    """Số liệu Phễu bán hàng theo từng tháng và đơn vị (chốt 28/10/2026)."""
     __tablename__ = "fact_pheu_ban_hang"
-    don_vi: Mapped[str] = mapped_column(String(40), primary_key=True)
+    khoa: Mapped[str] = mapped_column(String(60), primary_key=True)
+    thang: Mapped[str] = mapped_column(String(7), index=True)
+    don_vi: Mapped[str] = mapped_column(String(40), index=True)
     phong_code: Mapped[str | None] = mapped_column(String(20), index=True, nullable=True)
     chi_nhanh: Mapped[str | None] = mapped_column(String(10), index=True, nullable=True)
     thu_thap_cd: Mapped[int] = mapped_column(Integer, default=0)

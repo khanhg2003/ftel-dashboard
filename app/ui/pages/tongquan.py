@@ -193,7 +193,7 @@ def layout(ky: dict | None = None):
         tl.the_ai("tq", "Dự báo cuối tháng & nhận xét", tl.MO_TA_DU_BAO,
                   html.Div([tl.bang_du_bao("tq-du-bao"),
                             html.Div(id="tq-du-bao-loi", style={"marginTop": "8px"})])),
-        pbh.the_pheu(ky.get("cn", "all")),
+        pbh.the_pheu(ky.get("cn", "all"), thang=den[:7] if den else None),
     ])
 
 
@@ -483,18 +483,24 @@ def register(app):
                                      db.attrs.get("nhip")))
 
     @app.callback(Output("tq-pheu-than", "children"), Output("tq-pheu-dv", "options"),
-                  Output("tq-pheu-ss-than", "children"),
-                  Input("tq-cn", "value"), Input("tq-pheu-dv", "value"),
-                  Input("tq-pheu-nhom", "value"), Input("tq-pheu-kieu", "value"))
-    def _pheu(chi_nhanh, don_vi, nhom, kieu):
+                  Output("tq-pheu-ss-than", "children"), Output("tq-pheu-ky", "children"),
+                  Input("tq-khoang", "end_date"), Input("tq-cn", "value"),
+                  Input("tq-pheu-dv", "value"), Input("tq-pheu-nhom", "value"),
+                  Input("tq-pheu-kieu", "value"))
+    def _pheu(ngay_iso, chi_nhanh, don_vi, nhom, kieu):
+        ngays = cac_ngay_co_du_lieu()
+        ngay_iso = (ngay_iso or (ngays[-1] if ngays else ""))[:10]
+        thang = ngay_iso[:7] if ngay_iso else pbh.THANG_MAU
         chi_nhanh = chi_nhanh or "all"
-        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh)
-        opts = pbh.don_vi_options(chi_phong=scope, chi_nhanh=chi_nhanh)
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
+        opts = pbh.don_vi_options(chi_phong=scope, chi_nhanh=chi_nhanh, thang=thang)
         hop_le = {o["value"] for o in opts}
         dv = don_vi if don_vi in hop_le else "all"
-        df_all = pbh.loc_pheu(chi_phong=scope, chi_nhanh=chi_nhanh, don_vi="all")
-        df_dv = df_all if dv == "all" else pbh.loc_pheu(chi_phong=scope, chi_nhanh=chi_nhanh, don_vi=dv)
-        return pbh.ve_pheu(df_dv), opts, pbh.ve_so_sanh_phong(df_all, nhom or "ibb", kieu or "luoi")
+        df_all = pbh.loc_pheu(chi_phong=scope, chi_nhanh=chi_nhanh, don_vi="all", thang=thang)
+        df_dv = df_all if dv == "all" else pbh.loc_pheu(chi_phong=scope, chi_nhanh=chi_nhanh, don_vi=dv, thang=thang)
+        return (pbh.ve_pheu(df_dv, thang=thang), opts,
+                pbh.ve_so_sanh_phong(df_all, nhom or "ibb", kieu or "luoi", thang=thang),
+                pbh.ten_thang_pheu(thang))
     kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),
            chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     # Điện thoại: mở trang là dùng bảng Gọn luôn
