@@ -154,6 +154,7 @@ NAV = [
     ]),
     ("Hệ thống", [
         ("/quantri", "Quản trị", "settings", "settings"),
+        ("/phanhoi", "Phản hồi", "phan_hoi", "settings"),
     ]),
 ]
 # đường dẫn cũ vẫn mở được, menu sáng đúng mục mới
@@ -219,7 +220,7 @@ def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
                 continue
             cls = "nav-item active" if DUONG_DAN_CU.get(path, path) == href else "nav-item"
             nhan_con = [icon(ico), html.Span(label)]
-            if href == "/quantri" and current_user.duoc_cau_hinh:
+            if href == "/phanhoi" and current_user.duoc_cau_hinh:
                 from app.phan_hoi import dem_phan_hoi_moi
                 so_ph = dem_phan_hoi_moi()
                 if so_ph > 0:
@@ -251,7 +252,6 @@ def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
                       _chon_khoi_ui(khoi_dang_xem),
                   ], className="foot-links")],
                  className="foot"),
-        __import__("app.phan_hoi", fromlist=["nut_menu_trai"]).nut_menu_trai(),
         html.Button([icon("thu_gon", 17), html.Span("Thu gọn")], id="btn-thu-gon",
                     className="side-toggle", title="Thu gọn / mở rộng menu"),
     ], className="sidebar")
@@ -470,10 +470,10 @@ def _router(path, search=None, store=None):
         if not current_user.duoc_xem_ads:
             return html.Div("Tài khoản này không xem được mục Ads IBB7."), _topbar_simple("Ads IBB7")
         return ads_page.layout(tab), ads_page.topbar()
-    if path in ("/quantri", "/settings"):
+    if path in ("/quantri", "/settings", "/phanhoi"):
         if not current_user.duoc_cau_hinh:
             return html.Div("Bạn không có quyền vào mục Quản trị."), _topbar_simple("Quản trị")
-        return quantri.layout("cocau" if path == "/settings" and not tab else tab), quantri.topbar()
+        return quantri.layout("phanhoi" if path == "/phanhoi" else ("cocau" if path == "/settings" and not tab else tab)), quantri.topbar()
     if path == "/hr":
         return hr_page.layout(ky), hr_page.topbar()
     if path == "/upload":

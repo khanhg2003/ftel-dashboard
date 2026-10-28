@@ -2001,17 +2001,29 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .pheu-ss-bang tbody tr:hover { background: #F8FAFC; }
 .pheu-ss-bang tr.pheu-ss-tong td { background: #DCE8F5; font-weight: 700; color: #002B4E; border-top: 1.5px solid #94A3B8; }
 
-/* --- Phản hồi hệ thống (nút ghim chân menu + popup góp ý + quản trị) --- */
-.ph-nut-menu {
-  background: rgba(25, 118, 210, .18); border: none; border-top: 1px solid rgba(255, 255, 255, .10);
-  color: #E2F0FF; cursor: pointer; width: 100%; padding: 11px 18px; text-align: left;
-  display: flex; align-items: center; gap: 11px; font: inherit; font-size: 13px;
-  font-weight: 600; letter-spacing: .1px; flex: 0 0 auto;
-  transition: background .16s var(--ease), color .16s var(--ease);
+/* --- Phản hồi hệ thống (nút ghim bên phải + popup giữa màn hình + quản trị) --- */
+.ph-nut-noi {
+  position: fixed; right: 22px; bottom: 86px; z-index: 60;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px 9px 12px; border: 1.5px solid #155EEF; border-radius: 999px;
+  background: #FFFFFF; color: #155EEF; cursor: pointer;
+  font: 600 13.5px inherit; font-family: inherit;
+  box-shadow: 0 8px 22px rgba(21, 94, 239, .20), 0 2px 6px rgba(15, 23, 42, .08);
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
 }
-.ph-nut-menu:hover { background: rgba(55, 165, 230, .30); color: #FFFFFF; }
-.app-shell.thu-gon .ph-nut-menu { justify-content: center; padding: 11px 0; }
-.app-shell.thu-gon .ph-nut-menu span:last-child { display: none; }
+.ph-nut-noi:hover {
+  transform: translateY(-2px); background: #F5F8FF;
+  box-shadow: 0 12px 28px rgba(21, 94, 239, .28);
+}
+.ph-ico-noi { display: inline-flex; line-height: 0; }
+.ph-ico-noi p { margin: 0; line-height: 0; }
+.ph-badge-noi {
+  background: #F04438; color: #FFFFFF; font-size: 11px; font-weight: 700;
+  padding: 1px 6px; border-radius: 999px; line-height: 1.4;
+}
+@media (max-width: 640px) {
+  .ph-nut-noi { right: 14px; bottom: 74px; padding: 9px 12px; }
+}
 
 .ph-badge-menu {
   margin-left: auto; background: #F04438; color: #FFFFFF; font-size: 11px; font-weight: 700;
@@ -2059,7 +2071,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .ph-o-nhap::placeholder { color: #98A2B3; }
 .ph-o-nhap:focus { outline: none; border-color: #155EEF; box-shadow: 0 0 0 2px rgba(21, 94, 239, .18); }
 .ph-msg:not(:empty) { margin-top: 10px; }
-.ph-chan { margin-top: 14px; display: flex; align-items: center; }
+.ph-chan { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ph-link-admin { font-size: 13px; font-weight: 600; color: #155EEF; text-decoration: none; }
+.ph-link-admin:hover { text-decoration: underline; }
 .ph-nut-gui {
   padding: 9px 18px; border-radius: 6px; border: 1px solid #155EEF; background: #155EEF;
   color: #FFFFFF; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;

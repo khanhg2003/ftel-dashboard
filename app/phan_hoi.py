@@ -240,68 +240,76 @@ def xoa_phan_hoi(ids: list[int], nguoi_xu_ly: str) -> int:
 
 
 # ------------------------------------------------------------------ Giao diện nút ghim & popup Phản hồi hệ thống
-def nut_menu_trai():
-    """Nút Phản hồi hệ thống ghim cố định ở chân menu trái (ngay trên nút Thu gọn)."""
-    return html.Button(
-        [icon("phan_hoi", 17), html.Span("Phản hồi hệ thống")],
-        id="ph-nut-mo",
-        className="ph-nut-menu",
-        title="Gửi góp ý, đề xuất cải thiện hoặc báo lỗi về Quản trị",
-    )
-
-
 def khung_phan_hoi():
-    """Hộp popup Phản hồi hệ thống nổi cố định trên màn hình."""
+    """Nút ghim nổi bên phải màn hình và hộp thoại Phản hồi hệ thống ở giữa màn hình."""
     if not current_user.is_authenticated:
         return html.Div()
     opts, mac_dinh = muc_theo_quyen(current_user)
+    la_admin = bool(getattr(current_user, "duoc_cau_hinh", False))
+    so_moi = dem_phan_hoi_moi() if la_admin else 0
+    nut_con = [
+        dcc.Markdown(SVG_BONG_SAO, dangerously_allow_html=True, className="ph-ico-noi"),
+        html.Span("Phản hồi"),
+    ]
+    if so_moi > 0:
+        nut_con.append(html.Span(f"{so_moi}", className="ph-badge-noi", title=f"{so_moi} phản hồi mới chờ xử lý"))
+    chan_con = [html.Button("Gửi phản hồi", id="ph-gui", className="ph-nut-gui", disabled=True)]
+    if la_admin:
+        nhan_ql = f"Xem danh sách phản hồi ({so_moi} mới) →" if so_moi > 0 else "Xem danh sách phản hồi →"
+        chan_con.append(dcc.Link(nhan_ql, href="/phanhoi", className="ph-link-admin"))
     return html.Div([
         dcc.Store(id="ph-cap-nhat"),
-        html.Div(id="ph-nen", className="ph-nen"),
+        html.Button(
+            nut_con,
+            id="ph-nut-mo",
+            className="ph-nut-noi",
+            title="Gửi góp ý, đề xuất cải thiện hoặc báo lỗi hệ thống",
+        ),
         html.Div([
+            html.Div(id="ph-nen", className="ph-nen"),
             html.Div([
                 html.Div([
-                    dcc.Markdown(SVG_BONG_SAO, dangerously_allow_html=True, className="ph-ico-sao"),
-                    html.Span("Phản hồi hệ thống", className="ph-tieu-de"),
-                ], className="ph-dau-trai"),
-                html.Button("×", id="ph-dong", className="ph-dong", title="Đóng"),
-            ], className="ph-dau"),
-            html.Div(
-                "Trong quá trình sử dụng, nếu anh/chị có đề xuất cải thiện, bổ sung tính năng hoặc cần "
-                "điều chỉnh số liệu, vui lòng gửi phản hồi tại đây để hệ thống được cập nhật sát nhất "
-                "với thực tế công việc tại đơn vị.",
-                className="ph-mo-ta",
-            ),
-            html.Div([
-                dcc.Dropdown(
-                    id="ph-loai",
-                    options=[{"label": x, "value": x} for x in LOAI_PHAN_HOI],
-                    value=LOAI_PHAN_HOI[0],
-                    clearable=False,
-                    searchable=False,
-                    className="ph-chon",
+                    html.Div([
+                        dcc.Markdown(SVG_BONG_SAO, dangerously_allow_html=True, className="ph-ico-sao"),
+                        html.Span("Phản hồi hệ thống", className="ph-tieu-de"),
+                    ], className="ph-dau-trai"),
+                    html.Button("×", id="ph-dong", className="ph-dong", title="Đóng"),
+                ], className="ph-dau"),
+                html.Div(
+                    "Trong quá trình sử dụng, nếu anh/chị có đề xuất cải thiện, bổ sung tính năng hoặc cần "
+                    "điều chỉnh số liệu, vui lòng gửi phản hồi tại đây để hệ thống được cập nhật sát nhất "
+                    "với thực tế công việc tại đơn vị.",
+                    className="ph-mo-ta",
                 ),
-                dcc.Dropdown(
-                    id="ph-muc",
-                    options=opts,
-                    value=mac_dinh,
-                    clearable=False,
-                    searchable=False,
-                    className="ph-chon",
-                ),
-                dcc.Textarea(
-                    id="ph-noi-dung",
-                    placeholder="Bắt buộc nhập",
-                    className="ph-o-nhap",
-                    maxLength=3000,
-                ),
-            ], className="ph-than"),
-            html.Div(id="ph-msg", className="ph-msg"),
-            html.Div([
-                html.Button("Gửi phản hồi", id="ph-gui", className="ph-nut-gui", disabled=True),
-            ], className="ph-chan"),
-        ], id="ph-hop", className="ph-hop"),
-    ], id="ph-khung", className="ph-khung")
+                html.Div([
+                    dcc.Dropdown(
+                        id="ph-loai",
+                        options=[{"label": x, "value": x} for x in LOAI_PHAN_HOI],
+                        value=LOAI_PHAN_HOI[0],
+                        clearable=False,
+                        searchable=False,
+                        className="ph-chon",
+                    ),
+                    dcc.Dropdown(
+                        id="ph-muc",
+                        options=opts,
+                        value=mac_dinh,
+                        clearable=False,
+                        searchable=False,
+                        className="ph-chon",
+                    ),
+                    dcc.Textarea(
+                        id="ph-noi-dung",
+                        placeholder="Bắt buộc nhập",
+                        className="ph-o-nhap",
+                        maxLength=3000,
+                    ),
+                ], className="ph-than"),
+                html.Div(id="ph-msg", className="ph-msg"),
+                html.Div(chan_con, className="ph-chan"),
+            ], id="ph-hop", className="ph-hop"),
+        ], id="ph-khung", className="ph-khung"),
+    ])
 
 
 # ------------------------------------------------------------------ Giao diện Quản trị (Admin)
@@ -415,14 +423,14 @@ def register(app):
         Input("ph-nut-mo", "n_clicks"),
         Input("ph-dong", "n_clicks"),
         Input("ph-nen", "n_clicks"),
+        Input("url", "pathname"),
         State("ph-khung", "className"),
-        State("url", "pathname"),
         prevent_initial_call=True,
     )
-    def _bat_tat_popup(_mo, _dong, _nen, cls_hien, path):
+    def _bat_tat_popup(_mo, _dong, _nen, path, cls_hien):
         trig = ctx.triggered_id
         dang_mo = "mo" in (cls_hien or "")
-        if trig in ("ph-dong", "ph-nen") or (trig == "ph-nut-mo" and dang_mo):
+        if trig in ("ph-dong", "ph-nen", "url") or (trig == "ph-nut-mo" and dang_mo):
             return "ph-khung", no_update, no_update, ""
         opts, mac_dinh = muc_theo_quyen(current_user, path)
         return "ph-khung mo", opts, mac_dinh, ""

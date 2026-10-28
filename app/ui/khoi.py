@@ -16,7 +16,7 @@ KHOI = {
          "ten_ngan": "Khối KT"},
 }
 THU_TU = [KD, DVKH, KT]
-TRANG_DUNG_CHUNG = {"/taikhoan", "/huongdan", "/quantri", "/settings"}
+TRANG_DUNG_CHUNG = {"/taikhoan", "/huongdan", "/quantri", "/settings", "/phanhoi"}
 
 
 def khoi_cua_duong_dan(path: str) -> str | None:
@@ -36,6 +36,6 @@ NAV_DVKH = [
                     ("/dvkh/roi-mang", "Rời mạng", "trend", None), ("/dvkh/cong-no", "Công nợ", "wallet", None)]),
     ("Phân tích", [("/dvkh/insight", "Nhận định & phân tích sâu", "pie", None)]),
     ("Dữ liệu", [("/dvkh/nap", "Cập nhật Excel", "upload", "duoc_nap_dvkh")]),
-    ("Hệ thống", [("/quantri", "Quản trị", "settings", "settings")]),
+    ("Hệ thống", [("/quantri", "Quản trị", "settings", "settings"), ("/phanhoi", "Phản hồi", "phan_hoi", "settings")]),
 ]
 NAV_KT = [("Khối Kỹ thuật", [("/kt", "Sắp có", "tool", None)])]
