@@ -13,7 +13,7 @@ from sqlalchemy import delete, select, text
 from app.canh_bao import la_acc_tam
 from app.db import engine, session_scope
 from app.ingest.normalize import ma_nv_nhu_nhap, norm_acc, norm_text, parse_date
-from app.models import (AuditLog, FactCamera, FactFptPlay, FactInternet, HrMonthly, StaffMap,
+from app.models import (AuditLog, FactCamera, FactFptPlay, FactInternet, FactPheu, HrMonthly, StaffMap,
                         UploadBatch, User)
 from app.org import phong_order
 from app.thoi_gian import chu_gio_vn, gio_viet_nam, utc_bay_gio
@@ -24,7 +24,7 @@ ROLES = [("admin", "Quản trị (BGD)"), ("operator", "Nhập liệu"), ("phong
 ROLE_CO_PHONG = {"phong", "nvkd"}       # vai trò phải gán phòng (Nhân viên KD: tài khoản dùng chung của phòng)
 ROLE_TEN = {**dict(ROLES), "bay": "Trưởng phòng", "nhanvien": "Nhân viên"}
 TEN_ROLE = {v: k for k, v in ROLES}
-FACTS = {"internet": FactInternet, "fptplay": FactFptPlay, "camera": FactCamera}
+FACTS = {"internet": FactInternet, "fptplay": FactFptPlay, "camera": FactCamera, "pheu_ban_hang": FactPheu}
 
 
 # ------------------------------------------------------------------ tài khoản
@@ -419,12 +419,15 @@ def lich_su_nap(limit: int = 50) -> pd.DataFrame:
 
 def _dem_dong_batch(batch_id: int, dataset: str) -> int:
     bang = {"internet": "fact_internet", "fptplay": "fact_fptplay", "camera": "fact_camera",
-            "nhan_su": "hr_monthly"}.get(dataset)
+            "nhan_su": "hr_monthly", "pheu_ban_hang": "fact_pheu_ban_hang"}.get(dataset)
     if not bang:
         return 0
-    df = pd.read_sql_query(text(f"SELECT COUNT(*) n FROM {bang} WHERE batch_id = :b"),
-                     engine, params={"b": batch_id})
-    return int(df.iloc[0, 0])
+    try:
+        df = pd.read_sql_query(text(f"SELECT COUNT(*) n FROM {bang} WHERE batch_id = :b"),
+                         engine, params={"b": batch_id})
+        return int(df.iloc[0, 0])
+    except Exception:
+        return 0
 
 
 @ghi("so_lieu")

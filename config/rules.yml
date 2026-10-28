@@ -92,3 +92,21 @@ nhap_ton:
   phong: [IBB7]
   han_tra_ve_ngay: 3
   phuong_an: [Đang chờ triển khai, Huỷ, KH đang suy nghĩ - Chốt lại, Đã triển khai]
+
+
+# Phễu bán hàng (mục dưới Dự báo ở Báo cáo Tổng, chốt 28/10/2026): ánh xạ Đơn vị trong file Excel sang mã phòng
+pheu_ban_hang:
+  don_vi_phong:
+    DNGB1: IBB1
+    DNGB2: IBB2
+    DNGB3: IBB3
+    DNGB4: IBB4
+    DNGB5: IBB5
+    DNGB6: IBB6
+    DNGB7: IBB7
+    DNGBT1: KT_DNG1
+    DNGBT2: KT_DNG2
+    DNGCS1: CUS_DNG1
+    DNGCS2: CUS_DNG2
+    DNGDA: DOANHNGHIEP
+    Khác: CHUA_GAN

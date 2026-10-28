@@ -180,6 +180,27 @@ class FactCamera(Base, _FactCommon):
     phan_loai: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
 
+class FactPheu(Base):
+    """Số liệu Phễu bán hàng theo từng đơn vị (bản chụp mới nhất, chốt 28/10/2026)."""
+    __tablename__ = "fact_pheu_ban_hang"
+    don_vi: Mapped[str] = mapped_column(String(40), primary_key=True)
+    phong_code: Mapped[str | None] = mapped_column(String(20), index=True, nullable=True)
+    chi_nhanh: Mapped[str | None] = mapped_column(String(10), index=True, nullable=True)
+    thu_thap_cd: Mapped[int] = mapped_column(Integer, default=0)
+    thu_thap_ccd: Mapped[int] = mapped_column(Integer, default=0)
+    lien_he_cd: Mapped[int] = mapped_column(Integer, default=0)
+    lien_he_ccd: Mapped[int] = mapped_column(Integer, default=0)
+    tu_van_cd: Mapped[int] = mapped_column(Integer, default=0)
+    tu_van_ccd: Mapped[int] = mapped_column(Integer, default=0)
+    len_don_cd: Mapped[int] = mapped_column(Integer, default=0)
+    len_don_ccd: Mapped[int] = mapped_column(Integer, default=0)
+    hoan_tat_cd: Mapped[int] = mapped_column(Integer, default=0)
+    hoan_tat_ccd: Mapped[int] = mapped_column(Integer, default=0)
+    kh_cham_soc: Mapped[int] = mapped_column(Integer, default=0)
+    batch_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 Index("ix_internet_thang", FactInternet.ngay_online, FactInternet.phong_code)
 Index("ix_fptplay_thang", FactFptPlay.ngay_online, FactFptPlay.phong_code)
 Index("ix_camera_thang", FactCamera.ngay_online, FactCamera.phong_code)

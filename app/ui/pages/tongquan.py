@@ -24,6 +24,7 @@ from app.export_png import anh_tong_quan
 from app.metrics import cac_ngay_co_du_lieu
 from app import tro_ly_du_lieu as dl
 from app.du_bao import du_bao_thang
+from app import pheu_ban_hang as pbh
 from app.org import loc_chi_nhanh
 from app.overview import TEN_PHAM_VI, bang_tong_quan, lui_mot_thang, trang_thai_ngay
 from app.ui.components import chi_nhanh_control, field, kpi, seg_control
@@ -192,6 +193,7 @@ def layout(ky: dict | None = None):
         tl.the_ai("tq", "Dự báo cuối tháng & nhận xét", tl.MO_TA_DU_BAO,
                   html.Div([tl.bang_du_bao("tq-du-bao"),
                             html.Div(id="tq-du-bao-loi", style={"marginTop": "8px"})])),
+        pbh.the_pheu(),
     ])
 
 
@@ -479,6 +481,17 @@ def register(app):
         return (rows,
                 tl.giai_thich_du_bao(db[db.phong_code == "TOTAL"].iloc[0].to_dict(), db.attrs.get("tuan"),
                                      db.attrs.get("nhip")))
+
+    @app.callback(Output("tq-pheu-than", "children"), Output("tq-pheu-dv", "options"),
+                  Output("tq-pheu-dv", "value"),
+                  Input("tq-cn", "value"), Input("tq-pheu-dv", "value"))
+    def _pheu(chi_nhanh, don_vi):
+        chi_nhanh = chi_nhanh or "all"
+        scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh)
+        opts = pbh.don_vi_options(chi_phong=scope, chi_nhanh=chi_nhanh)
+        hop_le = {o["value"] for o in opts}
+        dv = don_vi if don_vi in hop_le else "all"
+        return pbh.ve_pheu(pbh.loc_pheu(chi_phong=scope, chi_nhanh=chi_nhanh, don_vi=dv)), opts, dv
     kc.ghi(app, ("tq-khoang", "start_date"), ("tq-khoang", "end_date"), ("tq-cn", "value"),
            chuyen=lambda tu, den, cn: {"tu": tu, "den": den, "cn": cn})
     # Điện thoại: mở trang là dùng bảng Gọn luôn

@@ -28,9 +28,9 @@ from app.ui.icons import icon
 MAX_PREVIEW = 20
 TEN_DE_HIEU = {"internet": "Internet", "fptplay": "Truyền hình / FPT Play",
                "camera": "Camera", "nhan_su": "Nhân sự (NSLĐ)",
-               "danh_muc_nv": "Danh mục nhân viên"}
+               "danh_muc_nv": "Danh mục nhân viên", "pheu_ban_hang": "Phễu bán hàng"}
 TEN_NGAN = {"internet": "Internet", "fptplay": "Truyền hình", "camera": "Camera",
-            "nhan_su": "NSLĐ", "danh_muc_nv": "Danh mục NV"}
+            "nhan_su": "NSLĐ", "danh_muc_nv": "Danh mục NV", "pheu_ban_hang": "Phễu BH"}
 
 
 def _duoc_nap(dataset: str) -> bool:
@@ -41,7 +41,7 @@ def _duoc_nap(dataset: str) -> bool:
 
 
 def _ten_loai_duoc_nap() -> str:
-    return " · ".join(TEN_NGAN[d] for d in ("internet", "fptplay", "camera", "nhan_su",
+    return " · ".join(TEN_NGAN[d] for d in ("internet", "fptplay", "camera", "pheu_ban_hang", "nhan_su",
                                             "danh_muc_nv") if _duoc_nap(d))
 
 
@@ -309,7 +309,7 @@ def register(app):
         if not current_user.duoc_upload:
             return alert("Tài khoản này không có quyền gỡ dữ liệu.", "bad")
         kq = go_bo_lan_nap(int(chon[0]["id"]), current_user.username,
-                           loai_cho_phep=current_user.loai_duoc_nap(),
+                           loai_cho_phep=current_user.loai_duoc_nap() | ({"pheu_ban_hang"} if current_user.duoc_upload else set()),
                            chi_cua_minh=current_user.role != "admin")
         if not kq.get("ok"):
             return alert(kq.get("msg", "Không gỡ được."), "bad")

@@ -19,7 +19,7 @@ from app.db import engine
 from app.ingest.loader import LoadResult
 from app.ingest.normalize import norm_acc, norm_text
 from app.models import (AuditLog, Employee, FactCamera, FactFptPlay, FactInternet,
-                        HrMonthly, StaffMap, UploadBatch)
+                        FactPheu, HrMonthly, StaffMap, UploadBatch)
 from app.org import assign_phong, load_staff_map, phong_by_name
 
 FACT_MODELS = {"internet": FactInternet, "fptplay": FactFptPlay, "camera": FactCamera}
@@ -294,6 +294,25 @@ def commit_result(session, res: LoadResult, *, nguon_file: str, hash_file: str,
         stats.update(them_moi=n)
         if bo_qua:
             stats["phong_chua_khai_bao"] = sorted(set(bo_qua))
+
+    elif res.dataset == "pheu_ban_hang":
+        from app.pheu_ban_hang import COT_SO_PHEU, gan_don_vi
+        FactPheu.__table__.create(engine, checkfirst=True)
+        seen, uniq, before = set(), [], 0
+        for r in res.df.to_dict("records"):
+            dv = norm_text(r.get("don_vi"))
+            if not dv or dv.lower().startswith("tổng"):
+                continue
+            before += 1
+            if dv in seen:
+                continue
+            seen.add(dv)
+            phong_code, chi_nhanh = gan_don_vi(dv)
+            uniq.append({"don_vi": dv, "phong_code": phong_code, "chi_nhanh": chi_nhanh, "batch_id": batch.id,
+                         **{c: int(r.get(c) or 0) for c in COT_SO_PHEU}})
+        stats["trung_trong_file"] = before - len(uniq)
+        new, upd = _upsert(session, FactPheu, uniq, "don_vi")
+        stats.update(them_moi=new, cap_nhat=upd)
 
     batch.rows_new = stats.get("them_moi", 0)
     batch.rows_updated = stats.get("cap_nhat", 0)

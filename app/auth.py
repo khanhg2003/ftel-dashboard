@@ -77,7 +77,7 @@ class SessionUser(UserMixin):
         return set(LOAI_SO_BAN)
 
     def duoc_nap(self, dataset: str) -> bool:
-        return dataset in self.loai_duoc_nap()
+        return dataset in self.loai_duoc_nap() or (dataset == "pheu_ban_hang" and self.duoc_upload)
 
     @property
     def la_superadmin(self) -> bool:

@@ -159,3 +159,40 @@ def test_chi_giu_lai_vai_file_de_khong_phinh_bo_nho(tmp_path):
         pd.DataFrame({"a": [1]}).to_excel(p, index=False)
         U._nho_ket_qua(p, [])
     assert len(U._DA_DOC) <= U._GIU_TOI_DA
+
+
+
+def test_nap_file_pheu_ban_hang_hai_dong_tieu_de(tmp_path):
+    """File Phễu bán hàng có tiêu đề gộp 2 dòng: phải đọc đúng, lưu vào DB và tính đúng 5 tầng."""
+    from sqlalchemy import delete
+    from app import pheu_ban_hang as pbh
+    from app.db import session_scope
+    from app.ingest.commit import commit_result, file_hash
+    from app.ingest.loader import load_file
+    from app.models import FactPheu, UploadBatch
+
+    dong = [
+        ["Danh sách khách hàng chưa chuyển đổi theo từng đơn vị"] + [""] * 12,
+        ["STT", "Đơn vị", "Thu thập", "", "Liên hệ", "", "Tư vấn", "", "Lên đơn", "", "Hoàn tất", "", "Khách chăm sóc hiện có"],
+        ["", "", "Chuyển đổi", "Chưa chuyển đổi", "Chuyển đổi", "Chưa chuyển đổi", "Chuyển đổi", "Chưa chuyển đổi",
+         "Chuyển đổi", "Chưa chuyển đổi", "Chuyển đổi", "Chưa chuyển đổi", ""],
+        [1, "ZZ_DNGB1", 100, 50, 60, 40, 30, 30, 20, 10, 15, 5, 15],
+        [2, "ZZ_DNGB7", 200, 100, 120, 80, 90, 30, 70, 20, 50, 20, 50],
+    ]
+    p = tmp_path / "Pheu_thu.xlsx"
+    pd.DataFrame(dong).to_excel(p, index=False, header=False)
+    kq = load_file(p)
+    assert len(kq) == 1 and kq[0].dataset == "pheu_ban_hang" and kq[0].rows_valid == 2
+    with session_scope() as s:
+        st = commit_result(s, kq[0], nguon_file=p.name, hash_file=file_hash(p), user="zz_test_pheu")
+        assert st["them_moi"] == 2 and st["cap_nhat"] == 0
+    try:
+        df = pbh.bang_pheu()
+        sub = df[df["don_vi"].isin(["ZZ_DNGB1", "ZZ_DNGB7"])]
+        tang = pbh.tinh_pheu(sub)
+        assert [t["tong"] for t in tang] == [450, 300, 180, 120, 90]
+        assert [t["ty_le"] for t in tang] == [None, 66.67, 60.0, 66.67, 75.0]
+    finally:
+        with session_scope() as s:
+            s.execute(delete(FactPheu).where(FactPheu.don_vi.like("ZZ_%")))
+            s.execute(delete(UploadBatch).where(UploadBatch.uploaded_by == "zz_test_pheu"))

@@ -67,6 +67,25 @@ def read_raw(path: str | Path, sheet=0) -> pd.DataFrame:
     return raw.fillna("")
 
 
+def _gop_header_hai_dong(raw: pd.DataFrame) -> pd.DataFrame:
+    """Gộp tiêu đề 2 dòng (dòng trên là nhóm gộp ô như Thu thập / Liên hệ, dòng dưới là Chuyển đổi / Chưa chuyển đổi)."""
+    for i in range(min(MAX_HEADER_SCAN, len(raw) - 1)):
+        tren = [norm_header(v) for v in raw.iloc[i]]
+        duoi = [norm_header(v) for v in raw.iloc[i + 1]]
+        if "đơn vị" in tren and "chuyển đổi" in duoi and "chưa chuyển đổi" in duoi:
+            out = raw.copy()
+            nhom = ""
+            gop = []
+            for t, d in zip(out.iloc[i], out.iloc[i + 1]):
+                t_s, d_s = norm_text(t), norm_text(d)
+                if t_s:
+                    nhom = t_s
+                gop.append(f"{nhom} {d_s}".strip() if d_s else t_s)
+            out.iloc[i + 1] = gop
+            return out
+    return raw
+
+
 def find_header_row(raw: pd.DataFrame) -> int:
     """Dòng header là dòng khớp nhiều tên cột đã biết nhất."""
     known = set()
@@ -193,7 +212,7 @@ def typed_frame(raw: pd.DataFrame, header_row: int, cols: list[ColumnMatch]):
 
 def load_file(path: str | Path, sheet=0, chi_lay_khoi_dau: bool = True) -> list[LoadResult]:
     """Đọc 1 file, trả về danh sách kết quả (file ghép nhiều khối -> nhiều kết quả)."""
-    raw = read_raw(path, sheet)
+    raw = _gop_header_hai_dong(read_raw(path, sheet))
     header_row = find_header_row(raw)
     headers = [norm_text(v) for v in raw.iloc[header_row]]
     cfg = columns_config()["datasets"]

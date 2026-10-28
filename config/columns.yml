@@ -129,3 +129,22 @@ datasets:
       - {field: acc,     ten: ["Tên nhân viên", "Acc nhân viên", "Acc"],     kieu: acc, bat_buoc: true}
       - {field: ma_nv,   ten: ["Mã NV", "Mã nhân viên"],                     kieu: manv}
       - {field: ghi_chu, ten: ["Ghi chú"],                                   kieu: str}
+
+  pheu_ban_hang:
+    ten_hien_thi: "Phễu bán hàng"
+    nhan_dien:
+      phai_co: ["đơn vị", "thu thập chuyển đổi", "liên hệ chuyển đổi", "hoàn tất chuyển đổi"]
+      khong_duoc_co: ["hợp đồng"]
+    cot:
+      - {field: don_vi,       ten: ["Đơn vị"],                        kieu: str, bat_buoc: true}
+      - {field: thu_thap_cd,  ten: ["Thu thập Chuyển đổi"],           kieu: so,  bat_buoc: true}
+      - {field: thu_thap_ccd, ten: ["Thu thập Chưa chuyển đổi"],      kieu: so,  bat_buoc: true}
+      - {field: lien_he_cd,   ten: ["Liên hệ Chuyển đổi"],            kieu: so,  bat_buoc: true}
+      - {field: lien_he_ccd,  ten: ["Liên hệ Chưa chuyển đổi"],       kieu: so,  bat_buoc: true}
+      - {field: tu_van_cd,    ten: ["Tư vấn Chuyển đổi"],             kieu: so,  bat_buoc: true}
+      - {field: tu_van_ccd,   ten: ["Tư vấn Chưa chuyển đổi"],        kieu: so,  bat_buoc: true}
+      - {field: len_don_cd,   ten: ["Lên đơn Chuyển đổi"],            kieu: so,  bat_buoc: true}
+      - {field: len_don_ccd,  ten: ["Lên đơn Chưa chuyển đổi"],       kieu: so,  bat_buoc: true}
+      - {field: hoan_tat_cd,  ten: ["Hoàn tất Chuyển đổi"],           kieu: so,  bat_buoc: true}
+      - {field: hoan_tat_ccd, ten: ["Hoàn tất Chưa chuyển đổi"],      kieu: so,  bat_buoc: true}
+      - {field: kh_cham_soc,  ten: ["Khách chăm sóc hiện có"],        kieu: so}
