@@ -463,4 +463,22 @@ class OnlineCa(Base):
     cap_nhat_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
 
+class PhanHoi(Base):
+    """Phản hồi hệ thống của người dùng gửi về Quản trị (chốt 28/10/2026)."""
+    __tablename__ = "phan_hoi_he_thong"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(60), index=True)
+    ho_ten: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    vai_tro: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    phong: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    loai: Mapped[str] = mapped_column(String(60), index=True)
+    muc: Mapped[str] = mapped_column(String(120), index=True)
+    noi_dung: Mapped[str] = mapped_column(Text)
+    trang_thai: Mapped[str] = mapped_column(String(20), default="moi", index=True)   # moi | dang_xu_ly | da_xu_ly
+    ghi_chu_admin: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tao_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    xu_ly_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    xu_ly_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
 from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)

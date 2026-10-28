@@ -218,7 +218,13 @@ def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
             if quyen == "nhansu" and not current_user.duoc_xem_nhan_su:
                 continue
             cls = "nav-item active" if DUONG_DAN_CU.get(path, path) == href else "nav-item"
-            muc_hien.append(dcc.Link([icon(ico), html.Span(label)], href=href, className=cls))
+            nhan_con = [icon(ico), html.Span(label)]
+            if href == "/quantri" and current_user.duoc_cau_hinh:
+                from app.phan_hoi import dem_phan_hoi_moi
+                so_ph = dem_phan_hoi_moi()
+                if so_ph > 0:
+                    nhan_con.append(html.Span(f"{so_ph}", className="ph-badge-menu", title=f"{so_ph} phản hồi mới chờ xử lý"))
+            muc_hien.append(dcc.Link(nhan_con, href=href, className=cls))
         if muc_hien:
             items.append(html.Div(nhom, className="nav-group"))
             items.extend(muc_hien)
@@ -245,6 +251,7 @@ def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
                       _chon_khoi_ui(khoi_dang_xem),
                   ], className="foot-links")],
                  className="foot"),
+        __import__("app.phan_hoi", fromlist=["nut_menu_trai"]).nut_menu_trai(),
         html.Button([icon("thu_gon", 17), html.Span("Thu gọn")], id="btn-thu-gon",
                     className="side-toggle", title="Thu gọn / mở rộng menu"),
     ], className="sidebar")
@@ -252,6 +259,7 @@ def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
 
 def serve_layout():
     from app.ui import ngan_nhan_su, tro_ly
+    from app import phan_hoi
     return html.Div([
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="ui-sidebar", storage_type="local", data={"thu_gon": False}),
@@ -273,6 +281,7 @@ def serve_layout():
             html.Div(id="page-content", className="page"),
         ], className="main"),
         tro_ly.khung_chat(),
+        phan_hoi.khung_phan_hoi(),
         ngan_nhan_su.khung(),
     ], id="app-shell", className="app-shell")
 
@@ -499,13 +508,14 @@ def _register_pages():
     from app.ui.pages import phantich, phong, sosanh, taikhoan, tongquan, tracking, upload
 
     from app.ui import ngan_nhan_su, tro_ly
+    from app import phan_hoi
 
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, danhba, giafpt, nhapton, soanmail
     from app.ui.pages import dvkh as dvkh_page
     for mod in (dvkh_page, tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
-                danhba, soanmail, giafpt):
+                danhba, soanmail, giafpt, phan_hoi):
         mod.register(app)
 
 

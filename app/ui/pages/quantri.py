@@ -31,12 +31,12 @@ GRID = {"rowSelection": "multiple", "suppressRowClickSelection": True, "suppress
 TRANG_THAI_TK = ["Đang dùng", "Ngừng dùng"]
 
 TAB = [("user", "Tài khoản"), ("staff", "Danh mục nhân sự"), ("cocau", "Cơ cấu tổ chức"),
-       ("chitieu", "Chỉ tiêu"), ("nhatky", "Nhật ký"), ("ai", "Trợ lý AI")]
+       ("chitieu", "Chỉ tiêu"), ("nhatky", "Nhật ký"), ("ai", "Trợ lý AI"), ("phanhoi", "Phản hồi")]
 
 
 def topbar():
     return [html.Div([html.H1("Quản trị"),
-                      html.Div("Tài khoản · danh mục nhân sự · cơ cấu tổ chức · chỉ tiêu · nhật ký · trợ lý AI",
+                      html.Div("Tài khoản · danh mục nhân sự · cơ cấu tổ chức · chỉ tiêu · nhật ký · trợ lý AI · phản hồi",
                                className="sub")])]
 
 
@@ -113,6 +113,7 @@ def _hop_thoai_staff():
 
 
 def layout(tab: str | None = None):
+    from app import phan_hoi
     from app.ui import tro_ly
     from app.ui.pages import settings as st
     tab = tab if tab in dict(TAB) else "user"
@@ -120,7 +121,7 @@ def layout(tab: str | None = None):
     return html.Div([
         html.Div([
             dcc.Tabs(id="qt-tab", value=tab, className="seg", children=[
-                dcc.Tab(label=ten, value=ma, className="seg-item", selected_className="seg-item active")
+                dcc.Tab(label=f"{ten} ({phan_hoi.dem_phan_hoi_moi()})" if ma == "phanhoi" and phan_hoi.dem_phan_hoi_moi() > 0 else ten, value=ma, className="seg-item", selected_className="seg-item active")
                 for ma, ten in TAB]),
             html.Div(className="grow"),
             st.chon_ky_ap_dung(tab),
@@ -187,6 +188,7 @@ def layout(tab: str | None = None):
         ]),
         *st.cac_tab(tab),
         tro_ly.pane_cau_hinh(tab),
+        phan_hoi.pane_quan_tri(tab),
     ])
 
 

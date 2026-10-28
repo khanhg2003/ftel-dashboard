@@ -41,6 +41,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Khối DVKH: đọc file Excel, nạp database, số liệu, nhận định, phân tích chéo, xu hướng và dự báo, khai thác sâu | `app/dvkh/` (`doc_file.py`, `nap.py`, `so_lieu.py`, `tong_quan.py`, `insight.py`, `cheo.py`, `xu_huong.py`, `khai_thac.py`, `models.py`) + `scripts/nap_dvkh.py` |
 | Trang khối DVKH (đường dẫn `/dvkh/...`) | `app/ui/pages/dvkh.py` (định tuyến) + `dvkh_tq.py`, `dvkh_sr_bd.py` (+ `dvkh_sr_bd_sau.py`: giữ chân, khách và dịch vụ), `dvkh_sr_cd.py`, `dvkh_roi_mang.py`, `dvkh_cong_no.py`, `dvkh_nhan_su.py`, `dvkh_insight.py`, `dvkh_nap.py`; thành phần chung `dvkh_chung.py`, biểu đồ và thẻ xu hướng dùng chung `dvkh_ve.py` |
 | Phễu bán hàng (dưới Dự báo ở Báo cáo Tổng, nạp từ mục Nạp dữ liệu) | `app/pheu_ban_hang.py` (số liệu + giao diện 5 tầng) + `config/columns.yml` (`pheu_ban_hang`) + `config/rules.yml` (`pheu_ban_hang.don_vi_phong`) |
+| Phản hồi hệ thống (nút ghim chân menu trái, popup góp ý lọc mục theo quyền tài khoản, tab tổng hợp ở Quản trị) | `app/phan_hoi.py` + `app/models.py` (`PhanHoi`) |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 

@@ -268,3 +268,45 @@ def test_truong_phong_vao_duoc_bao_cao_phong(tai_khoan):
         login_user(_user("zz_test_phong"))
         noi_dung, _ = _router("/phong")
     assert "không có quyền" not in str(noi_dung)
+
+
+def test_phan_hoi_he_thong_theo_quyen_va_xu_ly(tai_khoan):
+    from app.phan_hoi import (cap_nhat_phan_hoi, danh_sach_phan_hoi, dem_phan_hoi_moi,
+                              luu_phan_hoi, muc_theo_quyen, xoa_phan_hoi)
+
+    u_admin = _user("zz_test_admin")
+    u_phong = _user("zz_test_phong")
+    u_nhap = _user("zz_test_nhaplieu")
+
+    opts_admin, mac_dinh_admin = muc_theo_quyen(u_admin, "/quantri")
+    ten_admin = {o["value"] for o in opts_admin}
+    assert "Quản trị hệ thống" in ten_admin
+    assert "Tổng quan KPI (DVKH)" in ten_admin
+    assert mac_dinh_admin == "Quản trị hệ thống"
+
+    opts_phong, mac_dinh_phong = muc_theo_quyen(u_phong, "/phong")
+    ten_phong = {o["value"] for o in opts_phong}
+    assert "Báo cáo phòng" in ten_phong
+    assert "Quản trị hệ thống" not in ten_phong
+    assert "Tổng quan KPI (DVKH)" not in ten_phong
+    assert mac_dinh_phong == "Báo cáo phòng"
+
+    opts_nhap, _ = muc_theo_quyen(u_nhap, "/upload")
+    ten_nhap = {o["value"] for o in opts_nhap}
+    assert "Nạp dữ liệu" in ten_nhap
+    assert "Báo cáo phòng" not in ten_nhap
+    assert "Nhân sự & NSLĐ" not in ten_nhap
+
+    truoc = dem_phan_hoi_moi()
+    ok, msg = luu_phan_hoi(u_phong, "Cải thiện tính năng", "Báo cáo phòng", "Đề xuất thêm cột so sánh nhanh")
+    assert ok and "anh/chị" in msg
+    assert dem_phan_hoi_moi() == truoc + 1
+
+    ds = [r for r in danh_sach_phan_hoi() if r["username"] == "zz_test_phong"]
+    assert ds and ds[0]["muc"] == "Báo cáo phòng"
+    ph_id = ds[0]["id"]
+
+    ok_xl, _ = cap_nhat_phan_hoi(ph_id, "da_xu_ly", "Đã bổ sung theo đề xuất", "zz_test_admin")
+    assert ok_xl
+    assert dem_phan_hoi_moi() == truoc
+    assert xoa_phan_hoi([ph_id], "zz_test_admin") == 1

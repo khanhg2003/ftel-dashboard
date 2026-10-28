@@ -2000,3 +2000,73 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .pheu-ss-bang .khoi-dau { border-left: 1.5px solid #CBD5E1; }
 .pheu-ss-bang tbody tr:hover { background: #F8FAFC; }
 .pheu-ss-bang tr.pheu-ss-tong td { background: #DCE8F5; font-weight: 700; color: #002B4E; border-top: 1.5px solid #94A3B8; }
+
+/* --- Phản hồi hệ thống (nút ghim chân menu + popup góp ý + quản trị) --- */
+.ph-nut-menu {
+  background: rgba(25, 118, 210, .18); border: none; border-top: 1px solid rgba(255, 255, 255, .10);
+  color: #E2F0FF; cursor: pointer; width: 100%; padding: 11px 18px; text-align: left;
+  display: flex; align-items: center; gap: 11px; font: inherit; font-size: 13px;
+  font-weight: 600; letter-spacing: .1px; flex: 0 0 auto;
+  transition: background .16s var(--ease), color .16s var(--ease);
+}
+.ph-nut-menu:hover { background: rgba(55, 165, 230, .30); color: #FFFFFF; }
+.app-shell.thu-gon .ph-nut-menu { justify-content: center; padding: 11px 0; }
+.app-shell.thu-gon .ph-nut-menu span:last-child { display: none; }
+
+.ph-badge-menu {
+  margin-left: auto; background: #F04438; color: #FFFFFF; font-size: 11px; font-weight: 700;
+  padding: 1px 7px; border-radius: 999px; line-height: 1.4;
+}
+.app-shell.thu-gon .ph-badge-menu {
+  position: absolute; top: 4px; right: 4px; padding: 0 5px; font-size: 10px;
+}
+
+.ph-khung { display: none; position: fixed; left: 12px; bottom: 52px; z-index: 1100; }
+.ph-khung.mo { display: block; animation: ph-hien .16s ease-out; }
+@keyframes ph-hien { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.ph-hop {
+  width: min(440px, calc(100vw - 24px)); background: #FFFFFF; border: 1px solid #D0D5DD;
+  border-radius: 10px; padding: 18px 20px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, .22), 0 2px 8px rgba(15, 23, 42, .08);
+}
+.ph-dau { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ph-dau-trai { display: flex; align-items: center; gap: 8px; }
+.ph-ico-sao { display: inline-flex; line-height: 0; }
+.ph-ico-sao p { margin: 0; line-height: 0; }
+.ph-tieu-de { font-size: 16px; font-weight: 700; color: #155EEF; letter-spacing: -.1px; }
+.ph-dong {
+  border: 0; background: transparent; color: #1E293B; font-size: 22px; line-height: 1;
+  cursor: pointer; padding: 2px 6px; border-radius: 6px;
+}
+.ph-dong:hover { background: #F1F5F9; color: #0F172A; }
+.ph-mo-ta { font-size: 13.5px; line-height: 1.5; color: #1E293B; margin: 10px 0 14px; }
+.ph-than { display: flex; flex-direction: column; gap: 12px; }
+.ph-chon .Select-control { border-radius: 6px !important; border-color: #D0D5DD !important; min-height: 38px !important; }
+.ph-chon.is-focused > .Select-control { border-color: #155EEF !important; box-shadow: 0 0 0 2px rgba(21, 94, 239, .18) !important; }
+.ph-o-nhap {
+  width: 100%; height: 112px; padding: 10px 12px; border: 1px solid #D0D5DD; border-radius: 6px;
+  font: inherit; font-size: 13.5px; color: #0F172A; resize: vertical; background: #FFFFFF;
+}
+.ph-o-nhap::placeholder { color: #98A2B3; }
+.ph-o-nhap:focus { outline: none; border-color: #155EEF; box-shadow: 0 0 0 2px rgba(21, 94, 239, .18); }
+.ph-msg:not(:empty) { margin-top: 10px; }
+.ph-chan { margin-top: 14px; display: flex; align-items: center; }
+.ph-nut-gui {
+  padding: 9px 18px; border-radius: 6px; border: 1px solid #155EEF; background: #155EEF;
+  color: #FFFFFF; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.ph-nut-gui:hover:not(:disabled) { background: #004EEB; border-color: #004EEB; }
+.ph-nut-gui:disabled {
+  background: #EAECEF; border-color: #D5D9E0; color: #98A2B3; cursor: not-allowed; opacity: 1;
+}
+
+.ph-ct-khung {
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px;
+  font-size: 13.5px; line-height: 1.55; display: flex; flex-direction: column; gap: 6px;
+}
+.ph-ct-noidung {
+  margin-top: 6px; padding-top: 8px; border-top: 1px dashed #CBD5E1;
+  white-space: pre-wrap; color: #0F172A; font-weight: 500;
+}
