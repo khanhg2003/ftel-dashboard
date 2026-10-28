@@ -208,7 +208,7 @@ def ve_pheu(df: pd.DataFrame) -> html.Div:
                          title=chi_tiet.replace(". ", "\n")),
                 className="pheu-giua",
             ),
-            html.Div([html.Span(t["nhan"], className="pheu-ten-tang"), tip(chi_tiet)],
+            html.Div([html.Span(t["nhan"], className="pheu-ten-tang"), tip(chi_tiet, trai=True)],
                      className="pheu-phai"),
         ], className=lop_dong))
     return html.Div(dong, className="pheu-khung")

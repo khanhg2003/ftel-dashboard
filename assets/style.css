@@ -1949,8 +1949,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 /* === Phễu bán hàng (Báo cáo Tổng) === */
 .the-pheu { margin-top: 14px; }
 .pheu-chon-dv { min-width: 190px; }
-.pheu-khung { background: #F4F7FB; border-radius: 8px; overflow: hidden; border: 1px solid #E2E8F0; }
+.pheu-khung { background: #F4F7FB; border-radius: 8px; overflow: visible; border: 1px solid #E2E8F0; }
 .pheu-dong { display: grid; grid-template-columns: 1fr 340px 1fr; align-items: center; min-height: 60px; position: relative; }
+.pheu-dong:hover, .pheu-dong:focus-within { z-index: 20; }
 .pheu-dong.pheu-ranh-nhom { border-top: 1px dashed #CBD5E1; }
 .pheu-dong.pheu-ranh-con::after { content: ""; position: absolute; top: 0; left: calc(50% - 140px); right: 0; border-top: 1px dashed #CBD5E1; pointer-events: none; }
 .pheu-trai { padding-left: 22px; font-size: 12px; font-weight: 700; color: #1D68B4; letter-spacing: 0.03em; text-transform: uppercase; }
