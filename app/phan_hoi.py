@@ -249,7 +249,7 @@ def khung_phan_hoi():
     so_moi = dem_phan_hoi_moi() if la_admin else 0
     nut_con = [
         dcc.Markdown(SVG_BONG_SAO, dangerously_allow_html=True, className="ph-ico-noi"),
-        html.Span("Phản hồi"),
+        html.Span("Phản hồi hệ thống"),
     ]
     if so_moi > 0:
         nut_con.append(html.Span(f"{so_moi}", className="ph-badge-noi", title=f"{so_moi} phản hồi mới chờ xử lý"))
