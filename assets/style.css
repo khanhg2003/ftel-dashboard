@@ -2092,3 +2092,9 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
   margin-top: 6px; padding-top: 8px; border-top: 1px dashed #CBD5E1;
   white-space: pre-wrap; color: #0F172A; font-weight: 500;
 }
+
+/* ------------------------------------------------ Bản tin Zalo: ô chọn nhiều phòng trong hộp thêm / sửa người nhận */
+.bt-o-phong { margin-top: 14px; }
+#bt-modal .modal-than:has(.dash-dropdown[data-state="open"]),
+#btd-modal .modal-than:has(.dash-dropdown[data-state="open"]) { padding-bottom: 230px; }   /* chừa chỗ cho danh sách xổ xuống, hộp thoại cắt nội dung tràn */
+#bt-modal .modal-hop, #btd-modal .modal-hop { top: 9vh; transform: translateX(-50%); }   /* neo đầu hộp để ô Phòng không nhảy khi hộp dài ra */

@@ -165,6 +165,16 @@ dùng một trong hai); muốn quay lại `getUpdates` thì bấm *Ngắt kết 
 Bấm *Gửi thử* để kiểm tra. Nếu Zalo từ chối gửi chủ động cho người lâu không nhắn thì cột "Lý do" ở bảng
 *10 lần gửi gần nhất* sẽ ghi rõ; nhờ người đó nhắn bot một tin rồi thử lại.
 
+**Thêm trưởng phòng nhận bản tin của phòng mình** (chỉ admin làm được; app không tự liên kết với tài khoản app, admin chọn phòng bằng tay):
+1. Nhờ trưởng phòng mở Zalo, tìm *Bot AI FTEL - DNG* và nhắn một câu bất kỳ. Người đó hiện ở thẻ **Người vừa nhắn bot (chờ duyệt)**.
+2. Tích chọn dòng đó → *Thêm làm người nhận*.
+3. Ở **Loại** chọn **Trưởng phòng**: ô **Phòng** hiện ra, chọn một hoặc nhiều phòng bán hàng (IBB và địa bàn) → Lưu.
+4. Sang bảng **Người nhận bản tin Zalo**, tích chọn người vừa thêm → *Gửi thử*: người đó nhận các tin của phòng mình (đầu tin có nhãn
+   BẢN THỬ, không tính là đã gửi). Sửa phòng: bấm vào dòng của người đó trong bảng.
+Mỗi sáng, ngay sau bản tin Ban Giám đốc, trưởng phòng nhận 2 loại tin cho từng phòng: *Tổng quan* (tiến độ, hạng, dự báo, nhân sự cần
+trao đổi, chất lượng bán, hợp đồng tồn) và *Từng nhân sự* (online luỹ kế, trong ngày, chênh so cùng kỳ tháng trước; trưởng phòng và
+người đã nghỉ không có trong bảng này). Xem thử nội dung một phòng mà không gửi: `POST /api/ban-tin/chay?kho=1&phong=IBB7` (kèm header `X-Ban-Tin-Khoa`).
+
 ## 7. Chuyển sang PostgreSQL (khi cần)
 
 Sửa `DATABASE_URL` trong `.env`:

@@ -115,8 +115,8 @@ def ds_cho_duyet() -> list[dict]:
                 for r in s.execute(q).scalars()]
 
 
-def duyet(id_: int, ten: str, loai: str) -> tuple[bool, str]:
-    """Biến một người chờ thành người nhận (bật) rồi xoá khỏi danh sách chờ."""
+def duyet(id_: int, ten: str, loai: str, phong: list[str] | None = None) -> tuple[bool, str]:
+    """Biến một người chờ thành người nhận (bật) rồi xoá khỏi danh sách chờ. `phong` chỉ dùng cho loại trưởng phòng."""
     with session_scope() as s:
         r = s.get(BanTinChoDuyet, int(id_))
         chat_id = r.chat_id if r else None
@@ -126,7 +126,7 @@ def duyet(id_: int, ten: str, loai: str) -> tuple[bool, str]:
     if any(n["chat_id"] == chat_id for n in ban_tin.ds_nguoi_nhan()):
         bo_qua([id_], ghi=False)
         return False, "Người này đã là người nhận bản tin."
-    ok, msg = ban_tin.luu_nguoi_nhan(None, (ten or "").strip() or ten_san, loai, chat_id, True)
+    ok, msg = ban_tin.luu_nguoi_nhan(None, (ten or "").strip() or ten_san, loai, chat_id, True, phong)
     if ok:
         bo_qua([id_], ghi=False)
         ghi_log("ban_tin_cho_duyet", f"Duyệt {ten or ten_san} (chat_id {chat_id}) làm người nhận loại {loai}")

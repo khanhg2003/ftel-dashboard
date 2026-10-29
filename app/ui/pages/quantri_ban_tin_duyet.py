@@ -10,7 +10,7 @@ from app import ban_tin, ban_tin_cho_duyet as cd
 from app.ui.components import alert, callback_can_quyen, card, field, ghi_chu, modal
 from app.ui.icons import icon
 from app.ui.luoi import bang
-from app.ui.pages.quantri_ban_tin import CHON
+from app.ui.pages.quantri_ban_tin import CHON, hien_o_phong, o_phong
 
 COT_CHO = [
     CHON,
@@ -37,6 +37,7 @@ def cac_the():
                                              options=[{"label": t, "value": v}
                                                       for v, t in ban_tin.LOAI_NHAN.items()])),
             ], className="form-grid"),
+            o_phong("btd-f-phong"),
             html.Div(id="btd-modal-msg"),
         ], nut_chinh="Lưu"),
         card([
@@ -87,33 +88,37 @@ def register(app):
 
     @cb(Output("btd-modal", "className"), Output("btd-id", "data"), Output("btd-f-ten", "value"),
         Output("btd-f-loai", "value"), Output("btd-modal-msg", "children", allow_duplicate=True),
-        Output("btd-msg", "children", allow_duplicate=True),
+        Output("btd-msg", "children", allow_duplicate=True), Output("btd-f-phong", "value"),
         Input("btd-them", "n_clicks"), Input("btd-modal-dong", "n_clicks"), Input("btd-modal-huy", "n_clicks"),
         Input("btd-lm-ds", "data"), State("btd-grid", "selectedRows"), prevent_initial_call=True)
     def _mo_hop(_them, _d, _h, _lm, chon):
-        giu = (no_update,) * 5
+        giu = (no_update,) * 6
         if ctx.triggered_id == "btd-them":
             if len(chon or []) != 1:
-                return (no_update,) * 5 + (alert("Tích chọn đúng một người để thêm làm người nhận.", "warn"),)
+                return (no_update,) * 5 + (alert("Tích chọn đúng một người để thêm làm người nhận.", "warn"), no_update)
             r = chon[0]
-            return "modal mo", r["id"], r.get("ten") or "", "bgd", "", ""
+            return "modal mo", r["id"], r.get("ten") or "", "bgd", "", "", []
         return ("modal",) + giu
 
     @cb(Output("btd-msg", "children"), Output("btd-modal-msg", "children"), Output("btd-lm-ds", "data"),
         Input("btd-modal-ok", "n_clicks"), Input("btd-bo", "n_clicks"),
         State("btd-id", "data"), State("btd-f-ten", "value"), State("btd-f-loai", "value"),
-        State("btd-grid", "selectedRows"),
+        State("btd-grid", "selectedRows"), State("btd-f-phong", "value"),
         running=[(Output("btd-modal-ok", "disabled"), True, False)], prevent_initial_call=True)
-    def _thao_tac(_ok, _bo, id_, ten, loai, chon):
+    def _thao_tac(_ok, _bo, id_, ten, loai, chon, phong):
         if ctx.triggered_id == "btd-modal-ok":
             if id_ is None:
                 return no_update, no_update, no_update
-            ok, msg = cd.duyet(id_, ten, loai)
+            ok, msg = cd.duyet(id_, ten, loai, phong)
             return (alert(msg, "ok"), "", time.time()) if ok else (no_update, alert(msg, "bad"), no_update)
         ids = [int(r["id"]) for r in (chon or []) if str(r.get("id") or "").isdigit()]
         if not ids:
             return alert("Tích chọn người cần bỏ qua.", "warn"), no_update, no_update
         return alert(f"Đã bỏ qua {cd.bo_qua(ids)} người. Họ nhắn lại bot thì sẽ hiện lại.", "ok"), "", time.time()
+
+    @cb(Output("btd-f-phong-ho", "style"), Input("btd-f-loai", "value"))
+    def _hien_phong(loai):
+        return hien_o_phong(loai)
 
     @cb(Output("btd-xn-ngat", "displayed"), Input("btd-ngat", "n_clicks"), prevent_initial_call=True)
     def _hoi_ngat(_n):

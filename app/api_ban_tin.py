@@ -1,7 +1,7 @@
 """Đường cho đồng hồ (n8n / cron) gọi Bản tin 8h sáng, không đăng nhập, xác thực bằng khoá bí mật.
 
 - POST /api/ban-tin/chay : header `X-Ban-Tin-Khoa: <BAN_TIN_KHOA>`; `?kho=1` = chạy thử (dựng nội dung, không gửi,
-  không ghi nhật ký, trả luôn nội dung để xem). App tự quyết có gửi không (xem app/ban_tin.py), gọi dư cũng không sao.
+  không ghi nhật ký, trả luôn nội dung để xem; thêm `&phong=<mã>` thì kèm tin của đúng phòng đó cho trưởng phòng). App tự quyết có gửi không (xem app/ban_tin.py), gọi dư cũng không sao.
 - POST /api/ban-tin/zalo-webhook : Zalo gọi khi có người nhắn bot, header `X-Bot-Api-Secret-Token` (khoá dẫn xuất từ APP_SECRET_KEY).
 Thiếu biến môi trường hoặc sai khoá đều trả 403 giống hệt nhau, không tiết lộ gì thêm.
 """
@@ -27,7 +27,7 @@ def chay():
     from app import ban_tin
     kho = request.args.get("kho", "").lower() in ("1", "true", "yes")
     try:
-        kq = ban_tin.chay(kho=kho)
+        kq = ban_tin.chay(kho=kho, phong=request.args.get("phong") if kho else None)
     except Exception as e:                      # chỉ trả tên lỗi: thông báo gốc có thể chứa chuỗi kết nối
         return jsonify({"ok": False, "loi": f"Lỗi khi chạy bản tin ({type(e).__name__})."}), 500
     kq.setdefault("noi_dung", None)

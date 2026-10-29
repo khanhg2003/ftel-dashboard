@@ -43,6 +43,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Phễu bán hàng (dưới Dự báo ở Báo cáo Tổng, nạp từ mục Nạp dữ liệu) | `app/pheu_ban_hang.py` (số liệu + giao diện 5 tầng) + `config/columns.yml` (`pheu_ban_hang`) + `config/rules.yml` (`pheu_ban_hang.don_vi_phong`) |
 | Phản hồi hệ thống (nút ghim chân menu trái, popup góp ý lọc mục theo quyền tài khoản, tab tổng hợp ở Quản trị) | `app/phan_hoi.py` + `app/models.py` (`PhanHoi`) |
 | Bản tin 8h sáng gửi Zalo Bot (người nhận, chống gửi trùng, nội dung bản tin BGĐ, nhắc Admin nạp file) | `app/ban_tin.py` + `app/zalo_bot.py` (gửi tin) + `app/api_ban_tin.py` (`POST /api/ban-tin/chay` cho n8n) + `app/ui/pages/quantri_ban_tin.py` (tab Quản trị → Bản tin Zalo) + `app/models.py` (`BanTinNguoiNhan`, `BanTinNhatKy`) |
+| Bản tin 8h cho TRƯỞNG PHÒNG (người nhận loại `truong_phong`, phòng gắn ở bảng phụ, tin Tổng quan + Từng nhân sự, gửi + chống trùng theo phòng) | `app/ban_tin_phong.py` (+ ô Phòng ở `quantri_ban_tin.py` / `quantri_ban_tin_duyet.py`) + `app/models.py` (`BanTinNguoiNhanPhong`) |
 | Thêm người nhận Bản tin bằng cách nhắn bot (webhook Zalo, danh sách chờ duyệt, kết nối / ngắt webhook) | `app/ban_tin_cho_duyet.py` + `POST /api/ban-tin/zalo-webhook` ở `app/api_ban_tin.py` + `app/ui/pages/quantri_ban_tin_duyet.py` + `app/models.py` (`BanTinChoDuyet`) |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
@@ -292,7 +293,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      `bang_tong_quan` + `du_bao_thang` (hai số dự báo "3.892 (4.134)", phòng `tong_chi_nhanh.khong_cong` không xếp hạng), không có tên
      khách, tối đa 1.900 ký tự (dài thì bỏ mục chất lượng bán rồi bớt phòng). Token Zalo chỉ ở biến `ZALO_BOT_TOKEN`; `zalo_bot.LoiZalo`
      luôn là câu tiếng Việt đã làm sạch, KHÔNG chứa token / địa chỉ gọi. Người nhận quản ở Quản trị → Bản tin Zalo (chỉ admin, mọi thao tác
-     ghi nhật ký). `?kho=1` = chạy thử: dựng nội dung, không gửi, không ghi nhật ký. Giai đoạn sau mới thêm trưởng phòng / nhân viên.
+     ghi nhật ký). `?kho=1` = chạy thử: dựng nội dung, không gửi, không ghi nhật ký. Trưởng phòng đã thêm (xem dưới); nhân viên để giai đoạn sau.
      **Thêm người nhận bằng cách nhắn bot** (`app/ban_tin_cho_duyet.py`, 29/10/2026): Zalo gọi `POST /api/ban-tin/zalo-webhook` (header
      `X-Bot-Api-Secret-Token`; khoá = HMAC-SHA256(`APP_SECRET_KEY`, "zalo-webhook") hex nên không lưu gì thêm; sai / thiếu → 403 giống hệt,
      đúng khoá thì LUÔN 200 kể cả sự kiện lạ / lỗi để Zalo khỏi gửi lại). Chỉ nhận `message.*.received` từ chat riêng (`chat_type`
@@ -300,6 +301,16 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      tin) và bot chào đúng một lần; chat_id đã là người nhận thì không vào chờ. Quản trị duyệt (chọn tên + loại, tạo người nhận bật) hoặc
      bỏ qua ở tab Bản tin Zalo; thẻ "Kết nối Zalo" gọi setWebhook / deleteWebhook / getWebhookInfo, cần `APP_URL` (không đoán địa chỉ). Webhook
      bật thì `getUpdates` cũ không chạy nữa (Zalo chỉ cho một trong hai).
+     **Bản tin trưởng phòng** (`app/ban_tin_phong.py`, CEO chốt 29/10/2026): loại người nhận `truong_phong`; phòng do admin CHỌN TAY (không liên kết tài khoản
+     app) và lưu ở bảng phụ `ban_tin_nguoi_nhan_phong` (không sửa bảng người nhận đang chạy; một người nhiều phòng; chỉ phòng `LOAI_PHONG_KD`, mã tối đa 12 ký tự;
+     loại này bắt buộc có phòng, loại khác không lưu phòng, xoá người nhận xoá cả dòng phụ). Mỗi phòng có tin `tq` (tiến độ + hạng cùng cách xếp "Số online tháng" của
+     Báo cáo phòng + dự báo hai số + nhận định luật cố định + nhân sự cần trao đổi + V.VIP / Camera so toàn chi nhánh + tồn từ 7 ngày) và tin `ns1`, `ns2`... (mỗi người một dòng,
+     online luỹ kế / trong ngày / chênh so CÙNG KỲ THÁNG TRƯỚC, không dùng mục tiêu cá nhân; tên nhân sự được nêu, không có tên khách). **Trưởng phòng, người đã nghỉ và acc tạm
+     KHÔNG vào bảng nhân sự và không bị cảnh báo, nhưng số của họ vẫn nằm trong số phòng** (như Báo cáo phòng). Số lấy từ `bang_tong_quan`, `du_bao_thang`, `bang_nhan_su`,
+     không viết lại công thức. Mã loại ở `BanTinNhatKy.loai` (cột 20 ký tự): `tp:<phòng>:tq`, `tp:<phòng>:ns1`... cộng dòng `tp:<phòng>:ht` ghi khi đã gửi ĐỦ mọi phần
+     (người nhận đã `ht` thì không dựng lại tin; gửi dở thì lượt sau chỉ gửi phần còn thiếu, theo thứ tự). Gửi trong cùng lượt, sau bản BGĐ, cùng cổng chốt số + từ 8h, ngắt sớm khi quá
+     `han_giay`; một phòng dựng lỗi thì ghi lỗi rồi làm tiếp phòng khác, lỗi bên này không làm hỏng bản BGĐ. `?kho=1&phong=<mã>` trả thêm tin của phòng đó; Gửi thử của
+     người nhận trưởng phòng gửi mọi tin của phòng họ (nhãn BẢN THỬ, không ghi nhật ký ngày).
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền

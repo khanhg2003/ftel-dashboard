@@ -21,10 +21,11 @@ from sqlalchemy.exc import IntegrityError
 from app import du_bao, metrics, org, overview, zalo_bot
 from app.auth import ghi_log
 from app.db import engine, session_scope
-from app.models import BanTinNguoiNhan, BanTinNhatKy
+from app.models import BanTinNguoiNhan, BanTinNguoiNhanPhong, BanTinNhatKy
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
-LOAI_NHAN = {"bgd": "Ban Giám đốc", "admin": "Admin (nhắc nạp file)"}
+LOAI_NHAN = {"bgd": "Ban Giám đốc", "truong_phong": "Trưởng phòng", "admin": "Admin (nhắc nạp file)"}
+LOAI_TRUONG_PHONG = "truong_phong"
 NHOM_PHONG = (("DNG", "DNG (IBB1-IBB7)"), ("QNM", "QNM"))
 LOAI_PHONG_KD = ("IBB", "DIABAN")     # mục "Phòng cần chú ý" chỉ xếp phòng bán hàng; bỏ KT, CUS, ECOM, ANCS... (CEO chốt 29/10/2026)
 GIO_GUI = gio_gio(8, 0)
@@ -37,9 +38,9 @@ HAN_GIAY = 45                          # vercel.json: maxDuration 60
 
 
 def dam_bao_bang() -> None:
-    """Tạo hai bảng nếu chưa có (Supabase không chạy create_all lúc khởi động)."""
+    """Tạo các bảng nếu chưa có (Supabase không chạy create_all lúc khởi động)."""
     try:
-        for b in (BanTinNguoiNhan, BanTinNhatKy):
+        for b in (BanTinNguoiNhan, BanTinNguoiNhanPhong, BanTinNhatKy):
             b.__table__.create(bind=engine, checkfirst=True)
     except Exception:
         pass
@@ -50,6 +51,8 @@ dam_bao_bang()
 
 # ------------------------------------------------------------------ người nhận
 def ds_nguoi_nhan(loai: str | None = None, chi_bat: bool = False) -> list[dict]:
+    from app import ban_tin_phong as tp
+    phong = tp.phong_theo_nguoi()
     with session_scope() as s:
         q = select(BanTinNguoiNhan).order_by(BanTinNguoiNhan.id)
         if loai:
@@ -57,7 +60,8 @@ def ds_nguoi_nhan(loai: str | None = None, chi_bat: bool = False) -> list[dict]:
         if chi_bat:
             q = q.where(BanTinNguoiNhan.bat.is_(True))
         return [{"id": r.id, "ten": r.ten, "loai": r.loai, "loai_nhan": LOAI_NHAN.get(r.loai, r.loai),
-                 "chat_id": r.chat_id, "bat": bool(r.bat), "bat_nhan": "Bật" if r.bat else "Tắt"}
+                 "chat_id": r.chat_id, "bat": bool(r.bat), "bat_nhan": "Bật" if r.bat else "Tắt",
+                 "phong": phong.get(r.id, []), "phong_ten": tp.chu_phong(phong.get(r.id, []))}
                 for r in s.execute(q).scalars()]
 
 
@@ -65,12 +69,20 @@ def lay_nguoi_nhan(id_: int) -> dict | None:
     return next((r for r in ds_nguoi_nhan() if r["id"] == int(id_)), None)
 
 
-def luu_nguoi_nhan(id_: int | None, ten: str, loai: str, chat_id: str, bat: bool) -> tuple[bool, str]:
+def luu_nguoi_nhan(id_: int | None, ten: str, loai: str, chat_id: str, bat: bool,
+                   phong: list[str] | None = None) -> tuple[bool, str]:
+    """`phong` chỉ dùng cho loại trưởng phòng (bắt buộc có ít nhất một phòng bán hàng); loại khác không lưu phòng."""
+    from app import ban_tin_phong as tp
     ten, chat_id = (ten or "").strip(), (chat_id or "").strip()
     if not ten or not chat_id:
         return False, "Cần nhập tên và chat_id."
     if loai not in LOAI_NHAN:
         return False, "Loại người nhận không hợp lệ."
+    phong = tp.chuan_phong(phong) if loai == LOAI_TRUONG_PHONG else []
+    if loai == LOAI_TRUONG_PHONG:
+        loi = tp.kiem_phong(phong)
+        if loi:
+            return False, loi
     with session_scope() as s:
         r = s.get(BanTinNguoiNhan, int(id_)) if id_ else None
         if id_ and not r:
@@ -79,7 +91,10 @@ def luu_nguoi_nhan(id_: int | None, ten: str, loai: str, chat_id: str, bat: bool
             r = BanTinNguoiNhan(tao_luc=utc_bay_gio())
             s.add(r)
         r.ten, r.loai, r.chat_id, r.bat = ten[:120], loai, chat_id[:80], bool(bat)
-    ghi_log("ban_tin_nguoi_nhan", f"{'Sửa' if id_ else 'Thêm'} {ten} ({loai}, chat_id {chat_id})")
+        s.flush()
+        tp.ghi_phong(s, r.id, phong)
+    them = f", phòng {', '.join(phong)}" if phong else ""
+    ghi_log("ban_tin_nguoi_nhan", f"{'Sửa' if id_ else 'Thêm'} {ten} ({loai}{them}, chat_id {chat_id})")
     return True, f"Đã lưu người nhận “{ten}”."
 
 
@@ -89,18 +104,20 @@ def xoa_nguoi_nhan(ids: list[int]) -> int:
         return 0
     with session_scope() as s:
         n = int(s.execute(delete(BanTinNguoiNhan).where(BanTinNguoiNhan.id.in_(ids))).rowcount or 0)
+        s.execute(delete(BanTinNguoiNhanPhong).where(BanTinNguoiNhanPhong.nguoi_nhan_id.in_(ids)))
     if n:
         ghi_log("ban_tin_nguoi_nhan", f"Xoá {n} người nhận: {ids}")
     return n
 
 
 def nhat_ky_gan_day(n: int = 10) -> list[dict]:
+    from app import ban_tin_phong as tp
     with session_scope() as s:
-        rows = s.execute(select(BanTinNhatKy).order_by(BanTinNhatKy.gio_gui.desc(), BanTinNhatKy.id.desc())
-                         .limit(n)).scalars().all()
+        rows = s.execute(select(BanTinNhatKy).where(~BanTinNhatKy.loai.like(f"%:{tp.PHAN_XONG}"))
+                         .order_by(BanTinNhatKy.gio_gui.desc(), BanTinNhatKy.id.desc()).limit(n)).scalars().all()
         nhan = {"ok": "Đã gửi", "loi": "Lỗi", "dang_gui": "Đang gửi"}
         return [{"id": r.id, "ngay_so": r.ngay_so.strftime("%d/%m/%Y"), "ten_nguoi": r.ten_nguoi,
-                 "loai": "Bản tin" if r.loai == "bgd" else "Nhắc nạp file",
+                 "loai": tp.nhan_loai_tin(r.loai),
                  "gio_gui": (r.gio_gui + timedelta(hours=7)).strftime("%d/%m %H:%M") if r.gio_gui else "",
                  "ket_qua": nhan.get(r.ket_qua, r.ket_qua), "ly_do": r.ly_do or ""} for r in rows]
 
@@ -111,6 +128,9 @@ def gui_thu(id_: int) -> tuple[bool, str]:
     nguoi = lay_nguoi_nhan(id_)
     if not nguoi:
         return False, "Không tìm thấy người nhận này."
+    if nguoi["loai"] == LOAI_TRUONG_PHONG:
+        from app import ban_tin_phong as tp
+        return tp.gui_thu_truong_phong(nguoi)
     chu = "Thử bản tin: kết nối Zalo của app báo cáo FTEL hoạt động."
     try:
         ngay_iso = metrics.ngay_moi_nhat()
@@ -441,8 +461,10 @@ def _gui_nhom(loai_nhan: str, loai_tin: str, ngay: date, dung, kq: dict, t0: flo
         _gui_cho(n, ngay, loai_tin, chu, kq)
 
 
-def chay(gio_vn: datetime | None = None, kho: bool = False, han_giay: float = HAN_GIAY) -> dict:
-    """Một lượt do đồng hồ gọi. `kho=True`: chạy thử, dựng nội dung nhưng không gửi và không ghi nhật ký."""
+def chay(gio_vn: datetime | None = None, kho: bool = False, han_giay: float = HAN_GIAY,
+         phong: str | None = None) -> dict:
+    """Một lượt do đồng hồ gọi. `kho=True`: chạy thử, dựng nội dung nhưng không gửi và không ghi nhật ký;
+    kèm `phong` thì trả thêm tin của đúng phòng đó (người nhận loại trưởng phòng)."""
     t0 = time.monotonic()
     gio = gio_vn or gio_viet_nam()
     ngay_iso = metrics.ngay_moi_nhat()
@@ -458,11 +480,15 @@ def chay(gio_vn: datetime | None = None, kho: bool = False, han_giay: float = HA
         kq["ly_do"] = None if kq["se_gui"] else ("Chưa tới 08:00 giờ Việt Nam." if not sau_8h else ly_chua)
         kq["nguoi_nhan"] = [n["ten"] for n in ds_nguoi_nhan("bgd", chi_bat=True)]
         kq["noi_dung"] = dung_noi_dung_bgd(ngay_iso)
+        from app import ban_tin_phong as tp
+        kq.update(tp.kho_truong_phong(ngay_iso, phong))
         return kq
     if not sau_8h:
         kq["ly_do"] = "Chưa tới 08:00 giờ Việt Nam."
     elif chot:
         _gui_nhom("bgd", "bgd", ngay, lambda: dung_noi_dung_bgd(ngay_iso), kq, t0, han_giay)
+        from app import ban_tin_phong as tp
+        tp.gui_truong_phong(ngay_iso, kq, t0, han_giay)          # sau bản BGĐ; lỗi bên này không làm hỏng việc đã gửi
     elif gio.time() >= GIO_NHAC:
         kq["ly_do"] = ly_chua
         _gui_nhom("admin", "nhac_admin", ngay,

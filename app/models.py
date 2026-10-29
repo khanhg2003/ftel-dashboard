@@ -492,6 +492,16 @@ class BanTinNguoiNhan(Base):
     tao_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class BanTinNguoiNhanPhong(Base):
+    """Phòng gắn với người nhận loại `truong_phong` (admin chọn tay; một người có thể nhiều phòng). Bảng phụ riêng để
+    không phải sửa bảng `ban_tin_nguoi_nhan` đang chạy."""
+    __tablename__ = "ban_tin_nguoi_nhan_phong"
+    __table_args__ = (UniqueConstraint("nguoi_nhan_id", "ma_phong", name="uq_ban_tin_nguoi_nhan_phong"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nguoi_nhan_id: Mapped[int] = mapped_column(Integer, index=True)
+    ma_phong: Mapped[str] = mapped_column(String(40))
+
+
 class BanTinNhatKy(Base):
     """Mỗi (ngày số, người nhận, loại tin) đúng MỘT dòng: khoá duy nhất này chặn gửi trùng kể cả khi hai lượt gọi
     chạy cùng lúc. `ket_qua`: dang_gui | ok | loi (loi được thử lại tới `so_lan` tối đa)."""
@@ -501,7 +511,7 @@ class BanTinNhatKy(Base):
     ngay_so: Mapped[date] = mapped_column(Date, index=True)
     nguoi_nhan_id: Mapped[int] = mapped_column(Integer)
     ten_nguoi: Mapped[str] = mapped_column(String(120))
-    loai: Mapped[str] = mapped_column(String(20))                    # bgd | nhac_admin
+    loai: Mapped[str] = mapped_column(String(20))                    # bgd | nhac_admin | tp:<phòng>:<phần> (tối đa 20 ký tự)
     ket_qua: Mapped[str] = mapped_column(String(12), default="dang_gui")
     ly_do: Mapped[str | None] = mapped_column(String(200), nullable=True)
     so_lan: Mapped[int] = mapped_column(Integer, default=1)
