@@ -132,6 +132,31 @@ Cần bản để tính toán tiếp thì dùng **Excel**; cần dữ liệu th�
 | Khi có người vào không được | Mở `/healthz`; nếu `ok` thì là tài khoản (bị khoá 15 phút sau 5 lần sai) |
 | Khi có người nghỉ việc | Quản trị → *Tài khoản* → chuyển sang **Ngừng dùng** |
 
+## 6b. Bản tin 8h sáng qua Zalo Bot
+
+App tự gửi bản tin số chốt cho Ban Giám đốc qua Zalo Bot, và nhắc Admin nạp file nếu quá 10:30 mà chưa có số chốt.
+
+**Biến môi trường** (Vercel → Project → Settings → Environment Variables, thêm cho Production rồi Redeploy):
+
+| Biến | Ý nghĩa |
+|---|---|
+| `ZALO_BOT_TOKEN` | Token của Zalo Bot (chỉ để ở đây, không ghi vào code hay chat) |
+| `BAN_TIN_KHOA` | Chuỗi bí mật tự đặt, dài và khó đoán; n8n gửi kèm để được phép gọi |
+| `APP_URL` | Địa chỉ app, vd `https://ten-app.vercel.app` (không đặt thì bản tin bỏ dòng liên kết) |
+
+**n8n làm đồng hồ:** tạo workflow gồm *Schedule Trigger* chạy mỗi 15 phút, chỉ trong khoảng 8h tới 11h giờ Việt Nam
+(cron `*/15 8-10 * * *` với múi giờ `Asia/Ho_Chi_Minh`) nối với *HTTP Request*: phương thức `POST`, địa chỉ
+`https://<app>/api/ban-tin/chay`, header `X-Ban-Tin-Khoa` = giá trị `BAN_TIN_KHOA`. App tự quyết có gửi hay không
+nên gọi dư cũng không sao (mỗi người chỉ nhận một lần mỗi ngày số). Thêm `?kho=1` để chạy thử: trả về nội dung bản tin
+mà không gửi và không ghi nhật ký.
+
+**Lấy chat_id:** người nhận nhắn cho bot trước một tin bất kỳ, rồi mở
+`https://bot-api.zaloplatforms.com/bot<TOKEN>/getUpdates` rồi lấy `chat.id` của tin đó (chưa kiểm chứng tay; nếu dịch vụ
+không có `getUpdates` thì lấy từ nội dung webhook của bot, hoặc xem trang quản lý bot của Zalo).
+Vào **Quản trị → Bản tin Zalo → Thêm người nhận** điền tên, loại (Ban Giám đốc hoặc Admin) và chat_id, bấm
+*Gửi thử* để kiểm tra. Nếu Zalo từ chối gửi chủ động cho người lâu không nhắn thì cột "Lý do" ở bảng
+*10 lần gửi gần nhất* sẽ ghi rõ; nhờ người đó nhắn bot một tin rồi thử lại.
+
 ## 7. Chuyển sang PostgreSQL (khi cần)
 
 Sửa `DATABASE_URL` trong `.env`:

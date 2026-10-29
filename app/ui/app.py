@@ -96,8 +96,10 @@ def healthz():
 
 
 from app.api_ads import bp as _api_ads  # noqa: E402
+from app.api_ban_tin import bp as _api_ban_tin  # noqa: E402
 
 server.register_blueprint(_api_ads)
+server.register_blueprint(_api_ban_tin)
 
 
 @server.before_request
@@ -106,6 +108,8 @@ def _bat_buoc_dang_nhap():
     if path.startswith("/assets/") or path in ("/login", "/logout", "/favicon.ico", "/healthz"):
         return None
     if path.startswith("/api/ads/"):          # n8n / bot Telegram: xác thực bằng mã kết nối (app/api_ads.py)
+        return None
+    if path.startswith("/api/ban-tin/"):      # n8n làm đồng hồ Bản tin 8h: xác thực bằng khoá (app/api_ban_tin.py)
         return None
     if not current_user.is_authenticated:
         if path.startswith("/_dash"):
@@ -511,11 +515,11 @@ def _register_pages():
     from app import phan_hoi
 
     from app.ui.pages import ads as ads_page
-    from app.ui.pages import baocaongay, danhba, giafpt, nhapton, soanmail
+    from app.ui.pages import baocaongay, danhba, giafpt, nhapton, quantri_ban_tin, soanmail
     from app.ui.pages import dvkh as dvkh_page
     for mod in (dvkh_page, tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
-                danhba, soanmail, giafpt, phan_hoi):
+                danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin):
         mod.register(app)
 
 

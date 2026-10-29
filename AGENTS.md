@@ -42,6 +42,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Trang khối DVKH (đường dẫn `/dvkh/...`) | `app/ui/pages/dvkh.py` (định tuyến) + `dvkh_tq.py`, `dvkh_sr_bd.py` (+ `dvkh_sr_bd_sau.py`: giữ chân, khách và dịch vụ), `dvkh_sr_cd.py`, `dvkh_roi_mang.py`, `dvkh_cong_no.py`, `dvkh_nhan_su.py`, `dvkh_insight.py`, `dvkh_nap.py`; thành phần chung `dvkh_chung.py`, biểu đồ và thẻ xu hướng dùng chung `dvkh_ve.py` |
 | Phễu bán hàng (dưới Dự báo ở Báo cáo Tổng, nạp từ mục Nạp dữ liệu) | `app/pheu_ban_hang.py` (số liệu + giao diện 5 tầng) + `config/columns.yml` (`pheu_ban_hang`) + `config/rules.yml` (`pheu_ban_hang.don_vi_phong`) |
 | Phản hồi hệ thống (nút ghim chân menu trái, popup góp ý lọc mục theo quyền tài khoản, tab tổng hợp ở Quản trị) | `app/phan_hoi.py` + `app/models.py` (`PhanHoi`) |
+| Bản tin 8h sáng gửi Zalo Bot (người nhận, chống gửi trùng, nội dung bản tin BGĐ, nhắc Admin nạp file) | `app/ban_tin.py` + `app/zalo_bot.py` (gửi tin) + `app/api_ban_tin.py` (`POST /api/ban-tin/chay` cho n8n) + `app/ui/pages/quantri_ban_tin.py` (tab Quản trị → Bản tin Zalo) + `app/models.py` (`BanTinNguoiNhan`, `BanTinNhatKy`) |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 
@@ -280,6 +281,17 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      mất ~90 giây vì chạy cả bộ test); ghi nhật ký hoạt động vào `data/van_phong/su_kien.jsonl` (không lên GitHub, mỗi dòng một sự kiện: giao việc, agent bắt đầu / xong, công cụ vừa dùng, lệnh của CEO; đã che mật khẩu / token /
      đường dẫn kết nối). Hook `gioi_han` chặn lần giao việc cho `coder` thứ 4 trong cùng một lệnh của CEO (lần đầu + 2 vòng sửa; lệnh mới của CEO thì đếm lại, trạng thái ở `data/van_phong/vong_coder.json`): dừng lại báo CEO thay vì để agent sửa qua sửa lại. Hook đọc stdin bằng UTF-8 (Windows mặc định cp1252 làm vỡ đường dẫn có dấu của dự án). **Chủ app KHÔNG muốn giao diện văn phòng AI nằm trong app này** (gỡ trang `/vanphong` ngày 22/10/2026, đừng
      dựng lại): đó là giao diện pixel riêng của CEO, dùng chung cho mọi dự án, đọc nhật ký trên.
+   - *Bản tin 8h* (`app/ban_tin.py`, giai đoạn 1 chốt 29/10/2026: chỉ Ban Giám đốc + nhắc Admin): n8n/cron chỉ làm
+     đồng hồ, gọi `POST /api/ban-tin/chay` (header `X-Ban-Tin-Khoa` = biến `BAN_TIN_KHOA`, sai/thiếu → 403) mỗi 15 phút từ 8h tới 11h
+     giờ VN; app tự quyết gửi hay không. **Chốt số** = `overview.trang_thai_ngay` hết "đang cập nhật" VÀ lần nạp cuối sau 06:00 sáng HÔM SAU
+     ngày số (file nạp 14:30 cùng ngày chỉ là số tạm). Trước 08:00 hoặc chưa chốt thì không gửi; quá 10:30 mà chưa chốt thì nhắc
+     người nhận loại `admin` đúng một lần. Mỗi (ngày số, người nhận, loại tin) một dòng `BanTinNhatKy` có khoá duy nhất: lượt nào chèn
+     được dòng là lượt được gửi (hai lượt cùng lúc không trùng), gửi lỗi thì được giành lại tối đa `TOI_DA_LAN` lần ở lượt sau, đã `ok`
+     thì KHÔNG gửi lại dù file nạp lại và số đổi. Nội dung do code dựng bằng khuôn chữ cố định (không gọi AI), lấy số từ
+     `bang_tong_quan` + `du_bao_thang` (hai số dự báo "3.892 (4.134)", phòng `tong_chi_nhanh.khong_cong` không xếp hạng), không có tên
+     khách, tối đa 1.900 ký tự (dài thì bỏ mục chất lượng bán rồi bớt phòng). Token Zalo chỉ ở biến `ZALO_BOT_TOKEN`; `zalo_bot.LoiZalo`
+     luôn là câu tiếng Việt đã làm sạch, KHÔNG chứa token / địa chỉ gọi. Người nhận quản ở Quản trị → Bản tin Zalo (chỉ admin, mọi thao tác
+     ghi nhật ký). `?kho=1` = chạy thử: dựng nội dung, không gửi, không ghi nhật ký. Giai đoạn sau mới thêm trưởng phòng / nhân viên.
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền

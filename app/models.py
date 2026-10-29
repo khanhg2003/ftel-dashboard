@@ -481,4 +481,31 @@ class PhanHoi(Base):
     xu_ly_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
 
+class BanTinNguoiNhan(Base):
+    """Người nhận Bản tin 8h sáng qua Zalo Bot (giai đoạn 1: loại `bgd` và `admin`)."""
+    __tablename__ = "ban_tin_nguoi_nhan"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ten: Mapped[str] = mapped_column(String(120))
+    loai: Mapped[str] = mapped_column(String(20), index=True)
+    chat_id: Mapped[str] = mapped_column(String(80))
+    bat: Mapped[bool] = mapped_column(Boolean, default=True)
+    tao_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class BanTinNhatKy(Base):
+    """Mỗi (ngày số, người nhận, loại tin) đúng MỘT dòng: khoá duy nhất này chặn gửi trùng kể cả khi hai lượt gọi
+    chạy cùng lúc. `ket_qua`: dang_gui | ok | loi (loi được thử lại tới `so_lan` tối đa)."""
+    __tablename__ = "ban_tin_nhat_ky"
+    __table_args__ = (UniqueConstraint("ngay_so", "nguoi_nhan_id", "loai", name="uq_ban_tin_nhat_ky"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ngay_so: Mapped[date] = mapped_column(Date, index=True)
+    nguoi_nhan_id: Mapped[int] = mapped_column(Integer)
+    ten_nguoi: Mapped[str] = mapped_column(String(120))
+    loai: Mapped[str] = mapped_column(String(20))                    # bgd | nhac_admin
+    ket_qua: Mapped[str] = mapped_column(String(12), default="dang_gui")
+    ly_do: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    so_lan: Mapped[int] = mapped_column(Integer, default=1)
+    gio_gui: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC
+
+
 from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)
