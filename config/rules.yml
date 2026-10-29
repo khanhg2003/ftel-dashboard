@@ -114,5 +114,7 @@ pheu_ban_hang:
 # Bản tin Zalo cho trưởng phòng: người KHÔNG đưa vào mục "Cần trao đổi" (vẫn có trong bảng từng nhân sự).
 # Khoá = mã phòng, giá trị = acc_norm (chữ thường). CEO chốt 29/10/2026.
 ban_tin:
+  # Ban Giám đốc nhận gì: "anh" = ảnh Báo cáo Tổng (cần APP_URL https, không có thì tự gửi bản chữ); "chu" = chỉ tin chữ.
+  bgd_dang: anh
   khong_trao_doi:
     IBB7: [dng.khanhvhg, dng.duynt121]    # Văn Hữu Gia Khánh, Nguyễn Trúc Duy

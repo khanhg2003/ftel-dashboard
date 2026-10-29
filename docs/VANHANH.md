@@ -142,7 +142,14 @@ App tự gửi bản tin số chốt cho Ban Giám đốc qua Zalo Bot, và nh�
 |---|---|
 | `ZALO_BOT_TOKEN` | Token của Zalo Bot (chỉ để ở đây, không ghi vào code hay chat) |
 | `BAN_TIN_KHOA` | Chuỗi bí mật tự đặt, dài và khó đoán; n8n gửi kèm để được phép gọi |
-| `APP_URL` | Địa chỉ app, vd `https://ten-app.vercel.app` (không đặt thì bản tin bỏ dòng liên kết) |
+| `APP_URL` | Địa chỉ app, vd `https://ten-app.vercel.app`. **Phải bắt đầu bằng `https://` thì Ban Giám đốc mới nhận được ảnh**; không đặt thì bản tin gửi bản chữ và bỏ dòng liên kết |
+
+**Ban Giám đốc nhận ảnh Báo cáo Tổng** (giống nút *Chụp ảnh*, toàn chi nhánh, luỹ kế tới ngày số, không có nhận xét AI), kèm một dòng
+chú thích và liên kết xem chi tiết. Zalo chỉ nhận đường dẫn ảnh nên app mở một đường tạm `/api/ban-tin/anh/<mã>.png`: **ai có đường dẫn
+thì mở được ảnh này không cần đăng nhập trong 15 phút**, sau đó hết hạn; đường này chỉ có đúng một báo cáo cố định, không chọn phòng hay
+chi nhánh được. Muốn quay lại tin chữ như trước, đổi `ban_tin.bgd_dang` thành `chu` trong `config/rules.yml` (mặc định `anh`). Gửi ảnh lỗi
+(chưa có `APP_URL` https, Zalo không tải được ảnh) thì app tự gửi bản chữ để không mất tin; bảng *10 lần gửi gần nhất* ghi lý do ở cột
+"Lý do". Nhắc Admin và bản tin trưởng phòng vẫn là tin chữ.
 
 **n8n làm đồng hồ:** tạo workflow gồm *Schedule Trigger* chạy mỗi 15 phút, chỉ trong khoảng 8h tới 11h giờ Việt Nam
 (cron `*/15 8-10 * * *` với múi giờ `Asia/Ho_Chi_Minh`) nối với *HTTP Request*: phương thức `POST`, địa chỉ

@@ -15,6 +15,7 @@ import urllib.request
 
 GOC = "https://bot-api.zaloplatforms.com"
 HAN_GIAY = 8
+HAN_ANH = 20                  # Zalo tải ảnh về ngay trong lúc gọi sendPhoto: chờ lâu hơn tin chữ
 TOI_DA_KY_TU = 2000
 
 
@@ -110,6 +111,22 @@ def gui_tin_du_phong(chat_id: str, noi_dung: str, han: float = HAN_GIAY) -> bool
             raise
     gui_tin(chat_id, str(noi_dung), han=han)
     return True
+
+
+def gui_anh(chat_id: str, url_anh: str, caption: str = "", han: float = HAN_ANH) -> None:
+    """sendPhoto: `url_anh` là ĐƯỜNG DẪN công khai để Zalo tự tải ảnh (tài liệu Zalo chỉ ghi "đường dẫn hình ảnh sẽ được
+    gửi", không nói rõ giới hạn dung lượng hay định dạng). Thông báo lỗi không bao giờ chứa token, địa chỉ gọi hay mã trong đường dẫn ảnh."""
+    chat_id, url_anh = str(chat_id or "").strip(), str(url_anh or "").strip()
+    if not chat_id or not url_anh:
+        raise LoiZalo("Thiếu chat_id hoặc đường dẫn ảnh.")
+    goi = {"chat_id": chat_id, "photo": url_anh}
+    if (caption or "").strip():
+        goi["caption"] = caption.strip()[:TOI_DA_KY_TU]
+    try:
+        _goi_api("sendPhoto", goi, han)
+    except LoiZalo as e:
+        ma = url_anh.rsplit("/", 1)[-1].removesuffix(".png")
+        raise LoiZalo(str(e).replace(url_anh, "***").replace(ma, "***") if ma else str(e)) from None
 
 
 def dat_webhook(url: str, secret_token: str) -> dict:

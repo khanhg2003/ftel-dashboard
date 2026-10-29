@@ -2,6 +2,8 @@
 
 - POST /api/ban-tin/chay : header `X-Ban-Tin-Khoa: <BAN_TIN_KHOA>`; `?kho=1` = chạy thử (dựng nội dung, không gửi,
   không ghi nhật ký, trả luôn nội dung để xem; thêm `&phong=<mã>` thì kèm tin của đúng phòng đó cho trưởng phòng). App tự quyết có gửi không (xem app/ban_tin.py), gọi dư cũng không sao.
+- GET /api/ban-tin/anh/<mã>.png : ảnh Báo cáo Tổng cho Zalo `sendPhoto` tự tải, KHÔNG đăng nhập, bảo vệ bằng mã ký có hạn 15 phút
+  (xem app/ban_tin_anh.py). Mã sai / hết hạn đều trả đúng một phản hồi 404 giống hệt nhau.
 - POST /api/ban-tin/zalo-webhook : Zalo gọi khi có người nhắn bot, header `X-Bot-Api-Secret-Token` (khoá dẫn xuất từ APP_SECRET_KEY).
 Thiếu biến môi trường hoặc sai khoá đều trả 403 giống hệt nhau, không tiết lộ gì thêm.
 """
@@ -10,7 +12,7 @@ from __future__ import annotations
 import hmac
 import os
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 bp = Blueprint("api_ban_tin", __name__)
 
@@ -45,3 +47,20 @@ def zalo_webhook():
         return jsonify({"ok": False}), 403
     cd.xu_ly_su_kien(request.get_json(silent=True))
     return jsonify({"ok": True}), 200
+
+
+@bp.get("/api/ban-tin/anh/<ma>.png")
+def anh_bao_cao(ma: str):
+    """Đường chỉ phát MỘT báo cáo cố định (không nhận tham số nào khác). Không ghi mã ra log ứng dụng."""
+    from app import ban_tin_anh as ba
+    khong_co = Response("Không tìm thấy.", 404, mimetype="text/plain")
+    ngay_iso = ba.doc_ma(ma)
+    if not ngay_iso:
+        return khong_co
+    try:
+        png = ba.dung_anh(ngay_iso)
+    except Exception:
+        return Response("Chưa dựng được ảnh.", 500, mimetype="text/plain")
+    r = Response(png, 200, mimetype="image/png")
+    r.headers["Cache-Control"] = "private, no-store"
+    return r
