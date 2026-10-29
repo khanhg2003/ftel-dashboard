@@ -24,7 +24,7 @@ TOI_THIEU_ONLINE_PHONG = 30  # phòng có ít online hơn thì tỷ lệ chưa �
 TOI_DA_PHONG_CHAT_LUONG = 3  # mỗi chỉ số nêu tối đa bấy nhiêu phòng thấp nhất
 TOI_DA_PHONG_TON = 3         # mục tồn nêu bấy nhiêu phòng tồn nhiều nhất
 TOI_DA_PHONG_HOP = 3         # hành động "họp nhanh" gọi tối đa bấy nhiêu phòng hụt nhiều nhất
-_MUC_BOT = (5, 3, 2)         # số phòng tối đa liệt kê ở mục "Phòng cần bù số", thử lần lượt tới khi vừa độ dài
+_MUC_BOT = (None, 8, 5, 3)         # số phòng tối đa liệt kê ở mục "Phòng cần bù số", thử lần lượt tới khi vừa độ dài
 
 
 # ------------------------------------------------------------------ dùng chung với tin trưởng phòng
@@ -160,16 +160,17 @@ def _muc_tieu(sl: dict) -> list[bt._Soan]:
     return muc("1) MỤC TIÊU CẦN ĐẠT", [d for d in dong if d is not None], "(online/ngày)")
 
 
-def _muc_phong(can: pd.DataFrame, toi_da: int, tt: str) -> list[bt._Soan]:
+def _muc_phong(can: pd.DataFrame, toi_da: int | None, tt: str) -> list[bt._Soan]:
+    """Liệt kê ĐỦ mọi phòng cần bù số (CEO 29/10/2026); chỉ khi tin quá dài mới cắt bớt (`toi_da`)."""
     dong = []
-    for _, r in can.head(toi_da).iterrows():
+    for _, r in (can if toi_da is None else can.head(toi_da)).iterrows():
         s = dong_gach((str(r["phong"]), "b"), f": {bt._so(r['can_moi_ngay'])}/ngày (hiện {bt._so(r['tb_ngay'], 1)})")
         if r["hut"] > 0:
             s.them(f" · hụt {bt._so(r['hut'])}")
         if r["online"] < r["ck_online"]:
             s.them(" · ").them(f"-{round((r['ck_online'] - r['online']) / r['ck_online'] * 100)}% so T{tt}", "b", bt.DO)
         dong.append(s)
-    if len(can) > toi_da:
+    if toi_da is not None and len(can) > toi_da:
         dong.append(bt._Soan().them(f"… và {len(can) - toi_da} phòng khác (xem ảnh)."))
     return muc("2) PHÒNG CẦN BÙ SỐ", dong, "(Rủi ro hoặc giảm so cùng kỳ)")
 
