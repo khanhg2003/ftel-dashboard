@@ -28,7 +28,6 @@ TOI_DA_MA_PHONG = 12             # "tp:" + mã + ":ns99" phải vừa cột loai
 PHAN_TONG_QUAN, PHAN_TRAO_DOI, PHAN_XONG = "tq", "td", "ht"
 GIAM_CUNG_KY = "Giảm so cùng kỳ"      # nhãn cho người chỉ có vấn đề là thấp hơn cùng kỳ tháng trước
 LY_DO_TOI_DA = 70
-CAM = bt.MAU_DANH_GIA[du_bao.TANG_TOC]
 TIN_TOI_DA_NGUOI = 6             # số tên liệt kê tối đa ở mục chất lượng bán
 
 
@@ -214,8 +213,7 @@ def _dong_trao_doi(r, tt: str) -> bt._Soan:
     giam = ""
     if chenh < 0:
         giam = f"giảm {-chenh} so T{tt}" + (f" (-{round(-chenh / ck * 100)}%)" if ck else "")
-    ngay = r["muc"] == canh_bao.TRAO_DOI_NGAY
-    s = bt._Soan().them("• ").them(str(r["ho_ten"]), "b").them(" · ").them(r["muc"], "b", bt.DO if ngay else CAM)
+    s = bt._Soan().them("• ").them(str(r["ho_ten"]), "b").them(" · ").them(r["muc"], "b", bt.DO)
     if r["muc"] == GIAM_CUNG_KY:
         return s.them(f": {bt._so(r['online'])} online, {giam}")
     return s.them(f": {_ngan(str(r['chu_y']))}" + (f" · {giam}" if giam else ""))
@@ -234,7 +232,7 @@ def _khoi_trao_doi(can: pd.DataFrame, tt: str) -> bt._Soan:
 def _khoi_tro_trao_doi(n: int) -> bt._Soan:
     """Khi danh sách quá dài để nằm chung tin 1: tin 1 chỉ ghi số người, danh sách ở tin riêng ngay sau."""
     return (bt._Soan().them("2) CẦN TRAO ĐỔI", "b", bt.CO_TIEU_DE)
-            .them("\n").them(f"{n} nhân sự", "b", CAM).them(", danh sách ở tin kế tiếp."))
+            .them("\n").them(f"{n} nhân sự", "b", bt.DO).them(", danh sách ở tin kế tiếp."))
 
 
 def _khoi_chat_luong(q: pd.Series, tong_cn: pd.Series, xet: pd.DataFrame, co_ten: bool) -> bt._Soan | None:
@@ -269,8 +267,7 @@ def _khoi_nhan_dinh(c: dict, q: pd.Series, d: pd.Series, can: pd.DataFrame) -> b
     if mt and online >= mt:
         s.them("\n• ").them(f"Đã đạt mục tiêu tháng ({bt._so(online)}/{bt._so(mt)}).", "b", bt.XANH)
     elif mt and con > 0:
-        mau = bt.MAU_DANH_GIA.get(d["danh_gia"])
-        s.them("\n• ").them(f"Cần {bt._so(math.ceil((mt - online) / con))} online/ngày", "b", *([mau] if mau else []))
+        s.them("\n• ").them(f"Cần {bt._so(math.ceil((mt - online) / con))} online/ngày", "b", bt.DO)
         s.them(f" trong {con} ngày còn lại, hiện bình quân {bt._so(d['tb_ngay'], 1)}/ngày.")
     elif mt:
         s.them(f"\n• Hết tháng: đạt {bt._pct(online, mt)}% mục tiêu.")
@@ -281,7 +278,7 @@ def _khoi_nhan_dinh(c: dict, q: pd.Series, d: pd.Series, can: pd.DataFrame) -> b
         chi_tiet = ", ".join(f"{n} {nhan}" for n, nhan in ((dem[canh_bao.TRAO_DOI_NGAY], "trao đổi ngay"),
                                                          (dem[canh_bao.THEO_DOI], "theo dõi"),
                                                          (dem[GIAM_CUNG_KY], "giảm so cùng kỳ")) if n)
-        s.them("\n• ").them(f"{len(can)} nhân sự cần trao đổi", "b", bt.DO if dem[canh_bao.TRAO_DOI_NGAY] else CAM)
+        s.them("\n• ").them(f"{len(can)} nhân sự cần trao đổi", "b", bt.DO)
         s.them(f" ({chi_tiet}).")
     return s
 
@@ -318,7 +315,7 @@ def _dong_nhan_su(r, tt: str, ngay: date) -> bt._Soan:
     chenh = int(r["online"]) - int(r["ck_online"])
     mau = [bt.XANH] if chenh > 0 else [bt.DO] if chenh < 0 else []
     s = bt._Soan().them("• ").them(str(r["ho_ten"]), "b")
-    s.them(f": {bt._so(r['online'])} online · trong ngày {int(r['online_ngay'])} · ")
+    s.them(f": {bt._so(r['online'])} online · ")
     return s.them(f"{chenh:+d}" if chenh else "0", "b", *mau).them(f" so T{tt}")
 
 
