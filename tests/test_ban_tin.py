@@ -92,9 +92,36 @@ def test_chua_chot_khong_gui(gia, monkeypatch):
 def test_nap_truoc_6h_sang_hom_sau_van_chua_chot(gia, monkeypatch):
     _them("Anh A")
     monkeypatch.setattr(overview, "trang_thai_ngay", lambda iso: (False, datetime(2026, 9, 12, 5, 59)))
-    assert bt.chay(gio_vn=SANG_8H)["da_gui"] == [] and gia.tin == []
+    kq = bt.chay(gio_vn=SANG_8H)                  # 11/09 chưa chốt, nhưng 10/09 đã chốt: chỉ gửi báo cáo ngày đã chốt
+    assert kq["ngay_so"] == "2026-09-10" and kq["da_gui"] == ["Anh A"] and "Số chốt ngày 10/09" in gia.tin[0][1]
+    assert "Số chốt ngày 11/09" not in "".join(t for _, t in gia.tin)
     monkeypatch.setattr(overview, "trang_thai_ngay", lambda iso: (False, datetime(2026, 9, 12, 6, 0)))
-    assert bt.chay(gio_vn=SANG_8H)["da_gui"] == ["Anh A"]
+    kq = bt.chay(gio_vn=SANG_8H)
+    assert kq["ngay_so"] == "2026-09-11" and kq["da_gui"] == ["Anh A"]
+
+
+def test_ngay_so_gui_la_ngay_da_chot_gan_nhat(monkeypatch):
+    assert bt.ngay_so_gui() == "2026-09-11"                                        # đã chốt (mặc định của bộ test)
+    monkeypatch.setattr(overview, "trang_thai_ngay", lambda iso: (False, datetime(2026, 9, 11, 14, 30)))
+    assert bt.ngay_so_gui() == "2026-09-10"                                        # 11/09 mới nạp tạm, 10/09 đã qua ngày
+    monkeypatch.setattr(overview, "trang_thai_ngay", lambda iso: (True, datetime(2026, 9, 11, 14, 30)))
+    assert bt.ngay_so_gui() is None                                                # cả hai còn "đang cập nhật"
+
+
+def test_zalo_tu_choi_kieu_chu_thi_gui_lai_chu_tron(monkeypatch):
+    tin = []
+
+    def tu_choi_kieu(chat_id, noi_dung, parse_mode=None, han=8, text_styles=None):
+        if text_styles:
+            raise zalo_bot.LoiZalo("Zalo từ chối (mã 403): Internal server error")
+        tin.append((chat_id, noi_dung))
+
+    monkeypatch.setattr(zalo_bot, "gui_tin", tu_choi_kieu)
+    _them("Anh A", chat="a")
+    ok, msg = bt.gui_thu(bt.ds_nguoi_nhan()[0]["id"])
+    assert ok and "chữ trơn" in msg and tin and tin[0][1].startswith("[BẢN THỬ")
+    kq = bt.chay(gio_vn=SANG_8H)
+    assert kq["da_gui"] == ["Anh A"] and kq["chu_tron"] == ["Anh A"] and not kq["loi"]
 
 
 def test_da_chot_nhung_truoc_8h_khong_gui(gia):

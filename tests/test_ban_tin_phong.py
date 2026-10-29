@@ -380,7 +380,7 @@ def test_nap_lai_file_khong_gui_lai(gia, monkeypatch):
 
 def test_loi_giua_chung_lan_sau_gui_tiep_phan_con_thieu(gia):
     _them("TP", ["IBB7"], chat="a")
-    gia.hong_lan = {2}                                     # tin 1 ok, tin 2 lỗi
+    gia.hong_lan = {2, 3}                                  # tin 1 ok, tin 2 lỗi cả bản có kiểu chữ lẫn bản chữ trơn
     kq = bt.chay(gio_vn=SANG_8H)
     assert len(gia.cho("a")) == 1 and kq["loi"][0]["nguoi"] == "TP (phòng IBB7)" and kq["da_gui"] == []
     gia.hong_lan = set()

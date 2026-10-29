@@ -133,14 +133,14 @@ def gui_thu(id_: int) -> tuple[bool, str]:
         return tp.gui_thu_truong_phong(nguoi)
     chu = "Thử bản tin: kết nối Zalo của app báo cáo FTEL hoạt động."
     try:
-        ngay_iso = metrics.ngay_moi_nhat()
+        ngay_iso = ngay_so_gui() or metrics.ngay_moi_nhat()
         if ngay_iso:
             chu = _voi_dau("[BẢN THỬ - chưa tính là đã gửi]\n", dung_noi_dung_bgd(ngay_iso))
     except Exception:
         pass
     try:
-        zalo_bot.gui_tin(nguoi["chat_id"], chu, text_styles=getattr(chu, "kieu", None))
-        ket =(True, f"Đã gửi tin thử cho {nguoi['ten']}.")
+        tron = zalo_bot.gui_tin_du_phong(nguoi["chat_id"], chu)
+        ket = (True, f"Đã gửi tin thử cho {nguoi['ten']}." + (" (Zalo từ chối kiểu chữ nên đã gửi chữ trơn.)" if tron else ""))
     except zalo_bot.LoiZalo as e:
         ket = (False, f"Chưa gửi được cho {nguoi['ten']}: {e}")
     ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: {'ok' if ket[0] else ket[1]}"[:200])
@@ -159,6 +159,21 @@ def da_chot(ngay_iso: str) -> tuple[bool, str]:
     if luc < datetime.combine(ngay + timedelta(days=1), MOC_CHOT):
         return False, f"Số ngày {ngay:%d/%m} mới nạp tạm, chưa có lần nạp từ 06:00 sáng hôm sau."
     return True, ""
+
+
+def ngay_so_gui(moi: str | None = None, chot_moi: bool | None = None) -> str | None:
+    """Ngày số dùng cho bản tin: ngày mới nhất NẾU đã chốt, không thì ngày liền trước nếu ngày đó đã chốt
+    (file có số ngày mới hơn đã nạp sau khi ngày đó kết thúc). Không có ngày nào chốt thì None (CEO chốt 29/10/2026:
+    chỉ gửi báo cáo của ngày đã chốt sổ)."""
+    moi = moi or metrics.ngay_moi_nhat()
+    if not moi:
+        return None
+    if chot_moi is None:
+        chot_moi = da_chot(moi)[0]
+    if chot_moi:
+        return moi
+    truoc = (date.fromisoformat(moi) - timedelta(days=1)).isoformat()
+    return truoc if da_chot(truoc)[0] else None
 
 
 # ------------------------------------------------------------------ nội dung bản tin
@@ -430,7 +445,7 @@ def _gui_cho(nguoi: dict, ngay: date, loai: str, chu: str, kq: dict) -> None:
         kq["bo_qua"].append({"nguoi": nguoi["ten"], "ly_do": "đã gửi, đang gửi hoặc hết lượt thử lại"})
         return
     try:
-        zalo_bot.gui_tin(nguoi["chat_id"], chu, text_styles=getattr(chu, "kieu", None))
+        tron = zalo_bot.gui_tin_du_phong(nguoi["chat_id"], chu)
     except zalo_bot.LoiZalo as e:
         ly_do = str(e)
     except Exception as e:                       # chưa gửi được thì thôi, không làm sập cả lượt (không in thông báo gốc: có thể lộ địa chỉ gọi)
@@ -438,6 +453,8 @@ def _gui_cho(nguoi: dict, ngay: date, loai: str, chu: str, kq: dict) -> None:
     else:
         _ghi_ket_qua(id_, True)
         kq["da_gui"].append(nguoi["ten"])
+        if tron:
+            kq.setdefault("chu_tron", []).append(nguoi["ten"])
         return
     _ghi_ket_qua(id_, False, ly_do)
     kq["loi"].append({"nguoi": nguoi["ten"], "ly_do": ly_do})
@@ -467,21 +484,24 @@ def chay(gio_vn: datetime | None = None, kho: bool = False, han_giay: float = HA
     kèm `phong` thì trả thêm tin của đúng phòng đó (người nhận loại trưởng phòng)."""
     t0 = time.monotonic()
     gio = gio_vn or gio_viet_nam()
-    ngay_iso = metrics.ngay_moi_nhat()
-    kq = {"ngay_so": ngay_iso, "da_gui": [], "bo_qua": [], "loi": [], "ly_do": None, "kho": kho}
-    if not ngay_iso:
+    moi = metrics.ngay_moi_nhat()
+    kq = {"ngay_so": moi, "da_gui": [], "bo_qua": [], "loi": [], "ly_do": None, "kho": kho}
+    if not moi:
         kq["ly_do"] = "Chưa có số liệu nào."
         return kq
-    ngay = date.fromisoformat(ngay_iso)
-    chot, ly_chua = da_chot(ngay_iso)
+    chot_moi, ly_chua = da_chot(moi)
+    ngay_iso = ngay_so_gui(moi, chot_moi)                 # ngày đã chốt gần nhất; None nếu chưa có ngày nào chốt
+    chot = ngay_iso is not None
+    kq["ngay_so"] = ngay_iso or moi
+    ngay = date.fromisoformat(kq["ngay_so"])
     sau_8h = gio.time() >= GIO_GUI
     if kho:
         kq["se_gui"] = sau_8h and chot
         kq["ly_do"] = None if kq["se_gui"] else ("Chưa tới 08:00 giờ Việt Nam." if not sau_8h else ly_chua)
         kq["nguoi_nhan"] = [n["ten"] for n in ds_nguoi_nhan("bgd", chi_bat=True)]
-        kq["noi_dung"] = dung_noi_dung_bgd(ngay_iso)
+        kq["noi_dung"] = dung_noi_dung_bgd(kq["ngay_so"])
         from app import ban_tin_phong as tp
-        kq.update(tp.kho_truong_phong(ngay_iso, phong))
+        kq.update(tp.kho_truong_phong(kq["ngay_so"], phong))
         return kq
     if not sau_8h:
         kq["ly_do"] = "Chưa tới 08:00 giờ Việt Nam."
@@ -489,12 +509,12 @@ def chay(gio_vn: datetime | None = None, kho: bool = False, han_giay: float = HA
         _gui_nhom("bgd", "bgd", ngay, lambda: dung_noi_dung_bgd(ngay_iso), kq, t0, han_giay)
         from app import ban_tin_phong as tp
         tp.gui_truong_phong(ngay_iso, kq, t0, han_giay)          # sau bản BGĐ; lỗi bên này không làm hỏng việc đã gửi
-    elif gio.time() >= GIO_NHAC:
-        kq["ly_do"] = ly_chua
-        _gui_nhom("admin", "nhac_admin", ngay,
-                  lambda: f"Chưa có số chốt của ngày {ngay:%d/%m}, hãy nạp file.", kq, t0, han_giay)
-    else:
-        kq["ly_do"] = ly_chua
+    if sau_8h and not chot_moi:
+        kq["ly_do"] = kq["ly_do"] or ly_chua
+        if gio.time() >= GIO_NHAC:
+            ngay_moi = date.fromisoformat(moi)
+            _gui_nhom("admin", "nhac_admin", ngay_moi,
+                      lambda: f"Chưa có số chốt của ngày {ngay_moi:%d/%m}, hãy nạp file.", kq, t0, han_giay)
     for loi in kq["loi"]:
         ghi_log("ban_tin_loi", f"{loi['nguoi']}: {loi['ly_do']}"[:200])
     if kq["da_gui"]:

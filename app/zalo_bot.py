@@ -98,6 +98,20 @@ def _goi_api(ten_ham: str, goi: dict, han: float = HAN_GIAY) -> dict:
     return kq
 
 
+def gui_tin_du_phong(chat_id: str, noi_dung: str, han: float = HAN_GIAY) -> bool:
+    """Gửi tin kèm kiểu chữ (`noi_dung.kieu`); Zalo từ chối thì gửi lại bản CHỮ TRƠN để người nhận vẫn có tin.
+    True = đã phải dùng chữ trơn. Không có kiểu chữ mà lỗi thì ném `LoiZalo` như `gui_tin`."""
+    kieu = getattr(noi_dung, "kieu", None)
+    try:
+        gui_tin(chat_id, noi_dung, han=han, text_styles=kieu)
+        return False
+    except LoiZalo:
+        if not kieu:
+            raise
+    gui_tin(chat_id, str(noi_dung), han=han)
+    return True
+
+
 def dat_webhook(url: str, secret_token: str) -> dict:
     """setWebhook. Zalo tự gọi thử địa chỉ và báo kết quả ở `verification` (địa chỉ vẫn được lưu dù thử hỏng)."""
     kq = _goi_api("setWebhook", {"url": url, "secret_token": secret_token})

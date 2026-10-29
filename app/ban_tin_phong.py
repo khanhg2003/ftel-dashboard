@@ -406,15 +406,14 @@ def _da_ok(ngay: date) -> set[tuple[int, str]]:
             BanTinNhatKy.ngay_so == ngay, BanTinNhatKy.ket_qua == "ok", BanTinNhatKy.loai.like("tp:%"))).all())
 
 
-def _gui_mot(nguoi: dict, chu) -> str | None:
-    """None nếu gửi được, ngược lại câu lý do."""
+def _gui_mot(nguoi: dict, chu) -> tuple[str | None, bool]:
+    """(None nếu gửi được, ngược lại câu lý do; đã phải gửi chữ trơn vì Zalo từ chối kiểu chữ?)."""
     try:
-        zalo_bot.gui_tin(nguoi["chat_id"], chu, text_styles=getattr(chu, "kieu", None))
+        return None, zalo_bot.gui_tin_du_phong(nguoi["chat_id"], chu)
     except zalo_bot.LoiZalo as e:
-        return str(e)
+        return str(e), False
     except Exception as e:
-        return f"Lỗi không xác định khi gửi ({type(e).__name__})."
-    return None
+        return f"Lỗi không xác định khi gửi ({type(e).__name__}).", False
 
 
 def _het_gio(kq: dict) -> None:
@@ -438,11 +437,13 @@ def _gui_cho_phong(nguoi: dict, ma: str, ngay: date, tin: list, ok: set, kq: dic
         if id_ is None:
             kq["bo_qua"].append({"nguoi": ten, "ly_do": "đã gửi, đang gửi hoặc hết lượt thử lại"})
             return
-        ly_do = _gui_mot(nguoi, chu)
+        ly_do, tron = _gui_mot(nguoi, chu)
         bt._ghi_ket_qua(id_, ly_do is None, ly_do or "")
         if ly_do is not None:
             kq["loi"].append({"nguoi": ten, "ly_do": ly_do})
             return
+        if tron:
+            kq.setdefault("chu_tron", []).append(f"{ten} · {phan}")
         gui += 1
     xong = bt._giu_cho(ngay, nguoi, ma_loai(ma, PHAN_XONG))
     if xong is not None:
@@ -488,21 +489,26 @@ def gui_thu_truong_phong(nguoi: dict) -> tuple[bool, str]:
     """Gửi thử các tin của (các) phòng của người này, ngày số mới nhất, nhãn "BẢN THỬ"; không ghi nhật ký ngày."""
     if not nguoi["phong"]:
         return False, f"{nguoi['ten']} chưa được gắn phòng nào."
-    ngay_iso = metrics.ngay_moi_nhat()
+    ngay_iso = bt.ngay_so_gui() or metrics.ngay_moi_nhat()
     if not ngay_iso:
         return False, "Chưa có số liệu nào để gửi thử."
     try:
         chung = nap_chung(ngay_iso)
-        tin = [t for ma in nguoi["phong"] for _, t in dung_tin_phong(ngay_iso, ma, chung)]
+        tin = [(ma, p, t) for ma in nguoi["phong"] for p, t in dung_tin_phong(ngay_iso, ma, chung)]
     except Exception as e:
         return False, f"Không dựng được tin thử ({type(e).__name__})."
-    for t in tin:
-        ly_do = _gui_mot(nguoi, bt._voi_dau("[BẢN THỬ - chưa tính là đã gửi]\n", t))
+    tron = []
+    for ma, phan, t in tin:
+        ly_do, la_tron = _gui_mot(nguoi, bt._voi_dau("[BẢN THỬ - chưa tính là đã gửi]\n", t))
         if ly_do:
-            ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: {ly_do}"[:200])
-            return False, f"Chưa gửi được cho {nguoi['ten']}: {ly_do}"
-    ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: ok ({len(tin)} tin)")
-    return True, f"Đã gửi {len(tin)} tin thử cho {nguoi['ten']} (phòng {', '.join(nguoi['phong'])})."
+            ghi_log("ban_tin_gui_thu", f"{nguoi['ten']} ({ma}/{phan}): {ly_do}"[:200])
+            return False, (f"Chưa gửi được cho {nguoi['ten']} ở tin {nhan_loai_tin(ma_loai(ma, phan))} "
+                           f"({len(t)} ký tự, {len(t.kieu)} kiểu chữ): {ly_do}")
+        if la_tron:
+            tron.append(f"{ma}/{phan}")
+    ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: ok ({len(tin)} tin)" + (f", chữ trơn: {', '.join(tron)}" if tron else ""))
+    return True, (f"Đã gửi {len(tin)} tin thử cho {nguoi['ten']} (phòng {', '.join(nguoi['phong'])})."
+                  + (f" Zalo từ chối kiểu chữ ở {len(tron)} tin nên đã gửi chữ trơn." if tron else ""))
 
 
 def kho_truong_phong(ngay_iso: str, phong: str | None) -> dict:
@@ -514,7 +520,9 @@ def kho_truong_phong(ngay_iso: str, phong: str | None) -> dict:
             kq["ly_do_phong"] = "Phòng không hợp lệ (chỉ phòng bán hàng IBB và địa bàn)."
         else:
             try:
-                kq["noi_dung_phong"] = [str(t) for _, t in dung_tin_phong(ngay_iso, phong)]
+                tin = dung_tin_phong(ngay_iso, phong)
+                kq["noi_dung_phong"] = [str(t) for _, t in tin]
+                kq["kich_thuoc"] = [{"phan": p, "ky_tu": len(t), "so_kieu": len(t.kieu)} for p, t in tin]
             except Exception as e:
                 kq["ly_do_phong"] = f"Không dựng được tin phòng {phong} ({type(e).__name__})."
     return kq

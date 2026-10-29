@@ -286,7 +286,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - *Bản tin 8h* (`app/ban_tin.py`, giai đoạn 1 chốt 29/10/2026: chỉ Ban Giám đốc + nhắc Admin): n8n/cron chỉ làm
      đồng hồ, gọi `POST /api/ban-tin/chay` (header `X-Ban-Tin-Khoa` = biến `BAN_TIN_KHOA`, sai/thiếu → 403) mỗi 15 phút từ 8h tới 11h
      giờ VN; app tự quyết gửi hay không. **Chốt số** = `overview.trang_thai_ngay` hết "đang cập nhật" VÀ lần nạp cuối sau 06:00 sáng HÔM SAU
-     ngày số (file nạp 14:30 cùng ngày chỉ là số tạm). Trước 08:00 hoặc chưa chốt thì không gửi; quá 10:30 mà chưa chốt thì nhắc
+     ngày số (file nạp 14:30 cùng ngày chỉ là số tạm). **Ngày số = ngày ĐÃ CHỐT gần nhất** (`ban_tin.ngay_so_gui`, CEO chốt 29/10/2026: chỉ gửi báo cáo của ngày đã chốt sổ): ngày mới nhất nếu đã chốt, không thì ngày liền trước nếu ngày đó đã chốt; áp cho cả Gửi thử và `?kho=1`. **Zalo từ chối tin có `text_styles` thì gửi lại bản chữ trơn** (`zalo_bot.gui_tin_du_phong`, kết quả ghi ở `chu_tron` của lượt chạy và ở thông báo Gửi thử) để người nhận vẫn có tin; `?kho=1&phong=<mã>` trả thêm `kich_thuoc` (số ký tự, số kiểu chữ từng tin) để dò giới hạn. Trước 08:00 hoặc chưa có ngày nào chốt thì không gửi; quá 10:30 mà chưa chốt thì nhắc
      người nhận loại `admin` đúng một lần. Mỗi (ngày số, người nhận, loại tin) một dòng `BanTinNhatKy` có khoá duy nhất: lượt nào chèn
      được dòng là lượt được gửi (hai lượt cùng lúc không trùng), gửi lỗi thì được giành lại tối đa `TOI_DA_LAN` lần ở lượt sau, đã `ok`
      thì KHÔNG gửi lại dù file nạp lại và số đổi. Nội dung do code dựng bằng khuôn chữ cố định (không gọi AI), lấy số từ
