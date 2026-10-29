@@ -266,7 +266,9 @@ def _phong_ban_hang(sl: dict) -> dict[str, pd.DataFrame]:
     return {ma: ban_hang[cn == ma] for ma, _ in NHOM_PHONG}
 
 
-def _khoi_phong(sl: dict, n_thap: int) -> _Soan | None:
+def _khoi_phong(sl: dict, gioi_han: int | None) -> _Soan | None:
+    """Mỗi chi nhánh liệt kê ĐỦ các phòng ở mức Rủi ro (`gioi_han` chỉ để rút gọn khi tin quá dài); không có phòng
+    Rủi ro thì nêu 2 phòng thấp nhất."""
     nhom = _phong_ban_hang(sl)
     s = _Soan().them("2) PHÒNG CẦN CHÚ Ý", "b", CO_TIEU_DE)
     co = False
@@ -277,11 +279,15 @@ def _khoi_phong(sl: dict, n_thap: int) -> _Soan | None:
         rr = int((g["danh_gia"] == du_bao.RUI_RO).sum())
         s.them("\n\n" if co else "\n").them(nhan, "b").them(": ")
         co = True
+        xep = g.dropna(subset=["pct_mt"]).sort_values("pct_mt")
         if rr:
-            s.them(f"{rr}/{len(g)} phòng", "b", DO).them(" ở mức Rủi ro. Thấp nhất:")
+            s.them(f"{rr}/{len(g)} phòng", "b", DO).them(" ở mức Rủi ro:")
+            xep = xep[xep["danh_gia"] == du_bao.RUI_RO]
+            xep = xep if gioi_han is None else xep.head(gioi_han)
         else:
             s.them("Không có phòng Rủi ro.", XANH).them(" Thấp nhất:")
-        for _, r in g.dropna(subset=["pct_mt"]).sort_values("pct_mt").head(n_thap).iterrows():
+            xep = xep.head(2 if gioi_han is None else min(gioi_han, 2))
+        for _, r in xep.iterrows():
             mau = MAU_DANH_GIA.get(r["danh_gia"])
             s.them("\n• ").them(str(r["phong"]), "b")
             s.them(f": {_so(r['luy_ke'])}/{_so(r['mt'])} ({_pct(r['luy_ke'], r['mt'])}%), dự báo ")
@@ -353,8 +359,8 @@ def dung_noi_dung_bgd(ngay_iso: str) -> TinZalo:
     link = (os.environ.get("APP_URL") or "").strip()
     chan = _Soan().them(f"Xem chi tiết: {link}") if link else None
     nd, tq, cl = _khoi_nhan_dinh(sl), _khoi_tong_quan(sl), _khoi_chat_luong(sl)
-    for n_thap, co_cl in ((2, True), (2, False), (1, False)):
-        chu = _ghep([dau, nd, tq, _khoi_phong(sl, n_thap), cl if co_cl else None, chan])
+    for gioi_han, co_cl in ((None, True), (None, False), (3, False), (1, False)):
+        chu = _ghep([dau, nd, tq, _khoi_phong(sl, gioi_han), cl if co_cl else None, chan])
         if len(chu) <= TOI_DA_KY_TU:
             return chu
     return _cat(chu, TOI_DA_KY_TU)

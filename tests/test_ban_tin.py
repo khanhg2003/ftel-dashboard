@@ -259,6 +259,18 @@ def test_muc_phong_chi_xep_phong_ban_hang():
         assert loai_bo not in chu
 
 
+def test_muc_phong_liet_ke_du_moi_phong_rui_ro_cua_tung_chi_nhanh():
+    import pandas as pd
+    hang = lambda code, ten, pct, dg: {"phong_code": code, "phong": ten, "mt": 100, "luy_ke": 30, "pct_mt": pct,
+                                       "danh_gia": dg}
+    p = pd.DataFrame([hang("IBB2", "IBB2", 60, "Rủi ro"), hang("IBB4", "IBB4", 70, "Rủi ro"),
+                      hang("IBB6", "IBB6", 80, "Rủi ro"), hang("IBB1", "IBB1", 99, "An toàn"),
+                      hang("HOIAN", "Hội An", 90, "Cần tăng tốc")])
+    chu = str(bt._khoi_phong({"phong": p}, None).xong())
+    assert "3/4 phòng" in chu and all(t in chu for t in ("IBB2", "IBB4", "IBB6")) and "IBB1:" not in chu
+    assert "Không có phòng Rủi ro" in chu and "Hội An" in chu            # QNM không có phòng Rủi ro: nêu phòng thấp nhất
+
+
 def test_nhan_dinh_nhanh_co_so_ngay_can_dat_va_phong_rui_ro():
     tin = bt.dung_noi_dung_bgd(NGAY)
     assert "NHẬN ĐỊNH NHANH" in tin and "online/ngày" in tin and "ngày còn lại" in tin
