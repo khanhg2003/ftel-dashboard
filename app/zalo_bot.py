@@ -66,8 +66,16 @@ def gui_tin(chat_id: str, noi_dung: str, parse_mode: str | None = None, han: flo
         goi["parse_mode"] = parse_mode
     elif text_styles:
         goi["text_styles"] = list(text_styles)
+    _goi_api("sendMessage", goi, han)
+
+
+def _goi_api(ten_ham: str, goi: dict, han: float = HAN_GIAY) -> dict:
+    """POST một hàm của Bot API, trả về JSON phản hồi. Lỗi gì cũng đổi thành `LoiZalo` đã làm sạch."""
+    token = _token()
+    if not token:
+        raise LoiZalo("Chưa cài biến ZALO_BOT_TOKEN trên máy chủ.")
     req = urllib.request.Request(
-        f"{GOC}/bot{token}/sendMessage", data=json.dumps(goi).encode(), method="POST",
+        f"{GOC}/bot{token}/{ten_ham}", data=json.dumps(goi).encode(), method="POST",
         headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=han) as r:
@@ -87,3 +95,24 @@ def gui_tin(chat_id: str, noi_dung: str, parse_mode: str | None = None, han: flo
     if kq.get("ok") is False or kq.get("error_code"):
         raise LoiZalo(f"Zalo từ chối (mã {kq.get('error_code', '?')}): "
                       f"{_sach(kq.get('description') or kq.get('message'), token)}")
+    return kq
+
+
+def dat_webhook(url: str, secret_token: str) -> dict:
+    """setWebhook. Zalo tự gọi thử địa chỉ và báo kết quả ở `verification` (địa chỉ vẫn được lưu dù thử hỏng)."""
+    kq = _goi_api("setWebhook", {"url": url, "secret_token": secret_token})
+    res = kq.get("result") if isinstance(kq.get("result"), dict) else {}
+    ktra = res.get("verification") if isinstance(res.get("verification"), dict) else {}
+    return {"url": str(res.get("url") or url), "kiem_tra_ok": ktra.get("ok") is not False,
+            "ket_qua_kiem_tra": _sach(ktra.get("outcome") or "", _token())}
+
+
+def go_webhook() -> None:
+    _goi_api("deleteWebhook", {})
+
+
+def thong_tin_webhook() -> dict:
+    """getWebhookInfo -> {"url": địa chỉ đang đặt ("" nếu chưa)}."""
+    kq = _goi_api("getWebhookInfo", {})
+    res = kq.get("result") if isinstance(kq.get("result"), dict) else {}
+    return {"url": str(res.get("url") or "")}

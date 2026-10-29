@@ -152,11 +152,17 @@ mà không gửi và không ghi nhật ký.
 
 Mẫu workflow n8n để nhập thẳng: `docs/n8n_ban_tin_8h.json` (đang gọi với `?kho=1`; thay địa chỉ app và khoá, kiểm xong mới bỏ `?kho=1`).
 
-**Lấy chat_id:** người nhận nhắn cho bot trước một tin bất kỳ, rồi gọi `POST https://bot-api.zaloplatforms.com/bot<TOKEN>/getUpdates`
-(tham số `timeout` tuỳ chọn) và lấy `result.message.chat.id`. Đã kiểm chứng tay 29/10/2026. Không chạy được khi bot đã đặt webhook
-(phải `deleteWebhook` trước).
-Vào **Quản trị → Bản tin Zalo → Thêm người nhận** điền tên, loại (Ban Giám đốc hoặc Admin) và chat_id, bấm
-*Gửi thử* để kiểm tra. Nếu Zalo từ chối gửi chủ động cho người lâu không nhắn thì cột "Lý do" ở bảng
+**Thêm người nhận mới bằng cách nhắn bot (cách chính):** vào **Quản trị → Bản tin Zalo → Kết nối Zalo → Kết nối webhook** một lần
+(cần đã cài `APP_URL` và `ZALO_BOT_TOKEN`; app tự đặt địa chỉ `<APP_URL>/api/ban-tin/zalo-webhook` và khoá xác thực dẫn xuất từ
+`APP_SECRET_KEY`, không phải nhập gì thêm; đổi `APP_SECRET_KEY` thì bấm kết nối lại). Sau đó người cần nhận bản tin mở Zalo, tìm
+*Bot AI FTEL - DNG* và nhắn một câu bất kỳ: bot trả lời "Đã ghi nhận…" và người đó hiện ở thẻ **Người vừa nhắn bot (chờ duyệt)**.
+Tích chọn dòng đó → *Thêm làm người nhận* → chọn loại (Ban Giám đốc hoặc Admin) → Lưu. *Bỏ qua* xoá khỏi danh sách chờ (nhắn lại thì hiện lại).
+App không lưu nội dung tin nhắn, chỉ chat_id và tên hiển thị. **Khi webhook đang bật, lệnh `getUpdates` cũ KHÔNG chạy nữa** (Zalo chỉ cho
+dùng một trong hai); muốn quay lại `getUpdates` thì bấm *Ngắt kết nối* (cũng làm người nhắn bot không còn tự hiện trong danh sách chờ).
+
+**Cách cũ, lấy chat_id bằng tay** (chỉ khi webhook đang tắt): người nhận nhắn cho bot trước một tin bất kỳ, rồi gọi
+`POST https://bot-api.zaloplatforms.com/bot<TOKEN>/getUpdates` và lấy `result.message.chat.id`. Rồi vào *Thêm người nhận* điền tên, loại và chat_id.
+Bấm *Gửi thử* để kiểm tra. Nếu Zalo từ chối gửi chủ động cho người lâu không nhắn thì cột "Lý do" ở bảng
 *10 lần gửi gần nhất* sẽ ghi rõ; nhờ người đó nhắn bot một tin rồi thử lại.
 
 ## 7. Chuyển sang PostgreSQL (khi cần)

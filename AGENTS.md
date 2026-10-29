@@ -43,6 +43,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 | Phễu bán hàng (dưới Dự báo ở Báo cáo Tổng, nạp từ mục Nạp dữ liệu) | `app/pheu_ban_hang.py` (số liệu + giao diện 5 tầng) + `config/columns.yml` (`pheu_ban_hang`) + `config/rules.yml` (`pheu_ban_hang.don_vi_phong`) |
 | Phản hồi hệ thống (nút ghim chân menu trái, popup góp ý lọc mục theo quyền tài khoản, tab tổng hợp ở Quản trị) | `app/phan_hoi.py` + `app/models.py` (`PhanHoi`) |
 | Bản tin 8h sáng gửi Zalo Bot (người nhận, chống gửi trùng, nội dung bản tin BGĐ, nhắc Admin nạp file) | `app/ban_tin.py` + `app/zalo_bot.py` (gửi tin) + `app/api_ban_tin.py` (`POST /api/ban-tin/chay` cho n8n) + `app/ui/pages/quantri_ban_tin.py` (tab Quản trị → Bản tin Zalo) + `app/models.py` (`BanTinNguoiNhan`, `BanTinNhatKy`) |
+| Thêm người nhận Bản tin bằng cách nhắn bot (webhook Zalo, danh sách chờ duyệt, kết nối / ngắt webhook) | `app/ban_tin_cho_duyet.py` + `POST /api/ban-tin/zalo-webhook` ở `app/api_ban_tin.py` + `app/ui/pages/quantri_ban_tin_duyet.py` + `app/models.py` (`BanTinChoDuyet`) |
 | Một trang | `app/ui/pages/<trang>.py`, có `layout()` + `register(app)` (+ `topbar()`) |
 | CSS | `assets/style.css` (một file; thêm cuối file, có chú thích nhóm) |
 
@@ -292,6 +293,13 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
      khách, tối đa 1.900 ký tự (dài thì bỏ mục chất lượng bán rồi bớt phòng). Token Zalo chỉ ở biến `ZALO_BOT_TOKEN`; `zalo_bot.LoiZalo`
      luôn là câu tiếng Việt đã làm sạch, KHÔNG chứa token / địa chỉ gọi. Người nhận quản ở Quản trị → Bản tin Zalo (chỉ admin, mọi thao tác
      ghi nhật ký). `?kho=1` = chạy thử: dựng nội dung, không gửi, không ghi nhật ký. Giai đoạn sau mới thêm trưởng phòng / nhân viên.
+     **Thêm người nhận bằng cách nhắn bot** (`app/ban_tin_cho_duyet.py`, 29/10/2026): Zalo gọi `POST /api/ban-tin/zalo-webhook` (header
+     `X-Bot-Api-Secret-Token`; khoá = HMAC-SHA256(`APP_SECRET_KEY`, "zalo-webhook") hex nên không lưu gì thêm; sai / thiếu → 403 giống hệt,
+     đúng khoá thì LUÔN 200 kể cả sự kiện lạ / lỗi để Zalo khỏi gửi lại). Chỉ nhận `message.*.received` từ chat riêng (`chat_type`
+     PRIVATE) và không phải bot; người mới được ghi vào `BanTinChoDuyet` (chat_id duy nhất, tên hiển thị, lần nhắn đầu / cuối; KHÔNG lưu nội dung
+     tin) và bot chào đúng một lần; chat_id đã là người nhận thì không vào chờ. Quản trị duyệt (chọn tên + loại, tạo người nhận bật) hoặc
+     bỏ qua ở tab Bản tin Zalo; thẻ "Kết nối Zalo" gọi setWebhook / deleteWebhook / getWebhookInfo, cần `APP_URL` (không đoán địa chỉ). Webhook
+     bật thì `getUpdates` cũ không chạy nữa (Zalo chỉ cho một trong hai).
    - *Ads:* chi tiêu về trễ 1 ngày → CP / PTTB chỉ tính tới ngày đa số page đã có chi tiêu (`cuoi_tu_bang`).
      Tracking ngày: tiền hiện **hai dòng trong cùng một ô** - USD đậm ở trên, VNĐ quy đổi nhỏ và nhạt kèm ₫ ở
      dưới (`_hai_dong()` + CSS `.o-hai-dong` dùng `::first-line`; chủ app chốt 24/09/2026). Chỉ có MỘT cột tiền

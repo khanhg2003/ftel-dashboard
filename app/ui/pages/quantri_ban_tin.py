@@ -49,6 +49,7 @@ def _hop_thoai():
 
 
 def pane(tab: str):
+    from app.ui.pages import quantri_ban_tin_duyet
     return html.Div(id="bt-pane", style={} if tab == "bantin" else AN, children=[
         dcc.Store(id="bt-lam-moi"),
         dcc.ConfirmDialog(id="bt-xacnhan-xoa", message="Xoá các người nhận đã chọn?"),
@@ -71,10 +72,13 @@ def pane(tab: str):
                     nhan="Cách hoạt động", style={"marginTop": "12px"}),
         ], title="Người nhận bản tin Zalo"),
         card([bang("bt-nk", cao=None, cot=COT_NHAT_KY)], title="10 lần gửi gần nhất"),
+        *quantri_ban_tin_duyet.cac_the(),
     ])
 
 
 def register(app):
+    from app.ui.pages import quantri_ban_tin_duyet
+    quantri_ban_tin_duyet.register(app)
     cb = callback_can_quyen(app, "duoc_cau_hinh")
 
     @cb(Output("bt-pane", "style"), Input("qt-tab", "value"), prevent_initial_call=True)

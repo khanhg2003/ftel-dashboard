@@ -508,4 +508,14 @@ class BanTinNhatKy(Base):
     gio_gui: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # UTC
 
 
+class BanTinChoDuyet(Base):
+    """Người vừa nhắn Zalo Bot, chờ Quản trị duyệt thành người nhận bản tin. KHÔNG lưu nội dung tin nhắn."""
+    __tablename__ = "ban_tin_cho_duyet"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chat_id: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    ten: Mapped[str] = mapped_column(String(120))
+    nhan_dau: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)      # UTC
+    nhan_cuoi: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)     # UTC
+
+
 from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)
