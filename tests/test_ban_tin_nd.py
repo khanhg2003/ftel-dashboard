@@ -129,16 +129,16 @@ def _doan_kieu(chu, kieu):
 # ------------------------------------------------------------------ nhận định Ban Giám đốc
 def test_nhan_dinh_bgd_co_muc_tieu_phong_can_bu_chat_luong_ton_va_hanh_dong():
     t = nd.dung_nhan_dinh_bgd(NGAY)
-    for cum in ("NHẬN ĐỊNH & HÀNH ĐỘNG - số chốt ngày 11/09", "1) MỤC TIÊU CẦN ĐẠT", "2) PHÒNG CẦN BÙ SỐ", "3) CHẤT LƯỢNG BÁN",
-                "4) HỢP ĐỒNG TỒN", "5) HÀNH ĐỘNG ĐỀ XUẤT", "Toàn chi nhánh: cần", "Đà Nẵng (DNG)", "Quảng Nam (QNM)",
-                "Họp nhanh với", "trước 13/09", "hết 30/09", "online/ngày"):
+    for cum in ("NHẬN ĐỊNH & HÀNH ĐỘNG · 11/09", "1) MỤC TIÊU CẦN ĐẠT", "2) PHÒNG CẦN BÙ SỐ", "3) CHẤT LƯỢNG BÁN",
+                "4) HỢP ĐỒNG TỒN", "5) HÀNH ĐỘNG ĐỀ XUẤT", "Chi nhánh: cần", "Đà Nẵng: cần", "Quảng Nam: cần",
+                "Họp nhanh với", "trước 13/09", "online/ngày"):
         assert cum in t, cum
     assert len(t) <= bt.TOI_DA_KY_TU and "đấu nối" not in t.lower()
     db = du_bao.du_bao_thang("2026-09", 11)
     tong = db[db.phong_code == "TOTAL"].iloc[0]
-    assert f"cần {bt._so(tong['can_moi_ngay'])} online/ngày trong {int(tong['con_lai'])} ngày còn lại" in t
-    assert f"hiện {bt._so(tong['tb_ngay'], 1)}/ngày" in t
-    assert f"dự báo hụt {bt._so(tong['mt'] - tong['du_bao'])} so mục tiêu {bt._so(tong['mt'])}" in t
+    assert f"Chi nhánh: cần {bt._so(tong['can_moi_ngay'])}/ngày (hiện {bt._so(tong['tb_ngay'], 1)})" in t
+    assert f"· hụt {bt._so(tong['mt'] - tong['du_bao'])}" in t
+    assert len(t) <= 1100                                                          # gọn: một màn hình điện thoại rưỡi
 
 
 def test_nhan_dinh_bgd_phong_can_bu_dung_quy_tac_va_xep_hut_nhieu_truoc():
@@ -166,7 +166,7 @@ def test_nhan_dinh_bgd_ton_khop_bao_cao_phong_va_nhac_3_phong_nhieu_nhat():
     ton = pt.bang_theo_phong(pt.hop_dong_online("2026-09-01", NGAY), pt.hop_dong_ton(), "2026-09")
     tong = int(ton[ton.loai_dong == "total"].iloc[0]["ton_qua_7"])
     t = str(nd.dung_nhan_dinh_bgd(NGAY))
-    assert f"{bt._so(tong)} hợp đồng chờ online từ 7 ngày" in t
+    assert f"{bt._so(tong)} HĐ chờ online từ 7 ngày" in t
     muc4 = t[t.index("4) HỢP ĐỒNG TỒN"):t.index("5) HÀNH ĐỘNG")]
     assert muc4.count(",") == 2 and "Nhiều nhất:" in muc4
 
@@ -201,6 +201,7 @@ def test_nhan_dinh_bgd_dai_thi_bot_phong_roi_cat_va_kieu_chu_dung_vi_tri(monkeyp
     assert day_du.kieu and all(k["start"] >= 0 and k["len"] > 0 and k["start"] + k["len"] <= tong for k in day_du.kieu)
     doan = _doan_kieu(day_du, day_du.kieu)
     assert any(c.startswith("NHẬN ĐỊNH & HÀNH ĐỘNG") and "b" in st for c, st in doan)
+    assert len(day_du.kieu) <= bt.KIEU_TOI_DA
     assert any(c == "1) MỤC TIÊU CẦN ĐẠT" and "b" in st for c, st in doan)
     assert any(any(s.startswith("c_") for s in st) for _, st in doan)
 
@@ -448,7 +449,7 @@ def test_bgd_va_truong_phong_cung_luot_moi_nguoi_dung_chuoi_cua_minh(gia):
     kq = bt.chay(gio_vn=SANG_8H)
     assert set(kq["da_gui"]) == {"Anh BGĐ", "TP (phòng IBB7)"}
     assert [p[0][1] for p in gia.anh_cho("g")] == [None] and len(gia.cho("g")) == 1
-    assert gia.cho("g")[0].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG - số chốt ngày")
+    assert gia.cho("g")[0].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG ·")
 
 
 def test_gui_thu_truong_phong_gui_dung_chuoi_moi_co_nhan_ban_thu(gia):

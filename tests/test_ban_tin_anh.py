@@ -282,7 +282,7 @@ def test_bgd_nhan_anh_roi_tin_nhan_dinh_khi_co_app_url(gia):
     assert chat == "a" and m and ba.doc_ma(m.group(1)) == (NGAY, None)
     assert caption == f"Báo cáo Tổng - số chốt ngày 11/09\nXem chi tiết: {APP}"
     nd = gia.tin[0][1]
-    assert nd.startswith("NHẬN ĐỊNH & HÀNH ĐỘNG - số chốt ngày 11/09") and len(nd) <= bt.TOI_DA_KY_TU
+    assert nd.startswith("NHẬN ĐỊNH & HÀNH ĐỘNG · 11/09") and len(nd) <= bt.TOI_DA_KY_TU
     assert {r[0]: r[1] for r in _nhat_ky()} == {"bgd": "ok", "bgd_nd": "ok"}
 
 

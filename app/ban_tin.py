@@ -243,6 +243,27 @@ class TinZalo(str):
     kieu: list[dict]
 
 
+KIEU_TOI_DA = 40      # Zalo từ chối tin có quá nhiều kiểu chữ (đo 29/10: 43 còn nhận, tin có khoảng 55 thì 403): trần an toàn
+
+
+def _diem_kieu(k: dict) -> int:
+    st = k["st"]
+    if any(x.startswith("c_") for x in st):
+        return 3                                         # có màu: giữ cuối cùng
+    if "f_18" in st or "f_20" in st:
+        return 2                                         # tiêu đề lớn
+    return 1 if "b" in st else 0                         # đậm trơn, rồi cỡ nhỏ
+
+
+def _giam_kieu(kieu: list[dict]) -> list[dict]:
+    """Quá `KIEU_TOI_DA` thì bỏ dần kiểu ít quan trọng (cỡ nhỏ, đậm trơn, tiêu đề) cho tới khi vừa; giữ thứ tự gốc."""
+    if len(kieu) <= KIEU_TOI_DA:
+        return kieu
+    thu_tu = sorted(range(len(kieu)), key=lambda i: (_diem_kieu(kieu[i]), -i))
+    bo = set(thu_tu[:len(kieu) - KIEU_TOI_DA])
+    return [k for i, k in enumerate(kieu) if i not in bo]
+
+
 def _u16(chu: str) -> int:
     return len(chu.encode("utf-16-le")) // 2          # Zalo đếm vị trí kiểu theo đơn vị UTF-16
 
@@ -266,7 +287,7 @@ class _Soan:
             chu.append(c)
             vt += n
         t = TinZalo("".join(chu))
-        t.kieu = kieu
+        t.kieu = _giam_kieu(kieu)
         return t
 
 
