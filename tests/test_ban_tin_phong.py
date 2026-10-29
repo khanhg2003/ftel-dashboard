@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import ban_tin as bt                                           # noqa: E402
+from app import ban_tin_anh                                             # noqa: E402
 from app import ban_tin_phong as tp                                     # noqa: E402
 from app import bao_cao_phong as bcp                                    # noqa: E402
 from app import canh_bao, metrics, overview, zalo_bot                   # noqa: E402
@@ -68,6 +69,8 @@ def moi_truong(monkeypatch):
     don()
     monkeypatch.setattr(metrics, "ngay_moi_nhat", lambda: NGAY)
     monkeypatch.setattr(overview, "trang_thai_ngay", lambda iso: CHOT)
+    monkeypatch.setattr(ban_tin_anh, "cong_tac", lambda: "chu")        # file này kiểm bản CHỮ cũ (`bgd_dang` / `tp_dang` = chu)
+    monkeypatch.setattr(ban_tin_anh, "cong_tac_tp", lambda: "chu")
     monkeypatch.delenv("APP_URL", raising=False)
     yield
     don()
@@ -398,7 +401,7 @@ def test_mot_phong_dung_loi_khong_chan_phong_khac_va_bgd(gia, monkeypatch):
     _them("Anh BGĐ", None, chat="g", loai="bgd")
     goc = tp.dung_tin_phong
 
-    def hong(ngay, ma, chung=None):
+    def hong(ngay, ma, chung=None, nhan_su=None):
         if ma == "IBB3":
             raise RuntimeError("https://x/botSECRET")
         return goc(ngay, ma, chung)

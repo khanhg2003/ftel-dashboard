@@ -5,8 +5,9 @@ Gửi khi ngày số mới nhất đã CHỐT: không còn "đang cập nhật" 
 06:00 sáng hôm sau ngày số đó (file nạp 14:30 trong ngày chỉ là số tạm). Mỗi (ngày số, người nhận, loại tin) gửi
 đúng một lần nhờ khoá duy nhất ở `BanTinNhatKy`; gửi lỗi thì lượt sau thử lại tối đa `TOI_DA_LAN`, đã ok thì không
 bao giờ gửi lại dù file nạp lại và số đổi. Nội dung do code dựng bằng khuôn cố định (không gọi AI), số lấy đúng
-từ các hàm của Báo cáo Tổng. Ban Giám đốc nhận ẢNH Báo cáo Tổng (`ban_tin_anh`, công tắc `ban_tin.bgd_dang` ở rules.yml);
-không gửi được ảnh (chưa có APP_URL https, Zalo từ chối) thì gửi bản chữ để không mất tin.
+từ các hàm của Báo cáo Tổng. Ban Giám đốc nhận ẢNH Báo cáo Tổng (`ban_tin_anh`, công tắc `ban_tin.bgd_dang` ở rules.yml) rồi
+tin chữ "NHẬN ĐỊNH & HÀNH ĐỘNG" (`ban_tin_nd`, loại `bgd_nd`); không gửi được ảnh (chưa có APP_URL https, Zalo từ chối) thì
+gửi bản chữ cũ thay ảnh để không mất tin. Trưởng phòng: xem `ban_tin_phong` (công tắc `ban_tin.tp_dang`).
 """
 from __future__ import annotations
 
@@ -123,9 +124,25 @@ def nhat_ky_gan_day(n: int = 10) -> list[dict]:
                  "ket_qua": nhan.get(r.ket_qua, r.ket_qua), "ly_do": r.ly_do or ""} for r in rows]
 
 
+def _gui_thu_bgd_anh(nguoi: dict, ngay_iso: str, chu: "TinZalo") -> tuple[bool, str]:
+    """Gửi thử chuỗi thật của Ban Giám đốc: ảnh Báo cáo Tổng (hoặc bản chữ cũ nếu mất ảnh), rồi tin nhận định."""
+    from app import ban_tin_nd
+    nhan = "[BẢN THỬ]\n"
+    ly_anh = _thu_anh(nguoi["chat_id"], ngay_iso, None, nhan)
+    try:
+        tron = zalo_bot.gui_tin_du_phong(nguoi["chat_id"], chu) if ly_anh else False
+        tron2 = zalo_bot.gui_tin_du_phong(nguoi["chat_id"], _voi_dau(nhan, ban_tin_nd.dung_nhan_dinh_bgd(ngay_iso)))
+    except zalo_bot.LoiZalo as e:
+        return False, f"Chưa gửi được cho {nguoi['ten']}: {e}"
+    dau = (f"Đã gửi BẢN CHỮ thử cho {nguoi['ten']} vì chưa gửi được ảnh ({ly_anh}), kèm tin nhận định & hành động"
+           if ly_anh else f"Đã gửi ảnh Báo cáo Tổng thử + tin nhận định & hành động cho {nguoi['ten']}")
+    return True, dau + ("; Zalo từ chối kiểu chữ nên đã gửi chữ trơn." if (tron or tron2) else ".")
+
+
 def gui_thu(id_: int) -> tuple[bool, str]:
-    """Gửi thử bản tin của ngày số mới nhất (đầu tin có nhãn "BẢN THỬ") để xem trên Zalo; không cần chờ chốt số,
-    không ghi nhật ký gửi ngày nên bản tin thật vẫn đi bình thường. Không dựng được nội dung thì gửi tin ngắn kiểm kết nối."""
+    """Gửi thử bản tin của ngày số mới nhất (có nhãn "BẢN THỬ") để xem trên Zalo; không cần chờ chốt số, không ghi nhật ký
+    gửi ngày nên bản tin thật vẫn đi bình thường. Ban Giám đốc nhận đúng chuỗi thật (ảnh rồi nhận định, hoặc bản chữ nếu
+    mất ảnh); không dựng được nội dung thì gửi tin ngắn kiểm kết nối."""
     nguoi = lay_nguoi_nhan(id_)
     if not nguoi:
         return False, "Không tìm thấy người nhận này."
@@ -140,23 +157,17 @@ def gui_thu(id_: int) -> tuple[bool, str]:
             chu = _voi_dau("[BẢN THỬ]\n", dung_noi_dung_bgd(ngay_iso))
     except Exception:
         pass
-    ly_anh = ""
     if nguoi["loai"] == "bgd" and ngay_iso and ban_tin_anh.cong_tac() == "anh":
         try:
-            _gui_anh_bgd(nguoi["chat_id"], ngay_iso, "[BẢN THỬ]\n")
-            ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: ok (ảnh)"[:200])
-            return True, f"Đã gửi ảnh Báo cáo Tổng thử cho {nguoi['ten']}."
-        except zalo_bot.LoiZalo as e:
-            ly_anh = str(e)
+            ket = _gui_thu_bgd_anh(nguoi, ngay_iso, chu)
         except Exception as e:
-            ly_anh = f"Lỗi không xác định khi gửi ảnh ({type(e).__name__})."
-    try:
-        tron = zalo_bot.gui_tin_du_phong(nguoi["chat_id"], chu)
-        dau = f"Đã gửi BẢN CHỮ thử cho {nguoi['ten']} vì chưa gửi được ảnh ({ly_anh})" if ly_anh \
-            else f"Đã gửi tin thử cho {nguoi['ten']}"
-        ket = (True, dau + ("; Zalo từ chối kiểu chữ nên đã gửi chữ trơn." if tron else "."))
-    except zalo_bot.LoiZalo as e:
-        ket = (False, f"Chưa gửi được cho {nguoi['ten']}: {e}")
+            ket = (False, f"Không dựng được tin nhận định thử ({type(e).__name__}).")
+    else:
+        try:
+            tron = zalo_bot.gui_tin_du_phong(nguoi["chat_id"], chu)
+            ket = (True, f"Đã gửi tin thử cho {nguoi['ten']}" + ("; Zalo từ chối kiểu chữ nên đã gửi chữ trơn." if tron else "."))
+        except zalo_bot.LoiZalo as e:
+            ket = (False, f"Chưa gửi được cho {nguoi['ten']}: {e}")
     ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: {'ok' if ket[0] else ket[1]}"[:200])
     return ket
 
@@ -217,7 +228,7 @@ def _so_lieu_bgd(ngay_iso: str) -> dict:
     thang, ngay = ngay_iso[:7], int(ngay_iso[8:10])
     df, _ = overview.bang_tong_quan(thang, ngay, chi_nhanh="all")
     db = du_bao.du_bao_thang(thang, ngay)
-    return {"thang": thang, "ngay": ngay, "tong": df[df.loai_dong == "total"].iloc[0],
+    return {"thang": thang, "ngay": ngay, "tq": df, "tong": df[df.loai_dong == "total"].iloc[0],
             "du_bao": db[db.phong_code == "TOTAL"].iloc[0], "phong": db[db.phong_code != "TOTAL"],
             "truoc": _chat_luong_thang_truoc(thang, ngay), "thang_truoc": metrics.prev_month(thang)}
 
@@ -452,15 +463,38 @@ def _da_gui_ok(ngay: date, loai: str) -> set[int]:
             BanTinNhatKy.ngay_so == ngay, BanTinNhatKy.loai == loai, BanTinNhatKy.ket_qua == "ok")).scalars())
 
 
-def _gui_anh_bgd(chat_id: str, ngay_iso: str, dau: str = "") -> None:
-    """Gửi ảnh Báo cáo Tổng của ngày số (mỗi lần một mã tạm mới, hạn 15 phút tính từ lúc này)."""
-    url = ban_tin_anh.url_anh(ngay_iso)
+def _gui_anh_bao_cao(chat_id: str, ngay_iso: str, dau: str = "", phong: str | None = None) -> None:
+    """Gửi ảnh Báo cáo Tổng (hoặc Báo cáo của `phong`) của ngày số (mỗi lần một mã tạm mới, hạn 15 phút tính từ lúc này)."""
+    url = ban_tin_anh.url_anh(ngay_iso, phong)
     if not url:
         raise zalo_bot.LoiZalo("Chưa cài APP_URL (địa chỉ https của app) nên chưa gửi được ảnh.")
     ngay = date.fromisoformat(ngay_iso)
     link = ban_tin_anh.app_url()
-    caption = f"{dau}Báo cáo Tổng - số chốt ngày {ngay:%d/%m}" + (f"\nXem chi tiết: {link}" if link else "")
+    ten = "Báo cáo Tổng" if phong is None else f"Báo cáo phòng {_ten_phong(phong)}"
+    caption = f"{dau}{ten} - số chốt ngày {ngay:%d/%m}" + (f"\nXem chi tiết: {link}" if link else "")
     zalo_bot.gui_anh(chat_id, url, caption)
+
+
+def _ten_phong(ma: str) -> str:
+    from app import bao_cao_phong
+    return bao_cao_phong.ten_phong(ma)
+
+
+def _thu_anh(chat_id: str, ngay_iso: str, phong: str | None = None, dau: str = "") -> str:
+    """Gửi ảnh; trả "" nếu được, ngược lại câu lý do đã làm sạch (không bao giờ ném lỗi, không lộ địa chỉ gọi / mã)."""
+    try:
+        _gui_anh_bao_cao(chat_id, ngay_iso, dau, phong)
+        return ""
+    except zalo_bot.LoiZalo as e:
+        return str(e)
+    except Exception as e:
+        return f"Lỗi không xác định khi gửi ảnh ({type(e).__name__})."
+
+
+def _them_da_gui(kq: dict, ten: str) -> None:
+    """Một người nhận nhiều tin trong lượt (ảnh rồi nhận định) vẫn chỉ ghi tên một lần."""
+    if ten not in kq["da_gui"]:
+        kq["da_gui"].append(ten)
 
 
 def _gui_cho(nguoi: dict, ngay: date, loai: str, chu, kq: dict, anh: str | None = None) -> None:
@@ -470,19 +504,12 @@ def _gui_cho(nguoi: dict, ngay: date, loai: str, chu, kq: dict, anh: str | None 
     if id_ is None:
         kq["bo_qua"].append({"nguoi": nguoi["ten"], "ly_do": "đã gửi, đang gửi hoặc hết lượt thử lại"})
         return
-    ly_anh = ""
-    if anh:
-        try:
-            _gui_anh_bgd(nguoi["chat_id"], anh)
-        except zalo_bot.LoiZalo as e:
-            ly_anh = str(e)
-        except Exception as e:
-            ly_anh = f"Lỗi không xác định khi gửi ảnh ({type(e).__name__})."
-        else:
-            _ghi_ket_qua(id_, True)
-            kq["da_gui"].append(nguoi["ten"])
-            kq.setdefault("gui_anh", []).append(nguoi["ten"])
-            return
+    ly_anh = _thu_anh(nguoi["chat_id"], anh) if anh else ""
+    if anh and not ly_anh:
+        _ghi_ket_qua(id_, True)
+        _them_da_gui(kq, nguoi["ten"])
+        kq.setdefault("gui_anh", []).append(nguoi["ten"])
+        return
     try:
         tron = zalo_bot.gui_tin_du_phong(nguoi["chat_id"], chu() if callable(chu) else chu)
     except zalo_bot.LoiZalo as e:
@@ -491,7 +518,7 @@ def _gui_cho(nguoi: dict, ngay: date, loai: str, chu, kq: dict, anh: str | None 
         ly_do = f"Lỗi không xác định khi gửi ({type(e).__name__})."
     else:
         _ghi_ket_qua(id_, True, f"Gửi bản chữ vì chưa gửi được ảnh: {ly_anh}" if ly_anh else "")
-        kq["da_gui"].append(nguoi["ten"])
+        _them_da_gui(kq, nguoi["ten"])
         if ly_anh:
             kq.setdefault("dung_ban_chu", []).append(nguoi["ten"])
         if tron:
@@ -514,10 +541,13 @@ def _nho_mot_lan(dung):
 
 
 def _gui_nhom(loai_nhan: str, loai_tin: str, ngay: date, dung, kq: dict, t0: float, han: float,
-              anh: str | None = None) -> None:
+              anh: str | None = None, sau_loai: str | None = None) -> None:
     """Gửi cho mọi người nhận còn bật mà chưa ok; `dung()` dựng nội dung đúng một lần, chỉ khi có người cần.
-    Có `anh` (ngày số) thì gửi ảnh và `dung()` chỉ chạy khi có người phải nhận bản chữ."""
-    ds = [n for n in ds_nguoi_nhan(loai_nhan, chi_bat=True) if n["id"] not in _da_gui_ok(ngay, loai_tin)]
+    Có `anh` (ngày số) thì gửi ảnh và `dung()` chỉ chạy khi có người phải nhận bản chữ. `sau_loai`: chỉ gửi cho người đã
+    nhận xong tin loại đó (nhận định đi SAU ảnh, không bao giờ trước)."""
+    da = _da_gui_ok(ngay, loai_tin)
+    truoc = _da_gui_ok(ngay, sau_loai) if sau_loai else None
+    ds = [n for n in ds_nguoi_nhan(loai_nhan, chi_bat=True) if n["id"] not in da and (truoc is None or n["id"] in truoc)]
     if not ds:
         kq["ly_do"] = kq["ly_do"] or "Không có ai cần nhận thêm."
         return
@@ -559,14 +589,19 @@ def chay(gio_vn: datetime | None = None, kho: bool = False, han_giay: float = HA
         kq["nguoi_nhan"] = [n["ten"] for n in ds_nguoi_nhan("bgd", chi_bat=True)]
         kq["bgd_dang"], kq["app_url_da_cai"] = ban_tin_anh.cong_tac(), bool(ban_tin_anh.app_url())     # không dựng ảnh, không tạo mã
         kq["noi_dung"] = dung_noi_dung_bgd(kq["ngay_so"])
+        from app import ban_tin_nd
+        kq["nhan_dinh"] = ban_tin_nd.dung_nhan_dinh_bgd(kq["ngay_so"])
         from app import ban_tin_phong as tp
         kq.update(tp.kho_truong_phong(kq["ngay_so"], phong))
         return kq
     if not sau_8h:
         kq["ly_do"] = "Chưa tới 08:00 giờ Việt Nam."
     elif chot:
-        _gui_nhom("bgd", "bgd", ngay, lambda: dung_noi_dung_bgd(ngay_iso), kq, t0, han_giay,
-                  anh=ngay_iso if ban_tin_anh.cong_tac() == "anh" else None)
+        anh = ban_tin_anh.cong_tac() == "anh"
+        _gui_nhom("bgd", "bgd", ngay, lambda: dung_noi_dung_bgd(ngay_iso), kq, t0, han_giay, anh=ngay_iso if anh else None)
+        if anh:                                   # tin nhận định đi sau ảnh (hoặc sau bản chữ thay ảnh); `bgd_dang: chu` giữ nguyên bản cũ
+            from app import ban_tin_nd
+            _gui_nhom("bgd", "bgd_nd", ngay, lambda: ban_tin_nd.dung_nhan_dinh_bgd(ngay_iso), kq, t0, han_giay, sau_loai="bgd")
         from app import ban_tin_phong as tp
         tp.gui_truong_phong(ngay_iso, kq, t0, han_giay)          # sau bản BGĐ; lỗi bên này không làm hỏng việc đã gửi
     if sau_8h and not chot_moi:

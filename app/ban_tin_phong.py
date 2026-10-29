@@ -1,10 +1,11 @@
 """Bản tin 8h cho TRƯỞNG PHÒNG (CEO chốt 29/10/2026): mỗi người nhận loại `truong_phong` nhận số của đúng (các) phòng
 admin đã chọn tay ở Quản trị, không tự liên kết với tài khoản app.
 
-Số lấy từ đúng hàm của Báo cáo phòng / Báo cáo Tổng (không viết lại công thức). Mỗi phòng có tin 1 "Tổng quan"
-và tin 2 "Từng nhân sự" (tách nhiều tin con khi dài). Mã loại tin trong nhật ký chống trùng: `tp:<phòng>:<phần>`
-(`tq`, `ns1`, `ns2`...) cộng dòng `tp:<phòng>:ht` ghi khi đã gửi đủ mọi phần: cột `loai` chỉ dài 20 ký tự nên mã phòng
-tối đa `TOI_DA_MA_PHONG`. Trưởng phòng và người đã nghỉ không vào bảng nhân sự, nhưng số của họ vẫn nằm trong số phòng.
+Số lấy từ đúng hàm của Báo cáo phòng / Báo cáo Tổng (không viết lại công thức). Mặc định (`ban_tin.tp_dang: anh`) mỗi phòng
+nhận ảnh Báo cáo phòng (`ap`), ảnh Báo cáo Tổng (`at`), rồi tin "NHẬN ĐỊNH & HÀNH ĐỘNG" (`nd1`...; `ban_tin_phong_nd`); mất ảnh
+phòng thì thay bằng tin "Từng nhân sự" (`ns1`...), mất ảnh Tổng thì bỏ qua. `tp_dang: chu` giữ cách cũ: tin 1 "Tổng quan" (`tq`) và
+"Từng nhân sự" (`ns`). Mã loại tin trong nhật ký chống trùng: `tp:<phòng>:<phần>` cộng dòng `tp:<phòng>:ht` ghi khi đã gửi đủ mọi
+phần: cột `loai` chỉ dài 20 ký tự nên mã phòng tối đa `TOI_DA_MA_PHONG`. Trưởng phòng và người đã nghỉ không vào bảng nhân sự, nhưng số của họ vẫn nằm trong số phòng.
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ from sqlalchemy import delete, select
 
 from app import ban_tin as bt
 from app import bao_cao_phong as bcp
-from app import canh_bao, du_bao, metrics, org, overview, zalo_bot
+from app import ban_tin_anh, canh_bao, du_bao, metrics, org, overview, zalo_bot
 from app.config import rules_config
 from app.auth import ghi_log
 from app.db import session_scope
@@ -26,6 +27,7 @@ from app.models import BanTinNguoiNhanPhong, BanTinNhatKy
 
 TOI_DA_MA_PHONG = 12             # "tp:" + mã + ":ns99" phải vừa cột loai (20 ký tự)
 PHAN_TONG_QUAN, PHAN_TRAO_DOI, PHAN_XONG = "tq", "td", "ht"
+PHAN_ANH_PHONG, PHAN_ANH_TONG, PHAN_NHAN_DINH = "ap", "at", "nd"     # ảnh phòng, ảnh Báo cáo Tổng, tin nhận định (nd1, nd2...)
 GIAM_CUNG_KY = "Giảm so cùng kỳ"      # nhãn cho người chỉ có vấn đề là thấp hơn cùng kỳ tháng trước
 LY_DO_TOI_DA = 70
 TIN_TOI_DA_NGUOI = 6             # số tên liệt kê tối đa ở mục chất lượng bán
@@ -90,10 +92,11 @@ def ma_loai(ma_phong: str, phan: str) -> str:
 def nhan_loai_tin(loai: str) -> str:
     if loai.startswith("tp:"):
         _, ma, phan = (loai.split(":") + ["", ""])[:3]
-        mo_ta = ("tổng quan" if phan == PHAN_TONG_QUAN else f"cần trao đổi {phan[2:]}" if phan.startswith(PHAN_TRAO_DOI)
-                 else f"nhân sự {phan[2:]}")
+        mo_ta = ("tổng quan" if phan == PHAN_TONG_QUAN else "ảnh Báo cáo phòng" if phan == PHAN_ANH_PHONG
+                 else "ảnh Báo cáo Tổng" if phan == PHAN_ANH_TONG else f"nhận định {phan[2:]}" if phan.startswith(PHAN_NHAN_DINH)
+                 else f"cần trao đổi {phan[2:]}" if phan.startswith(PHAN_TRAO_DOI) else f"nhân sự {phan[2:]}")
         return f"TP {ma} · {mo_ta}"
-    return "Bản tin" if loai == "bgd" else "Nhắc nạp file"
+    return {"bgd": "Bản tin", "bgd_nd": "Nhận định & hành động"}.get(loai, "Nhắc nạp file")
 
 
 # ------------------------------------------------------------------ số liệu
@@ -192,12 +195,17 @@ def _khoi_tien_do(c: dict, q: pd.Series, d: pd.Series, hang) -> bt._Soan:
     return s.them("\nSố trong ngoặc tính thêm nhịp dồn cuối tháng.", bt.CO_NHO)
 
 
+def xet_trao_doi(xet: pd.DataFrame, code: str) -> pd.DataFrame:
+    """Nhân sự được xét để nêu tên ở mục trao đổi: bỏ người `rules.yml` -> `ban_tin.khong_trao_doi.<phòng>`."""
+    bo = set((((rules_config().get("ban_tin") or {}).get("khong_trao_doi")) or {}).get(code) or [])
+    return xet[~xet["acc_norm"].isin(bo)]
+
+
 def can_trao_doi(xet: pd.DataFrame, code: str) -> pd.DataFrame:
     """Nhân sự cần trao đổi: có mức cảnh báo chung (`canh_bao`) HOẶC online luỹ kế thấp hơn cùng kỳ tháng trước.
     KHÔNG giới hạn số người (CEO chốt 29/10/2026). `rules.yml` -> `ban_tin.khong_trao_doi.<phòng>` loại riêng vài người
     của một phòng khỏi danh sách này (họ vẫn có trong bảng từng nhân sự)."""
-    bo = set((((rules_config().get("ban_tin") or {}).get("khong_trao_doi")) or {}).get(code) or [])
-    x = xet[~xet["acc_norm"].isin(bo)].copy()
+    x = xet_trao_doi(xet, code).copy()
     if x.empty:
         return x.assign(chenh=0, muc="", _t=0)
     x["chenh"] = x["online"] - x["ck_online"]
@@ -334,7 +342,16 @@ def _chia_tin(dong: list[bt._Soan], dau) -> list[bt.TinZalo]:
             dung = 0
         nhom[-1].append(d)
         dung += 1 + _dai(d)
-    return [bt._ghep([dau(i, len(nhom)), _noi_dong(g)]) for i, g in enumerate(nhom, 1)]
+    return [bt._ghep([dau(i, len(nhom)), _noi_dong(_bo_xuong_dong_dau(g))]) for i, g in enumerate(nhom, 1)]
+
+
+def _bo_xuong_dong_dau(g: list[bt._Soan]) -> list[bt._Soan]:
+    """Dòng đầu một tin con không được mở bằng dòng trống (tiêu đề nhóm vốn có xuống dòng phía trước)."""
+    if not g or not g[0].phan or not g[0].phan[0][0].startswith("\n"):
+        return g
+    dau = bt._Soan()
+    dau.phan = [(g[0].phan[0][0].lstrip("\n"), g[0].phan[0][1]), *g[0].phan[1:]]
+    return [dau, *g[1:]]
 
 
 def dung_tin_nhan_su(chung: dict, ten: str, xet: pd.DataFrame) -> list[bt.TinZalo]:
@@ -380,12 +397,12 @@ def _noi_dong(dong: list[bt._Soan]) -> bt._Soan:
     return s
 
 
-def dung_tin_phong(ngay_iso: str, code: str, chung: dict | None = None) -> list[tuple[str, bt.TinZalo]]:
-    """[(phần, tin)]: `tq`, rồi `td1`... (chỉ khi danh sách cần trao đổi quá dài để nằm chung tin 1), rồi `ns1`, `ns2`...
-    Một lượt đọc số nhân sự dùng cho mọi tin."""
+def dung_tin_phong(ngay_iso: str, code: str, chung: dict | None = None, nhan_su=None) -> list[tuple[str, bt.TinZalo]]:
+    """[(phần, tin)] kiểu chữ (`tp_dang: chu`): `tq`, rồi `td1`... (chỉ khi danh sách cần trao đổi quá dài để nằm chung tin 1),
+    rồi `ns1`, `ns2`... Một lượt đọc số nhân sự dùng cho mọi tin."""
     chung = chung or nap_chung(ngay_iso)
     ten = bcp.ten_phong(code)
-    nhan_su = _nhan_su(chung, code)
+    nhan_su = nhan_su or _nhan_su(chung, code)
     can = can_trao_doi(nhan_su[1], code)
     tin1, nhung = _tin_tong_quan(chung, code, ten, nhan_su, can)
     ra = [(PHAN_TONG_QUAN, tin1)]
@@ -393,6 +410,21 @@ def dung_tin_phong(ngay_iso: str, code: str, chung: dict | None = None) -> list[
         ra += [(f"{PHAN_TRAO_DOI}{i}", t) for i, t in enumerate(dung_tin_trao_doi(chung, ten, can), 1)]
     ra += [(f"ns{i}", t) for i, t in enumerate(dung_tin_nhan_su(chung, ten, nhan_su[1]), 1)]
     return ra
+
+
+def dung_goi_phong(ngay_iso: str, code: str, chung: dict | None = None, anh: bool = True) -> list[dict]:
+    """Kế hoạch gửi của một phòng, đúng thứ tự gửi. `anh=True` (`tp_dang: anh`): ảnh Báo cáo phòng (mất ảnh thì thay bằng
+    tin "Từng nhân sự" ở `thay`), ảnh Báo cáo Tổng, rồi tin "Nhận định & hành động" (`nd1`...). `anh=False`: bản chữ cũ."""
+    chung = chung or nap_chung(ngay_iso)
+    nhan_su = _nhan_su(chung, code)
+    if not anh:
+        return [{"phan": p, "tin": t} for p, t in dung_tin_phong(ngay_iso, code, chung, nhan_su)]
+    from app import ban_tin_phong_nd as pn
+    ten = bcp.ten_phong(code)
+    thay = [(f"ns{i}", t) for i, t in enumerate(dung_tin_nhan_su(chung, ten, nhan_su[1]), 1)]
+    nd = pn.dung_nhan_dinh_phong(chung, code, ten, nhan_su, can_trao_doi(nhan_su[1], code))
+    return [{"phan": PHAN_ANH_PHONG, "anh": "phong", "thay": thay}, {"phan": PHAN_ANH_TONG, "anh": "tong"},
+            *({"phan": f"{PHAN_NHAN_DINH}{i}", "tin": t} for i, t in enumerate(nd, 1))]
 
 
 # ------------------------------------------------------------------ gửi + chống trùng
@@ -418,12 +450,46 @@ def _het_gio(kq: dict) -> None:
         kq["ly_do"] = "Gần hết thời gian cho phép, phần còn lại để lượt sau."
 
 
-def _gui_cho_phong(nguoi: dict, ma: str, ngay: date, tin: list, ok: set, kq: dict, t0: float, han: float) -> None:
-    """Gửi lần lượt các tin của một phòng cho một người; dừng ở tin đầu tiên chưa gửi được để thứ tự không đảo."""
+def _gui_muc_anh(nguoi: dict, ma: str, ngay: date, muc: dict, id_: int, ok: set, kq: dict, ten: str) -> bool:
+    """Gửi một mục ảnh đã giữ chỗ `id_`. True = mục đã xong (gửi được ảnh, hoặc đã thay bằng bản chữ / bỏ qua) nên đi tiếp;
+    False = dừng (bản chữ thay thế lỗi, lượt sau thử lại). Mất ảnh phòng → gửi tin "Từng nhân sự" thay (mỗi tin giữ chỗ riêng
+    `ns1`...); mất ảnh Tổng → bỏ qua, không thay."""
+    ly_anh = bt._thu_anh(nguoi["chat_id"], ngay.isoformat(), ma if muc["anh"] == "phong" else None)
+    if not ly_anh:
+        bt._ghi_ket_qua(id_, True)
+        kq.setdefault("gui_anh", []).append(f"{ten} · {muc['anh']}")
+        return True
+    if muc["anh"] == "tong" or not muc.get("thay"):
+        bt._ghi_ket_qua(id_, True, f"Bỏ qua ảnh: {ly_anh}")
+        kq.setdefault("bo_anh", []).append(f"{ten} · {muc['anh']}")
+        return True
+    for phan, chu in muc["thay"]:
+        loai = ma_loai(ma, phan)
+        if (nguoi["id"], loai) in ok:
+            continue
+        id2 = bt._giu_cho(ngay, nguoi, loai)
+        ly_do, tron = ("đã gửi, đang gửi hoặc hết lượt thử lại", False) if id2 is None else _gui_mot(nguoi, chu)
+        if id2 is not None:
+            bt._ghi_ket_qua(id2, ly_do is None, ly_do or "")
+        if ly_do is not None:
+            bt._ghi_ket_qua(id_, False, f"{ly_anh} (bản chữ thay ảnh cũng lỗi: {ly_do})")
+            kq["loi"].append({"nguoi": ten, "ly_do": ly_do})
+            return False
+        ok.add((nguoi["id"], loai))
+        if tron:
+            kq.setdefault("chu_tron", []).append(f"{ten} · {phan}")
+    bt._ghi_ket_qua(id_, True, f"Gửi bản chữ vì chưa gửi được ảnh: {ly_anh}")
+    kq.setdefault("dung_ban_chu", []).append(ten)
+    return True
+
+
+def _gui_cho_phong(nguoi: dict, ma: str, ngay: date, goi: list, ok: set, kq: dict, t0: float, han: float) -> None:
+    """Gửi lần lượt các mục của một phòng cho một người; dừng ở mục đầu tiên chưa gửi được để thứ tự không đảo.
+    Mục là ảnh (`anh`) hoặc tin chữ (`tin`)."""
     gui = 0
     ten = f"{nguoi['ten']} (phòng {ma})"
-    for phan, chu in tin:
-        loai = ma_loai(ma, phan)
+    for muc in goi:
+        loai = ma_loai(ma, muc["phan"])
         if (nguoi["id"], loai) in ok:
             continue
         if time.monotonic() - t0 > han:
@@ -433,13 +499,18 @@ def _gui_cho_phong(nguoi: dict, ma: str, ngay: date, tin: list, ok: set, kq: dic
         if id_ is None:
             kq["bo_qua"].append({"nguoi": ten, "ly_do": "đã gửi, đang gửi hoặc hết lượt thử lại"})
             return
-        ly_do, tron = _gui_mot(nguoi, chu)
+        if muc.get("anh"):
+            if not _gui_muc_anh(nguoi, ma, ngay, muc, id_, ok, kq, ten):
+                return
+            gui += 1
+            continue
+        ly_do, tron = _gui_mot(nguoi, muc["tin"])
         bt._ghi_ket_qua(id_, ly_do is None, ly_do or "")
         if ly_do is not None:
             kq["loi"].append({"nguoi": ten, "ly_do": ly_do})
             return
         if tron:
-            kq.setdefault("chu_tron", []).append(f"{ten} · {phan}")
+            kq.setdefault("chu_tron", []).append(f"{ten} · {muc['phan']}")
         gui += 1
     xong = bt._giu_cho(ngay, nguoi, ma_loai(ma, PHAN_XONG))
     if xong is not None:
@@ -458,18 +529,19 @@ def _chay_truong_phong(ngay_iso: str, kq: dict, t0: float, han: float) -> None:
             if (n["id"], ma_loai(p, PHAN_XONG)) not in xong:
                 cho.setdefault(p, []).append(n)
     chung = None
+    anh = ban_tin_anh.cong_tac_tp() == "anh"
     for ma, nguoi in cho.items():
         if time.monotonic() - t0 > han:
             _het_gio(kq)
             return
         try:
             chung = chung or nap_chung(ngay_iso)
-            tin = dung_tin_phong(ngay_iso, ma, chung)
+            goi = dung_goi_phong(ngay_iso, ma, chung, anh)
         except Exception as e:                     # một phòng hỏng không chặn phòng khác
             kq["loi"].append({"nguoi": f"(phòng {ma})", "ly_do": f"Không dựng được tin phòng {ma} ({type(e).__name__})."})
             continue
         for n in nguoi:
-            _gui_cho_phong(n, ma, ngay, tin, ok, kq, t0, han)
+            _gui_cho_phong(n, ma, ngay, goi, ok, kq, t0, han)
 
 
 def gui_truong_phong(ngay_iso: str, kq: dict, t0: float, han: float) -> None:
@@ -481,35 +553,62 @@ def gui_truong_phong(ngay_iso: str, kq: dict, t0: float, han: float) -> None:
 
 
 # ------------------------------------------------------------------ gửi thử + chạy thử
+def _gui_thu_mot_phong(nguoi: dict, ma: str, ngay_iso: str, goi: list, tk: dict) -> str | None:
+    """Gửi thử các mục của một phòng (nhãn BẢN THỬ), cộng số liệu vào `tk`. Trả câu lỗi nếu một tin chữ không đi được."""
+    nhan = "[BẢN THỬ]\n"
+    for muc in goi:
+        if muc.get("anh"):
+            ly = bt._thu_anh(nguoi["chat_id"], ngay_iso, ma if muc["anh"] == "phong" else None, nhan)
+            if not ly:
+                tk["anh"] += 1
+                continue
+            tk["mat_anh"].append(f"{ma} ({ly})")
+            chu = [(p, t) for p, t in muc.get("thay") or []]       # mất ảnh Tổng thì không thay
+            tk["chu_thay"] += len(chu)
+        else:
+            chu = [(muc["phan"], muc["tin"])]
+        for phan, t in chu:
+            ly_do, la_tron = _gui_mot(nguoi, bt._voi_dau(nhan, t))
+            if ly_do:
+                return (f"Chưa gửi được cho {nguoi['ten']} ở tin {nhan_loai_tin(ma_loai(ma, phan))} "
+                        f"({len(t)} ký tự, {len(t.kieu)} kiểu chữ): {ly_do}")
+            tk["chu"] += 1
+            tk["tron"] += int(la_tron)
+    return None
+
+
 def gui_thu_truong_phong(nguoi: dict) -> tuple[bool, str]:
-    """Gửi thử các tin của (các) phòng của người này, ngày số mới nhất, nhãn "BẢN THỬ"; không ghi nhật ký ngày."""
+    """Gửi thử đúng chuỗi sẽ gửi thật cho các phòng của người này (ảnh phòng, ảnh Tổng, nhận định; hoặc bản chữ cũ khi
+    `tp_dang: chu`), ngày số mới nhất, nhãn "BẢN THỬ"; không ghi nhật ký ngày. Mất ảnh thì gửi bản chữ thay và nói rõ."""
     if not nguoi["phong"]:
         return False, f"{nguoi['ten']} chưa được gắn phòng nào."
     ngay_iso = bt.ngay_so_gui() or metrics.ngay_moi_nhat()
     if not ngay_iso:
         return False, "Chưa có số liệu nào để gửi thử."
+    anh = ban_tin_anh.cong_tac_tp() == "anh"
     try:
         chung = nap_chung(ngay_iso)
-        tin = [(ma, p, t) for ma in nguoi["phong"] for p, t in dung_tin_phong(ngay_iso, ma, chung)]
+        ds = [(ma, dung_goi_phong(ngay_iso, ma, chung, anh)) for ma in nguoi["phong"]]
     except Exception as e:
         return False, f"Không dựng được tin thử ({type(e).__name__})."
-    tron = []
-    for ma, phan, t in tin:
-        ly_do, la_tron = _gui_mot(nguoi, bt._voi_dau("[BẢN THỬ]\n", t))
-        if ly_do:
-            ghi_log("ban_tin_gui_thu", f"{nguoi['ten']} ({ma}/{phan}): {ly_do}"[:200])
-            return False, (f"Chưa gửi được cho {nguoi['ten']} ở tin {nhan_loai_tin(ma_loai(ma, phan))} "
-                           f"({len(t)} ký tự, {len(t.kieu)} kiểu chữ): {ly_do}")
-        if la_tron:
-            tron.append(f"{ma}/{phan}")
-    ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: ok ({len(tin)} tin)" + (f", chữ trơn: {', '.join(tron)}" if tron else ""))
-    return True, (f"Đã gửi {len(tin)} tin thử cho {nguoi['ten']} (phòng {', '.join(nguoi['phong'])})."
-                  + (f" Zalo từ chối kiểu chữ ở {len(tron)} tin nên đã gửi chữ trơn." if tron else ""))
+    tk = {"anh": 0, "chu": 0, "chu_thay": 0, "tron": 0, "mat_anh": []}
+    for ma, goi in ds:
+        loi = _gui_thu_mot_phong(nguoi, ma, ngay_iso, goi, tk)
+        if loi:
+            ghi_log("ban_tin_gui_thu", f"{nguoi['ten']} ({ma}): {loi}"[:200])
+            return False, loi
+    ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: ok ({tk['anh']} ảnh, {tk['chu']} tin chữ)"[:200])
+    msg = f"Đã gửi thử cho {nguoi['ten']} (phòng {', '.join(nguoi['phong'])}): {tk['anh']} ảnh và {tk['chu']} tin chữ."
+    if tk["mat_anh"]:
+        msg += f" Chưa gửi được ảnh nên đã dùng bản chữ thay ở: {'; '.join(tk['mat_anh'])}."
+    return True, msg + (f" Zalo từ chối kiểu chữ ở {tk['tron']} tin nên đã gửi chữ trơn." if tk["tron"] else "")
 
 
 def kho_truong_phong(ngay_iso: str, phong: str | None) -> dict:
-    """Phần thêm cho `chay(kho=True)`: người nhận trưởng phòng, và tin của một phòng nếu được hỏi. Không gửi, không ghi."""
-    kq = {"truong_phong": [{"ten": n["ten"], "phong": n["phong"]}
+    """Phần thêm cho `chay(kho=True)`: người nhận trưởng phòng, và tin của một phòng nếu được hỏi (bản chữ cũ ở
+    `noi_dung_phong`, tin nhận định mới ở `nhan_dinh_phong`). Không gửi, không dựng ảnh, không ghi."""
+    kq = {"tp_dang": ban_tin_anh.cong_tac_tp(),
+          "truong_phong": [{"ten": n["ten"], "phong": n["phong"]}
                            for n in bt.ds_nguoi_nhan(bt.LOAI_TRUONG_PHONG, chi_bat=True)]}
     if phong:
         if phong not in {p["code"] for p in phong_chon_duoc()}:
@@ -519,6 +618,9 @@ def kho_truong_phong(ngay_iso: str, phong: str | None) -> dict:
                 tin = dung_tin_phong(ngay_iso, phong)
                 kq["noi_dung_phong"] = [str(t) for _, t in tin]
                 kq["kich_thuoc"] = [{"phan": p, "ky_tu": len(t), "so_kieu": len(t.kieu)} for p, t in tin]
+                nd = [m["tin"] for m in dung_goi_phong(ngay_iso, phong) if m.get("tin") is not None]
+                kq["nhan_dinh_phong"] = [str(t) for t in nd]
+                kq["kich_thuoc_nhan_dinh"] = [{"ky_tu": len(t), "so_kieu": len(t.kieu)} for t in nd]
             except Exception as e:
                 kq["ly_do_phong"] = f"Không dựng được tin phòng {phong} ({type(e).__name__})."
     return kq

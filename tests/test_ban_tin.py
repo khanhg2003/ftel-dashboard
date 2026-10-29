@@ -13,6 +13,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import ban_tin as bt                                           # noqa: E402
+from app import ban_tin_anh                                             # noqa: E402
 from app import metrics, overview, zalo_bot                             # noqa: E402
 from app.config import DATA_DIR                                          # noqa: E402
 
@@ -61,6 +62,8 @@ def moi_truong(monkeypatch):
     don()
     monkeypatch.setattr(metrics, "ngay_moi_nhat", lambda: NGAY)
     monkeypatch.setattr(overview, "trang_thai_ngay", lambda iso: CHOT)
+    monkeypatch.setattr(ban_tin_anh, "cong_tac", lambda: "chu")        # file này kiểm bản CHỮ cũ (`bgd_dang` / `tp_dang` = chu)
+    monkeypatch.setattr(ban_tin_anh, "cong_tac_tp", lambda: "chu")
     monkeypatch.delenv("APP_URL", raising=False)
     yield
     don()

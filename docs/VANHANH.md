@@ -134,7 +134,7 @@ Cần bản để tính toán tiếp thì dùng **Excel**; cần dữ liệu th�
 
 ## 6b. Bản tin 8h sáng qua Zalo Bot
 
-App tự gửi bản tin số chốt cho Ban Giám đốc qua Zalo Bot, và nhắc Admin nạp file nếu quá 10:30 mà chưa có số chốt.
+App tự gửi bản tin số chốt (ảnh báo cáo + nhận định & hành động) cho Ban Giám đốc và trưởng phòng qua Zalo Bot, và nhắc Admin nạp file nếu quá 10:30 mà chưa có số chốt.
 
 **Biến môi trường** (Vercel → Project → Settings → Environment Variables, thêm cho Production rồi Redeploy):
 
@@ -142,14 +142,29 @@ App tự gửi bản tin số chốt cho Ban Giám đốc qua Zalo Bot, và nh�
 |---|---|
 | `ZALO_BOT_TOKEN` | Token của Zalo Bot (chỉ để ở đây, không ghi vào code hay chat) |
 | `BAN_TIN_KHOA` | Chuỗi bí mật tự đặt, dài và khó đoán; n8n gửi kèm để được phép gọi |
-| `APP_URL` | Địa chỉ app, vd `https://ten-app.vercel.app`. **Phải bắt đầu bằng `https://` thì Ban Giám đốc mới nhận được ảnh**; không đặt thì bản tin gửi bản chữ và bỏ dòng liên kết |
+| `APP_URL` | Địa chỉ app, vd `https://ten-app.vercel.app`. **Phải bắt đầu bằng `https://` thì Ban Giám đốc và trưởng phòng mới nhận được ảnh**; không đặt thì bản tin gửi bản chữ và bỏ dòng liên kết |
 
-**Ban Giám đốc nhận ảnh Báo cáo Tổng** (giống nút *Chụp ảnh*, toàn chi nhánh, luỹ kế tới ngày số, không có nhận xét AI), kèm một dòng
-chú thích và liên kết xem chi tiết. Zalo chỉ nhận đường dẫn ảnh nên app mở một đường tạm `/api/ban-tin/anh/<mã>.png`: **ai có đường dẫn
-thì mở được ảnh này không cần đăng nhập trong 15 phút**, sau đó hết hạn; đường này chỉ có đúng một báo cáo cố định, không chọn phòng hay
-chi nhánh được. Muốn quay lại tin chữ như trước, đổi `ban_tin.bgd_dang` thành `chu` trong `config/rules.yml` (mặc định `anh`). Gửi ảnh lỗi
-(chưa có `APP_URL` https, Zalo không tải được ảnh) thì app tự gửi bản chữ để không mất tin; bảng *10 lần gửi gần nhất* ghi lý do ở cột
-"Lý do". Nhắc Admin và bản tin trưởng phòng vẫn là tin chữ.
+**Ban Giám đốc nhận ảnh Báo cáo Tổng rồi một tin chữ "Nhận định & hành động".** Ảnh giống nút *Chụp ảnh* (toàn chi nhánh, luỹ kế tới
+ngày số, không có nhận xét AI), kèm một dòng chú thích và liên kết xem chi tiết. Tin chữ ngay sau đó chỉ nói điều ảnh chưa nói: cần bao nhiêu
+online mỗi ngày (cả chi nhánh, Đà Nẵng, Quảng Nam), phòng nào cần bù số, chất lượng bán so mặt bằng chung, hợp đồng tồn lâu, và vài việc
+đề xuất làm trước ngày nào. Tin này do quy tắc cố định sinh ra (không dùng AI), không có tên khách và không nêu tên nhân sự.
+**Trưởng phòng nhận cho từng phòng của mình, theo thứ tự:** ảnh Báo cáo phòng, ảnh Báo cáo Tổng, rồi tin "Nhận định & hành động" của
+phòng (mục tiêu cần đạt mỗi ngày, vị trí so các phòng, nhân sự cần trao đổi, bán kèm, hợp đồng tồn, việc đề xuất; có nêu tên nhân sự).
+Zalo chỉ nhận đường dẫn ảnh nên app mở một đường tạm `/api/ban-tin/anh/<mã>.png`: **ai có đường dẫn thì mở được ảnh đó không cần đăng
+nhập trong 15 phút**, sau đó hết hạn; mã của phòng này không mở được ảnh phòng khác, và không chọn được phòng hay chi nhánh bằng tham số.
+
+Hai công tắc ở `config/rules.yml` mục `ban_tin` (mặc định `anh`):
+
+| Công tắc | `anh` | `chu` (quay về cách cũ hoàn toàn) |
+|---|---|---|
+| `bgd_dang` | Ban Giám đốc: ảnh Báo cáo Tổng + tin nhận định | Ban Giám đốc: chỉ tin chữ như trước, không có tin nhận định |
+| `tp_dang` | Trưởng phòng: ảnh phòng + ảnh Tổng + tin nhận định | Trưởng phòng: tin chữ "Tổng quan" + "Từng nhân sự" như trước |
+
+Gửi ảnh lỗi (chưa có `APP_URL` https, Zalo không tải được ảnh) thì app tự dùng bản chữ để không mất tin: Ban Giám đốc nhận bản chữ cũ
+thay ảnh (rồi vẫn nhận tin nhận định); trưởng phòng mất ảnh phòng thì nhận tin chữ "Từng nhân sự" thay, mất ảnh Tổng thì bỏ qua ảnh đó.
+Bảng *10 lần gửi gần nhất* ghi lý do ở cột "Lý do". Nhắc Admin vẫn là tin chữ. **Muốn có ảnh thì `APP_URL` bắt buộc bắt đầu bằng `https://`.**
+Mỗi ảnh Zalo tải về được dựng khoảng 2 giây nên trưởng phòng nhận 2 ảnh sẽ lâu hơn Ban Giám đốc; lượt chạy quá giờ cho phép sẽ để phần còn lại cho
+lượt 15 phút sau.
 
 **n8n làm đồng hồ:** tạo workflow gồm *Schedule Trigger* chạy mỗi 15 phút, chỉ trong khoảng 8h tới 11h giờ Việt Nam
 (cron `*/15 8-10 * * *` với múi giờ `Asia/Ho_Chi_Minh`) nối với *HTTP Request*: phương thức `POST`, địa chỉ
@@ -178,9 +193,11 @@ Bấm *Gửi thử* để kiểm tra. Nếu Zalo từ chối gửi chủ động
 3. Ở **Loại** chọn **Trưởng phòng**: ô **Phòng** hiện ra, chọn một hoặc nhiều phòng bán hàng (IBB và địa bàn) → Lưu.
 4. Sang bảng **Người nhận bản tin Zalo**, tích chọn người vừa thêm → *Gửi thử*: người đó nhận các tin của phòng mình (đầu tin có nhãn
    BẢN THỬ, không tính là đã gửi). Sửa phòng: bấm vào dòng của người đó trong bảng.
-Mỗi sáng, ngay sau bản tin Ban Giám đốc, trưởng phòng nhận 2 loại tin cho từng phòng: *Tổng quan* (tiến độ, hạng, dự báo, nhân sự cần
-trao đổi, chất lượng bán, hợp đồng tồn) và *Từng nhân sự* (online luỹ kế, trong ngày, chênh so cùng kỳ tháng trước; trưởng phòng và
-người đã nghỉ không có trong bảng này). Xem thử nội dung một phòng mà không gửi: `POST /api/ban-tin/chay?kho=1&phong=IBB7` (kèm header `X-Ban-Tin-Khoa`).
+Mỗi sáng, ngay sau bản tin Ban Giám đốc, trưởng phòng nhận cho từng phòng: ảnh Báo cáo phòng, ảnh Báo cáo Tổng, tin *Nhận định & hành động* (trưởng phòng,
+người đã nghỉ và acc tạm không bị nêu tên, nhưng số của họ vẫn nằm trong số phòng). Khi `tp_dang: chu` thì nhận 2 tin chữ như trước: *Tổng quan* và *Từng nhân sự*.
+**Cách đọc `?kho=1` (chạy thử, không gửi, không ghi nhật ký, không dựng ảnh):** `POST /api/ban-tin/chay?kho=1` (kèm header `X-Ban-Tin-Khoa`) trả `bgd_dang`,
+`tp_dang`, `app_url_da_cai` (false = chưa có `APP_URL` https nên sẽ gửi bản chữ), `nhan_dinh` (tin nhận định của Ban Giám đốc) và `noi_dung` (bản chữ cũ).
+Thêm `&phong=IBB7` thì có `nhan_dinh_phong` (tin nhận định của phòng đó), `noi_dung_phong` (bản chữ cũ) và `kich_thuoc_nhan_dinh` (số ký tự, số kiểu chữ từng tin).
 
 ## 7. Chuyển sang PostgreSQL (khi cần)
 

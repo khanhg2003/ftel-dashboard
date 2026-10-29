@@ -36,16 +36,19 @@ class Gia:
         self.anh: list[tuple[str, str, str]] = []
         self.hong_anh: set[str] = set()
         self.hong_chu: set[str] = set()
+        self.log: list[tuple[str, str]] = []              # ("anh" | "tin", chat_id) theo đúng thứ tự gửi
 
     def gui_tin(self, chat_id, noi_dung, parse_mode=None, han=8, text_styles=None):
         if chat_id in self.hong_chu:
             raise zalo_bot.LoiZalo("Zalo từ chối (mã 400): chữ giả lập.")
         self.tin.append((chat_id, noi_dung))
+        self.log.append(("tin", chat_id))
 
     def gui_anh(self, chat_id, url_anh, caption="", han=20):
         if chat_id in self.hong_anh:
             raise zalo_bot.LoiZalo("Zalo từ chối (mã 400): ảnh giả lập.")
         self.anh.append((chat_id, url_anh, caption))
+        self.log.append(("anh", chat_id))
 
 
 @pytest.fixture()
@@ -106,6 +109,45 @@ def test_ma_hop_le_tra_png_khong_can_dang_nhap(may_khach):
     assert img.format == "PNG" and img.width > 800 and img.height > 200
 
 
+def test_ma_phong_tra_anh_phong_khong_can_dang_nhap(may_khach):
+    from PIL import Image
+    r = may_khach.get(f"/api/ban-tin/anh/{ba.tao_ma(NGAY, phong='IBB7')}.png")
+    assert r.status_code == 200 and r.mimetype == "image/png" and "no-store" in r.headers["Cache-Control"]
+    img = Image.open(io.BytesIO(r.data))
+    assert img.format == "PNG" and img.width > 800 and img.height > 200
+
+
+def test_anh_phong_la_bao_cao_phong_che_do_ban_hang_khong_dung_anh_tong(monkeypatch):
+    goi = []
+    import app.export_phong as ep
+    import app.export_png as epng
+
+    def gia_phong(thang, ngay, code, **kw):
+        goi.append((thang, ngay, code, kw))
+        return b"png-" + code.encode(), "x.png"
+    monkeypatch.setattr(ep, "anh_bao_cao_phong", gia_phong)
+    monkeypatch.setattr(epng, "anh_tong_quan", lambda *a, **k: (b"tong", "t.png"))
+    ba._cache.clear()
+    assert ba.dung_anh(NGAY, "IBB7") == b"png-IBB7" and ba.dung_anh(NGAY, "IBB3") == b"png-IBB3"
+    assert ba.dung_anh(NGAY) == b"tong"                       # mỗi (loại, phòng) có chỗ nhớ riêng, không lẫn nhau
+    assert ba.dung_anh(NGAY, "IBB7") == b"png-IBB7" and len(goi) == 2
+    thang, ngay, code, kw = goi[0]
+    assert (thang, ngay, code) == ("2026-09", 11, "IBB7") and kw["che_do"] == "ban_hang"
+    assert kw["tam_tinh"] is False and kw["luc"] == CHOT[1] and "chi_chu_y" not in kw
+
+
+def test_link_phong_a_khong_xem_duoc_phong_b(may_khach, monkeypatch):
+    import app.export_phong as ep
+    monkeypatch.setattr(ep, "anh_bao_cao_phong", lambda thang, ngay, code, **kw: (b"png-" + code.encode(), "x.png"))
+    ba._cache.clear()
+    ma = ba.tao_ma(NGAY, phong="IBB7")
+    assert may_khach.get(f"/api/ban-tin/anh/{ma}.png").data == b"png-IBB7"
+    ma_b = ma.replace("IBB7", "IBB3")
+    r = may_khach.get(f"/api/ban-tin/anh/{ma_b}.png?phong=IBB3&code=IBB3")
+    assert r.status_code == 404 and r.mimetype != "image/png"
+    assert may_khach.get(f"/api/ban-tin/anh/{ba.tao_ma(NGAY)}.png?phong=IBB3").data != b"png-IBB3"     # tham số ngoài mã không chọn được phòng
+
+
 def _ma_xau():
     tot = ba.tao_ma(NGAY)
     ngay, han, ky = tot.split(".")
@@ -118,6 +160,11 @@ def _ma_xau():
         ba.tao_ma("2026-13-45"),                                  # ký đúng nhưng không phải ngày
         ba.tao_ma("rac-rac-ra"),
         "rac", "a.b", "a.b.c.d", "..", f"{ngay}.{han}", f"{ngay}.chu.{ky}",
+        f"{ngay}.{han}.IBB7.{ky}",                                # chữ ký loại tổng gắn thêm mã phòng
+        ba.tao_ma(NGAY, phong="IBB7").replace("IBB7", "IBB3"),    # đổi mã phòng trong mã đã ký
+        ba.tao_ma(NGAY, phong="IBB7", bay_gio=time.time() - 2 * ba.HAN_ANH_GIAY),
+        ba.tao_ma(NGAY, phong="KT_DNG1"),                         # ký đúng nhưng không phải phòng bán hàng
+        ba.tao_ma(NGAY, phong="IBB7;x"), ba.tao_ma(NGAY, phong=""),
     ]
 
 
@@ -129,7 +176,9 @@ def test_ma_sai_het_han_hay_rac_deu_cung_mot_phan_hoi(may_khach):
     assert len(set(kq)) == 1 and kq[0][0] == 404 and kq[0][1] != "image/png"
     for ma in _ma_xau():
         assert ba.doc_ma(ma) is None
-    assert ba.doc_ma(ba.tao_ma(NGAY)) == NGAY
+    assert ba.doc_ma(ba.tao_ma(NGAY, phong="../etc")) is None
+    assert ba.doc_ma(ba.tao_ma(NGAY)) == (NGAY, None)
+    assert ba.doc_ma(ba.tao_ma(NGAY, phong="IBB7")) == (NGAY, "IBB7")
 
 
 def test_ma_ky_bang_khoa_rieng_khac_khoa_webhook():
@@ -223,45 +272,49 @@ def test_gui_anh_thieu_token_hoac_du_lieu(monkeypatch):
 
 
 # ------------------------------------------------------------------ bản tin BGĐ
-def test_bgd_nhan_anh_khi_co_app_url(gia):
+def test_bgd_nhan_anh_roi_tin_nhan_dinh_khi_co_app_url(gia):
     _them("Anh A", chat="a")
     kq = bt.chay(gio_vn=SANG_8H)
     assert kq["da_gui"] == ["Anh A"] and kq["gui_anh"] == ["Anh A"] and "dung_ban_chu" not in kq and not kq["loi"]
-    assert gia.tin == [] and len(gia.anh) == 1
+    assert len(gia.anh) == 1 and len(gia.tin) == 1 and gia.log == [("anh", "a"), ("tin", "a")]          # ảnh trước, nhận định sau
     chat, url, caption = gia.anh[0]
     m = re.fullmatch(re.escape(APP) + r"/api/ban-tin/anh/([^/]+)\.png", url)
-    assert chat == "a" and m and ba.doc_ma(m.group(1)) == NGAY
+    assert chat == "a" and m and ba.doc_ma(m.group(1)) == (NGAY, None)
     assert caption == f"Báo cáo Tổng - số chốt ngày 11/09\nXem chi tiết: {APP}"
-    assert _nhat_ky()[0][:2] == ("bgd", "ok")
+    nd = gia.tin[0][1]
+    assert nd.startswith("NHẬN ĐỊNH & HÀNH ĐỘNG - số chốt ngày 11/09") and len(nd) <= bt.TOI_DA_KY_TU
+    assert {r[0]: r[1] for r in _nhat_ky()} == {"bgd": "ok", "bgd_nd": "ok"}
 
 
 def test_goi_hai_lan_khong_gui_trung(gia):
     _them("Anh A", chat="a")
     bt.chay(gio_vn=SANG_8H)
     kq = bt.chay(gio_vn=SANG_8H)
-    assert len(gia.anh) == 1 and gia.tin == [] and kq["da_gui"] == []
+    assert len(gia.anh) == 1 and len(gia.tin) == 1 and kq["da_gui"] == []
 
 
-def test_khong_dung_chu_khi_anh_di_duoc(gia, monkeypatch):
+def test_khong_dung_chu_cu_khi_anh_di_duoc(gia, monkeypatch):
     _them("Anh A", chat="a")
-    monkeypatch.setattr(bt, "dung_noi_dung_bgd", lambda iso: (_ for _ in ()).throw(AssertionError("không được dựng chữ")))
+    monkeypatch.setattr(bt, "dung_noi_dung_bgd", lambda iso: (_ for _ in ()).throw(AssertionError("không được dựng bản chữ cũ")))
     assert bt.chay(gio_vn=SANG_8H)["da_gui"] == ["Anh A"]
 
 
-def test_khong_co_app_url_thi_gui_ban_chu(gia, monkeypatch):
+def test_khong_co_app_url_thi_gui_ban_chu_cu_roi_van_nhan_nhan_dinh(gia, monkeypatch):
     monkeypatch.delenv("APP_URL")
     _them("Anh A", chat="a")
     kq = bt.chay(gio_vn=SANG_8H)
     assert kq["da_gui"] == ["Anh A"] and kq["dung_ban_chu"] == ["Anh A"] and not kq["loi"]
-    assert gia.anh == [] and "Số chốt ngày 11/09" in gia.tin[0][1]
-    assert _nhat_ky()[0][1] == "ok" and "APP_URL" in _nhat_ky()[0][3]
+    assert gia.anh == [] and len(gia.tin) == 2 and "Số chốt ngày 11/09" in gia.tin[0][1]
+    assert gia.tin[1][1].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG")
+    ly = {r[0]: r[3] for r in _nhat_ky()}
+    assert "APP_URL" in ly["bgd"]
     bt.chay(gio_vn=SANG_8H)
-    assert len(gia.tin) == 1
+    assert len(gia.tin) == 2
 
 
 def test_app_url_http_khong_dung_cho_anh(gia, monkeypatch):
     monkeypatch.setenv("APP_URL", "http://app.example.vn")
-    assert ba.url_anh(NGAY) is None
+    assert ba.url_anh(NGAY) is None and ba.url_anh(NGAY, "IBB7") is None
     _them("Anh A", chat="a")
     assert bt.chay(gio_vn=SANG_8H)["dung_ban_chu"] == ["Anh A"]
 
@@ -272,21 +325,36 @@ def test_sendphoto_loi_thi_gui_ban_chu_roi_ghi_ok(gia):
     gia.hong_anh.add("a")
     kq = bt.chay(gio_vn=SANG_8H)
     assert sorted(kq["da_gui"]) == ["Anh A", "Anh B"] and kq["dung_ban_chu"] == ["Anh A"] and kq["gui_anh"] == ["Anh B"]
-    assert [c for c, _ in gia.tin] == ["a"] and [c for c, _, _ in gia.anh] == ["b"]
+    assert sorted(c for c, _ in gia.tin) == ["a", "a", "b"] and [c for c, _, _ in gia.anh] == ["b"]      # A: bản chữ + nhận định; B: nhận định
     assert not kq["loi"] and all(r[1] == "ok" for r in _nhat_ky())
     assert any("ảnh giả lập" in (r[3] or "") for r in _nhat_ky())
 
 
-def test_anh_va_chu_deu_loi_thi_ghi_loi_va_thu_lai(gia):
+def test_anh_va_chu_deu_loi_thi_ghi_loi_va_thu_lai_khong_gui_nhan_dinh_truoc(gia):
     _them("Anh A", chat="a")
     gia.hong_anh.add("a")
     gia.hong_chu.add("a")
     kq = bt.chay(gio_vn=SANG_8H)
-    assert kq["da_gui"] == [] and "ảnh cũng lỗi" in kq["loi"][0]["ly_do"]
-    assert _nhat_ky()[0][1:3] == ("loi", 1)
+    assert kq["da_gui"] == [] and "ảnh cũng lỗi" in kq["loi"][0]["ly_do"] and gia.tin == []            # chưa có ảnh/bản chữ thì chưa gửi nhận định
+    assert {r[0]: r[1] for r in _nhat_ky()} == {"bgd": "loi"}
     gia.hong_anh.clear()
+    gia.hong_chu.clear()
     assert bt.chay(gio_vn=SANG_8H)["gui_anh"] == ["Anh A"]
-    assert _nhat_ky()[0][1:3] == ("ok", 2)
+    assert {r[0]: (r[1], r[2]) for r in _nhat_ky()} == {"bgd": ("ok", 2), "bgd_nd": ("ok", 1)}
+
+
+def test_anh_ok_nhan_dinh_loi_thi_luot_sau_chi_gui_nhan_dinh(gia):
+    _them("Anh A", chat="a")
+    gia.hong_chu.add("a")
+    kq = bt.chay(gio_vn=SANG_8H)
+    assert len(gia.anh) == 1 and gia.tin == [] and kq["loi"] and kq["loi"][0]["nguoi"] == "Anh A"
+    assert {r[0]: r[1] for r in _nhat_ky()} == {"bgd": "ok", "bgd_nd": "loi"}
+    gia.hong_chu.clear()
+    kq = bt.chay(gio_vn=SANG_8H)
+    assert len(gia.anh) == 1 and len(gia.tin) == 1 and kq["da_gui"] == ["Anh A"] and not kq["loi"]       # ảnh không gửi lại
+    assert {r[0]: r[1] for r in _nhat_ky()} == {"bgd": "ok", "bgd_nd": "ok"}
+    bt.chay(gio_vn=SANG_8H)
+    assert len(gia.anh) == 1 and len(gia.tin) == 1
 
 
 def test_loi_bat_ngo_khi_gui_anh_van_gui_ban_chu(gia, monkeypatch):
@@ -297,20 +365,21 @@ def test_loi_bat_ngo_khi_gui_anh_van_gui_ban_chu(gia, monkeypatch):
     assert "SECRET" not in str(_nhat_ky())
 
 
-def test_cong_tac_chu_thi_chi_gui_chu(gia, monkeypatch):
+def test_cong_tac_chu_thi_chi_gui_chu_cu_khong_co_nhan_dinh(gia, monkeypatch):
     monkeypatch.setattr(config, "rules_config", lambda: {"ban_tin": {"bgd_dang": "chu"}})
     _them("Anh A", chat="a")
     kq = bt.chay(gio_vn=SANG_8H)
     assert kq["da_gui"] == ["Anh A"] and gia.anh == [] and "dung_ban_chu" not in kq and "gui_anh" not in kq
-    assert "Số chốt ngày 11/09" in gia.tin[0][1]
+    assert len(gia.tin) == 1 and "Số chốt ngày 11/09" in gia.tin[0][1]
+    assert [r[0] for r in _nhat_ky()] == ["bgd"]
 
 
 def test_cong_tac_mac_dinh_la_anh_va_gia_tri_la_coi_nhu_anh(monkeypatch):
-    assert ba.cong_tac() == "anh"
-    monkeypatch.setattr(config, "rules_config", lambda: {"ban_tin": {"bgd_dang": "linh tinh"}})
-    assert ba.cong_tac() == "anh"
+    assert ba.cong_tac() == "anh" and ba.cong_tac_tp() == "anh"
+    monkeypatch.setattr(config, "rules_config", lambda: {"ban_tin": {"bgd_dang": "linh tinh", "tp_dang": "chu"}})
+    assert ba.cong_tac() == "anh" and ba.cong_tac_tp() == "chu"
     monkeypatch.setattr(config, "rules_config", lambda: {})
-    assert ba.cong_tac() == "anh"
+    assert ba.cong_tac() == "anh" and ba.cong_tac_tp() == "anh"
 
 
 def test_nhac_admin_van_la_chu(gia, monkeypatch):
@@ -322,12 +391,13 @@ def test_nhac_admin_van_la_chu(gia, monkeypatch):
     assert gia.tin == [("ad", "Chưa có số chốt của ngày 11/09, hãy nạp file.")]
 
 
-def test_kho_khong_dung_anh_khong_tao_ma(gia, monkeypatch):
+def test_kho_khong_dung_anh_khong_tao_ma_nhung_dung_nhan_dinh(gia, monkeypatch):
     _them("Anh A", chat="a")
     monkeypatch.setattr(ba, "tao_ma", lambda *a, **k: (_ for _ in ()).throw(AssertionError("không tạo mã khi chạy thử")))
     monkeypatch.setattr(ba, "dung_anh", lambda *a, **k: (_ for _ in ()).throw(AssertionError("không dựng ảnh khi chạy thử")))
     kq = bt.chay(gio_vn=SANG_8H, kho=True)
-    assert kq["bgd_dang"] == "anh" and kq["app_url_da_cai"] is True and kq["se_gui"]
+    assert kq["bgd_dang"] == "anh" and kq["tp_dang"] == "anh" and kq["app_url_da_cai"] is True and kq["se_gui"]
+    assert kq["nhan_dinh"].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG") and "Số chốt ngày 11/09" in kq["noi_dung"]
     assert gia.anh == [] and gia.tin == [] and _nhat_ky() == []
     monkeypatch.delenv("APP_URL")
     assert bt.chay(gio_vn=SANG_8H, kho=True)["app_url_da_cai"] is False
@@ -335,23 +405,27 @@ def test_kho_khong_dung_anh_khong_tao_ma(gia, monkeypatch):
 
 def test_api_chay_thu_bao_cong_tac(may_khach, gia):
     r = may_khach.post("/api/ban-tin/chay?kho=1", headers={"X-Ban-Tin-Khoa": "khoa"}).get_json()
-    assert r["ok"] and r["bgd_dang"] == "anh" and r["app_url_da_cai"] is True
+    assert r["ok"] and r["bgd_dang"] == "anh" and r["tp_dang"] == "anh" and r["app_url_da_cai"] is True
+    assert r["nhan_dinh"].startswith("NHẬN ĐỊNH") and gia.tin == [] and _nhat_ky() == []
 
 
 # ------------------------------------------------------------------ gửi thử
-def test_gui_thu_bgd_gui_anh_co_nhan_ban_thu_khong_ghi_nhat_ky(gia):
+def test_gui_thu_bgd_gui_anh_roi_nhan_dinh_co_nhan_ban_thu_khong_ghi_nhat_ky(gia):
     _them("Anh A", chat="a")
     ok, msg = bt.gui_thu(bt.ds_nguoi_nhan()[0]["id"])
-    assert ok and "ảnh" in msg and "CHỮ" not in msg and gia.tin == []
+    assert ok and "ảnh" in msg and "nhận định" in msg and "CHỮ" not in msg
+    assert gia.log == [("anh", "a"), ("tin", "a")]
     assert gia.anh[0][2].startswith("[BẢN THỬ]\nBáo cáo Tổng - số chốt ngày 11/09")
+    assert gia.tin[0][1].startswith("[BẢN THỬ]\nNHẬN ĐỊNH & HÀNH ĐỘNG")
     assert _nhat_ky() == []
 
 
-def test_gui_thu_bgd_anh_loi_thi_gui_chu_va_noi_ly_do(gia, monkeypatch):
+def test_gui_thu_bgd_anh_loi_thi_gui_chu_va_nhan_dinh_va_noi_ly_do(gia, monkeypatch):
     _them("Anh A", chat="a")
     gia.hong_anh.add("a")
     ok, msg = bt.gui_thu(bt.ds_nguoi_nhan()[0]["id"])
-    assert ok and "BẢN CHỮ" in msg and "ảnh giả lập" in msg and gia.tin[0][1].startswith("[BẢN THỬ")
+    assert ok and "BẢN CHỮ" in msg and "ảnh giả lập" in msg and "nhận định" in msg
+    assert len(gia.tin) == 2 and gia.tin[0][1].startswith("[BẢN THỬ") and gia.tin[1][1].startswith("[BẢN THỬ]\nNHẬN ĐỊNH")
     monkeypatch.delenv("APP_URL")
     gia.hong_anh.clear()
     ok, msg = bt.gui_thu(bt.ds_nguoi_nhan()[0]["id"])
