@@ -245,6 +245,19 @@ def test_noi_dung_co_kieu_chu_dung_vi_tri():
     assert any(c in ("An toàn", "Cần tăng tốc", "Rủi ro") and any(s.startswith("c_") for s in st) for c, st in doan)
 
 
+def test_muc_phong_chi_xep_phong_ban_hang():
+    import pandas as pd
+    hang = lambda code, ten, pct: {"phong_code": code, "phong": ten, "mt": 100, "luy_ke": 30, "pct_mt": pct,
+                                    "danh_gia": "Rủi ro"}
+    p = pd.DataFrame([hang("KT_DNG1", "Phòng KT DNG1", 10), hang("CUS_DNG1", "Phòng CUS DNG1", 11),
+                      hang("ECOM_DNG", "ECOM DNG", 12), hang("ANCS", "ANCS", 13),
+                      hang("IBB2", "IBB2", 60), hang("HOIAN", "Hội An", 70)])
+    chu = str(bt._khoi_phong({"phong": p}, 5).xong())
+    assert "IBB2" in chu and "Hội An" in chu and "2 phòng" in chu
+    for loai_bo in ("KT", "CUS", "ECOM", "ANCS"):
+        assert loai_bo not in chu
+
+
 def test_gui_thu_gui_ban_tin_co_nhan_ban_thu_va_giu_dung_kieu(gia):
     _them("Anh A", chat="a")
     assert bt.gui_thu(bt.ds_nguoi_nhan()[0]["id"])[0]

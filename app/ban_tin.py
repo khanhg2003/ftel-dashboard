@@ -16,13 +16,14 @@ from datetime import date, datetime, time as gio_gio, timedelta
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
-from app import du_bao, metrics, overview, zalo_bot
+from app import du_bao, metrics, org, overview, zalo_bot
 from app.auth import ghi_log
 from app.db import engine, session_scope
 from app.models import BanTinNguoiNhan, BanTinNhatKy
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
 LOAI_NHAN = {"bgd": "Ban Giám đốc", "admin": "Admin (nhắc nạp file)"}
+LOAI_PHONG_KD = ("IBB", "DIABAN")     # mục "Phòng cần chú ý" chỉ xếp phòng bán hàng; bỏ KT, CUS, ECOM, ANCS... (CEO chốt 29/10/2026)
 GIO_GUI = gio_gio(8, 0)
 GIO_NHAC = gio_gio(10, 30)
 MOC_CHOT = gio_gio(6, 0)              # lần nạp cuối phải sau mốc này của SÁNG HÔM SAU ngày số
@@ -254,7 +255,9 @@ def _khoi_tong_quan(sl: dict) -> _Soan:
 
 def _khoi_phong(sl: dict, n_thap: int) -> _Soan | None:
     p = sl["phong"]
-    co_mt = p[(p["mt"] > 0) & ~p["phong_code"].isin(overview.phong_khong_cong_tong())]      # ANCS... không cộng vào tổng nên không xếp hạng
+    loai = {x["code"]: x["loai"] for x in org.phong_all()}
+    kinh_doanh = p["phong_code"].map(lambda c: loai.get(c) in LOAI_PHONG_KD)
+    co_mt = p[(p["mt"] > 0) & kinh_doanh & ~p["phong_code"].isin(overview.phong_khong_cong_tong())]      # ANCS... không cộng vào tổng nên không xếp hạng
     thap = co_mt.dropna(subset=["pct_mt"]).sort_values("pct_mt").head(n_thap)
     if not len(thap):
         return None
