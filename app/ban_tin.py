@@ -102,12 +102,20 @@ def nhat_ky_gan_day(n: int = 10) -> list[dict]:
 
 
 def gui_thu(id_: int) -> tuple[bool, str]:
-    """Tin ngắn "Thử bản tin" để kiểm chat_id / token; không cần chờ chốt số và không ghi nhật ký gửi ngày."""
+    """Gửi thử bản tin của ngày số mới nhất (đầu tin có nhãn "BẢN THỬ") để xem trên Zalo; không cần chờ chốt số,
+    không ghi nhật ký gửi ngày nên bản tin thật vẫn đi bình thường. Không dựng được nội dung thì gửi tin ngắn kiểm kết nối."""
     nguoi = lay_nguoi_nhan(id_)
     if not nguoi:
         return False, "Không tìm thấy người nhận này."
+    chu = "Thử bản tin: kết nối Zalo của app báo cáo FTEL hoạt động."
     try:
-        zalo_bot.gui_tin(nguoi["chat_id"], "Thử bản tin: kết nối Zalo của app báo cáo FTEL hoạt động.")
+        ngay_iso = metrics.ngay_moi_nhat()
+        if ngay_iso:
+            chu = f"[BẢN THỬ - chưa tính là đã gửi]\n{dung_noi_dung_bgd(ngay_iso)}"[:TOI_DA_KY_TU]
+    except Exception:
+        pass
+    try:
+        zalo_bot.gui_tin(nguoi["chat_id"], chu)
         ket = (True, f"Đã gửi tin thử cho {nguoi['ten']}.")
     except zalo_bot.LoiZalo as e:
         ket = (False, f"Chưa gửi được cho {nguoi['ten']}: {e}")

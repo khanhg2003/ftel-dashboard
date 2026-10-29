@@ -67,7 +67,7 @@ def pane(tab: str):
                  tuy_chon={"rowSelection": "multiple", "suppressRowClickSelection": True}),
             ghi_chu("Mỗi sáng sau khi số ngày hôm trước đã chốt, app gửi bản tin cho người nhận loại Ban Giám đốc. "
                     "Quá 10:30 mà chưa có số chốt thì nhắc người nhận loại Admin nạp file. Mỗi người chỉ nhận "
-                    "một lần mỗi ngày số. “Gửi thử” gửi một tin ngắn cho người đang tích chọn để kiểm tra chat_id.",
+                    "một lần mỗi ngày số. “Gửi thử” gửi bản tin của ngày số mới nhất (có nhãn BẢN THỬ) cho người đang tích chọn, không tính là đã gửi.",
                     nhan="Cách hoạt động", style={"marginTop": "12px"}),
         ], title="Người nhận bản tin Zalo"),
         card([bang("bt-nk", cao=None, cot=COT_NHAT_KY)], title="10 lần gửi gần nhất"),
