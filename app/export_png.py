@@ -19,8 +19,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from app.export_excel import (MAU_KET_LUAN, TEN_FILE, cau_truc, dong_trang_thai, hau_to_ky, mau_heat,
-                              mo_ta_ky, tieu_de_bao_cao)
+from app.export_excel import (CHU_KET_LUAN, HEAT, HEAT_CHU, MAU_KET_LUAN, TEN_FILE, cau_truc,
+                              dong_trang_thai, hau_to_ky, mo_ta_ky, muc_heat, tieu_de_bao_cao)
 from app.overview import LECH_GIO_VN, bang_tong_quan
 
 RONG_MUC_TIEU = 2400          # bề ngang ảnh mong muốn (px)
@@ -37,10 +37,12 @@ NEN_SUB = "#D5E3F1"
 NEN_TOTAL = "#A9C6E3"
 NEN_KHAC = "#FCE7CC"
 NEN_CN = "#C3D8EC"
-CHU_THUONG = "#141C26"
+CHU_THUONG = "#181D1F"        # đúng màu chữ mặc định của bảng trên web
 CHU_SUB = "#B01E14"
 CHU_TOTAL = "#002B4E"
 CHU_KHAC = "#8A4B08"
+
+COT_DAM = {"online", "ngay_online"}      # cột số online in đậm cả ở dòng thường, như bảng trên web
 
 # kích thước ở tỷ lệ 1 (sẽ nhân với tỷ lệ vẽ)
 CO_TIEU_DE, CO_PHU, CO_NHOM, CO_COT, CO_O = 21, 12, 12.5, 11.5, 13
@@ -140,14 +142,15 @@ class _Bo:
         return round(x * self.k)
 
 
-def _do_rong_cot(cols, rows, bo: _Bo) -> list[int]:
+def _do_rong_cot(cols, dong_o, bo: _Bo) -> list[int]:
+    """Bề rộng mỗi cột = chữ dài nhất trong cột (tiêu đề hoặc ô) + đệm. `dong_o`: các dòng ô từ `_dong_o`."""
     do = ImageDraw.Draw(Image.new("RGB", (4, 4)))
     rong = []
-    for ten_cot, khoa, kieu in cols:
+    for i, (ten_cot, _, _) in enumerate(cols):
         w = max(do.textlength(d, font=bo.cot) for d in _chia_dong(ten_cot))
-        for r in rows:
-            font = bo.o if r.get("loai_dong") == "data" and khoa != "phong" else bo.o_dam
-            w = max(w, do.textlength(_chu_o(kieu, khoa, r), font=font))
+        for dong in dong_o:
+            o = dong["o"][i]
+            w = max(w, do.textlength(o["chu"], font=bo.o_dam if o["dam"] else bo.o))
         rong.append(int(w) + bo.px(DEM * 2))
     return rong
 
@@ -166,6 +169,38 @@ def _noi_rong_theo_nhom(ct, rong: list[int], bo: _Bo) -> None:
         i += n
 
 
+def _o_anh(khoa: str, kieu: str, r: dict) -> dict:
+    """Một ô của ảnh: chữ, màu nền (None = nền dòng), màu chữ, có đậm không. Cùng luật với bảng trên web
+    (`tongquan._cols`): màu nhiệt cho cột tỷ lệ, màu Đạt / Chưa đạt cho Kết luận, ghi đè nền dòng."""
+    loai = r.get("loai_dong")
+    nen = {"subtotal": NEN_SUB, "total": NEN_TOTAL, "nhomkhac": NEN_KHAC, "chinhanh": NEN_CN}.get(loai)
+    mau_chu = {"subtotal": CHU_SUB, "total": CHU_TOTAL, "nhomkhac": CHU_KHAC,
+               "chinhanh": CHU_TOTAL}.get(loai, CHU_THUONG)
+    dam = loai != "data" or khoa == "phong" or khoa in COT_DAM
+    vm = _gia_tri_mau(khoa, r)
+    if kieu.startswith("pct") and vm is not None:
+        i = muc_heat(kieu.split(":")[1], vm)
+        nen, mau_chu, dam = "#" + HEAT[i], "#" + HEAT_CHU[i], True
+    v = r.get(khoa)
+    if khoa == "ket_luan" and v in MAU_KET_LUAN:
+        nen, mau_chu, dam = "#" + MAU_KET_LUAN[v], "#" + CHU_KET_LUAN[v], True
+    return {"chu": _chu_o(kieu, khoa, r), "nen": nen, "mau_chu": mau_chu, "dam": dam}
+
+
+def luoi_tong_quan(thang: str, ngay: int | None = None, chi_phong: list[str] | None = None,
+                   chi_nhanh: str = "all", tam_tinh: bool = False, tu: str | None = None) -> dict:
+    """Toàn bộ bảng ảnh Báo cáo Tổng dưới dạng chữ + màu từng ô (ảnh chỉ việc vẽ lại).
+
+    Tách riêng để test so ô-với-ô với bảng trên web mà không phải đọc ảnh."""
+    df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong, chi_nhanh=chi_nhanh,
+                              tam_tinh=tam_tinh, tu=tu)
+    ct = cau_truc(thang, ngay, tu)
+    cols = [c for _, nhom in ct for c in nhom]
+    dong_o = [{"loai": r.get("loai_dong"), "o": [_o_anh(khoa, kieu, r) for _, khoa, kieu in cols]}
+              for r in df.to_dict("records")]
+    return {"ct": ct, "cols": cols, "dong": dong_o, "ngay": ngay}
+
+
 def anh_tong_quan(thang: str, ngay: int | None = None,
                   chi_phong: list[str] | None = None, chi_nhanh: str = "all",
                   tam_tinh: bool = False, luc: datetime | None = None,
@@ -174,11 +209,8 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
 
     `nhan_xet` = (tiêu đề, nội dung) của trợ lý AI, in thành khối ngắn dưới bảng.
     """
-    df, ngay = bang_tong_quan(thang, ngay, chi_phong=chi_phong, chi_nhanh=chi_nhanh,
-                              tam_tinh=tam_tinh, tu=tu)
-    ct = cau_truc(thang, ngay, tu)
-    cols: list[tuple[str, str, str]] = [c for _, nhom in ct for c in nhom]
-    rows = df.to_dict("records")
+    lu = luoi_tong_quan(thang, ngay, chi_phong, chi_nhanh, tam_tinh, tu)
+    ct, cols, rows, ngay = lu["ct"], lu["cols"], lu["dong"], lu["ngay"]
 
     # đo ở tỷ lệ 1 để chọn tỷ lệ vẽ, rồi đo lại chính xác ở tỷ lệ đã chọn
     rong_goc = sum(_do_rong_cot(cols, rows, _Bo(1))) + LE * 2
@@ -211,55 +243,21 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
     d.text((x, y_phu), "FPT Telecom · Chi nhánh Đà Nẵng & Quảng Nam", font=bo.phu, fill=XAM_CHU)
     y = cao_dau
 
-    # ---- hàng tiêu đề nhóm (ô trống ở cột PKD/Nhân sự được gộp với hàng tên cột)
-    x, i = x0, 0
-    for ten_nhom, nhom in ct:
-        w = sum(rong[i:i + len(nhom)])
-        if ten_nhom:
-            d.rectangle([x, y, x + w, y + bo.px(CAO_NHOM)], fill=XANH_FPT, outline="#FFFFFF",
-                        width=max(1, bo.px(1)))
-            _giua(d, x, y, w, bo.px(CAO_NHOM), ten_nhom, bo.nhom, "#FFFFFF")
-        i += len(nhom)
-        x += w
-    y_cot = y + bo.px(CAO_NHOM)
-
-    # ---- hàng tên cột
-    x = x0
-    so_cot_khong_nhom = len(ct[0][1]) if not ct[0][0] else 0
-    for i, (ten_cot, _, _) in enumerate(cols):
-        tren = y if i < so_cot_khong_nhom else y_cot
-        d.rectangle([x, tren, x + rong[i], y_cot + bo.px(CAO_COT)], fill=NEN_COT, outline=VIEN)
-        _giua_nhieu_dong(d, x, tren, rong[i], y_cot + bo.px(CAO_COT) - tren,
-                         _chia_dong(ten_cot), bo.cot, XANH_DAM)
-        x += rong[i]
-    y = y_cot + bo.px(CAO_COT)
+    y = ve_dau_bang(d, ct, rong, x0, y, bo)
 
     # ---- các dòng dữ liệu
     h = bo.px(CAO_DONG)
     for r in rows:
-        loai = r.get("loai_dong")
-        nen_dong = {"subtotal": NEN_SUB, "total": NEN_TOTAL, "nhomkhac": NEN_KHAC,
-                    "chinhanh": NEN_CN}.get(loai)
-        mau_chu = {"subtotal": CHU_SUB, "total": CHU_TOTAL, "nhomkhac": CHU_KHAC,
-                   "chinhanh": CHU_TOTAL}.get(
-            loai, CHU_THUONG)
+        loai = r["loai"]
         x = x0
-        for i, (_, khoa, kieu) in enumerate(cols):
-            v = r.get(khoa)
-            nen_o = nen_dong
-            vm = _gia_tri_mau(khoa, r)
-            if kieu.startswith("pct") and vm is not None:
-                mau = mau_heat(kieu.split(":")[1], vm)
-                nen_o = "#" + mau if mau else nen_o
-            if khoa == "ket_luan" and v in MAU_KET_LUAN:
-                nen_o = "#" + MAU_KET_LUAN[v]
-            d.rectangle([x, y, x + rong[i], y + h], fill=nen_o or NEN, outline=VIEN)
-            chu = _chu_o(kieu, khoa, r)
-            font = bo.o_dam if (loai != "data" or khoa == "phong") else bo.o
+        for i, (_, khoa, _) in enumerate(cols):
+            o = r["o"][i]
+            d.rectangle([x, y, x + rong[i], y + h], fill=o["nen"] or NEN, outline=VIEN)
+            font = bo.o_dam if o["dam"] else bo.o
             if khoa == "phong":
-                _giua(d, x, y, rong[i], h, chu, font, mau_chu, trai=bo.px(DEM))
+                _giua(d, x, y, rong[i], h, o["chu"], font, o["mau_chu"], trai=bo.px(DEM))
             else:
-                _giua(d, x, y, rong[i], h, chu, font, mau_chu)
+                _giua(d, x, y, rong[i], h, o["chu"], font, o["mau_chu"])
             x += rong[i]
         if loai in ("subtotal", "total", "chinhanh"):   # kẻ đậm ngăn cách từng bầy như bảng tính
             d.line([x0, y + h, x0 + rong_bang, y + h], fill=VIEN_DAM, width=max(2, bo.px(1.5)))
@@ -288,6 +286,32 @@ def anh_tong_quan(thang: str, ngay: int | None = None,
     img.save(buf, format="PNG", optimize=True)
     ten = f"BaoCaoTong_{TEN_FILE.get(chi_nhanh, 'ToanCN')}_{hau_to_ky(thang, ngay, tu)}.png"
     return buf.getvalue(), ten
+
+
+def ve_dau_bang(d, ct, rong: list[int], x0: int, y: int, bo: _Bo) -> int:
+    """Vẽ hàng tiêu đề nhóm + hàng tên cột; trả về toạ độ y của dòng dữ liệu đầu tiên.
+
+    `ct` = [(tên nhóm, [(tên cột, ...)])]. Cột thuộc nhóm tên rỗng được gộp cao cả hai hàng tiêu đề."""
+    x, i = x0, 0
+    for ten_nhom, nhom in ct:
+        w = sum(rong[i:i + len(nhom)])
+        if ten_nhom:
+            d.rectangle([x, y, x + w, y + bo.px(CAO_NHOM)], fill=XANH_FPT, outline="#FFFFFF",
+                        width=max(1, bo.px(1)))
+            _giua(d, x, y, w, bo.px(CAO_NHOM), ten_nhom, bo.nhom, "#FFFFFF")
+        i += len(nhom)
+        x += w
+    y_cot = y + bo.px(CAO_NHOM)
+    x, i = x0, 0
+    for ten_nhom, nhom in ct:
+        for ten_cot, *_ in nhom:
+            tren = y_cot if ten_nhom else y
+            d.rectangle([x, tren, x + rong[i], y_cot + bo.px(CAO_COT)], fill=NEN_COT, outline=VIEN)
+            _giua_nhieu_dong(d, x, tren, rong[i], y_cot + bo.px(CAO_COT) - tren,
+                             _chia_dong(ten_cot), bo.cot, XANH_DAM)
+            x += rong[i]
+            i += 1
+    return y_cot + bo.px(CAO_COT)
 
 
 def _dong_nhan_xet(noi_dung: str, font, rong: int) -> list[str]:

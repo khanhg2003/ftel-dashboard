@@ -13,10 +13,12 @@ from app.overview import TEN_PHAM_VI, bang_tong_quan
 
 XANH_DAM = "0B2E4F"
 HEAT = ["F7BDBD", "FBD9AE", "FCEBB4", "D3EBD4", "A5DCAF"]
+HEAT_CHU = ["7F1D1D", "7C3A06", "6B5104", "14532D", "0F3D22"]     # màu chữ đi cùng từng nấc HEAT
 VIEN = Side(style="thin", color="D8DEE7")
 KHUNG = Border(left=VIEN, right=VIEN, top=VIEN, bottom=VIEN)
 TEN_FILE = {"all": "ToanCN", "DNG": "DaNang", "QNM": "QuangNam"}
 MAU_KET_LUAN = {"Đạt": "DCF5E6", "Không đạt": "FBE3E1", "Chưa đạt": "FDF1D8"}
+CHU_KET_LUAN = {"Đạt": "0A5B31", "Không đạt": "93241C", "Chưa đạt": "8A5709"}
 
 
 def _khoang(thang: str, ngay: int, tu: str | None):
@@ -69,7 +71,7 @@ def cau_truc(thang: str, ngay: int, tu: str | None = None):
                                         ("Số tồn", "so_ton", "so"),
                                         ("Số online", "online", "so"),
                                         ("Tỷ lệ HTKH", "htkh_internet", "pct:htkh")]),
-        ("TĂNG TRƯỞNG", [(f"Cùng kỳ T{thang_truoc}" if a == b.replace(day=1) else "Cùng kỳ tháng trước",
+        ("TĂNG TRƯỞNG", [(f"Cùng kỳ T{thang_truoc}" if a == b.replace(day=1) else "Cùng kỳ th. trước",
                           "ck_online", "so"), ("Tỷ lệ", "tang_truong",
                                                             "pct:tang_truong")]),
         ("FPT PLAY", [("Combo", "fpl_combo", "so"), ("Tỷ lệ FPL/NET", "fpl_ty_le", "pct:ty_le")]),
@@ -86,15 +88,21 @@ def cau_truc(thang: str, ngay: int, tu: str | None = None):
     ]
 
 
-def mau_heat(kind: str, gia_tri) -> str | None:
+def muc_heat(kind: str, gia_tri) -> int | None:
+    """Nấc màu nhiệt (0 = kém nhất ... 4 = tốt nhất) theo ngưỡng trong config/rules.yml."""
     if gia_tri is None:
         return None
     t = rules_config()["heatmap"][kind]
     moc = [t["rat_kem"], t["kem"], t["trung_binh"], t["kha"]]
     for i, m in enumerate(moc):
         if gia_tri < m:
-            return HEAT[i]
-    return HEAT[-1]
+            return i
+    return len(HEAT) - 1
+
+
+def mau_heat(kind: str, gia_tri) -> str | None:
+    i = muc_heat(kind, gia_tri)
+    return None if i is None else HEAT[i]
 
 
 def xuat_tong_quan(thang: str, ngay: int | None = None,

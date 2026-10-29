@@ -19,7 +19,7 @@ from dash import Input, Output, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
 from app.config import rules_config
-from app.export_excel import xuat_tong_quan
+from app.export_excel import CHU_KET_LUAN, HEAT, HEAT_CHU, MAU_KET_LUAN, xuat_tong_quan
 from app.export_png import anh_tong_quan
 from app.metrics import cac_ngay_co_du_lieu
 from app import tro_ly_du_lieu as dl
@@ -34,9 +34,9 @@ from app.ui import lien_ket as lk
 from app.ui import tro_ly as tl
 from app.ui.icons import icon
 
-# thang màu giống bảng tính: đỏ nhạt -> cam -> vàng -> xanh nhạt -> xanh
-MAU_HEAT = [("#F7BDBD", "#7F1D1D"), ("#FBD9AE", "#7C3A06"), ("#FCEBB4", "#6B5104"),
-            ("#D3EBD4", "#14532D"), ("#A5DCAF", "#0F3D22")]
+# thang màu giống bảng tính: đỏ nhạt -> cam -> vàng -> xanh nhạt -> xanh. Màu nằm ở export_excel
+# (dùng chung với Excel và ảnh PNG) để bảng và ảnh không lệch màu.
+MAU_HEAT = [(f"#{nen}", f"#{chu}") for nen, chu in zip(HEAT, HEAT_CHU)]
 ZOOM_STEPS = [50, 60, 70, 80, 90, 100, 110, 125, 150]
 BE_NGANG_CHUA_BANG = 124       # lề trang + padding thẻ + thanh cuộn, trừ khi tính cỡ vừa màn hình
 MAN_HINH_NHO = 768             # dưới mức này coi là điện thoại
@@ -80,13 +80,10 @@ _GIA_TRI_HEAT_CNQL = ("(params.data && params.data.mttn_hien && params.data.mttn
 
 
 KET_LUAN_STYLE = {"styleConditions": [
-    {"condition": "params.value == 'Đạt'",
-     "style": {"backgroundColor": "#DCF5E6", "color": "#0A5B31", "fontWeight": "700"}},
-    {"condition": "params.value == 'Không đạt'",
-     "style": {"backgroundColor": "#FBE3E1", "color": "#93241C", "fontWeight": "600"}},
-    {"condition": "params.value == 'Chưa đạt'",
-     "style": {"backgroundColor": "#FDF1D8", "color": "#8A5709", "fontWeight": "600"}},
-]}
+    {"condition": f"params.value == '{ten}'",
+     "style": {"backgroundColor": f"#{MAU_KET_LUAN[ten]}", "color": f"#{CHU_KET_LUAN[ten]}",
+               "fontWeight": "700" if ten == "Đạt" else "600"}}
+    for ten in ("Đạt", "Không đạt", "Chưa đạt")]}
 
 ROW_STYLE = {"styleConditions": [
     {"condition": "params.data.loai_dong == 'subtotal'",

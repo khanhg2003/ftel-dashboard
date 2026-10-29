@@ -21,8 +21,8 @@ import plotly.graph_objects as go
 from dash import Input, Output, Patch, State, ctx, dcc, html, no_update
 from flask_login import current_user
 
-from app import mttn
 from app import bao_cao_phong as bp
+from app import cot_phong as cp
 from app import canh_bao as quy_tac   # quy tắc cần chú ý dùng chung
 from app import tro_ly_du_lieu as dl
 from app.auth import ghi_log
@@ -41,9 +41,14 @@ from app.ui import ngan_nhan_su as nn
 from app.ui import tro_ly as tl
 from app.ui.icons import icon
 
-DO, VANG, XANH = ({"backgroundColor": "#F7BDBD", "color": "#7F1D1D", "fontWeight": "600"},
-                  {"backgroundColor": "#FCEBB4", "color": "#6B5104"},
-                  {"backgroundColor": "#D3EBD4", "color": "#14532D", "fontWeight": "600"})
+def _css(kieu: tuple) -> dict:
+    """Kiểu ô (nền, chữ, đậm) của app/cot_phong.py -> style của ag-grid."""
+    nen, chu, dam = kieu
+    return {**({"backgroundColor": "#" + nen} if nen else {}), "color": "#" + chu,
+            **({"fontWeight": "600"} if dam else {})}
+
+
+DO, VANG, XANH = _css(cp.DO), _css(cp.VANG), _css(cp.XANH)
 ROW_STYLE = {"styleConditions": [
     {"condition": "params.node.rowPinned", "style": {"backgroundColor": "#DCE8F4", "fontWeight": "700",
                                                      "color": "#003057"}}]}
@@ -196,115 +201,40 @@ def layout(ky: dict | None = None):
 
 
 # ------------------------------------------------------------------ cột
-def _mau_ty_le(chung) -> dict:
-    if chung is None:
-        return {}
-    goc = "params.value != null && !params.node.rowPinned && "
-    return {"styleConditions": [
-        {"condition": goc + f"params.value <= {chung - 10}", "style": DO},
-        {"condition": goc + f"params.value < {chung - 5}", "style": VANG},
-        {"condition": goc + f"params.value >= {chung + 5}", "style": XANH}]}
-
-
-HANG_TP = 999          # trưởng phòng không xếp hạng: hạng giả để luôn nằm cuối bảng, ô hiện "TP"
-
-
-def _dong_bang(df) -> list[dict]:
-    rows = df.to_dict("records")
-    for r in rows:
-        if r.get("khong_xet") == "Trưởng phòng":
-            r["hang"] = HANG_TP
-    return rows
+def _cot_ag(khoa: str, thang: str, tong: dict) -> dict:
+    """Cột ag-grid của bảng nhân sự. Tên, kiểu chữ và luật màu lấy từ app/cot_phong.py (dùng chung với ảnh PNG)."""
+    c = cp.cot(khoa, thang)
+    if khoa == "hang":
+        return {"field": c.field, "headerName": c.ten, "pinned": "left", "width": c.w,
+                "type": "numericColumn", "sort": "asc", "headerTooltip": c.tip,
+                "valueFormatter": {"function": f"params.value >= {cp.HANG_TP} ? 'TP' : params.value"}}
+    col = {"field": c.field, "headerName": c.ten, "minWidth": c.w, "flex": c.flex}
+    if c.tip:
+        col["headerTooltip"] = c.tip
+    if c.kieu in ("so", "pct", "chenh"):
+        col["type"] = "numericColumn"
+        col["valueFormatter"] = {"so": SO, "pct": PCT, "chenh": CHENH}[c.kieu]
+    if khoa == "ten":
+        col.update(pinned="left", tooltipField="acc")
+    if khoa == "chu_y":
+        col["tooltipField"] = "chu_y"
+        col["cellStyle"] = {"color": "#" + cp.MAU_CHU_Y}
+    if c.dam:
+        col["cellStyle"] = {"fontWeight": "700" if khoa == "online" else "600"}
+    luat = cp.luat_mau(khoa, tong)
+    if luat:
+        goc = cp.GOC_JS if c.mau in cp.LUAT_SO else ""
+        col["cellStyle"] = {"styleConditions": [{"condition": goc + js, "style": _css(kieu)}
+                                                for js, _, kieu in luat]}
+    return col
 
 
 def _cot_nv(thang: str, ngay: int, tong: dict, xem: str) -> list:
-    m = int(thang[5:7])
-    goc = "params.value != null && !params.node.rowPinned && "
-
-    def so(field_, ten, w=74, **kw):
-        return {"field": field_, "headerName": ten, "minWidth": w, "flex": 1,
-                "type": "numericColumn", "valueFormatter": SO, **kw}
-
-    def pct(field_, ten, tip, w=78, **kw):
-        return {"field": field_, "headerName": ten, "headerTooltip": tip, "minWidth": w, "flex": 1,
-                "type": "numericColumn", "valueFormatter": PCT, **kw}
-
-    hang = {"field": "hang", "headerName": "Hạng", "pinned": "left", "width": 68,
-            "type": "numericColumn", "sort": "asc", "headerTooltip": "Trưởng phòng (TP) không xếp hạng",
-            "valueFormatter": {"function": f"params.value >= {HANG_TP} ? 'TP' : params.value"}}
-    ten = {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "minWidth": 150,
-           "flex": 1.6, "tooltipField": "acc", "cellStyle": {"fontWeight": "600"}}
-    chu_y = [{"field": "muc_chu_y", "headerName": "Mức", "minWidth": 104, "flex": .9,
-              "cellStyle": {"styleConditions": [
-                  {"condition": f"params.value == '{quy_tac.TRAO_DOI_NGAY}'", "style": DO},
-                  {"condition": f"params.value == '{quy_tac.THEO_DOI}'", "style": VANG}]}},
-             {"field": "chu_y", "headerName": "Cần chú ý", "minWidth": 160, "flex": 3,
-              "tooltipField": "chu_y", "cellStyle": {"color": "#93241C"}}]
-    c = {
-        "tham_nien": {"field": "tham_nien_bucket", "headerName": "Thâm niên", "minWidth": 80,
-                      "flex": .8},
-        "online": so("online", "Online", cellStyle={"fontWeight": "700"}),
-        "ck": so("ck_online", f"Cùng kỳ {bp.thang_truoc_nhan(thang)}", 72),
-        "chenh": so("chenh_ck", "+/−", 58, valueFormatter=CHENH, headerTooltip="Online so với cùng kỳ",
-                    cellStyle={"styleConditions": [
-                        {"condition": goc + "params.value > 0", "style": {"color": "#0A7A3D",
-                                                                          "fontWeight": "600"}},
-                        {"condition": goc + "params.value < 0", "style": {"color": "#B42318",
-                                                                          "fontWeight": "600"}}]}),
-        "vvip": so("vvip", "V.VIP"),
-        "mttn": so("mttn", "MTTN", 66, headerTooltip="Online có khách ở tỉnh Miền Trung - Tây Nguyên "
-                   "(theo CN Quản lý)"),
-        "ty_le_mttn": pct("ty_le_mttn", "% MTTN", "Số online MTTN / số online", 70,
-                          cellStyle=_mau_ty_le(tong.get("ty_le_mttn"))),
-        "kem_vvip": pct("kem_vvip", "VVIP/PTTB", "Số V.VIP / số online",
-                        cellStyle=_mau_ty_le(tong.get("kem_vvip"))),
-        "camera": so("camera", "Camera"),
-        "kem_camera": pct("kem_camera", "Camera/PTTB", "Số camera / số online",
-                          cellStyle=_mau_ty_le(tong.get("kem_camera"))),
-        "ban_moi_ngay": so("ban_moi_ngay", "Bán mới"),
-        "online_ngay": so("online_ngay", "Online"),
-        "ban_moi": so("ban_moi", "Bán mới tháng", 84),
-        "so_ngay": so("so_ngay_co_so", "Số ngày có số", 70),
-        "ngay_lien": so("ngay_lien_chua_co_so", "Ngày liền chưa có số", 84,
-                        cellStyle={"styleConditions": [
-                            {"condition": goc + f"params.value >= {quy_tac.NGAY_TRAO_DOI_NGAY}",
-                             "style": DO},
-                            {"condition": goc + f"params.value >= {bp.NGAY_LIEN_CANH_BAO}",
-                             "style": VANG}]}),
-        "tuan_nay": so("tuan_nay", "Tuần này"),
-        "tuan_truoc": so("tuan_truoc", "Tuần trước"),
-        "ton": so("ton", "Chưa online", 72),
-        "ton7": so("ton_qua_7", "Chờ từ 7 ngày", 78, cellStyle={"styleConditions": [
-            {"condition": goc + f"params.value >= {bp.TON_LAU_CANH_BAO}", "style": DO},
-            {"condition": goc + "params.value > 0", "style": VANG}]}),
-        "onl1": pct("onl_1_ngay", "Online trong 1 ngày", "Online trong ngày tạo hoặc hôm sau", 80),
-        "du3": pct("du_3", "Đủ 3 DV", "Hợp đồng online có cả V.VIP và Camera"),
-        "tra_truoc": pct("tra_truoc", "Trả trước", "Có trả trước 3, 6 hoặc 12 tháng"),
-        "nsld": {"field": "ket_luan", "headerName": "NSLĐ kỳ trước", "minWidth": 86, "flex": .9,
-                 "cellStyle": {"styleConditions": [
-                     {"condition": "params.value == 'NOT OK'", "style": DO}]}},
-    }
-    nhom_thang = {"headerName": f"LUỸ KẾ THÁNG {m}", "children": []}
-    nhom_ngay = {"headerName": f"NGÀY {ngay:02d}/{m:02d}", "children": [c["ban_moi_ngay"],
-                                                                        c["online_ngay"]]}
-    co_mttn = ("mttn", "ty_le_mttn") if "mttn" in tong else ()
-    if xem == "ban":
-        nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", *co_mttn, "vvip", "kem_vvip",
-                                                 "camera", "kem_camera")]
-        return [hang, ten, nhom_thang, nhom_ngay, *chu_y]
-    if xem == "theo_doi":
-        return [hang, ten, c["tham_nien"],
-                {"headerName": "NHỊP CÓ SỐ", "children": [c["so_ngay"], c["ngay_lien"],
-                                                          c["tuan_nay"], c["tuan_truoc"]]},
-                {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
-                c["nsld"], *chu_y]
-    nhom_thang["children"] = [c[k] for k in ("online", "ck", "chenh", *co_mttn, "ban_moi", "vvip",
-                                             "kem_vvip", "camera", "kem_camera", "du3", "tra_truoc", "onl1")]
-    return [hang, ten, c["tham_nien"], nhom_thang, nhom_ngay,
-            {"headerName": "SỐ TỒN", "children": [c["ton"], c["ton7"]]},
-            {"headerName": "NHỊP CÓ SỐ", "children": [c["so_ngay"], c["ngay_lien"], c["tuan_nay"],
-                                                      c["tuan_truoc"]]},
-            c["nsld"], *chu_y]
+    ra = []
+    for muc in cp.bo_cot(cp.chuan_che_do(xem), thang, ngay, "mttn" in tong):
+        ra.append(_cot_ag(muc, thang, tong) if isinstance(muc, str) else
+                  {"headerName": muc[0], "children": [_cot_ag(k, thang, tong) for k in muc[1]]})
+    return ra
 
 
 COT_SO_SANH = [
@@ -344,51 +274,8 @@ def _dong_so_sanh(ss) -> list[dict]:
     return rows
 
 
-def _pct(v) -> str:
-    return "–" if v is None else f"{float(v):.0f}%"
-
-
-def _so(v) -> str:
-    return f"{int(v or 0):,}".replace(",", ".")
-
-
-def _kpis(thang: str, ngay: int, dong: dict, ss, tam_tinh: bool) -> list:
-    hang = ss.set_index("khoa")
-    h_htkh = hang.loc["htkh_internet"]
-    h = h_htkh if h_htkh.hang else hang.loc["online"]
-    tt = dong.get("tang_truong")
-    kl = dong.get("ket_luan")
-    return [
-        kpi("Online tháng", _so(dong.get("online")),
-            f"Mục tiêu {_so(dong.get('mt_internet'))} · HTKH {_pct(dong.get('htkh_internet'))}"
-            if dong.get("mt_internet") else "Chưa nhập chỉ tiêu tháng"),
-        kpi("Tăng trưởng", "–" if tt is None else f"{tt:+.0f}%",
-            f"Cùng kỳ {bp.thang_truoc_nhan(thang)}: {_so(dong.get('ck_online'))} online",
-            "" if tt is None else ("ok" if tt >= 0 else "bad")),
-        kpi("VVIP/PTTB", _pct(dong.get("vvip_ty_le")), f"{_so(dong.get('vvip'))} V.VIP"),
-        kpi("Camera", _so(dong.get("camera")),
-            f"Mục tiêu {_so(dong.get('mt_camera'))} · HTKH {_pct(dong.get('htkh_camera'))}"
-            if dong.get("mt_camera") else "Chưa nhập chỉ tiêu camera"),
-        kpi(f"Online ngày {ngay:02d}/{thang[5:7]}", _so(dong.get("ngay_online")),
-            f"Mục tiêu {_so(dong.get('mt_ngay'))} · {kl}" if dong.get("mt_ngay")
-            else f"Bán mới {_so(dong.get('ngay_ban_moi'))}",
-            "" if not dong.get("mt_ngay") else
-            ("ok" if kl == "Đạt" else ("warn" if tam_tinh else "bad"))),
-        kpi("Hạng phòng", f"{h.hang}/{h.so_phong}" if h.hang else "–",
-            ("Theo tỷ lệ HTKH" if h is h_htkh else "Theo số online") + " · phòng kinh doanh",
-            "" if not h.hang else ("ok" if h.hang <= h.so_phong / 3 else
-                                   ("bad" if h.hang > h.so_phong * 2 / 3 else "warn"))),
-    ]
-
-
-def _kpi_mttn(m: dict):
-    """Thẻ MTTN: tỷ lệ số online có khách ở tỉnh MTTN, so với mục tiêu % của tháng."""
-    tl_ = "–" if m["ty_le"] is None else f"{m['ty_le']:.0f}%"
-    phu = f"{_so(m['mttn'])}/{_so(m['tong'])} online"
-    if m["muc_tieu"] is None:
-        return kpi(m["ten"], tl_, phu + " · chưa nhập mục tiêu %")
-    phu += f" · mục tiêu {m['muc_tieu']:.0f}%" + (f" · cần thêm {_so(m['can_them'])} số MTTN" if m["can_them"] else " · đạt")
-    return kpi(m["ten"], tl_, phu, "" if m["dat"] is None else ("ok" if m["dat"] else "bad"))
+def _kpis(thang: str, ngay: int, code: str, dong: dict, ss, tam_tinh: bool) -> list:
+    return [kpi(t.nhan, t.gia_tri, t.phu, t.tt) for t in cp.the_tom_tat(thang, ngay, code, dong, ss, tam_tinh)]
 
 
 def _fig(fig: go.Figure, height: int = 330) -> go.Figure:
@@ -457,7 +344,6 @@ def register(app):
         du_lieu = nv[nv.loai_dong == "data"]
         can_chu_y = du_lieu[du_lieu.muc_chu_y.fillna("") != ""]
         so_ngay_ngay = int((can_chu_y.muc_chu_y == quy_tac.TRAO_DOI_NGAY).sum())
-        hien = can_chu_y if loc == "chu_y" else du_lieu
 
         badge = ""
         if luc:
@@ -474,11 +360,9 @@ def register(app):
         so_phong = int(ss.so_phong.max() or 0)
         mo_ta_ss = (f"Hạng trong {so_phong} phòng kinh doanh (IBB và địa bàn). Mức chung với tỷ lệ "
                     "là của toàn chi nhánh, với số lượng là bình quân một phòng.")
-        the = _kpis(thang, ngay, dong, ss, tam_tinh)
-        if mttn.ap_dung(code):
-            the.insert(1, _kpi_mttn(mttn.tong_hop(thang, ngay, code)))
+        the = _kpis(thang, ngay, code, dong, ss, tam_tinh)
         return (the, f"kpi-row kpi-{len(the)}", badge, canh_bao, mo_ta,
-                lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), _dong_bang(hien), [tong],
+                lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), cp.dong_nhan_su(nv, loc == "chu_y")[0], [tong],
                 COT_SO_SANH, _dong_so_sanh(ss), mo_ta_ss,
                 _bieu_do(bp.dien_bien_ngay(thang, ngay, code), dong.get("mt_ngay")))
 
@@ -526,15 +410,18 @@ def register(app):
 
     @app.callback(Output("bp-tai-xuong", "data"), Input("bp-png", "n_clicks"),
                   Input("bp-xls", "n_clicks"), State("bp-date", "date"), State("bp-phong", "value"),
-                  prevent_initial_call=True)
-    def _tai_ve(_a, _b, ngay_iso, code):
+                  State("bp-xem", "value"), State("bp-loc", "value"), prevent_initial_call=True)
+    def _tai_ve(_a, _b, ngay_iso, code, xem, loc):
         if not duoc_xem_phong(code) or not ngay_iso:
             return no_update
         d = date.fromisoformat(ngay_iso)
         thang = f"{d.year}-{d.month:02d}"
         tam_tinh, luc = trang_thai_ngay(ngay_iso)
         la_anh = ctx.triggered_id == "bp-png"
-        ham = anh_bao_cao_phong if la_anh else xuat_bao_cao_phong
-        noi_dung, ten = ham(thang, d.day, code, tam_tinh=tam_tinh, luc=luc)
+        if la_anh:      # ảnh vẽ đúng chế độ xem và bộ lọc đang chọn trên bảng
+            noi_dung, ten = anh_bao_cao_phong(thang, d.day, code, tam_tinh=tam_tinh, luc=luc,
+                                              che_do=xem, chi_chu_y=loc == "chu_y")
+        else:
+            noi_dung, ten = xuat_bao_cao_phong(thang, d.day, code, tam_tinh=tam_tinh, luc=luc)
         ghi_log("xuat_bao_cao_phong", f"{'png' if la_anh else 'xlsx'} {code} {ngay_iso}")
         return dcc.send_bytes(noi_dung, ten)
