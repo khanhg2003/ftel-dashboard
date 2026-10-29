@@ -253,9 +253,17 @@ def test_muc_phong_chi_xep_phong_ban_hang():
                       hang("ECOM_DNG", "ECOM DNG", 12), hang("ANCS", "ANCS", 13),
                       hang("IBB2", "IBB2", 60), hang("HOIAN", "Hội An", 70)])
     chu = str(bt._khoi_phong({"phong": p}, 5).xong())
-    assert "IBB2" in chu and "Hội An" in chu and "2 phòng" in chu
+    assert "DNG (IBB1-IBB7)" in chu and "QNM" in chu and chu.index("IBB2") < chu.index("Hội An")      # tách hai chi nhánh
+    assert chu.count("1/1 phòng") == 2
     for loai_bo in ("KT", "CUS", "ECOM", "ANCS"):
         assert loai_bo not in chu
+
+
+def test_nhan_dinh_nhanh_co_so_ngay_can_dat_va_phong_rui_ro():
+    tin = bt.dung_noi_dung_bgd(NGAY)
+    assert "NHẬN ĐỊNH NHANH" in tin and "online/ngày" in tin and "ngày còn lại" in tin
+    assert "phòng bán hàng" in tin and "Chất lượng bán:" in tin
+    assert tin.index("NHẬN ĐỊNH NHANH") < tin.index("1) TỔNG QUAN")
 
 
 def test_gui_thu_gui_ban_tin_co_nhan_ban_thu_va_giu_dung_kieu(gia):

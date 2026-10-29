@@ -9,10 +9,12 @@ từ các hàm của Báo cáo Tổng.
 """
 from __future__ import annotations
 
+import math
 import os
 import time
 from datetime import date, datetime, time as gio_gio, timedelta
 
+import pandas as pd
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
@@ -23,6 +25,7 @@ from app.models import BanTinNguoiNhan, BanTinNhatKy
 from app.thoi_gian import gio_viet_nam, utc_bay_gio
 
 LOAI_NHAN = {"bgd": "Ban Giám đốc", "admin": "Admin (nhắc nạp file)"}
+NHOM_PHONG = (("DNG", "DNG (IBB1-IBB7)"), ("QNM", "QNM"))
 LOAI_PHONG_KD = ("IBB", "DIABAN")     # mục "Phòng cần chú ý" chỉ xếp phòng bán hàng; bỏ KT, CUS, ECOM, ANCS... (CEO chốt 29/10/2026)
 GIO_GUI = gio_gio(8, 0)
 GIO_NHAC = gio_gio(10, 30)
@@ -253,25 +256,74 @@ def _khoi_tong_quan(sl: dict) -> _Soan:
     return s.them("\nSố trong ngoặc tính thêm nhịp dồn cuối tháng.", CO_NHO)
 
 
-def _khoi_phong(sl: dict, n_thap: int) -> _Soan | None:
+def _phong_ban_hang(sl: dict) -> dict[str, pd.DataFrame]:
+    """Phòng bán hàng có mục tiêu, chia theo chi nhánh: DNG (IBB1-IBB7) và QNM (các phòng địa bàn còn lại)."""
     p = sl["phong"]
-    loai = {x["code"]: x["loai"] for x in org.phong_all()}
-    kinh_doanh = p["phong_code"].map(lambda c: loai.get(c) in LOAI_PHONG_KD)
-    co_mt = p[(p["mt"] > 0) & kinh_doanh & ~p["phong_code"].isin(overview.phong_khong_cong_tong())]      # ANCS... không cộng vào tổng nên không xếp hạng
-    thap = co_mt.dropna(subset=["pct_mt"]).sort_values("pct_mt").head(n_thap)
-    if not len(thap):
-        return None
-    rui_ro = [r["phong"] for _, r in co_mt.iterrows() if r["danh_gia"] == du_bao.RUI_RO]
-    s = _Soan().them("2) PHÒNG CẦN CHÚ Ý", "b", CO_TIEU_DE).them("\n")
-    if rui_ro:
-        s.them(f"{len(rui_ro)} phòng", "b", DO).them(" ở mức Rủi ro. Thấp nhất theo dự báo cuối tháng:")
-    else:
-        s.them("Không có phòng nào ở mức Rủi ro.", XANH).them(" Thấp nhất theo dự báo cuối tháng:")
-    for _, r in thap.iterrows():
-        s.them("\n• ").them(str(r["phong"]), "b")
-        s.them(f": {_so(r['luy_ke'])}/{_so(r['mt'])} ({_pct(r['luy_ke'], r['mt'])}%), dự báo {int(r['pct_mt'])}% mục tiêu")
-        if r["danh_gia"] == du_bao.RUI_RO:
-            s.them(" · ").them("Rủi ro", "b", DO)
+    info = {x["code"]: x for x in org.phong_all()}
+    ban_hang = p[(p["mt"] > 0) & p["phong_code"].map(lambda c: info.get(c, {}).get("loai") in LOAI_PHONG_KD)
+                 & ~p["phong_code"].isin(overview.phong_khong_cong_tong())]      # ANCS... không cộng vào tổng nên không xếp hạng
+    cn = ban_hang["phong_code"].map(lambda c: info[c]["chi_nhanh"])
+    return {ma: ban_hang[cn == ma] for ma, _ in NHOM_PHONG}
+
+
+def _khoi_phong(sl: dict, n_thap: int) -> _Soan | None:
+    nhom = _phong_ban_hang(sl)
+    s = _Soan().them("2) PHÒNG CẦN CHÚ Ý", "b", CO_TIEU_DE)
+    co = False
+    for ma, nhan in NHOM_PHONG:
+        g = nhom[ma]
+        if g.empty:
+            continue
+        rr = int((g["danh_gia"] == du_bao.RUI_RO).sum())
+        s.them("\n\n" if co else "\n").them(nhan, "b").them(": ")
+        co = True
+        if rr:
+            s.them(f"{rr}/{len(g)} phòng", "b", DO).them(" ở mức Rủi ro. Thấp nhất:")
+        else:
+            s.them("Không có phòng Rủi ro.", XANH).them(" Thấp nhất:")
+        for _, r in g.dropna(subset=["pct_mt"]).sort_values("pct_mt").head(n_thap).iterrows():
+            mau = MAU_DANH_GIA.get(r["danh_gia"])
+            s.them("\n• ").them(str(r["phong"]), "b")
+            s.them(f": {_so(r['luy_ke'])}/{_so(r['mt'])} ({_pct(r['luy_ke'], r['mt'])}%), dự báo ")
+            s.them(f"{int(r['pct_mt'])}%", "b", *([mau] if mau else [])).them(" mục tiêu")
+    return s if co else None
+
+
+def _khoi_nhan_dinh(sl: dict) -> _Soan:
+    """Vài câu nhận định tổng quan do LUẬT cố định sinh ra từ số đã có (không dùng AI)."""
+    t, d, tr, tt = sl["tong"], sl["du_bao"], sl["truoc"], sl["thang_truoc"][5:7].lstrip("0")
+    ngay, con = sl["ngay"], metrics.month_range(sl["thang"])[2] - sl["ngay"]
+    online, mt = int(t["online"]), int(t["mt_internet"] or 0)
+    s = _Soan().them("NHẬN ĐỊNH NHANH", "b", CO_TIEU_DE)
+    if mt and online >= mt:
+        s.them("\n• ").them(f"Đã đạt mục tiêu tháng ({_so(online)}/{_so(mt)}).", "b", XANH)
+    elif mt and con > 0:
+        mau = MAU_DANH_GIA.get(d["danh_gia"])
+        s.them("\n• ").them(f"Cần {_so(math.ceil((mt - online) / con))} online/ngày", "b", *([mau] if mau else []))
+        s.them(f" trong {con} ngày còn lại, hiện bình quân {_so(online / ngay)}/ngày.")
+    elif mt:
+        s.them(f"\n• Hết tháng: đạt {_pct(online, mt)}% mục tiêu.")
+    nhom = _phong_ban_hang(sl)
+    tong_p = sum(len(g) for g in nhom.values())
+    if tong_p:
+        rr = {ma: int((g["danh_gia"] == du_bao.RUI_RO).sum()) for ma, g in nhom.items()}
+        s.them("\n• ")
+        if sum(rr.values()):
+            chi_tiet = ", ".join(f"{ma} {rr[ma]}/{len(nhom[ma])}" for ma, _ in NHOM_PHONG if len(nhom[ma]))
+            s.them(f"{sum(rr.values())}/{tong_p} phòng bán hàng", "b", DO).them(f" ở mức Rủi ro ({chi_tiet}).")
+        else:
+            s.them("Không có phòng bán hàng nào ở mức Rủi ro.", "b", XANH)
+    y = []
+    if t["vvip_ty_le"] is not None:
+        diff = (float(t["vvip_ty_le"]) - float(tr["vvip_ty_le"])) if tr is not None and tr["vvip_ty_le"] is not None else None
+        so_sanh = "" if diff is None else (f" (thấp hơn tháng {tt})" if diff < -0.5
+                                           else f" (cao hơn tháng {tt})" if diff > 0.5 else f" (ngang tháng {tt})")
+        y.append(f"V.VIP {_so(t['vvip_ty_le'])}% số online{so_sanh}")
+    if t["htkh_camera"] is not None:
+        y.append("Camera đã vượt mục tiêu" if float(t["htkh_camera"]) >= 100
+                 else f"Camera mới đạt {_so(t['htkh_camera'])}% mục tiêu")
+    if y:
+        s.them("\n• Chất lượng bán: " + "; ".join(y) + ".")
     return s
 
 
@@ -300,9 +352,9 @@ def dung_noi_dung_bgd(ngay_iso: str) -> TinZalo:
            .them(f"\nToàn chi nhánh, luỹ kế tháng {ngay.month} (tới ngày {ngay:%d/%m}).", CO_NHO))
     link = (os.environ.get("APP_URL") or "").strip()
     chan = _Soan().them(f"Xem chi tiết: {link}") if link else None
-    tq, cl = _khoi_tong_quan(sl), _khoi_chat_luong(sl)
-    for n_thap, co_cl in ((3, True), (3, False), (2, False), (1, False)):
-        chu = _ghep([dau, tq, _khoi_phong(sl, n_thap), cl if co_cl else None, chan])
+    nd, tq, cl = _khoi_nhan_dinh(sl), _khoi_tong_quan(sl), _khoi_chat_luong(sl)
+    for n_thap, co_cl in ((2, True), (2, False), (1, False)):
+        chu = _ghep([dau, nd, tq, _khoi_phong(sl, n_thap), cl if co_cl else None, chan])
         if len(chu) <= TOI_DA_KY_TU:
             return chu
     return _cat(chu, TOI_DA_KY_TU)
