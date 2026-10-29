@@ -231,16 +231,17 @@ def _nd_phong(ma):
 def test_nhan_dinh_phong_co_muc_tieu_vi_tri_trao_doi_ban_kem_ton_va_hanh_dong():
     chung, ns, can, tin = _nd_phong("IBB7")
     t = "\n".join(map(str, tin))
-    for cum in ("NHẬN ĐỊNH & HÀNH ĐỘNG - IBB7", "1) MỤC TIÊU CẦN ĐẠT", "Cả phòng cần", "Chia bình quân", "mục tiêu ngày",
-                "2) VỊ TRÍ", "Hạng 1/", "3) CẦN TRAO ĐỔI", "5) BÁN KÈM", "6) HỢP ĐỒNG TỒN", "7) HÀNH ĐỘNG ĐỀ XUẤT", "trước 13/09"):
+    for cum in ("NHẬN ĐỊNH & HÀNH ĐỘNG · IBB7", "1) MỤC TIÊU CẦN ĐẠT", "Cả phòng: cần", "Mỗi người: cần", "Ngày 11/09",
+                "2) VỊ TRÍ", "Hạng 1/", "3) CẦN TRAO ĐỔI", "4) BÁN KÈM", "5) HỢP ĐỒNG TỒN", "6) HÀNH ĐỘNG ĐỀ XUẤT", "trước 13/09"):
         assert cum in t, cum
     d = chung["db"][chung["db"].phong_code == "IBB7"].iloc[0]
-    assert f"Cả phòng cần {bt._so(d['can_moi_ngay'])} online/ngày trong {int(d['con_lai'])} ngày còn lại" in t
+    assert f"Cả phòng: cần {bt._so(d['can_moi_ngay'])}/ngày (hiện {bt._so(d['tb_ngay'], 1)})" in t
     so_nguoi = len(ns[1])
-    assert f"Chia bình quân {so_nguoi} nhân sự được xét" in t
+    assert f"{so_nguoi} nhân sự)" in t
     assert all(len(x) <= bt.TOI_DA_KY_TU for x in tin) and "đấu nối" not in t.lower()
+    assert len(tin) == 1 and len(tin[0].kieu) <= bt.KIEU_TOI_DA                    # gọn: một tin, không quá trần kiểu chữ
     q = chung["tq"][chung["tq"].phong_code == "IBB7"].iloc[0]
-    assert f"Online ngày 11/09: {bt._so(q['ngay_online'])}/{bt._so(q['mt_ngay'])} mục tiêu ngày" in t
+    assert f"Ngày 11/09: {bt._so(q['ngay_online'])}/{bt._so(q['mt_ngay'])}" in t
 
 
 def test_nhan_dinh_phong_neu_dung_het_nguoi_can_trao_doi_khong_gioi_han():
@@ -248,10 +249,13 @@ def test_nhan_dinh_phong_neu_dung_het_nguoi_can_trao_doi_khong_gioi_han():
     t = "\n".join(map(str, tin))
     assert len(can) >= 5
     assert all(str(r["ho_ten"]) in t for _, r in can.iterrows())
-    muc3 = t[t.index("3) CẦN TRAO ĐỔI"):t.index("4) NHỊP BÁN") if "4) NHỊP BÁN" in t else t.index("5) BÁN KÈM")]
-    assert muc3.count("• ") == len(can)
+    muc3 = t[t.index("3) CẦN TRAO ĐỔI"):t.index("4) BÁN KÈM")]
+    assert all(str(r["ho_ten"]) in muc3 for _, r in can.iterrows())
+    co_muc = int((can["muc"] != tp.GIAM_CUNG_KY).sum())
+    assert muc3.count("• ") == co_muc + (1 if (can["muc"] == tp.GIAM_CUNG_KY).any() else 0)    # người chỉ giảm cùng kỳ gom một dòng
     doan = _doan_kieu(tin[0], tin[0].kieu)
-    assert any(c in (canh_bao.TRAO_DOI_NGAY, canh_bao.THEO_DOI, tp.GIAM_CUNG_KY) and "c_db342e" in st for c, st in doan)    # nhãn đỏ
+    assert any((c in (canh_bao.TRAO_DOI_NGAY, canh_bao.THEO_DOI) or c.startswith("Giảm so T")) and "c_db342e" in st
+               for c, st in doan)                                                                  # nhãn đỏ
 
 
 def test_nhan_dinh_phong_khong_nhac_truong_phong_nguoi_nghi_nhung_so_phong_van_du(monkeypatch):
@@ -264,7 +268,7 @@ def test_nhan_dinh_phong_khong_nhac_truong_phong_nguoi_nghi_nhung_so_phong_van_d
     assert str(top.ho_ten) not in t and str(nghi.ho_ten) not in t
     q = chung["tq"][chung["tq"].phong_code == "IBB7"].iloc[0]
     assert int(q["online"]) == sum(int(x) for x in data.online)                  # số phòng vẫn gồm hai người đó
-    assert f"Chia bình quân {len(ns[1])} nhân sự" in t and len(ns[1]) == len(data) - 2
+    assert f"{len(ns[1])} nhân sự)" in t and len(ns[1]) == len(data) - 2
 
 
 def test_nhan_dinh_phong_nguoi_trong_khong_trao_doi_ibb7_khong_bi_nhac():
@@ -310,7 +314,7 @@ def test_truong_phong_nhan_anh_phong_anh_tong_roi_nhan_dinh_dung_thu_tu(gia):
     assert phong[0] == (NGAY, "IBB7") and tong[0] == (NGAY, None)
     assert phong[1] == f"Báo cáo phòng IBB7 - số chốt ngày 11/09\nXem chi tiết: {APP}"
     assert tong[1] == f"Báo cáo Tổng - số chốt ngày 11/09\nXem chi tiết: {APP}"
-    assert gia.cho("a")[0].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG - IBB7")
+    assert gia.cho("a")[0].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG · IBB7")
     assert not any("Tổng quan phòng" in t for t in gia.cho("a"))
     loai = _loai_ok("TP A")
     assert {"tp:IBB7:ap", "tp:IBB7:at", "tp:IBB7:nd1", "tp:IBB7:ht"} <= loai and not any(":ns" in x or x.endswith(":tq") for x in loai)
@@ -353,7 +357,7 @@ def test_mat_anh_phong_thi_thay_bang_tin_tung_nhan_su_van_co_anh_tong_va_nhan_di
     assert [p[0][1] for p in gia.anh_cho("a")] == [None]                              # chỉ còn ảnh Tổng
     chu = gia.cho("a")
     assert chu[0].startswith("Số chốt ngày 11/09 - IBB7") and "TĂNG hoặc bằng cùng kỳ" in chu[0]     # Từng nhân sự thay ảnh phòng
-    assert chu[-1].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG - IBB7")
+    assert chu[-1].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG · IBB7")
     assert gia.log[0][0] == "tin" and ("anh", "a") in gia.log
     loai = _loai_ok("TP")
     assert {"tp:IBB7:ap", "tp:IBB7:ns1", "tp:IBB7:at", "tp:IBB7:nd1", "tp:IBB7:ht"} <= loai
@@ -484,7 +488,7 @@ def test_kho_voi_phong_tra_nhan_dinh_phong_khong_gui_khong_ghi(gia, monkeypatch)
     _them("TP A", ["IBB7"], chat="a")
     monkeypatch.setattr(ba, "tao_ma", lambda *a, **k: (_ for _ in ()).throw(AssertionError("không tạo mã khi chạy thử")))
     kq = bt.chay(gio_vn=SANG_8H, kho=True, phong="IBB7")
-    assert kq["tp_dang"] == "anh" and kq["nhan_dinh_phong"][0].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG - IBB7")
+    assert kq["tp_dang"] == "anh" and kq["nhan_dinh_phong"][0].startswith("NHẬN ĐỊNH & HÀNH ĐỘNG · IBB7")
     assert kq["kich_thuoc_nhan_dinh"][0]["so_kieu"] > 0 and kq["noi_dung_phong"][0].startswith("Số chốt ngày 11/09 - IBB7")
     assert gia.tin == [] and gia.anh == [] and _nhat_ky() == {}
     assert "nhan_dinh_phong" not in bt.chay(gio_vn=SANG_8H, kho=True)
