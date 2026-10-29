@@ -1,0 +1,62 @@
+{
+  "name": "Bản tin 8h Zalo - đồng hồ gọi app",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 8-10 * * *"
+            }
+          ]
+        }
+      },
+      "id": "5b1c2f10-0000-4a00-9000-000000000001",
+      "name": "Mỗi 15 phút, 8h-11h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://DAN-DIA-CHI-APP-VAO-DAY/api/ban-tin/chay?kho=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Ban-Tin-Khoa",
+              "value": "DAN-BAN-TIN-KHOA-VAO-DAY"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "5b1c2f10-0000-4a00-9000-000000000002",
+      "name": "Gọi app gửi bản tin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    }
+  ],
+  "connections": {
+    "Mỗi 15 phút, 8h-11h": {
+      "main": [
+        [
+          {
+            "node": "Gọi app gửi bản tin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}

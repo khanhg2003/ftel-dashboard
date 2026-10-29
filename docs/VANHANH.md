@@ -150,9 +150,11 @@ App tự gửi bản tin số chốt cho Ban Giám đốc qua Zalo Bot, và nh�
 nên gọi dư cũng không sao (mỗi người chỉ nhận một lần mỗi ngày số). Thêm `?kho=1` để chạy thử: trả về nội dung bản tin
 mà không gửi và không ghi nhật ký.
 
-**Lấy chat_id:** người nhận nhắn cho bot trước một tin bất kỳ, rồi mở
-`https://bot-api.zaloplatforms.com/bot<TOKEN>/getUpdates` rồi lấy `chat.id` của tin đó (chưa kiểm chứng tay; nếu dịch vụ
-không có `getUpdates` thì lấy từ nội dung webhook của bot, hoặc xem trang quản lý bot của Zalo).
+Mẫu workflow n8n để nhập thẳng: `docs/n8n_ban_tin_8h.json` (đang gọi với `?kho=1`; thay địa chỉ app và khoá, kiểm xong mới bỏ `?kho=1`).
+
+**Lấy chat_id:** người nhận nhắn cho bot trước một tin bất kỳ, rồi gọi `POST https://bot-api.zaloplatforms.com/bot<TOKEN>/getUpdates`
+(tham số `timeout` tuỳ chọn) và lấy `result.message.chat.id`. Đã kiểm chứng tay 29/10/2026. Không chạy được khi bot đã đặt webhook
+(phải `deleteWebhook` trước).
 Vào **Quản trị → Bản tin Zalo → Thêm người nhận** điền tên, loại (Ban Giám đốc hoặc Admin) và chat_id, bấm
 *Gửi thử* để kiểm tra. Nếu Zalo từ chối gửi chủ động cho người lâu không nhắn thì cột "Lý do" ở bảng
 *10 lần gửi gần nhất* sẽ ghi rõ; nhờ người đó nhắn bot một tin rồi thử lại.
