@@ -31,10 +31,11 @@ class Gia:
         self.tin: list[tuple[str, str]] = []
         self.hong: set[str] = set()
 
-    def __call__(self, chat_id, noi_dung, parse_mode=None, han=8):
+    def __call__(self, chat_id, noi_dung, parse_mode=None, han=8, text_styles=None):
         if chat_id in self.hong:
             raise zalo_bot.LoiZalo("Zalo từ chối (mã 400): giả lập.")
         self.tin.append((chat_id, noi_dung))
+        self.kieu = text_styles
 
 
 @pytest.fixture()
@@ -225,6 +226,31 @@ def test_noi_dung_dai_thi_bo_muc_3_truoc(monkeypatch):
     monkeypatch.setattr(bt, "TOI_DA_KY_TU", len(day_du) - 5)
     ngan = bt.dung_noi_dung_bgd(NGAY)
     assert len(ngan) <= len(day_du) - 5 and "3) CHẤT LƯỢNG BÁN" not in ngan and "1) TỔNG QUAN" in ngan
+
+
+def _doan_kieu(chu: str, kieu: list[dict]) -> list[tuple[str, list[str]]]:
+    """Cắt chữ theo vị trí UTF-16 như Zalo đọc, để kiểm kiểu rơi đúng chữ."""
+    u16 = chu.encode("utf-16-le")
+    return [(u16[k["start"] * 2:(k["start"] + k["len"]) * 2].decode("utf-16-le"), k["st"]) for k in kieu]
+
+
+def test_noi_dung_co_kieu_chu_dung_vi_tri():
+    tin = bt.dung_noi_dung_bgd(NGAY)
+    tong = len(tin.encode("utf-16-le")) // 2
+    assert tin.kieu and all(k["start"] >= 0 and k["len"] > 0 and k["start"] + k["len"] <= tong for k in tin.kieu)
+    doan = _doan_kieu(tin, tin.kieu)
+    assert any(c.startswith("Số chốt ngày") and "b" in st for c, st in doan)
+    for tieu_de in ("1) TỔNG QUAN", "2) PHÒNG CẦN CHÚ Ý"):
+        assert any(c == tieu_de and "b" in st for c, st in doan)
+    assert any(c in ("An toàn", "Cần tăng tốc", "Rủi ro") and any(s.startswith("c_") for s in st) for c, st in doan)
+
+
+def test_gui_thu_gui_ban_tin_co_nhan_ban_thu_va_giu_dung_kieu(gia):
+    _them("Anh A", chat="a")
+    assert bt.gui_thu(bt.ds_nguoi_nhan()[0]["id"])[0]
+    chu, kieu = gia.tin[0][1], gia.kieu
+    assert chu.startswith("[BẢN THỬ") and kieu
+    assert any(c.startswith("Số chốt ngày") and "b" in st for c, st in _doan_kieu(chu, kieu))
 
 
 # ------------------------------------------------------------------ Zalo: lỗi không lộ token

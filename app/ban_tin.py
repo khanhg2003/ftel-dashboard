@@ -111,12 +111,12 @@ def gui_thu(id_: int) -> tuple[bool, str]:
     try:
         ngay_iso = metrics.ngay_moi_nhat()
         if ngay_iso:
-            chu = f"[BẢN THỬ - chưa tính là đã gửi]\n{dung_noi_dung_bgd(ngay_iso)}"[:TOI_DA_KY_TU]
+            chu = _voi_dau("[BẢN THỬ - chưa tính là đã gửi]\n", dung_noi_dung_bgd(ngay_iso))
     except Exception:
         pass
     try:
-        zalo_bot.gui_tin(nguoi["chat_id"], chu)
-        ket = (True, f"Đã gửi tin thử cho {nguoi['ten']}.")
+        zalo_bot.gui_tin(nguoi["chat_id"], chu, text_styles=getattr(chu, "kieu", None))
+        ket =(True, f"Đã gửi tin thử cho {nguoi['ten']}.")
     except zalo_bot.LoiZalo as e:
         ket = (False, f"Chưa gửi được cho {nguoi['ten']}: {e}")
     ghi_log("ban_tin_gui_thu", f"{nguoi['ten']}: {'ok' if ket[0] else ket[1]}"[:200])
@@ -169,66 +169,140 @@ def _so_lieu_bgd(ngay_iso: str) -> dict:
             "truoc": _chat_luong_thang_truoc(thang, ngay), "thang_truoc": metrics.prev_month(thang)}
 
 
-def _khoi_tong_quan(sl: dict) -> str:
+MAU_DANH_GIA = {du_bao.AN_TOAN: "c_15a85f", du_bao.TANG_TOC: "c_f27806", du_bao.RUI_RO: "c_db342e"}
+XANH, DO = "c_15a85f", "c_db342e"
+CO_DAU, CO_TIEU_DE, CO_NHO = "f_20", "f_18", "f_13"      # cỡ chữ trong text_styles của Zalo (rất lớn, lớn, nhỏ)
+
+
+class TinZalo(str):
+    """Chữ kèm kiểu (đậm, màu, cỡ) theo `text_styles` của Zalo. Vẫn là `str` nên dùng như chữ thường."""
+    kieu: list[dict]
+
+
+def _u16(chu: str) -> int:
+    return len(chu.encode("utf-16-le")) // 2          # Zalo đếm vị trí kiểu theo đơn vị UTF-16
+
+
+class _Soan:
+    """Ghép từng đoạn chữ kèm kiểu; `xong()` tính vị trí cho từng kiểu."""
+
+    def __init__(self):
+        self.phan: list[tuple[str, tuple]] = []
+
+    def them(self, chu: str, *kieu: str) -> "_Soan":
+        self.phan.append((chu, kieu))
+        return self
+
+    def xong(self) -> TinZalo:
+        chu, kieu, vt = [], [], 0
+        for c, k in self.phan:
+            n = _u16(c)
+            if k and n:
+                kieu.append({"start": vt, "len": n, "st": list(k)})
+            chu.append(c)
+            vt += n
+        t = TinZalo("".join(chu))
+        t.kieu = kieu
+        return t
+
+
+def _ghep(khoi: list) -> TinZalo:
+    s = _Soan()
+    for i, k in enumerate([k for k in khoi if k is not None]):
+        if i:
+            s.them("\n\n")
+        s.phan.extend(k.phan)
+    return s.xong()
+
+
+def _voi_dau(dau: str, tin: TinZalo) -> TinZalo:
+    """Thêm một dòng đầu (không kiểu) trước tin, dời vị trí các kiểu cho khớp."""
+    d = _u16(dau)
+    t = TinZalo(dau + tin)
+    t.kieu = [{**k, "start": k["start"] + d} for k in getattr(tin, "kieu", [])]
+    return t
+
+
+def _cat(tin: TinZalo, n: int) -> TinZalo:
+    t = TinZalo(tin[:n])
+    gioi_han = _u16(str(t))
+    t.kieu = [k for k in tin.kieu if k["start"] + k["len"] <= gioi_han]
+    return t
+
+
+def _khoi_tong_quan(sl: dict) -> _Soan:
     t, d, tt = sl["tong"], sl["du_bao"], sl["thang_truoc"][5:7].lstrip("0")
     online, mt, ck = int(t["online"]), int(t["mt_internet"] or 0), int(t["ck_online"] or 0)
-    dong = [f"- Online luỹ kế: {_so(online)}" + (f" / {_so(mt)} mục tiêu tháng ({_pct(online, mt)}%)." if mt
-                                                else " (chưa có mục tiêu tháng).")]
+    s = _Soan().them("1) TỔNG QUAN", "b", CO_TIEU_DE)
+    s.them(f"\nOnline luỹ kế: {_so(online)}" + (f" / {_so(mt)} mục tiêu tháng ({_pct(online, mt)}%)" if mt
+                                                  else " (chưa có mục tiêu tháng)"))
     if ck:
         c = round((online - ck) / ck * 100)
-        dong.append(f"- Cùng kỳ tháng {tt}: {_so(ck)} online, " + (f"tăng {c}%." if c > 0 else
-                                                                  f"giảm {-c}%." if c < 0 else "bằng nhau."))
-    dong.append(f"- Dự báo cuối tháng: {_so(d['du_bao'])} ({_so(d['du_bao_nhip'])})"
-                + (f", mức {d['danh_gia']}." if mt else "."))
-    dong.append("  Số trong ngoặc tính thêm nhịp dồn cuối tháng.")
-    return "1) TỔNG QUAN\n" + "\n".join(dong)
+        s.them(f"\nCùng kỳ tháng {tt}: {_so(ck)} online, "
+               + (f"tăng {c}%" if c > 0 else f"giảm {-c}%" if c < 0 else "bằng nhau"))
+    s.them(f"\nDự báo cuối tháng: {_so(d['du_bao'])} ({_so(d['du_bao_nhip'])})")
+    if mt:
+        mau = MAU_DANH_GIA.get(d["danh_gia"])
+        s.them(" · ").them(str(d["danh_gia"]), "b", *([mau] if mau else []))
+        thieu = mt - round(float(d["du_bao"]))
+        if thieu > 0:
+            s.them("\nDự báo ").them(f"hụt {_so(thieu)}", "b", DO).them(f" so với mục tiêu {_so(mt)}")
+        else:
+            s.them("\nDự báo ").them("đạt mục tiêu", "b", XANH).them(f" {_so(mt)}")
+    return s.them("\nSố trong ngoặc tính thêm nhịp dồn cuối tháng.", CO_NHO)
 
 
-def _khoi_phong(sl: dict, n_thap: int) -> str:
+def _khoi_phong(sl: dict, n_thap: int) -> _Soan | None:
     p = sl["phong"]
     co_mt = p[(p["mt"] > 0) & ~p["phong_code"].isin(overview.phong_khong_cong_tong())]      # ANCS... không cộng vào tổng nên không xếp hạng
     thap = co_mt.dropna(subset=["pct_mt"]).sort_values("pct_mt").head(n_thap)
-    dong = ["Thấp nhất so với mục tiêu (xếp theo dự báo cuối tháng):"]
-    dong += [f"- {r['phong']}: {_so(r['luy_ke'])}/{_so(r['mt'])} ({_pct(r['luy_ke'], r['mt'])}%), "
-             f"dự báo {int(r['pct_mt'])}% mục tiêu" + (" - Rủi ro" if r["danh_gia"] == du_bao.RUI_RO else "")
-             for _, r in thap.iterrows()]
+    if not len(thap):
+        return None
     rui_ro = [r["phong"] for _, r in co_mt.iterrows() if r["danh_gia"] == du_bao.RUI_RO]
+    s = _Soan().them("2) PHÒNG CẦN CHÚ Ý", "b", CO_TIEU_DE).them("\n")
     if rui_ro:
-        ds = ", ".join(rui_ro[:8]) + (f" và {len(rui_ro) - 8} phòng khác" if len(rui_ro) > 8 else "")
-        dong.append(f"Phòng ở mức Rủi ro ({len(rui_ro)}): {ds}.")
-    elif len(thap):
-        dong.append("Không có phòng nào ở mức Rủi ro.")
-    return "2) PHÒNG CẦN CHÚ Ý\n" + "\n".join(dong) if len(thap) else ""
+        s.them(f"{len(rui_ro)} phòng", "b", DO).them(" ở mức Rủi ro. Thấp nhất theo dự báo cuối tháng:")
+    else:
+        s.them("Không có phòng nào ở mức Rủi ro.", XANH).them(" Thấp nhất theo dự báo cuối tháng:")
+    for _, r in thap.iterrows():
+        s.them("\n• ").them(str(r["phong"]), "b")
+        s.them(f": {_so(r['luy_ke'])}/{_so(r['mt'])} ({_pct(r['luy_ke'], r['mt'])}%), dự báo {int(r['pct_mt'])}% mục tiêu")
+        if r["danh_gia"] == du_bao.RUI_RO:
+            s.them(" · ").them("Rủi ro", "b", DO)
+    return s
 
 
-def _khoi_chat_luong(sl: dict) -> str:
+def _khoi_chat_luong(sl: dict) -> _Soan | None:
     t, tr, tt = sl["tong"], sl["truoc"], sl["thang_truoc"][5:7].lstrip("0")
     dong = []
     if t["vvip_ty_le"] is not None:
-        dong.append(f"- V.VIP: {_so(t['vvip'])}, bằng {_so(t['vvip_ty_le'])}% số online"
-                    + (f", cùng kỳ tháng {tt}: {_so(tr['vvip_ty_le'])}%." if tr is not None
-                       and tr["vvip_ty_le"] is not None else "."))
+        dong.append(f"V.VIP: {_so(t['vvip'])} ({_so(t['vvip_ty_le'])}% số online)"
+                    + (f", tháng {tt}: {_so(tr['vvip_ty_le'])}%" if tr is not None
+                       and tr["vvip_ty_le"] is not None else ""))
     if t["htkh_camera"] is not None:
-        dong.append(f"- Camera: {_so(t['camera'])}/{_so(t['mt_camera'])} mục tiêu ({_so(t['htkh_camera'])}%)"
-                    + (f", cùng kỳ tháng {tt}: {_so(tr['htkh_camera'])}%." if tr is not None
-                       and tr["htkh_camera"] is not None else "."))
-    return "3) CHẤT LƯỢNG BÁN (luỹ kế tháng)\n" + "\n".join(dong) if dong else ""
+        dong.append(f"Camera: {_so(t['camera'])}/{_so(t['mt_camera'])} mục tiêu ({_so(t['htkh_camera'])}%)"
+                    + (f", tháng {tt}: {_so(tr['htkh_camera'])}%" if tr is not None
+                       and tr["htkh_camera"] is not None else ""))
+    if not dong:
+        return None
+    s = _Soan().them("3) CHẤT LƯỢNG BÁN", "b", CO_TIEU_DE).them(" (luỹ kế tháng)", CO_NHO)
+    return s.them("".join("\n" + d for d in dong))
 
 
-def dung_noi_dung_bgd(ngay_iso: str) -> str:
-    """Bản tin Ban Giám đốc, tối đa 1.900 ký tự: dài quá thì bỏ mục 3 rồi bớt phòng ở mục 2 trước."""
+def dung_noi_dung_bgd(ngay_iso: str) -> TinZalo:
+    """Bản tin Ban Giám đốc có kiểu chữ (đậm / màu / cỡ), tối đa 1.900 ký tự: dài quá thì bỏ mục 3 rồi bớt phòng ở mục 2."""
     sl = _so_lieu_bgd(ngay_iso)
     ngay = date.fromisoformat(ngay_iso)
-    dau = f"Số chốt ngày {ngay:%d/%m}\nToàn chi nhánh, luỹ kế tháng {ngay.month} (tới ngày {ngay:%d/%m})."
+    dau = (_Soan().them(f"Số chốt ngày {ngay:%d/%m}", "b", CO_DAU)
+           .them(f"\nToàn chi nhánh, luỹ kế tháng {ngay.month} (tới ngày {ngay:%d/%m}).", CO_NHO))
     link = (os.environ.get("APP_URL") or "").strip()
-    chan = f"Xem chi tiết: {link}" if link else ""
+    chan = _Soan().them(f"Xem chi tiết: {link}") if link else None
     tq, cl = _khoi_tong_quan(sl), _khoi_chat_luong(sl)
     for n_thap, co_cl in ((3, True), (3, False), (2, False), (1, False)):
-        khoi = [dau, tq, _khoi_phong(sl, n_thap), cl if co_cl else "", chan]
-        chu = "\n\n".join(k for k in khoi if k)
+        chu = _ghep([dau, tq, _khoi_phong(sl, n_thap), cl if co_cl else None, chan])
         if len(chu) <= TOI_DA_KY_TU:
             return chu
-    return chu[:TOI_DA_KY_TU]
+    return _cat(chu, TOI_DA_KY_TU)
 
 
 # ------------------------------------------------------------------ gửi + nhật ký chống trùng
@@ -275,7 +349,7 @@ def _gui_cho(nguoi: dict, ngay: date, loai: str, chu: str, kq: dict) -> None:
         kq["bo_qua"].append({"nguoi": nguoi["ten"], "ly_do": "đã gửi, đang gửi hoặc hết lượt thử lại"})
         return
     try:
-        zalo_bot.gui_tin(nguoi["chat_id"], chu)
+        zalo_bot.gui_tin(nguoi["chat_id"], chu, text_styles=getattr(chu, "kieu", None))
     except zalo_bot.LoiZalo as e:
         ly_do = str(e)
     except Exception as e:                       # chưa gửi được thì thôi, không làm sập cả lượt (không in thông báo gốc: có thể lộ địa chỉ gọi)

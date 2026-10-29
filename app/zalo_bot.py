@@ -49,18 +49,23 @@ def _mo_ta_loi_http(e: urllib.error.HTTPError, token: str) -> str:
     return f"Zalo từ chối (mã {ma}){': ' + _sach(mo_ta, token) if mo_ta else ''}.{goi_y}"
 
 
-def gui_tin(chat_id: str, noi_dung: str, parse_mode: str | None = None, han: float = HAN_GIAY) -> None:
-    """Gửi một tin chữ tới `chat_id`. Lỗi gì cũng đổi thành `LoiZalo`."""
+def gui_tin(chat_id: str, noi_dung: str, parse_mode: str | None = None, han: float = HAN_GIAY,
+            text_styles: list | None = None) -> None:
+    """Gửi một tin chữ tới `chat_id`. `text_styles` = kiểu chữ theo vị trí UTF-16 của Zalo (đậm, màu, cỡ).
+    Lỗi gì cũng đổi thành `LoiZalo`."""
     token = _token()
     if not token:
         raise LoiZalo("Chưa cài biến ZALO_BOT_TOKEN trên máy chủ.")
     chat_id = str(chat_id or "").strip()
-    chu = (noi_dung or "").strip()[:TOI_DA_KY_TU]
-    if not chat_id or not chu:
+    chu = (noi_dung or "") if text_styles else (noi_dung or "").strip()      # có kiểu thì giữ nguyên để vị trí không lệch
+    chu = chu[:TOI_DA_KY_TU]
+    if not chat_id or not chu.strip():
         raise LoiZalo("Thiếu chat_id hoặc nội dung tin nhắn.")
     goi = {"chat_id": chat_id, "text": chu}
     if parse_mode in ("markdown", "html"):
         goi["parse_mode"] = parse_mode
+    elif text_styles:
+        goi["text_styles"] = list(text_styles)
     req = urllib.request.Request(
         f"{GOC}/bot{token}/sendMessage", data=json.dumps(goi).encode(), method="POST",
         headers={"Content-Type": "application/json"})
