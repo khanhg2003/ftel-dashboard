@@ -299,10 +299,16 @@ def test_tin_nhan_su_xep_online_giam_dan_va_chenh_cung_ky():
     dong = [d for t in ns for d in str(t).split("\n") if d.startswith("• ")]
     assert len(dong) == len(xet)
     online = [int(d.split(": ")[1].split(" online")[0].replace(".", "")) for d in dong]
-    assert online == sorted(online, reverse=True)
-    r = xet.sort_values("online", ascending=False, kind="stable").iloc[0]
+    tang = xet[xet["online"] >= xet["ck_online"]].sort_values("online", ascending=False, kind="stable")
+    giam = xet[xet["online"] < xet["ck_online"]].sort_values("online", ascending=False, kind="stable")
+    assert online == list(tang["online"]) + list(giam["online"])        # nhóm tăng / bằng trước, nhóm giảm sau, mỗi nhóm online giảm dần
+    r = tang.iloc[0] if len(tang) else giam.iloc[0]
     chenh = int(r["online"]) - int(r["ck_online"])
     assert (f"{chenh:+d}" if chenh else "0") in dong[0] and "so T8" in dong[0]
+    chu = "\n".join(str(t) for t in ns)
+    assert (f"TĂNG hoặc bằng cùng kỳ T8 ({len(tang)} người)" in chu) == bool(len(tang))
+    assert (f"GIẢM so với cùng kỳ T8 ({len(giam)} người)" in chu) == bool(len(giam))
+    assert not len(tang) or not len(giam) or chu.index("TĂNG hoặc") < chu.index("GIẢM so")
 
 
 def test_tin_nhan_su_tach_tin_con_khi_vuot_1900_ky_tu():
@@ -317,7 +323,11 @@ def test_tin_nhan_su_tach_tin_con_khi_vuot_1900_ky_tu():
     for t in ds:                                           # kiểu chữ khớp vị trí UTF-16 (tên đậm, chênh có màu)
         doan = _doan_kieu(t, t.kieu)
         assert any(c.startswith("Nhân sự số") and "b" in st for c, st in doan)
-        assert any(c.startswith("+") and "c_15a85f" in st for c, st in doan)
+    tat_ca = [x for t in ds for x in _doan_kieu(t, t.kieu)]
+    assert any(c.startswith("+") and "c_15a85f" in st for c, st in tat_ca)          # chênh dương xanh
+    assert any(c.startswith("-") and "c_db342e" in st for c, st in tat_ca)          # chênh âm đỏ
+    assert any(c.startswith("TĂNG hoặc bằng cùng kỳ T8 (116 người)") and "b" in st for c, st in tat_ca)
+    assert any(c.startswith("GIẢM so với cùng kỳ T8 (4 người)") and "c_db342e" in st for c, st in tat_ca)
 
 
 def test_khong_co_nhan_su_thi_bo_tin_2():

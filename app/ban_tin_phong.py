@@ -345,11 +345,21 @@ def dung_tin_nhan_su(chung: dict, ten: str, xet: pd.DataFrame) -> list[bt.TinZal
     if xet.empty:
         return []
     ngay, tt = date.fromisoformat(chung["ngay_iso"]), chung["thang_truoc"][5:7].lstrip("0")
-    dong = [_dong_nhan_su(r, tt, ngay) for _, r in xet.sort_values("online", ascending=False, kind="stable").iterrows()]
+    xs = xet.sort_values("online", ascending=False, kind="stable")
+    chenh = xs["online"] - xs["ck_online"]
+    dong: list[bt._Soan] = []
+    for nhan, mau, g in ((f"TĂNG hoặc bằng cùng kỳ T{tt}", bt.XANH, xs[chenh >= 0]),
+                         (f"GIẢM so với cùng kỳ T{tt}", bt.DO, xs[chenh < 0])):
+        if g.empty:
+            continue
+        hang = [_dong_nhan_su(r, tt, ngay) for _, r in g.iterrows()]
+        dau_nhom = bt._Soan().them("\n" if dong else "").them(f"{nhan} ({len(g)} người)", "b", mau).them("\n")
+        dau_nhom.phan.extend(hang[0].phan)        # tiêu đề nhóm đi cùng dòng đầu để không bị bỏ lẻ cuối một tin con
+        dong += [dau_nhom] + hang[1:]
 
     def dau(i: int, n: int) -> bt._Soan:
         return (bt._Soan().them(f"Số chốt ngày {ngay:%d/%m} - {ten}", "b", bt.CO_DAU)
-                .them(f"\nTừng nhân sự{f' ({i}/{n})' if n > 1 else ''}, xếp theo online luỹ kế tháng {ngay.month}.", bt.CO_NHO)
+                .them(f"\nTừng nhân sự{f' ({i}/{n})' if n > 1 else ''}, chia theo tăng / giảm so với cùng kỳ, xếp theo online luỹ kế tháng {ngay.month}.", bt.CO_NHO)
                 .them(f"\nMỗi dòng: online luỹ kế · online riêng ngày {ngay:%d/%m} (trong ngày) · chênh so cùng kỳ T{tt}.", bt.CO_NHO))
 
     return _chia_tin(dong, dau)
