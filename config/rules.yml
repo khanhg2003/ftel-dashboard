@@ -110,3 +110,9 @@ pheu_ban_hang:
     DNGCS2: CUS_DNG2
     DNGDA: DOANHNGHIEP
     Khác: CHUA_GAN
+
+# Bản tin Zalo cho trưởng phòng: người KHÔNG đưa vào mục "Cần trao đổi" (vẫn có trong bảng từng nhân sự).
+# Khoá = mã phòng, giá trị = acc_norm (chữ thường). CEO chốt 29/10/2026.
+ban_tin:
+  khong_trao_doi:
+    IBB7: [dng.khanhvhg, dng.duynt121]    # Văn Hữu Gia Khánh, Nguyễn Trúc Duy

@@ -219,8 +219,47 @@ def test_kieu_chu_dung_vi_tri_va_mau():
 def test_phong_khong_co_nguoi_can_trao_doi_ghi_dong_xanh():
     chung = tp.nap_chung(NGAY)
     _, xet, _ = tp._nhan_su(chung, "IBB7")
-    s = tp._khoi_trao_doi(xet.assign(muc_chu_y=""), None).xong()
+    can = tp.can_trao_doi(xet.assign(muc_chu_y="", ck_online=0), "IBB7")      # không cảnh báo, không ai thấp hơn cùng kỳ
+    s = tp._khoi_trao_doi(can, "8").xong()
     assert ("\nKhông có nhân sự cần trao đổi.", ["c_15a85f"]) in _doan_kieu(s, s.kieu)
+
+
+def _xet_gia(n: int, **kw):
+    import pandas as pd
+    return pd.DataFrame([{"acc_norm": f"a{i}", "ho_ten": f"Người {i}", "online": 10, "ck_online": 20, "muc_chu_y": "",
+                          "chu_y": "", **kw} for i in range(n)])
+
+
+def test_can_trao_doi_them_nguoi_thap_hon_cung_ky_va_khong_gioi_han():
+    import pandas as pd
+    x = pd.concat([_xet_gia(1, muc_chu_y=canh_bao.TRAO_DOI_NGAY, chu_y="7 ngày chưa có số"),
+                   _xet_gia(30).assign(acc_norm=lambda d: "g" + d.acc_norm),
+                   _xet_gia(3, ck_online=5).assign(acc_norm=lambda d: "t" + d.acc_norm)], ignore_index=True)
+    can = tp.can_trao_doi(x, "IBB2")
+    assert len(can) == 31                                  # 1 có cảnh báo + 30 giảm so cùng kỳ, 3 người tăng bị bỏ
+    assert can.iloc[0]["muc"] == canh_bao.TRAO_DOI_NGAY and set(can.iloc[1:]["muc"]) == {tp.GIAM_CUNG_KY}
+    dong = str(tp._dong_trao_doi(can.iloc[5], "9").xong())
+    assert "giảm 10 so T9 (-50%)" in dong and "10 online" in dong
+
+
+def test_can_trao_doi_ibb7_bo_khanh_va_duy_nhung_phong_khac_van_co():
+    x = _xet_gia(3)
+    x["acc_norm"] = ["dng.khanhvhg", "dng.duynt121", "dng.rinnd2"]
+    assert list(tp.can_trao_doi(x, "IBB7")["acc_norm"]) == ["dng.rinnd2"]
+    assert len(tp.can_trao_doi(x, "IBB2")) == 3
+
+
+def test_danh_sach_trao_doi_dai_thi_tach_tin_rieng_du_nguoi(monkeypatch):
+    chung = tp.nap_chung(NGAY)
+    can = tp.can_trao_doi(_xet_gia(70), "IBB2")
+    tin = tp.dung_tin_trao_doi(chung, "IBB7", can)
+    assert len(tin) >= 2 and all(len(t) <= bt.TOI_DA_KY_TU for t in tin)
+    assert all(f"Người {i}" in "\n".join(tin) for i in range(70))
+    monkeypatch.setattr(tp, "can_trao_doi", lambda *_a, **_k: can)
+    phan = tp.dung_tin_phong(NGAY, "IBB7", chung)
+    ten = [p for p, _ in phan]
+    assert ten[0] == "tq" and ten[1] == "td1" and any(p.startswith("ns") for p in ten)
+    assert "danh sách ở tin kế tiếp" in phan[0][1] and len(phan[0][1]) <= bt.TOI_DA_KY_TU
 
 
 def test_khong_co_ten_khach_hang():

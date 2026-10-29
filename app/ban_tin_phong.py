@@ -19,12 +19,14 @@ from sqlalchemy import delete, select
 from app import ban_tin as bt
 from app import bao_cao_phong as bcp
 from app import canh_bao, du_bao, metrics, org, overview, zalo_bot
+from app.config import rules_config
 from app.auth import ghi_log
 from app.db import session_scope
 from app.models import BanTinNguoiNhanPhong, BanTinNhatKy
 
 TOI_DA_MA_PHONG = 12             # "tp:" + mã + ":ns99" phải vừa cột loai (20 ký tự)
-PHAN_TONG_QUAN, PHAN_XONG = "tq", "ht"
+PHAN_TONG_QUAN, PHAN_TRAO_DOI, PHAN_XONG = "tq", "td", "ht"
+GIAM_CUNG_KY = "Giảm so cùng kỳ"      # nhãn cho người chỉ có vấn đề là thấp hơn cùng kỳ tháng trước
 LY_DO_TOI_DA = 70
 CAM = bt.MAU_DANH_GIA[du_bao.TANG_TOC]
 TIN_TOI_DA_NGUOI = 6             # số tên liệt kê tối đa ở mục chất lượng bán
@@ -89,7 +91,9 @@ def ma_loai(ma_phong: str, phan: str) -> str:
 def nhan_loai_tin(loai: str) -> str:
     if loai.startswith("tp:"):
         _, ma, phan = (loai.split(":") + ["", ""])[:3]
-        return f"TP {ma} · " + ("tổng quan" if phan == PHAN_TONG_QUAN else f"nhân sự {phan[2:]}")
+        mo_ta = ("tổng quan" if phan == PHAN_TONG_QUAN else f"cần trao đổi {phan[2:]}" if phan.startswith(PHAN_TRAO_DOI)
+                 else f"nhân sự {phan[2:]}")
+        return f"TP {ma} · {mo_ta}"
     return "Bản tin" if loai == "bgd" else "Nhắc nạp file"
 
 
@@ -189,19 +193,48 @@ def _khoi_tien_do(c: dict, q: pd.Series, d: pd.Series, hang) -> bt._Soan:
     return s.them("\nSố trong ngoặc tính thêm nhịp dồn cuối tháng.", bt.CO_NHO)
 
 
-def _khoi_trao_doi(xet: pd.DataFrame, gioi_han: int | None) -> bt._Soan:
+def can_trao_doi(xet: pd.DataFrame, code: str) -> pd.DataFrame:
+    """Nhân sự cần trao đổi: có mức cảnh báo chung (`canh_bao`) HOẶC online luỹ kế thấp hơn cùng kỳ tháng trước.
+    KHÔNG giới hạn số người (CEO chốt 29/10/2026). `rules.yml` -> `ban_tin.khong_trao_doi.<phòng>` loại riêng vài người
+    của một phòng khỏi danh sách này (họ vẫn có trong bảng từng nhân sự)."""
+    bo = set((((rules_config().get("ban_tin") or {}).get("khong_trao_doi")) or {}).get(code) or [])
+    x = xet[~xet["acc_norm"].isin(bo)].copy()
+    if x.empty:
+        return x.assign(chenh=0, muc="", _t=0)
+    x["chenh"] = x["online"] - x["ck_online"]
+    muc = x["muc_chu_y"].map(lambda m: m if m in canh_bao.THU_TU_MUC and m != "" else "")
+    x["muc"] = muc.where(muc != "", x["chenh"].map(lambda c: GIAM_CUNG_KY if c < 0 else ""))
+    x = x[x["muc"] != ""].copy()
+    x["_t"] = x["muc"].map(lambda m: canh_bao.THU_TU_MUC.get(m, 99))
+    return x.sort_values(["_t", "chenh"], kind="stable")
+
+
+def _dong_trao_doi(r, tt: str) -> bt._Soan:
+    chenh, ck = int(r["chenh"]), int(r["ck_online"])
+    giam = ""
+    if chenh < 0:
+        giam = f"giảm {-chenh} so T{tt}" + (f" (-{round(-chenh / ck * 100)}%)" if ck else "")
+    ngay = r["muc"] == canh_bao.TRAO_DOI_NGAY
+    s = bt._Soan().them("• ").them(str(r["ho_ten"]), "b").them(" · ").them(r["muc"], "b", bt.DO if ngay else CAM)
+    if r["muc"] == GIAM_CUNG_KY:
+        return s.them(f": {bt._so(r['online'])} online, {giam}")
+    return s.them(f": {_ngan(str(r['chu_y']))}" + (f" · {giam}" if giam else ""))
+
+
+def _khoi_trao_doi(can: pd.DataFrame, tt: str) -> bt._Soan:
     s = bt._Soan().them("2) CẦN TRAO ĐỔI", "b", bt.CO_TIEU_DE)
-    can = xet[xet["muc_chu_y"].map(lambda m: m in canh_bao.THU_TU_MUC and m != "")]
-    can = can.assign(_t=can["muc_chu_y"].map(canh_bao.THU_TU_MUC)).sort_values("_t", kind="stable")
     if can.empty:
         return s.them("\nKhông có nhân sự cần trao đổi.", bt.XANH)
-    for _, r in (can if gioi_han is None else can.head(gioi_han)).iterrows():
-        ngay = r["muc_chu_y"] == canh_bao.TRAO_DOI_NGAY
-        s.them("\n• ").them(str(r["ho_ten"]), "b").them(" · ").them(r["muc_chu_y"], "b", bt.DO if ngay else CAM)
-        s.them(f": {_ngan(str(r['chu_y']))}")
-    if gioi_han is not None and len(can) > gioi_han:
-        s.them(f"\n… và {len(can) - gioi_han} người khác.", bt.CO_NHO)
+    for _, r in can.iterrows():
+        s.them("\n")
+        s.phan.extend(_dong_trao_doi(r, tt).phan)
     return s
+
+
+def _khoi_tro_trao_doi(n: int) -> bt._Soan:
+    """Khi danh sách quá dài để nằm chung tin 1: tin 1 chỉ ghi số người, danh sách ở tin riêng ngay sau."""
+    return (bt._Soan().them("2) CẦN TRAO ĐỔI", "b", bt.CO_TIEU_DE)
+            .them("\n").them(f"{n} nhân sự", "b", CAM).them(", danh sách ở tin kế tiếp."))
 
 
 def _khoi_chat_luong(q: pd.Series, tong_cn: pd.Series, xet: pd.DataFrame, co_ten: bool) -> bt._Soan | None:
@@ -229,7 +262,7 @@ def _khoi_ton(tong: pd.Series) -> bt._Soan | None:
     return s.them("\n").them(f"{lau} hợp đồng", "b", bt.DO).them(f" chờ online từ 7 ngày trở lên (tổng tồn {bt._so(tong['ton'])}).")
 
 
-def _khoi_nhan_dinh(c: dict, q: pd.Series, d: pd.Series, xet: pd.DataFrame) -> bt._Soan:
+def _khoi_nhan_dinh(c: dict, q: pd.Series, d: pd.Series, can: pd.DataFrame) -> bt._Soan:
     """Vài câu nhận định do LUẬT cố định sinh ra từ số đã có (không dùng AI)."""
     online, mt, con = int(q["online"]), int(q["mt_internet"] or 0), int(d["con_lai"])
     s = bt._Soan().them("NHẬN ĐỊNH NHANH", "b", bt.CO_TIEU_DE)
@@ -243,31 +276,41 @@ def _khoi_nhan_dinh(c: dict, q: pd.Series, d: pd.Series, xet: pd.DataFrame) -> b
         s.them(f"\n• Hết tháng: đạt {bt._pct(online, mt)}% mục tiêu.")
     else:
         s.them("\n• Phòng chưa có mục tiêu tháng nên chưa đánh giá tiến độ.")
-    ngay_n = int((xet["muc_chu_y"] == canh_bao.TRAO_DOI_NGAY).sum())
-    theo_doi = int((xet["muc_chu_y"] == canh_bao.THEO_DOI).sum())
-    if ngay_n or theo_doi:
-        s.them("\n• ").them(f"{ngay_n + theo_doi} nhân sự cần trao đổi", "b", bt.DO if ngay_n else CAM)
-        s.them(f" ({ngay_n} trao đổi ngay, {theo_doi} theo dõi).")
+    dem = {m: int((can["muc"] == m).sum()) for m in (canh_bao.TRAO_DOI_NGAY, canh_bao.THEO_DOI, GIAM_CUNG_KY)}
+    if len(can):
+        chi_tiet = ", ".join(f"{n} {nhan}" for n, nhan in ((dem[canh_bao.TRAO_DOI_NGAY], "trao đổi ngay"),
+                                                         (dem[canh_bao.THEO_DOI], "theo dõi"),
+                                                         (dem[GIAM_CUNG_KY], "giảm so cùng kỳ")) if n)
+        s.them("\n• ").them(f"{len(can)} nhân sự cần trao đổi", "b", bt.DO if dem[canh_bao.TRAO_DOI_NGAY] else CAM)
+        s.them(f" ({chi_tiet}).")
     return s
 
 
-def dung_tin_tong_quan(chung: dict, code: str, ten: str, data=None) -> bt.TinZalo:
-    """Tin 1, tối đa 1.900 ký tự: dài quá thì bớt tên ở mục chất lượng bán rồi bớt người ở mục trao đổi."""
+def _tin_tong_quan(chung: dict, code: str, ten: str, data, can: pd.DataFrame) -> tuple[bt.TinZalo, bool]:
+    """(tin 1, danh sách trao đổi có nằm trong tin 1 không). Tối đa 1.900 ký tự: dài quá thì bớt tên ở mục chất lượng bán,
+    rồi tách danh sách cần trao đổi ra tin riêng (KHÔNG cắt bớt người)."""
     q, d, tong_cn = _dong(chung["tq"], code, "số liệu Báo cáo Tổng"), _dong(chung["db"], code, "dự báo"), \
         _dong(chung["tq"], "TOTAL", "số liệu Báo cáo Tổng")
-    data, xet, tong = data if data is not None else _nhan_su(chung, code)
+    _, xet, tong = data
+    tt = chung["thang_truoc"][5:7].lstrip("0")
     ngay = date.fromisoformat(chung["ngay_iso"])
     dau = (bt._Soan().them(f"Số chốt ngày {ngay:%d/%m} - {ten}", "b", bt.CO_DAU)
            .them(f"\nTổng quan phòng {ten}, luỹ kế tháng {ngay.month} (tới ngày {ngay:%d/%m}).", bt.CO_NHO))
     link = (os.environ.get("APP_URL") or "").strip()
     chan = bt._Soan().them(f"Xem chi tiết: {link}") if link else None
-    nd, td = _khoi_nhan_dinh(chung, q, d, xet), _khoi_tien_do(chung, q, d, _hang(chung, code))
+    nd, td = _khoi_nhan_dinh(chung, q, d, can), _khoi_tien_do(chung, q, d, _hang(chung, code))
     ton = _khoi_ton(tong)
-    for gioi_han, co_ten in ((None, True), (8, True), (5, False), (3, False), (1, False)):
-        chu = bt._ghep([dau, nd, td, _khoi_trao_doi(xet, gioi_han), _khoi_chat_luong(q, tong_cn, xet, co_ten), ton, chan])
+    for nhung, co_ten in ((True, True), (True, False), (False, True), (False, False)):
+        muc2 = _khoi_trao_doi(can, tt) if nhung or can.empty else _khoi_tro_trao_doi(len(can))
+        chu = bt._ghep([dau, nd, td, muc2, _khoi_chat_luong(q, tong_cn, xet, co_ten), ton, chan])
         if len(chu) <= bt.TOI_DA_KY_TU:
-            return chu
-    return bt._cat(chu, bt.TOI_DA_KY_TU)
+            return chu, nhung or can.empty
+    return bt._cat(chu, bt.TOI_DA_KY_TU), False
+
+
+def dung_tin_tong_quan(chung: dict, code: str, ten: str, data=None) -> bt.TinZalo:
+    data = data if data is not None else _nhan_su(chung, code)
+    return _tin_tong_quan(chung, code, ten, data, can_trao_doi(data[1], code))[0]
 
 
 # ------------------------------------------------------------------ tin 2: từng nhân sự
@@ -283,18 +326,8 @@ def _dai(s: bt._Soan) -> int:
     return sum(len(c) for c, _ in s.phan)
 
 
-def dung_tin_nhan_su(chung: dict, ten: str, xet: pd.DataFrame) -> list[bt.TinZalo]:
-    """Mỗi người một dòng, xếp online giảm dần, tách tin con khi vượt `TOI_DA_KY_TU` ký tự. Không có ai thì trả rỗng."""
-    if xet.empty:
-        return []
-    ngay, tt = date.fromisoformat(chung["ngay_iso"]), chung["thang_truoc"][5:7].lstrip("0")
-    dong = [_dong_nhan_su(r, tt, ngay) for _, r in xet.sort_values("online", ascending=False, kind="stable").iterrows()]
-
-    def dau(i: int, n: int) -> bt._Soan:
-        return (bt._Soan().them(f"Số chốt ngày {ngay:%d/%m} - {ten}", "b", bt.CO_DAU)
-                .them(f"\nTừng nhân sự{f' ({i}/{n})' if n > 1 else ''}, xếp theo online luỹ kế tháng {ngay.month}.", bt.CO_NHO)
-                .them(f"\nMỗi dòng: online luỹ kế · online riêng ngày {ngay:%d/%m} (trong ngày) · chênh so cùng kỳ T{tt}.", bt.CO_NHO))
-
+def _chia_tin(dong: list[bt._Soan], dau) -> list[bt.TinZalo]:
+    """Chia các dòng thành nhiều tin con, mỗi tin ≤ `TOI_DA_KY_TU` ký tự; `dau(i, n)` dựng phần đầu của tin thứ i / n."""
     cho = bt.TOI_DA_KY_TU - _dai(dau(99, 99))
     nhom: list[list[bt._Soan]] = [[]]
     dung = 0
@@ -307,6 +340,32 @@ def dung_tin_nhan_su(chung: dict, ten: str, xet: pd.DataFrame) -> list[bt.TinZal
     return [bt._ghep([dau(i, len(nhom)), _noi_dong(g)]) for i, g in enumerate(nhom, 1)]
 
 
+def dung_tin_nhan_su(chung: dict, ten: str, xet: pd.DataFrame) -> list[bt.TinZalo]:
+    """Mỗi người một dòng, xếp online giảm dần, tách tin con khi vượt `TOI_DA_KY_TU` ký tự. Không có ai thì trả rỗng."""
+    if xet.empty:
+        return []
+    ngay, tt = date.fromisoformat(chung["ngay_iso"]), chung["thang_truoc"][5:7].lstrip("0")
+    dong = [_dong_nhan_su(r, tt, ngay) for _, r in xet.sort_values("online", ascending=False, kind="stable").iterrows()]
+
+    def dau(i: int, n: int) -> bt._Soan:
+        return (bt._Soan().them(f"Số chốt ngày {ngay:%d/%m} - {ten}", "b", bt.CO_DAU)
+                .them(f"\nTừng nhân sự{f' ({i}/{n})' if n > 1 else ''}, xếp theo online luỹ kế tháng {ngay.month}.", bt.CO_NHO)
+                .them(f"\nMỗi dòng: online luỹ kế · online riêng ngày {ngay:%d/%m} (trong ngày) · chênh so cùng kỳ T{tt}.", bt.CO_NHO))
+
+    return _chia_tin(dong, dau)
+
+
+def dung_tin_trao_doi(chung: dict, ten: str, can: pd.DataFrame) -> list[bt.TinZalo]:
+    """Danh sách cần trao đổi ở tin riêng (khi quá dài để nằm chung tin 1); tách nhiều tin con nếu cần."""
+    ngay, tt = date.fromisoformat(chung["ngay_iso"]), chung["thang_truoc"][5:7].lstrip("0")
+
+    def dau(i: int, n: int) -> bt._Soan:
+        return (bt._Soan().them(f"Số chốt ngày {ngay:%d/%m} - {ten}", "b", bt.CO_DAU)
+                .them(f"\nNhân sự cần trao đổi{f' ({i}/{n})' if n > 1 else ''}.", bt.CO_NHO))
+
+    return _chia_tin([_dong_trao_doi(r, tt) for _, r in can.iterrows()], dau)
+
+
 def _noi_dong(dong: list[bt._Soan]) -> bt._Soan:
     s = bt._Soan()
     for i, d in enumerate(dong):
@@ -316,11 +375,16 @@ def _noi_dong(dong: list[bt._Soan]) -> bt._Soan:
 
 
 def dung_tin_phong(ngay_iso: str, code: str, chung: dict | None = None) -> list[tuple[str, bt.TinZalo]]:
-    """[(phần, tin)]: `tq` rồi `ns1`, `ns2`... Một lượt đọc số nhân sự dùng cho cả hai tin."""
+    """[(phần, tin)]: `tq`, rồi `td1`... (chỉ khi danh sách cần trao đổi quá dài để nằm chung tin 1), rồi `ns1`, `ns2`...
+    Một lượt đọc số nhân sự dùng cho mọi tin."""
     chung = chung or nap_chung(ngay_iso)
     ten = bcp.ten_phong(code)
     nhan_su = _nhan_su(chung, code)
-    ra = [(PHAN_TONG_QUAN, dung_tin_tong_quan(chung, code, ten, nhan_su))]
+    can = can_trao_doi(nhan_su[1], code)
+    tin1, nhung = _tin_tong_quan(chung, code, ten, nhan_su, can)
+    ra = [(PHAN_TONG_QUAN, tin1)]
+    if not nhung:
+        ra += [(f"{PHAN_TRAO_DOI}{i}", t) for i, t in enumerate(dung_tin_trao_doi(chung, ten, can), 1)]
     ra += [(f"ns{i}", t) for i, t in enumerate(dung_tin_nhan_su(chung, ten, nhan_su[1]), 1)]
     return ra
 
