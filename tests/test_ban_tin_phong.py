@@ -448,7 +448,7 @@ def test_gui_thu_truong_phong(gia):
     ok, msg = bt.gui_thu(bt.ds_nguoi_nhan()[0]["id"])
     assert ok and "IBB7" in msg
     chu = gia.cho("a")
-    assert len(chu) >= 4 and all(t.startswith("[BẢN THỬ - chưa tính là đã gửi]\n") for t in chu)
+    assert len(chu) >= 4 and all(t.startswith("[BẢN THỬ]\n") for t in chu)
     assert any(c.startswith("Số chốt ngày") and "b" in st for c, st in _doan_kieu(str(chu[0]), gia.kieu[0]))
     assert _nhat_ky() == []
     gia.hong.add("a")

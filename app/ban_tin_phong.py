@@ -358,9 +358,8 @@ def dung_tin_nhan_su(chung: dict, ten: str, xet: pd.DataFrame) -> list[bt.TinZal
         dong += [dau_nhom] + hang[1:]
 
     def dau(i: int, n: int) -> bt._Soan:
-        return (bt._Soan().them(f"Số chốt ngày {ngay:%d/%m} - {ten}", "b", bt.CO_DAU)
-                .them(f"\nTừng nhân sự{f' ({i}/{n})' if n > 1 else ''}, chia theo tăng / giảm so với cùng kỳ, xếp theo online luỹ kế tháng {ngay.month}.", bt.CO_NHO)
-                .them(f"\nMỗi dòng: online luỹ kế · online riêng ngày {ngay:%d/%m} (trong ngày) · chênh so cùng kỳ T{tt}.", bt.CO_NHO))
+        s = bt._Soan().them(f"Số chốt ngày {ngay:%d/%m} - {ten}", "b", bt.CO_DAU)
+        return s.them(f"\nPhần ({i}/{n})", bt.CO_NHO) if n > 1 else s
 
     return _chia_tin(dong, dau)
 
@@ -499,7 +498,7 @@ def gui_thu_truong_phong(nguoi: dict) -> tuple[bool, str]:
         return False, f"Không dựng được tin thử ({type(e).__name__})."
     tron = []
     for ma, phan, t in tin:
-        ly_do, la_tron = _gui_mot(nguoi, bt._voi_dau("[BẢN THỬ - chưa tính là đã gửi]\n", t))
+        ly_do, la_tron = _gui_mot(nguoi, bt._voi_dau("[BẢN THỬ]\n", t))
         if ly_do:
             ghi_log("ban_tin_gui_thu", f"{nguoi['ten']} ({ma}/{phan}): {ly_do}"[:200])
             return False, (f"Chưa gửi được cho {nguoi['ten']} ở tin {nhan_loai_tin(ma_loai(ma, phan))} "

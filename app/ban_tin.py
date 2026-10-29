@@ -135,7 +135,7 @@ def gui_thu(id_: int) -> tuple[bool, str]:
     try:
         ngay_iso = ngay_so_gui() or metrics.ngay_moi_nhat()
         if ngay_iso:
-            chu = _voi_dau("[BẢN THỬ - chưa tính là đã gửi]\n", dung_noi_dung_bgd(ngay_iso))
+            chu = _voi_dau("[BẢN THỬ]\n", dung_noi_dung_bgd(ngay_iso))
     except Exception:
         pass
     try:
