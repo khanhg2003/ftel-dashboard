@@ -107,3 +107,61 @@ def _migrate_staff_map() -> None:
 # Chạy ngay lúc nạp module: staff_map đã tồn tại từ trước (không qua init_db() khi chạy script /
 # kiểm thử riêng lẻ), nên không thể chỉ trông chờ init_db() hay app/ui/app.py gọi.
 _migrate_staff_map()
+
+
+def _cap_nhat_nhan_su_ibb6() -> None:
+    """Cập nhật trạng thái và thâm niên nhân sự IBB6 theo yêu cầu Trưởng phòng:
+    - Thu Vân (DNG.VanNTT107): chuyển trạng thái 'Nghỉ tạm thời' -> 'Bình thường'.
+    - ThuNA54 (DNG.ThuNA54): thêm vào staff_map (phòng IBB6) và hr_monthly (thâm niên 2 tháng, 'Bình thường').
+    """
+    from sqlalchemy import inspect, text
+    try:
+        insp = inspect(engine)
+        tables = set(insp.get_table_names())
+        if "hr_monthly" not in tables:
+            return
+        with engine.begin() as c:
+            c.execute(text(
+                "UPDATE hr_monthly SET trang_thai = 'Bình thường' "
+                "WHERE LOWER(TRIM(acc)) = 'dng.vanntt107' AND trang_thai != 'Bình thường'"
+            ))
+            if "dim_employee" in tables:
+                c.execute(text(
+                    "UPDATE dim_employee SET trang_thai = 'Đang làm việc' "
+                    "WHERE acc_norm = 'dng.vanntt107' AND trang_thai != 'Đang làm việc'"
+                ))
+            if "staff_map" in tables:
+                sm_exists = c.execute(text(
+                    "SELECT COUNT(*) FROM staff_map WHERE acc_norm = 'dng.thuna54'"
+                )).scalar()
+                if not sm_exists:
+                    c.execute(text(
+                        "INSERT INTO staff_map (acc, acc_norm, phong_code, ten_hien_thi, nguon, updated_at) "
+                        "VALUES ('DNG.ThuNA54', 'dng.thuna54', 'IBB6', 'ThuNA54', 'manual', CURRENT_TIMESTAMP)"
+                    ))
+                else:
+                    c.execute(text(
+                        "UPDATE staff_map SET phong_code = 'IBB6', ten_hien_thi = 'ThuNA54' "
+                        "WHERE acc_norm = 'dng.thuna54' AND phong_code != 'IBB6'"
+                    ))
+            hr_exists = c.execute(text(
+                "SELECT COUNT(*) FROM hr_monthly WHERE LOWER(TRIM(acc)) = 'dng.thuna54'"
+            )).scalar()
+            if not hr_exists:
+                c.execute(text(
+                    "INSERT INTO hr_monthly (ma_nv, thang, acc, ho_ten, vi_tri, phong_ps, tham_nien_bucket, "
+                    "tham_nien_thang, nhom_tham_nien, trang_thai, dieu_kien) "
+                    "VALUES ('THUNA54', '2026-08', 'DNG.ThuNA54', 'ThuNA54', 'NVKD', 'DNGB6', '2', 2, 'MOI', 'Bình thường', 'Đủ ĐK xét')"
+                ))
+            else:
+                c.execute(text(
+                    "UPDATE hr_monthly SET tham_nien_bucket = '2', tham_nien_thang = 2, "
+                    "nhom_tham_nien = 'MOI', trang_thai = 'Bình thường' "
+                    "WHERE LOWER(TRIM(acc)) = 'dng.thuna54' AND (tham_nien_bucket != '2' OR trang_thai != 'Bình thường')"
+                ))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Lỗi cập nhật nhân sự IBB6: %s", e)
+
+
+_cap_nhat_nhan_su_ibb6()
