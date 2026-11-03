@@ -8,7 +8,7 @@ import dash_ag_grid as dag
 import plotly.graph_objects as go
 from dash import dcc, html
 
-from app.ui.components import LOCALE_VI, ghi_chu
+from app.ui.components import LOCALE_VI, ghi_chu, tip
 
 XANH_DUONG, CAM = "#0072BC", "#F5A25D"
 DO = {"backgroundColor": "#F7BDBD", "color": "#7F1D1D", "fontWeight": "600"}
@@ -87,18 +87,18 @@ def theo_tinh(hs: dict) -> list:
              html.Span(f"{len(tinh)} tỉnh", className="chip")]
     if hs["onl_ban_truoc"]:
         chips.append(html.Span(f"{hs['onl_ban_truoc']} online từ hợp đồng ký trước đầu tháng", className="chip"))
-    cot_tinh = [{"field": "tinh", "headerName": "Tỉnh", "minWidth": 110, "flex": 1}, _so_cot("ban", "Bán", 64),
-                _so_cot("ban_da_onl", "Đã online", 84), _so_cot("onl", "Online", 74, cellStyle={"fontWeight": "700"}),
-                {"field": "ty_trong", "headerName": "% online", "type": "numericColumn", "width": 82,
+    cot_tinh = [{"field": "tinh", "headerName": "Tỉnh", "minWidth": 110, "flex": 1}, _so_cot("ban", "Bán", 64, headerTooltip="Hợp đồng ký mới trong tháng này"),
+                _so_cot("ban_da_onl", "Đã online", 84, headerTooltip="Trong số HĐ vừa bán tháng này, đã có bao nhiêu HĐ nghiệm thu online"), _so_cot("onl", "Online", 74, cellStyle={"fontWeight": "700"}, headerTooltip="Tổng số hợp đồng nghiệm thu online trong tháng (gồm cả HĐ ký từ tháng trước)"),
+                {"field": "ty_trong", "headerName": "% online", "type": "numericColumn", "width": 82, "headerTooltip": "Tỷ trọng online của tỉnh này trên tổng online của nhân sự",
                  "valueFormatter": PCT}]
     cot_xa = [{"field": "tinh", "headerName": "Tỉnh", "width": 100}, {"field": "xa", "headerName": "Phường / xã",
                                                                        "minWidth": 130, "flex": 1, "tooltipField": "xa"},
-              _so_cot("ban", "Bán", 60), _so_cot("onl", "Online", 72, cellStyle={"fontWeight": "700"})]
-    return [html.H4("Bán theo tỉnh và phường / xã"), html.Div(chips, className="chips", style={"margin": "0 0 8px"}),
+              _so_cot("ban", "Bán", 60, headerTooltip="Hợp đồng ký mới trong tháng này"), _so_cot("onl", "Online", 72, cellStyle={"fontWeight": "700"}, headerTooltip="Tổng số hợp đồng nghiệm thu online trong tháng")]
+    return [html.H4("Bán theo tỉnh và phường / xã"), html.Div([*chips, tip("• Bán: Hợp đồng ký mới trong tháng này.\n• Đã online: Trong số HĐ vừa ký tháng này, đã có bao nhiêu HĐ nghiệm thu xong.\n• Online: Tổng HĐ thực tế online trong tháng (gồm cả HĐ ký từ tháng trước).")], className="chips", style={"margin": "0 0 8px", "alignItems": "center"}),
             _bang(cot_tinh, tinh.to_dict("records")),
             html.Div("Phường / xã nhiều nhất", className="ct-tinh-ten", style={"margin": "12px 0 6px"}),
             _bang(cot_xa, xa.to_dict("records")),
-            ghi_chu("Bán = hợp đồng tạo trong tháng (gồm cả chưa online); Online = hợp đồng online trong tháng. "
+            ghi_chu("Bán = Hợp đồng ký mới trong tháng (trong đó 'Đã online' là ca đã lắp xong). Online = Tổng HĐ online trong tháng (gồm cả ca ký tháng trước chuyển sang). "
                     "Tỉnh theo chi nhánh quản lý của hợp đồng.", style={"margin": "8px 0 0"})]
 
 
