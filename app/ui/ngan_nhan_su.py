@@ -22,7 +22,7 @@ from app import canh_bao as quy_tac
 from app import ho_so_nhan_su
 from app.auth import ghi_log
 from app.db import engine
-from app.metrics import cac_ngay_co_du_lieu
+from app.metrics import cac_ngay_co_du_lieu, month_range
 from app.ui import ky_chung as kc
 from app.ui.components import LOCALE_VI
 from app.ui.icons import icon
@@ -71,7 +71,8 @@ def _ung_vien(acc: str, thang: str, goi_y_phong: list[str | None]) -> list[str]:
     """Các phòng có thể là phòng của người này trong tháng, theo thứ tự thử: gợi ý của trình duyệt, danh mục nhân sự,
     rồi phòng ghi trên hợp đồng. Chỉ giữ phòng tài khoản được xem."""
     duoc = _phong_duoc_xem()
-    tu, den = f"{thang}-01", f"{thang}-31"
+    tu_d, den_d, _ = month_range(thang)
+    tu, den = tu_d.isoformat(), den_d.isoformat()
     with engine.connect() as c:
         dm = [r[0] for r in c.execute(text(
             """SELECT phong_code FROM staff_map WHERE acc_norm = :a AND (hieu_luc_den IS NULL OR hieu_luc_den >= :tu)
@@ -208,5 +209,9 @@ def register(app):
         if not acc:
             return no_update, no_update
         goi_y_phong = [(mo or {}).get("phong"), (kc.lam_sach(ky) or {}).get("phong")]
-        return noi_dung(acc, goi_y_phong, (kc.lam_sach(ky) or {}).get("den"))
+        try:
+            return noi_dung(acc, goi_y_phong, (kc.lam_sach(ky) or {}).get("den"))
+        except Exception as e:
+            ghi_log("loi_xem_nhan_su", f"{acc}: {e}")
+            return _chua_co("Không thể tải thông tin", f"Đã xảy ra lỗi khi tải hồ sơ nhân sự ({e}). Vui lòng thử lại sau.")
 
