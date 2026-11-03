@@ -85,6 +85,10 @@ def _de_doc(noi_dung):
     """Đoạn chữ dài -> mỗi câu một dòng có chấm đầu dòng; một câu thì giữ nguyên."""
     if not isinstance(noi_dung, str):
         return noi_dung
+    if "\n" in noi_dung:
+        dong = [c.strip().lstrip("•- \t") for c in noi_dung.split("\n") if c.strip()]
+        if len(dong) > 1:
+            return [html.Div(c, className="tip-dong") for c in dong]
     cau = tach_cau(noi_dung)
     if len(cau) <= 1:
         return noi_dung

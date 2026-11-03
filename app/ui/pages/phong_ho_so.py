@@ -94,7 +94,12 @@ def theo_tinh(hs: dict) -> list:
     cot_xa = [{"field": "tinh", "headerName": "Tỉnh", "width": 100}, {"field": "xa", "headerName": "Phường / xã",
                                                                        "minWidth": 130, "flex": 1, "tooltipField": "xa"},
               _so_cot("ban", "Bán", 60, headerTooltip="Hợp đồng ký mới trong tháng này"), _so_cot("onl", "Online", 72, cellStyle={"fontWeight": "700"}, headerTooltip="Tổng số hợp đồng nghiệm thu online trong tháng")]
-    return [html.H4("Bán theo tỉnh và phường / xã"), html.Div([*chips, tip("• Bán: Hợp đồng ký mới trong tháng này.\n• Đã online: Trong số HĐ vừa ký tháng này, đã có bao nhiêu HĐ nghiệm thu xong.\n• Online: Tổng HĐ thực tế online trong tháng (gồm cả HĐ ký từ tháng trước).")], className="chips", style={"margin": "0 0 8px", "alignItems": "center"}),
+    tip_tinh = tip([
+        html.Div([html.B("Bán: "), "Hợp đồng ký mới trong tháng này."], className="tip-dong"),
+        html.Div([html.B("Đã online: "), "Trong số HĐ vừa ký tháng này, đã có bao nhiêu HĐ nghiệm thu xong."], className="tip-dong"),
+        html.Div([html.B("Online: "), "Tổng HĐ thực tế online trong tháng (gồm cả HĐ ký từ tháng trước)."], className="tip-dong"),
+    ])
+    return [html.H4("Bán theo tỉnh và phường / xã"), html.Div([*chips, tip_tinh], className="chips", style={"margin": "0 0 8px", "alignItems": "center"}),
             _bang(cot_tinh, tinh.to_dict("records")),
             html.Div("Phường / xã nhiều nhất", className="ct-tinh-ten", style={"margin": "12px 0 6px"}),
             _bang(cot_xa, xa.to_dict("records")),
