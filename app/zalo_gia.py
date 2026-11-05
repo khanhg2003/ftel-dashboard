@@ -242,16 +242,31 @@ def nhom_hien(goi: list[dict], ch: dict | None = None) -> dict[str, list[dict]]:
 
 
 def _ten_goi(g: dict) -> list[str]:
-    return [t for t in chuan(g["ten"]).split() if t not in ("internet", "goi", "combo")]
+    """Tên gói bỏ chữ Internet / Gói / Combo và đuôi V.VIP: "Combo Giga - V.VIP" và "Gói Giga" cùng ra ["giga"], phân biệt bằng `_la_combo`."""
+    t = [x for x in chuan(g["ten"]).split() if x not in ("internet", "goi", "combo")]
+    while t and t[-1] in ("v", "vip", "vvip"):
+        t.pop()
+    return t
 
 
-def _khop_goi(tokens: list[str], goi: list[dict]) -> list[dict]:
+def _la_combo(g: dict) -> bool:
+    return chuan(g["ten"]).startswith("combo")
+
+
+def _uu_tien_combo(ds: list[dict], combo: bool) -> list[dict]:
+    """Người hỏi có nói "combo" / V.VIP thì chỉ lấy combo; không nói thì bỏ combo (hỏi "giga" là Gói Giga). Không còn gì thì giữ nguyên."""
+    loc = [g for g in ds if _la_combo(g) == combo]
+    return loc or ds
+
+
+def _khop_goi(tokens: list[str], goi: list[dict], combo: bool = False) -> list[dict]:
     chuoi = " ".join(tokens)
     co = []
     for g in goi:
         t = _ten_goi(g)
         if t and (_co_cum(chuoi, " ".join(t)) or "".join(t) in tokens):
             co.append(g)
+    co = _uu_tien_combo(co, combo)
     return [g for g in co if not any(o is not g and len(_ten_goi(o)) > len(_ten_goi(g)) and _co_cum(" ".join(_ten_goi(o)), " ".join(_ten_goi(g)))
                                     for o in co)]
 
@@ -340,9 +355,10 @@ def _tra_goi(ctx: dict, tinh: int, phuong: int, vi_tri: str) -> dict:
     chan = nd.chan_trang(res["luc"], res.get("cu", False))
     q, nhom_hoi = _tach_nhom(ctx["q"])
     tokens = [t for t in q.split() if t not in _TU_CHUNG]
-    chon = [g for g in goi if g["code"] in (ctx.get("goi") or [])] or _khop_goi(q.split(), goi)
+    combo = "combo" in q.split() or NHOM_VVIP in nhom_hoi
+    chon = [g for g in goi if g["code"] in (ctx.get("goi") or [])] or _khop_goi(q.split(), goi, combo)
     if not chon and tokens:
-        gan = [g for g in goi if set(_ten_goi(g)) & set(tokens)]
+        gan = _uu_tien_combo([g for g in goi if set(_ten_goi(g)) & set(tokens)], combo)
         if len(gan) == 1:
             chon = gan
         elif gan:

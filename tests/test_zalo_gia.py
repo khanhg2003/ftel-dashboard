@@ -648,6 +648,15 @@ def test_combo_vvip_bi_bo_khong_khop_ten_va_khong_la_goi_tuong_tu():
     assert "Combo Giga - V.VIP" in tuong_tu and "Meta - V.VIP" not in tuong_tu and "Lux800" not in tuong_tu
 
 
+def test_hoi_combo_ra_combo_con_hoi_ten_tran_ra_goi_thuong():
+    """"combo giga" / "giga v.vip" -> Combo Giga - V.VIP; "giga" -> Internet Giga (lỗi thật 05/11/2026: hỏi combo giga chỉ ra Giga)."""
+    for q, mong in (("combo giga phường hải châu", "Combo Giga - V.VIP"), ("giá giga v.vip phường hải châu", "Combo Giga - V.VIP"),
+                    ("giá giga vvip phường hải châu", "Combo Giga - V.VIP"), ("combo sky phường hải châu", "Combo Sky - V.VIP"),
+                    ("giá giga phường hải châu", "Internet Giga - Phường")):
+        kq = zg.tra_loi(q, None)
+        assert kq["hoi"] is None and mong in _chu(kq).splitlines()[0], q
+
+
 # ------------------------------------------------------------------ ảnh gói lấy từ fpt.vn
 URL_ANH = "https://s3-api.fpt.vn/fptvn-storage/uploads/internet-giga-3.jpg"
 
