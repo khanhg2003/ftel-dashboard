@@ -577,7 +577,7 @@ def test_gui_chi_tiet_mot_goi_gui_anh_truoc_roi_tin_chu(may_khach, gui, monkeypa
     _gui(may_khach, _su_kien("@Bot giá giga phường nam nha trang khánh hòa"))
     assert gui.su_kien == ["anh", "tin"] and len(gui.anh) == 1
     c, url, caption, han, token = gui.anh[0]
-    assert c == "g1" and token == TOKEN and han <= 8
+    assert c == "g1" and token == TOKEN and han <= zg.HAN_ANH_GIAY
     assert caption == "Gói Giga · Phường Nam Nha Trang · 245.000đ/tháng"
     assert url.startswith("https://app.example.vn/api/zalo-gia/anh/") and url.endswith(".png")
     assert za.doc_ma(url.rsplit("/", 1)[1][:-4]) == (56, 10, "goi-giga")             # mã trong link khớp đúng gói + phường vừa hỏi
@@ -598,7 +598,7 @@ def test_banner_loi_thi_van_gui_tin_chu_khong_bao_loi_cho_nguoi_dung(may_khach, 
     assert len(gui) == 1 and "Internet Giga" in gui[0][1] and "lỗi" not in gui[0][1].lower()
     with session_scope() as s:
         ds = [r.detail for r in s.execute(select(AuditLog).where(AuditLog.action == "zalo_gia_la")).scalars()]
-    assert ds == ["banner không gửi được: Zalo từ chối (mã 400)."] and "/anh/" not in ds[0]
+    assert ds == [f"banner không gửi được sau {zg.SO_LAN_GUI_ANH} lần: Zalo từ chối (mã 400)."] and "/anh/" not in ds[0]
     monkeypatch.setattr(zalo_bot, "gui_anh", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("https://x/anh/BI-MAT.png")))
     _gui(may_khach, _su_kien("giá sky phường hải châu", ma="m2"))
     assert len(gui) == 2
@@ -655,6 +655,26 @@ def test_hoi_combo_ra_combo_con_hoi_ten_tran_ra_goi_thuong():
                     ("giá giga phường hải châu", "Internet Giga - Phường")):
         kq = zg.tra_loi(q, None)
         assert kq["hoi"] is None and mong in _chu(kq).splitlines()[0], q
+
+
+def test_banner_lan_dau_loi_thi_thu_lai_mot_lan_va_gui_duoc(may_khach, gui, monkeypatch):
+    """Zalo tải banner chậm lần đầu (máy nguội) thì thử lại; lần hai được thì không ghi nhật ký lỗi và không gửi trùng."""
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import AuditLog
+    monkeypatch.setenv("APP_URL", "https://app.example.vn")
+    lan = []
+
+    def cham(*a, **k):
+        lan.append(1)
+        if len(lan) == 1:
+            raise zalo_bot.LoiZalo("Zalo từ chối (mã 400).")
+    monkeypatch.setattr(zalo_bot, "gui_anh", cham)
+    _gui(may_khach, _su_kien("giá giga phường hải châu"))
+    assert len(lan) == 2 and len(gui) == 1
+    with session_scope() as s:
+        assert not list(s.execute(select(AuditLog).where(AuditLog.action == "zalo_gia_la")).scalars())
 
 
 def test_dong_tra_truoc_khong_co_duoi_qua_camera_cloud():

@@ -38,7 +38,8 @@ DUONG_DAN = "/api/zalo-gia/webhook"
 HAN_HOI_LAI = timedelta(minutes=10)
 TOI_DA_CAU_PHUT = 10              # số câu mỗi chat trong 1 phút
 HAN_TRA_LOI = 40                  # giây; Vercel cho 60
-HAN_ANH_GIAY = 8                  # giây chờ Zalo tải banner (gồm tải ảnh fpt.vn + dựng): chậm hơn thì bỏ ảnh, tin chữ vẫn đi
+HAN_ANH_GIAY = 15                 # giây chờ Zalo tải banner (gồm tải ảnh fpt.vn + dựng); lần đầu máy nguội có thể ~5-8 giây
+SO_LAN_GUI_ANH = 2                # lần đầu lỗi / quá hạn thì thử lại một lần (máy chủ đã nóng, banner đã nhớ tạm) rồi mới bỏ ảnh
 TOI_DA_LUA_CHON = 8
 TOI_DA_GOI_CHI_TIET = 3
 SO_LUONG = 8
@@ -519,10 +520,19 @@ def _gui_banner(chat_id: str, b: dict | None) -> None:
         return
     try:
         url = za.url_anh(goc, b["tinh"], b["phuong"], b["code"])
-        if url:
-            zalo_bot.gui_anh(chat_id, url, za.chu_thich(b["ten"], b["vi_tri"], b["gia"]), han=HAN_ANH_GIAY, token=zalo_bot.token_gia())
     except Exception as e:
-        ghi_log("zalo_gia_la", f"banner không gửi được: {str(e) if isinstance(e, zalo_bot.LoiZalo) else type(e).__name__}"[:200])
+        ghi_log("zalo_gia_la", f"banner không ký được: {type(e).__name__}"[:200])
+        return
+    if not url:
+        return
+    loi = ""
+    for lan in range(1, SO_LAN_GUI_ANH + 1):
+        try:
+            zalo_bot.gui_anh(chat_id, url, za.chu_thich(b["ten"], b["vi_tri"], b["gia"]), han=HAN_ANH_GIAY, token=zalo_bot.token_gia())
+            return
+        except Exception as e:
+            loi = str(e) if isinstance(e, zalo_bot.LoiZalo) else type(e).__name__
+    ghi_log("zalo_gia_la", f"banner không gửi được sau {SO_LAN_GUI_ANH} lần: {loi}"[:200])
 
 
 def _xu_ly(payload) -> None:
