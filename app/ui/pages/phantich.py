@@ -485,11 +485,7 @@ def _ky(tu_iso: str | None, den_iso: str | None):
 
 
 def _ten_nhan_vien() -> dict:
-    from sqlalchemy import text
-
-    from app.db import engine
-    df = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
-    return dict(zip(df.acc_norm, df.ho_ten))
+    return pt.ten_nhan_vien()
 
 
 def _ds_ton(ton: pd.DataFrame, thang: str, pham_vi_nv, phong_loc: str | None) -> pd.DataFrame:

@@ -216,7 +216,7 @@ def _loi_de_hieu(e: ai.LoiAI) -> str:
 
 
 # ------------------------------------------------------------------ trả lời
-PHIEN_DAN_ZALO = 4        # tăng khi đổi DAN_ZALO để câu trả lời đã nhớ theo lời dặn cũ hết hiệu lực (khoá lưu của `tro_ly.chat` có số phiên này)
+PHIEN_DAN_ZALO = 5        # tăng khi đổi DAN_ZALO để câu trả lời đã nhớ theo lời dặn cũ hết hiệu lực (khoá lưu của `tro_ly.chat` có số phiên này)
 DAN_ZALO = """
 
 CÁCH TRẢ LỜI TRÊN ZALO (ưu tiên hơn MỌI lời dặn về độ dài, mở đầu và định dạng ở trên, kể cả quy tắc 'Mở đầu gọn bằng kỳ trong ngoặc'):
@@ -226,6 +226,7 @@ CÁCH TRẢ LỜI TRÊN ZALO (ưu tiên hơn MỌI lời dặn về độ dài, 
 - Ghi ngày cụ thể dd/mm, không viết "hôm qua" trơn. Số của ngày chưa chốt thì thêm đúng chữ "(tạm tính)" sau con số.
 - Một con số: "<phạm vi> online <dd/mm>: <số> hợp đồng". Có so sánh thì thêm một dòng: "So với <dd/mm>: <số> (tăng/giảm <x>)".
 - Hỏi THEO TỈNH / THÀNH (bán hoặc online ở tỉnh nào, bao nhiêu %): gọi ban_theo_tinh (hỏi "bán" thì chi_so 'ban', hỏi "online" thì 'online'; "bán" và "online" là HAI chỉ số khác nhau, nói đúng chữ người hỏi dùng), rồi trả mỗi dòng "Đà Nẵng: 45 (76,3%)" theo thứ tự công cụ trả, cuối cùng một dòng "Tổng <dd/mm>: <số> hợp đồng" (khoảng nhiều ngày thì ghi "dd/mm - dd/mm"). Không chép lại cột cùng kỳ nếu người hỏi không hỏi so sánh.
+- Hỏi về MỘT NGƯỜI hoặc "từng người" theo tỉnh (vd "HuyTA ở IBB6 hôm qua bán bao nhiêu, ở đâu", "IBB6 từng người hôm qua bán ở tỉnh nào"): gọi nhan_su_theo_tinh (hỏi "bán" thì chi_so 'ban', hỏi "online" thì 'online'; một người thì truyền nguoi, kèm phong nếu người hỏi nói rõ phòng; "từng người" của một phòng thì chỉ truyền phong). Một người: dòng đầu "<Tên> (<phòng>) bán <n> hợp đồng <dd/mm>:" (hỏi online thì "online <n> hợp đồng"), rồi mỗi dòng "Đà Nẵng: 5 (71,4%)". Từng người của phòng: mỗi người một dòng "<Tên>: <tổng> (Đà Nẵng 12, Quảng Nam 3...)" theo công cụ trả, cuối là dòng "Tổng <phòng> <dd/mm>: <số> hợp đồng". Công cụ báo trùng tên nhiều người thì hỏi lại ngắn một câu kèm danh sách người + phòng; không tìm thấy thì "Chưa có số của <tên> (không thấy nhân sự này)".
 - KHÔNG nhận định, KHÔNG suy diễn nguyên nhân, KHÔNG khen chê. Chỉ nêu số và so sánh; người hỏi muốn phân tích thì sẽ hỏi.
 - TUYỆT ĐỐI KHÔNG nhắc tên công cụ, tên tham số (như chi_nhanh), mã nội bộ hay chữ "Fox"; KHÔNG hứa "sẽ làm / sẽ gửi / sẽ tổng hợp sau"; KHÔNG viết đoạn giải thích về giới hạn của dữ liệu hay cách báo cáo hoạt động.
 - Chỉ dùng số lấy từ công cụ. Nếu thật sự không có số thì viết MỘT câu ngắn: "Chưa có số <cái gì> (lý do ngắn)"."""

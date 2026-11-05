@@ -43,6 +43,8 @@ COT_NV = {"ho_ten": "Họ tên", "acc": "Acc", "hang": "Hạng", "online": "Onli
           "ton": "Tồn", "ton_qua_7": "Hợp đồng chờ quá 7 ngày", "ngay_lien_chua_co_so": "Ngày liền chưa có số",
           "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó", "ket_luan": "NSLĐ tháng gần nhất",
           "muc_chu_y": "Mức chú ý", "chu_y": "Cần chú ý"}
+TOI_DA_TINH_NGUOI = 10            # công cụ nhan_su_theo_tinh (một người): từ tỉnh thứ 11 gộp "Khác"
+TOI_DA_NGUOI = 20                 # công cụ nhan_su_theo_tinh (cả phòng): tối đa 20 người một lượt
 TOI_DA_TINH = 12                  # công cụ ban_theo_tinh: từ tỉnh thứ 13 gộp "Khác"
 TEN_CHI_SO = {"online": "Số online", "vvip": "V.VIP", "fptplay": "FPT Play (combo)", "camera": "Camera",
               "ban_moi": "Hợp đồng tạo mới"}
@@ -514,6 +516,15 @@ def cong_cu(user) -> list[dict]:
                      "sự vào tham số 'phong' của công cụ khác.",
                      nguoi={"type": "string", "description": "Acc (VD DNG.Huyta5) hoặc họ tên nhân sự"},
                      den=_ngay("Ngày luỹ kế đến")),
+            _cong_cu("nhan_su_theo_tinh", "Số hợp đồng của NHÂN SỰ theo TỈNH trong một khoảng ngày, đúng như thẻ 'Ai bán ở tỉnh nào': (a) có 'nguoi' (acc hoặc họ tên: "
+                     "'HuyTA', 'Huyta5' hay họ tên đều được) -> tổng hợp đồng của người đó rồi từng tỉnh (số hợp đồng, % của người đó); trùng tên nhiều người thì "
+                     "truyền thêm 'phong' để chọn đúng phòng; (b) chỉ có 'phong' -> mỗi nhân sự của phòng một dòng: tổng + 3 tỉnh nhiều nhất, kèm dòng TỔNG PHÒNG. "
+                     "Một ngày thì tu = den. HAI CHỈ SỐ KHÁC NHAU: chi_so='ban' (mặc định, dùng cho câu hỏi 'bán') = hợp đồng TẠO MỚI trong khoảng; "
+                     "chi_so='online' = hợp đồng online trong khoảng. Không có tên khách hàng hay mã hợp đồng.",
+                     tu=_ngay("Từ ngày"), den=_ngay("Đến ngày"),
+                     chi_so={"type": "string", "enum": ["ban", "online"], "tuy_chon": True},
+                     nguoi={"type": "string", "description": "Acc (VD DNG.Huyta5, Huyta5, HuyTA) hoặc họ tên nhân sự", "tuy_chon": True},
+                     phong={"type": "string", "description": "Mã phòng (VD IBB6; 'B6' cũng được); kèm 'nguoi' để chọn đúng phòng khi trùng tên", "tuy_chon": True}),
             _cong_cu("nsld", "NSLĐ (điểm ITN bình quân) theo phòng từng tháng và tân binh (tỷ lệ nghỉ, ITN "
                      "theo tháng làm việc). Có mã phòng thì kèm từng nhân sự của phòng đó.",
                      nam={"type": "integer"}, den_thang={"type": "integer", "description": "1-12"},
@@ -522,8 +533,8 @@ def cong_cu(user) -> list[dict]:
     return ds
 
 
-def tim_nhan_su(user, nguoi: str, d: date) -> str:
-    """acc_norm của nhân sự khớp acc hoặc họ tên, trong phạm vi người hỏi được xem nhân sự.
+def tim_nhan_su(user, nguoi: str, d: date, phong: str | None = None) -> str:
+    """acc_norm của nhân sự khớp acc hoặc họ tên, trong phạm vi người hỏi được xem nhân sự (có `phong` thì chỉ xét người của phòng đó).
     Khớp nhiều người thì liệt kê để AI hỏi lại, không tự chọn bừa."""
     from app.ingest.commit import _bo_dau
     _chan_nhan_su(user)
@@ -531,8 +542,10 @@ def tim_nhan_su(user, nguoi: str, d: date) -> str:
     if not gon:
         raise LoiAI("Chưa nói rõ tên hoặc acc của nhân sự cần xem.")
     df = fi._hieu_suat(f"{d.year}-{d.month:02d}", user.phong_nhan_su(), d.day)
+    if phong:
+        df = df[df.phong_code == phong]
     if df.empty:
-        raise LoiAI("Chưa có dữ liệu nhân sự của tháng này.")
+        raise LoiAI("Chưa có dữ liệu nhân sự của tháng này." if not phong else f"Phòng {phong} chưa có dữ liệu nhân sự của tháng này.")
     acc = df.acc.fillna("").map(lambda x: _bo_dau(str(x)).lower())
     ho_ten = df.ho_ten.fillna("").map(lambda x: _bo_dau(str(x)).lower())
     hop = df[(acc == gon) | (ho_ten == gon)]
@@ -579,6 +592,74 @@ def ban_theo_tinh(user, tu: str | None, den: str | None, phong: str | None, chi_
     dong.append(("TỔNG", tong, tong_ck))
     pct = lambda n: '"' + (f"{n / tong * 100:.1f}".replace(".", ",") if tong else "0") + '%"'        # noqa: E731  - dấu phẩy thập phân nằm trong ngoặc kép của CSV
     return dau + "\nTỉnh,Số hợp đồng,% trên tổng,Cùng kỳ\n" + "\n".join(f"{t},{n},{pct(n)},{c}" for t, n, c in dong)
+
+
+def _chu_khoang(d_tu: date, d: date) -> str:
+    return f"{d:%d/%m/%Y}" if d_tu == d else f"{d_tu:%d/%m} - {d:%d/%m/%Y}"
+
+
+def nhan_su_theo_tinh(user, tu: str | None, den: str | None, chi_so: str | None, nguoi: str | None, phong: str | None) -> str:
+    """Hợp đồng của MỘT nhân sự (hoặc từng nhân sự của một phòng) theo tỉnh: dùng đúng `phan_tich.hd_theo_tinh` + `ma_tran_nv_tinh` của thẻ "Ai bán ở tỉnh nào"
+    (trưởng phòng không vào bảng cá nhân nhưng số vẫn nằm trong tổng phòng). Chỉ nhân sự trong `phong_nhan_su()`; không tên khách, không mã hợp đồng."""
+    from app.tinh import ten_tinh
+    d = _ngay_hop_le(den)
+    try:
+        d_tu = min(date.fromisoformat(str(tu or "")[:10]), d)
+    except ValueError:
+        d_tu = d
+    theo = "online" if chi_so == "online" else "ban"
+    code = _ma_phong(phong)
+    _chan_nhan_su(user)
+    pn = user.phong_nhan_su()
+    if code and pn is not None and code not in pn:
+        raise LoiAI("Bạn không có quyền xem số của người / phòng này.")
+    nguoi = str(nguoi or "").strip()
+    if not nguoi and not code:
+        raise LoiAI("Cần nói tên hoặc acc của một nhân sự, hoặc mã phòng.")
+    acc = tim_nhan_su(user, nguoi, d, code) if nguoi else None
+    scope = [code] if code else (None if pn is None else sorted(pn))
+    df = pt.hd_theo_tinh(d_tu.isoformat(), d.isoformat(), scope, theo)
+    chi = "HỢP ĐỒNG TẠO MỚI (bán)" if theo == "ban" else "HỢP ĐỒNG ONLINE"
+    ky = _chu_khoang(d_tu, d)
+    if df.empty:
+        return f"SỐ {chi} THEO TỈNH, {ky}: (không có hợp đồng nào trong khoảng này)"
+    df = df.assign(acc=df.acc_norm.fillna(df.acc_nhan_vien.str.lower()))
+    ten_nv = pt.ten_nhan_vien()
+    ten_phong = {p["code"]: p["ten"] for p in phong_order(f"{d.year}-{d.month:02d}")}
+    pct = lambda n, t: '"' + f"{n / t * 100:.1f}".replace(".", ",") + '%"'        # noqa: E731  - dấu phẩy thập phân nằm trong ngoặc kép của CSV
+    if acc:
+        x = df[df.acc == acc]
+        ten = ten_nv.get(acc) or (x.acc_nhan_vien.dropna().iloc[0] if x.acc_nhan_vien.notna().any() else acc)
+        if x.empty:
+            return f"SỐ {chi} THEO TỈNH, {ky}: {ten} không có hợp đồng nào trong khoảng này."
+        ma_p = x.phong_code.value_counts().index[0]
+        goc = x.acc_nhan_vien.dropna().iloc[0] if x.acc_nhan_vien.notna().any() else acc
+        tong = len(x)
+        them = f", trong đó đã online {int(x.ngay_online.notna().sum())}" if theo == "ban" else ""
+        g = x.groupby("tinh").size().sort_values(ascending=False)
+        dong = [(t, int(n)) for t, n in g.head(TOI_DA_TINH_NGUOI).items()]
+        if len(g) > TOI_DA_TINH_NGUOI:
+            dong.append(("Khác", int(g.iloc[TOI_DA_TINH_NGUOI:].sum())))
+        return (f"SỐ {chi} THEO TỈNH, {ky}: {ten} ({goc}) · phòng {ten_phong.get(ma_p, ma_p)}: {tong} hợp đồng{them}. Tỉnh theo CN quản lý của hợp đồng (nơi khách ở).\n"
+                "Tỉnh,Số hợp đồng,% của người này\n" + "\n".join(f"{t},{n},{pct(n, tong)}" for t, n in dong))
+    mt, tinh = pt.ma_tran_nv_tinh(df, ten_nv, ten_phong)
+    tong_phong = len(df)
+    dau = f"SỐ {chi} THEO TỈNH TỪNG NHÂN SỰ, {ky}; phòng {ten_phong.get(code, code)}. Tỉnh theo CN quản lý của hợp đồng (nơi khách ở)."
+    cot = [ma for ma, _ in tinh]
+    dong, tong_ds = [], 0
+    for r in mt.itertuples():
+        tong_ds += int(r.tong)
+        top = sorted(((getattr(r, c), c) for c in cot if getattr(r, c) > 0), key=lambda v: -v[0])[:3]
+        dong.append((r.ho_ten, r.acc, int(r.tong), "; ".join(f"{ten_tinh(c)}: {int(n)}" for n, c in top)))
+    dong.sort(key=lambda v: -v[2])
+    hien = dong[:TOI_DA_NGUOI]
+    ra = [dau, "Nhân sự,Acc,Tổng,Tỉnh nhiều nhất"] + [f'{t},{a},{n},"{ts}"' for t, a, n, ts in hien]
+    if len(dong) > len(hien):
+        ra.append(f"(còn {len(dong) - len(hien)} người khác: tổng {sum(v[2] for v in dong[len(hien):])})")
+    ra.append(f"TỔNG PHÒNG,,{tong_phong},")
+    if tong_phong > tong_ds:
+        ra.append(f"(trưởng phòng và người không xếp hạng cá nhân: {tong_phong - tong_ds} hợp đồng, đã nằm trong tổng phòng)")
+    return "\n".join(ra)
 
 
 def nhan_su_ca_nhan(user, nguoi: str, den: str | None) -> str:
@@ -645,6 +726,8 @@ def chay_cong_cu(user, ten: str, ts: dict) -> str:
         return f"{TEN_CHI_SO[chi_so]} từng ngày tháng {thang} (cột = ngày):\n" + out.to_csv().strip()
     if ten == "ban_theo_tinh":
         return ban_theo_tinh(user, ts.get("tu"), ts.get("den"), ts.get("phong"), ts.get("chi_so"))
+    if ten == "nhan_su_theo_tinh":
+        return nhan_su_theo_tinh(user, ts.get("tu"), ts.get("den"), ts.get("chi_so"), ts.get("nguoi"), ts.get("phong"))
     if ten == "nhan_su_ca_nhan":
         return nhan_su_ca_nhan(user, str(ts.get("nguoi") or ""), ts.get("den"))
     if ten == "nhan_su_phong":

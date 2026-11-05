@@ -110,3 +110,100 @@ def test_ma_phong_hieu_cach_goi_B5_phong_5_la_IBB5():
     """Chủ app 05/11/2026 hỏi "b5 hôm qua bán ở tỉnh nào": AI truyền "b5", bị báo lỗi rồi bỏ trống phòng nên ra số cả chi nhánh."""
     from app import tro_ly_du_lieu as dl
     assert [dl._ma_phong(q) for q in ("b5", "B5", "phòng 5", "ibb 5", "IBB7", "Phong 7")] == ["IBB5", "IBB5", "IBB5", "IBB5", "IBB7", "IBB7"]
+
+
+# ------------------------------------------------------------------ nhan_su_theo_tinh (từng người / từng nhân sự của phòng theo tỉnh)
+KY = {"tu": "2026-09-01", "den": "2026-09-11"}
+
+
+def _cuaso(kq: str) -> list[list[str]]:
+    return list(csv.reader(io.StringIO(kq)))
+
+
+def test_nhan_su_theo_tinh_chi_co_cho_vai_tro_xem_duoc_nhan_su():
+    assert "nhan_su_theo_tinh" in {c["function"]["name"] for c in dl.cong_cu(_nguoi())}
+    khong = SimpleNamespace(username="kiemthu.nl", role="operator", duoc_xem_nhan_su=False, phong_duoc_xem=lambda: None, phong_nhan_su=lambda: [])
+    assert "nhan_su_theo_tinh" not in {c["function"]["name"] for c in dl.cong_cu(khong)}
+    with pytest.raises(ai.LoiAI, match="không được xem chi tiết nhân sự"):
+        dl.chay_cong_cu(khong, "nhan_su_theo_tinh", {**KY, "nguoi": "huyta"})
+
+
+def test_mot_nguoi_tong_cac_tinh_bang_tong_nguoi_va_khop_the_web():
+    kq = dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "nguoi": "HuyTA", "phong": "B6"})
+    dong = _cuaso(kq.partition("\nTỉnh,")[2] and "Tỉnh," + kq.partition("\nTỉnh,")[2])
+    dau = kq.split("\n")[0]
+    assert "TẠO MỚI (bán)" in dau and "(DNG.Huyta5)" in dau and "phòng IBB6" in dau and "01/09 - 11/09/2026" in dau
+    tinh = dong[1:]
+    tong = int(dau.split("phòng IBB6: ")[1].split(" hợp đồng")[0])
+    assert tong == sum(int(r[1]) for r in tinh) > 0                                       # tổng các tỉnh = tổng của người
+    assert abs(sum(_so_pct(r[2]) for r in tinh) - 100) <= 0.1 * len(tinh)
+    so = [int(r[1]) for r in tinh if r[0] != "Khác"]
+    assert so == sorted(so, reverse=True) and len(tinh) <= dl.TOI_DA_TINH_NGUOI + 1
+    ct = pt.chi_tiet_nv_tinh("dng.huyta5", KY["tu"], KY["den"], ["IBB6"])                  # đúng số của cửa sổ "Ai bán ở tỉnh nào" trên web
+    assert tong == ct["ban"] == int(ct["tinh"].ban.sum())
+    assert {r[0]: int(r[1]) for r in tinh} == dict(zip(ct["tinh"].tinh, ct["tinh"].ban)) | {}  # tối đa 10 tỉnh nên cùng khoá khi người này ít hơn 10 tỉnh
+    assert f"đã online {int(ct['ban_da_onl'])}" in dau
+
+
+def test_mot_nguoi_online_khac_ban_va_mac_dinh_la_ban():
+    ban = dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "nguoi": "Huyta5"})
+    onl = dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "nguoi": "Huyta5", "chi_so": "online"})
+    assert "TẠO MỚI" in ban.split("\n")[0] and "HỢP ĐỒNG ONLINE" in onl.split("\n")[0] and "đã online" not in onl.split("\n")[0]
+    ct = pt.chi_tiet_nv_tinh("dng.huyta5", KY["tu"], KY["den"], None)
+    assert f": {ct['onl']} hợp đồng" in onl.split("\n")[0]
+
+
+def test_mot_ngay_tu_bang_den():
+    kq = dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {"tu": NGAY, "den": NGAY, "nguoi": "Huyta5"})
+    assert "10/09/2026" in kq.split("\n")[0] and " - " not in kq.split("\n")[0].split(":")[0]
+
+
+def test_khong_tim_thay_hoac_trung_ten_thi_goi_y_de_hoi_lai():
+    with pytest.raises(ai.LoiAI, match="Không có nhân sự nào tên hoặc acc giống 'zzzkhongco'"):
+        dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "nguoi": "zzzkhongco"})
+    with pytest.raises(ai.LoiAI, match=r"Có \d+ người khớp 'hoa': .*\(DNG\..*IBB5\)"):
+        dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "nguoi": "hoa"})
+    with pytest.raises(ai.LoiAI, match="Không có nhân sự nào"):                              # kèm phòng khác thì không khớp
+        dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "nguoi": "hoantt", "phong": "IBB7"})
+    with pytest.raises(ai.LoiAI, match="Cần nói tên hoặc acc"):
+        dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", KY)
+
+
+def test_nguoi_va_phong_ngoai_quyen_bi_chan():
+    tp = SimpleNamespace(username="kiemthu.tp", role="phong", duoc_xem_nhan_su=True, phong_duoc_xem=lambda: ["IBB2"], phong_nhan_su=lambda: ["IBB2"])
+    with pytest.raises(ai.LoiAI, match="Bạn không có quyền xem số của người / phòng này"):
+        dl.chay_cong_cu(tp, "nhan_su_theo_tinh", {**KY, "phong": "IBB6"})
+    with pytest.raises(ai.LoiAI, match="Bạn không có quyền xem số của người / phòng này"):
+        dl.chay_cong_cu(tp, "nhan_su_theo_tinh", {**KY, "phong": "IBB6", "nguoi": "Huyta5"})
+    with pytest.raises(ai.LoiAI, match="Không có nhân sự nào"):                              # người của phòng khác: không thấy
+        dl.chay_cong_cu(tp, "nhan_su_theo_tinh", {**KY, "nguoi": "Huyta5"})
+    assert "TỔNG PHÒNG" in dl.chay_cong_cu(tp, "nhan_su_theo_tinh", {**KY, "phong": "IBB2"})
+
+
+def test_ca_phong_co_dong_tong_va_khop_ban_theo_tinh_cua_phong_do():
+    kq = dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "phong": "IBB6"})
+    dong = [r for r in _cuaso(kq)[1:] if r and not r[0].startswith("(")]
+    assert "phòng IBB6" in kq.split("\n")[0] and dong[0] == ["Nhân sự", "Acc", "Tổng", "Tỉnh nhiều nhất"]
+    nguoi, tong = dong[1:-1], dong[-1]
+    assert tong[0] == "TỔNG PHÒNG"
+    theo_tinh = dl.chay_cong_cu(_nguoi(), "ban_theo_tinh", {**KY, "phong": "IBB6", "chi_so": "ban"})
+    assert int(tong[2]) == int(_bang(theo_tinh)[1][-1][1])                                   # cùng tổng với công cụ theo tỉnh của đúng phòng đó
+    so = [int(r[2]) for r in nguoi]
+    assert so == sorted(so, reverse=True) and len(nguoi) <= dl.TOI_DA_NGUOI and all(n > 0 for n in so)   # người không có số bị bỏ
+    khac = int(kq.split("(trưởng phòng và người không xếp hạng cá nhân: ")[1].split(" hợp đồng")[0]) if "trưởng phòng và người" in kq else 0
+    con = int(kq.split("(còn ")[1].split(" người khác: tổng ")[1].split(")")[0]) if "(còn " in kq else 0
+    assert sum(so) + con + khac == int(tong[2])                                              # người + phần còn lại + trưởng phòng = tổng phòng
+    assert all(len(r[3].split("; ")) <= 3 for r in nguoi)                                    # mỗi người tối đa 3 tỉnh
+    assert any("Đà Nẵng" in r[3] for r in nguoi) and "ten_khach" not in kq.lower()
+
+
+def test_b6_hieu_thanh_ibb6_va_b5_thanh_ibb5():
+    assert "phòng IBB6" in dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "phong": "B6"}).split("\n")[0]
+    assert "phòng IBB5" in dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "phong": "ibb5"}).split("\n")[0]
+    with pytest.raises(ai.LoiAI, match="không phải mã phòng"):
+        dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {**KY, "phong": "Huyta5"})
+
+
+def test_khoang_khong_co_hop_dong_thi_bao_gon_nhan_su():
+    kq = dl.chay_cong_cu(_nguoi(), "nhan_su_theo_tinh", {"tu": "2026-01-01", "den": "2026-01-02", "phong": "IBB6"})
+    assert "không có hợp đồng nào" in kq

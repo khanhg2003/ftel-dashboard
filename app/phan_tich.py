@@ -307,6 +307,12 @@ def online_theo_tinh(tu: str, den: str, chi_phong: list[str] | None = None) -> p
     return hd_theo_tinh(tu, den, chi_phong, "online")
 
 
+def ten_nhan_vien() -> dict:
+    """{acc_norm: họ tên} của mọi nhân sự trong danh mục."""
+    df = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee"), engine)
+    return dict(zip(df.acc_norm, df.ho_ten))
+
+
 def ten_xa(v) -> str:
     """Phường / xã trong file (cột Quận huyện - sau sáp nhập 07/2025 chỉ còn xã/phường, tên không dấu)."""
     s = " ".join(str(v or "").split())
