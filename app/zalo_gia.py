@@ -46,9 +46,13 @@ _BI_DANH = {"hcm": "ho chi minh", "tphcm": "ho chi minh", "sai gon": "ho chi min
 _TU_CHUNG = set("gia cuoc goi internet combo o tai phuong xa thi tran dac khu tinh thanh pho tp cho la bao nhieu the nao oi nhe a vay giup "
                 "minh em anh chi toi xem tra cuu hoi bot ban dang hien nay cac tat ca va cua co khong gi vui long lam on may tien phi "
                 "uu dai ap dung".split())
-_NHOM_TU_KHOA = [("doanh nghiep", "Internet doanh nghiệp"), ("camera", "Combo Internet Camera"), ("vvip", "Combo Internet + V.VIP"),
-                 ("v vip", "Combo Internet + V.VIP"), ("gia dinh", "Internet gia đình"), ("game thu", "Internet game thủ"),
-                 ("game", "Internet game thủ"), ("ca nhan", "Internet cá nhân")]
+# Chủ app chốt 05/11/2026: bot chỉ hiện ba nhóm dưới đây, theo thứ tự này. Muốn bật lại nhóm nào thì bỏ khỏi NHOM_AN.
+NHOM_AN = {"Internet game thủ", "Internet doanh nghiệp", "Combo Internet Camera"}
+NHOM_THU_TU = ["Internet cá nhân", "Internet gia đình", "Combo Internet + V.VIP"]
+_NHOM_TU_KHOA = [(tk, nhan) for tk, nhan in [
+    ("doanh nghiep", "Internet doanh nghiệp"), ("camera", "Combo Internet Camera"), ("vvip", "Combo Internet + V.VIP"),
+    ("v vip", "Combo Internet + V.VIP"), ("gia dinh", "Internet gia đình"), ("game thu", "Internet game thủ"),
+    ("game", "Internet game thủ"), ("ca nhan", "Internet cá nhân")] if nhan not in NHOM_AN]
 
 
 def dam_bao_bang() -> None:
@@ -217,6 +221,20 @@ def _khop_phuong_gan(cum: list[str], wards: list[dict]) -> list[dict]:
     return [w for w in wards if w["sach"] in gan]
 
 
+def nhom_hien(goi: list[dict], ch: dict | None = None) -> dict[str, list[dict]]:
+    """Các nhóm bot được hiện, mỗi gói CHỈ MỘT lần: gói nằm ở nhiều nhóm (Sky F1, Combo Lux 800...) giữ ở nhóm đứng trước theo `NHOM_THU_TU`,
+    nhóm hết gói thì bỏ. Trong nhóm giữ thứ tự giá thấp -> cao của `gia_fpt_nhom`. Gói chỉ thuộc nhóm bị ẩn thì không hiện và không khớp tên."""
+    nhom = {k: v for k, v in gn.chia_nhom(goi, ch).items() if k not in NHOM_AN}
+    thu_tu = [k for k in NHOM_THU_TU if k in nhom] + [k for k in nhom if k not in NHOM_THU_TU]
+    da, ra = set(), {}
+    for k in thu_tu:
+        moi = [g for g in nhom[k] if g["code"] not in da]
+        da |= {g["code"] for g in moi}
+        if moi:
+            ra[k] = moi
+    return ra
+
+
 def _ten_goi(g: dict) -> list[str]:
     return [t for t in chuan(g["ten"]).split() if t not in ("internet", "goi", "combo")]
 
@@ -309,7 +327,8 @@ def giai(ctx: dict) -> dict:
 
 def _tra_goi(ctx: dict, tinh: int, phuong: int, vi_tri: str) -> dict:
     res = gf.goi_theo_phuong(tinh, phuong)
-    goi = res["goi"]
+    nhom_dep = nhom_hien(res["goi"], gn.cau_hinh())
+    goi = [g for gs in nhom_dep.values() for g in gs]
     if not goi:
         return {"tin": [f"Hiện chưa thấy gói Internet nào đang bán ở {vi_tri}."], "hoi": None, "nhat_ky": None}
     chan = nd.chan_trang(res["luc"], res.get("cu", False))
@@ -328,26 +347,22 @@ def _tra_goi(ctx: dict, tinh: int, phuong: int, vi_tri: str) -> dict:
         chon = chon[:TOI_DA_GOI_CHI_TIET]
     if chon:
         return _chi_tiet(chon, goi, tinh, phuong, vi_tri, chan)
-    return _liet_ke(goi, vi_tri, chan, nhom_hoi, tokens)
+    return _liet_ke(nhom_dep, vi_tri, chan, nhom_hoi, tokens)
 
 
-def _chi_tiet(chon: list[dict], goi: list[dict], tinh: int, phuong: int, vi_tri: str, chan: str) -> dict:
+def _chi_tiet(chon: list[dict], goi: list[dict], tinh: int, phuong: int, vi_tri: str, chan: list) -> dict:
     ct = gf.chi_tiet_nhieu(tinh, phuong, chon)
     khoi = [nd.chi_tiet(g, ct.get(g["code"]), vi_tri) for g in chon]
     ten_chon = {g["code"] for g in chon}
     gan = [g for g in goi if g["code"] not in ten_chon and any(" ".join(_ten_goi(c)) in " ".join(_ten_goi(g)) for c in chon)]
     if gan:
-        khoi.append("Gói tương tự (gõ tên đầy đủ để xem):\n" + nd.danh_sach_don(gan[:4]))
+        khoi.append([nd.dong_chu("Gói tương tự (gõ tên đầy đủ để xem):")] + nd.danh_sach_don(gan[:4]))
     khoi.append(chan)
     return {"tin": nd.chia_tin(khoi), "hoi": None, "nhat_ky": (", ".join(g["ten"] for g in chon), vi_tri)}
 
 
-def _liet_ke(goi: list[dict], vi_tri: str, chan: str, nhom_hoi: list[str], tokens: list[str]) -> dict:
-    nhom = gn.chia_nhom(goi, gn.cau_hinh())
-    if nhom_hoi:
-        nhom = {k: v for k, v in nhom.items() if k in nhom_hoi}
-    if not nhom:
-        nhom = {"Các gói": goi}
+def _liet_ke(nhom: dict[str, list[dict]], vi_tri: str, chan: list, nhom_hoi: list[str], tokens: list[str]) -> dict:
+    nhom = {k: v for k, v in nhom.items() if k in nhom_hoi} or nhom
     tieu_de = (f"Mình chưa thấy gói “{' '.join(tokens)}” ở {vi_tri}. Các gói đang bán:" if tokens else "")
     khoi = nd.danh_sach(nhom, vi_tri, tieu_de) + [chan]
     return {"tin": nd.chia_tin(khoi), "hoi": None, "nhat_ky": ("danh sách", vi_tri)}
@@ -458,11 +473,12 @@ def _chay(ctx: dict) -> dict:
         ex.shutdown(wait=False)
 
 
-def _gui(chat_id: str, tin: list[str]) -> None:
+def _gui(chat_id: str, tin: list) -> None:
+    """Tin có kiểu chữ (`.kieu`) mà Zalo từ chối thì tự gửi lại bản chữ trơn."""
     token = zalo_bot.token_gia()
     for t in tin:
         try:
-            zalo_bot.gui_tin(chat_id, t, token=token)
+            zalo_bot.gui_tin_du_phong(chat_id, t, token=token)
         except zalo_bot.LoiZalo:
             return
 

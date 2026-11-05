@@ -255,12 +255,12 @@ def _diem_kieu(k: dict) -> int:
     return 1 if "b" in st else 0                         # đậm trơn, rồi cỡ nhỏ
 
 
-def _giam_kieu(kieu: list[dict]) -> list[dict]:
-    """Quá `KIEU_TOI_DA` thì bỏ dần kiểu ít quan trọng (cỡ nhỏ, đậm trơn, tiêu đề) cho tới khi vừa; giữ thứ tự gốc."""
-    if len(kieu) <= KIEU_TOI_DA:
+def _giam_kieu(kieu: list[dict], toi_da: int = KIEU_TOI_DA) -> list[dict]:
+    """Quá `toi_da` (mặc định `KIEU_TOI_DA`) thì bỏ dần kiểu ít quan trọng (cỡ nhỏ, đậm trơn, tiêu đề) cho tới khi vừa; giữ thứ tự gốc."""
+    if len(kieu) <= toi_da:
         return kieu
     thu_tu = sorted(range(len(kieu)), key=lambda i: (_diem_kieu(kieu[i]), -i))
-    bo = set(thu_tu[:len(kieu) - KIEU_TOI_DA])
+    bo = set(thu_tu[:len(kieu) - toi_da])
     return [k for i, k in enumerate(kieu) if i not in bo]
 
 

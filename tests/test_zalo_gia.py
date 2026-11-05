@@ -35,9 +35,13 @@ def _g(id_, code, ten, gia):
 
 GOI = [_g(1, "goi-giga", "Internet Giga", 245000), _g(2, "goi-sky", "Internet Sky", 270000), _g(3, "goi-sky-f1", "Internet Sky F1", 330000),
        _g(4, "goi-meta-f1", "Internet Meta F1", 340000), _g(5, "goi-meta-f2", "Internet Meta F2", 390000),
-       _g(6, "super-300-biz", "Super300 Biz", 450000)]
-CH = {"nhom": [("Internet cá nhân", ["goi-giga", "goi-sky"]), ("Internet gia đình", ["goi-sky-f1", "goi-meta-f1", "goi-meta-f2"]),
-               ("Internet doanh nghiệp", ["super-300-biz"])], "nguon": "website"}
+       _g(6, "super-300-biz", "Super300 Biz", 450000), _g(7, "combo-lux800", "Combo Internet Lux800 V.VIP", 800000),
+       _g(8, "goi-f-game", "Internet F-Game", 300000), _g(9, "goi-giga-eyes", "Internet Giga Eyes3", 400000)]
+GOI[0]["toc_do"] = "300 Mbps / 300 Mbps"
+# như website: Sky F1 nằm cả "cá nhân" lẫn "gia đình", Lux800 nằm cả V.VIP lẫn doanh nghiệp; ba nhóm game thủ / doanh nghiệp / camera bot không hiện
+CH = {"nhom": [("Internet cá nhân", ["goi-giga", "goi-sky", "goi-sky-f1"]), ("Internet gia đình", ["goi-sky-f1", "goi-meta-f1", "goi-meta-f2"]),
+               ("Combo Internet + V.VIP", ["combo-lux800"]), ("Internet doanh nghiệp", ["super-300-biz", "combo-lux800"]),
+               ("Internet game thủ", ["goi-f-game"]), ("Combo Internet Camera", ["goi-giga-eyes"])], "nguon": "website"}
 
 
 def _lc(hinh_thuc, thang, tong, phi, tang=0, thang_dong=None, den="31/12/2026"):
@@ -50,6 +54,14 @@ def _ct(phi):
     lc = [_lc("Trả sau", 1, 245000, phi), _lc("Trả trước", 6, 1470000, phi), _lc("Trả trước", 13, 2940000, phi, tang=1, thang_dong=12)]
     return {"ten": "x", "gia": 245000, "phi_nhom": [] if phi is None else [["Trả theo tháng · trả trước 6 / 13 tháng", phi]],
             "thiet_bi": None, "mo_ta": [], "lua_chon": lc, "luc": utc_bay_gio()}
+
+
+class Ghi(list):
+    """Các tin bot gửi (chat, chữ, token); `.kieu` là text_styles đi kèm từng tin."""
+
+    def __init__(self):
+        super().__init__()
+        self.kieu = []
 
 
 PHI = {"goi-giga": 300000, "goi-sky": None, "goi-meta-f1": 0}
@@ -78,8 +90,12 @@ def moi_truong(monkeypatch):
     monkeypatch.setattr(gf, "goi_theo_phuong", lambda t, p: {"goi": GOI, "luc": utc_bay_gio(), "cu": False})
     monkeypatch.setattr(gf, "chi_tiet_nhieu", lambda t, p, goi: {g["code"]: _ct(PHI.get(g["code"], 500000)) for g in goi})
     monkeypatch.setattr(gn, "cau_hinh", lambda: CH)
-    gui = []
-    monkeypatch.setattr(zalo_bot, "gui_tin", lambda c, n, *a, **k: gui.append((c, n, k.get("token"))))
+    gui = Ghi()
+
+    def ghi(c, n, *a, **k):
+        gui.append((c, n, k.get("token")))
+        gui.kieu.append(k.get("text_styles"))
+    monkeypatch.setattr(zalo_bot, "gui_tin", ghi)
     yield gui
     don()
 
@@ -105,8 +121,8 @@ def test_cau_hoi_anh_mau_ra_chi_tiet_goi_giga():
     chu = _chu(kq)
     assert kq["hoi"] is None and kq["nhat_ky"] == ("Internet Giga", "Phường Nam Nha Trang, Khánh Hòa")
     assert "Internet Giga - Phường Nam Nha Trang, Khánh Hòa" in chu and "245.000đ/tháng" in chu
-    assert "Trả theo tháng: 245.000đ/tháng" in chu
-    assert "Trả trước 13 tháng: 2.940.000đ (đóng 12 tháng, tặng 1 tháng)" in chu
+    assert "Trả theo tháng · 245.000đ/tháng" in chu and "Trả trước 6 tháng · 1.470.000đ" in chu
+    assert "Trả trước 13 tháng · 2.940.000đ (đóng 12, tặng 1)" in chu and "Tốc độ: 300 Mbps\n" in chu
     assert "Phí hòa mạng: 300.000đ" in chu and "Chính sách áp dụng đến hết 31/12/2026" in chu
     assert "đã gồm VAT" in chu and "Super300" not in chu
 
@@ -192,15 +208,99 @@ def test_goi_khong_co_ten_thi_bao_roi_liet_ke():
 
 
 # ------------------------------------------------------------------ liệt kê, nhóm, lệnh
-def test_chi_hoi_gia_phuong_thi_liet_ke_theo_nhom_va_nhac_go_ten_goi():
+def test_chi_hoi_gia_phuong_thi_liet_ke_moi_goi_mot_dong_va_nhac_go_ten_goi():
     chu = _chu(zg.tra_loi("giá cước phường hải châu", None))
-    assert "Internet cá nhân" in chu and "• Internet Giga: 245.000đ/tháng - 1 Gbps / 300 Mbps" in chu
-    assert "Internet doanh nghiệp" in chu and "Gõ thêm tên gói để xem chi tiết" in chu
+    assert "• Internet Giga: 245.000đ/tháng · 300 Mbps" in chu and "• Internet Sky: 270.000đ/tháng · 1 Gbps / 300 Mbps" in chu
+    assert "Gõ tên gói để xem chi tiết, ví dụ: giá Giga phường Hải Châu." in chu
 
 
-def test_hoi_nhom_doanh_nghiep_chi_liet_ke_nhom_do():
-    chu = _chu(zg.tra_loi("giá gói doanh nghiệp phường hải châu", None))
-    assert "Super300 Biz" in chu and "Internet Giga" not in chu
+def test_bo_ba_nhom_game_doanh_nghiep_camera():
+    chu = _chu(zg.tra_loi("giá cước phường hải châu", None))
+    for nhom in zg.NHOM_AN:
+        assert nhom not in chu
+    for goi in ("Super300", "F-Game", "Eyes3"):
+        assert goi not in chu
+    kq = zg.tra_loi("giá super300 phường hải châu", None)             # hỏi thẳng gói của nhóm bị ẩn: không khớp
+    assert "chưa thấy gói" in _chu(kq) and "Super300 Biz:" not in _chu(kq)
+    kq = zg.tra_loi("giá gói doanh nghiệp phường hải châu", None)
+    assert kq["hoi"] is None and "Super300" not in _chu(kq)
+
+
+def test_moi_goi_chi_hien_mot_lan_va_giu_thu_tu_nhom():
+    chu = _chu(zg.tra_loi("giá cước phường hải châu", None))
+    for goi in ("Internet Sky F1", "Combo Internet Lux800 V.VIP", "Internet Giga:"):
+        assert chu.count(goi) == 1, goi
+    assert chu.index("Internet cá nhân") < chu.index("Internet gia đình") < chu.index("Combo Internet + V.VIP")
+    ca_nhan = chu.split("Internet gia đình")[0]
+    assert ca_nhan.index("Giga") < ca_nhan.index("Sky:") < ca_nhan.index("Sky F1")                      # giá thấp -> cao
+    gia_dinh = chu.split("Internet gia đình")[1].split("Combo Internet + V.VIP")[0]
+    assert "Sky F1" not in gia_dinh and "Meta F1" in gia_dinh
+    hien = zg.nhom_hien(GOI, CH)
+    assert list(hien) == ["Internet cá nhân", "Internet gia đình", "Combo Internet + V.VIP"]
+    assert [g["code"] for g in hien["Internet gia đình"]] == ["goi-meta-f1", "goi-meta-f2"]
+
+
+def test_nhom_het_goi_sau_khi_loai_trung_thi_bo_ca_tieu_de():
+    ch = {"nhom": [("Internet cá nhân", ["goi-giga"]), ("Internet gia đình", ["goi-giga"])], "nguon": "website"}
+    assert list(zg.nhom_hien(GOI, ch)) == ["Internet cá nhân"]
+
+
+def test_goi_tuong_tu_toi_da_4_dong_va_khong_trung():
+    goi = GOI + [_g(20 + i, f"goi-sky-x{i}", f"Internet Sky X{i}", 500000 + i) for i in range(6)]
+    ch = {"nhom": [("Internet cá nhân", ["goi-sky"] + [f"goi-sky-x{i}" for i in range(6)] + ["goi-sky-f1"]),
+                   ("Internet gia đình", ["goi-sky-f1", "goi-sky-x0"])], "nguon": "website"}
+    hien = [g for gs in zg.nhom_hien(goi, ch).values() for g in gs]
+    kq = zg._chi_tiet([goi[1]], hien, 511, 1, "Hải Châu, Đà Nẵng", nd.chan_trang(utc_bay_gio()))
+    chu = "\n".join(kq["tin"])
+    tuong_tu = chu.split("Gói tương tự (gõ tên đầy đủ để xem):")[1].split("\n\n")[0].strip().splitlines()
+    assert len(tuong_tu) == 4 and len(set(tuong_tu)) == 4
+
+
+# ------------------------------------------------------------------ kiểu chữ
+def _doan_co_kieu(tin, kieu):
+    """Các đoạn chữ mang kiểu `kieu` (đổi vị trí UTF-16 của Zalo về chữ để so)."""
+    b = str(tin).encode("utf-16-le")
+    return [b[k["start"] * 2:(k["start"] + k["len"]) * 2].decode("utf-16-le") for k in tin.kieu if kieu in k["st"]]
+
+
+def test_danh_sach_gia_noi_bat_va_so_kieu_duoi_tran():
+    tin = zg.tra_loi("giá cước phường hải châu", None)["tin"][0]
+    assert "245.000đ" in _doan_co_kieu(tin, "c_f27806") and "340.000đ" in _doan_co_kieu(tin, "c_f27806")
+    assert any({"b", "c_f27806", "f_18"} <= set(k["st"]) for k in tin.kieu)                   # giá: đậm + cam + cỡ lớn
+    assert "Internet Giga" in _doan_co_kieu(tin, "b") and "Internet cá nhân" in _doan_co_kieu(tin, "b")
+    assert 0 < len(tin.kieu) <= nd.TRAN_KIEU
+
+
+def test_chi_tiet_gia_thang_phi_va_so_tien_deu_dam():
+    tin = zg.tra_loi("giá giga phường hải châu", None)["tin"][0]
+    dam = _doan_co_kieu(tin, "b")
+    assert "245.000đ" in _doan_co_kieu(tin, "c_f27806")
+    assert "300.000đ" in dam and "2.940.000đ" in dam and "1.470.000đ" in dam and "245.000đ/tháng" in dam
+    assert any(d.startswith("Internet Giga - Phường Hải Châu") for d in dam)
+    assert not any("Chính sách" in d for d in dam)                                           # hạn chính sách là chữ thường
+
+
+def test_nhieu_kieu_qua_thi_giu_gia_bo_kieu_phu():
+    goi = [_g(100 + i, f"g{i}", f"Internet G{i}", 200000 + i) for i in range(30)]
+    tin = nd.chia_tin(nd.danh_sach({"Internet cá nhân": goi}, "Hải Châu, Đà Nẵng"))
+    assert all(len(t.kieu) <= nd.TRAN_KIEU for t in tin)
+    assert sum(1 for t in tin for k in t.kieu if "c_f27806" in k["st"]) >= 30                 # đủ 30 giá còn nguyên màu
+
+
+def test_zalo_tu_choi_kieu_chu_thi_gui_lai_ban_tron(may_khach, gui, monkeypatch):
+    def ghi(c, n, *a, **k):
+        if k.get("text_styles"):
+            raise zalo_bot.LoiZalo("Zalo từ chối (mã 403).")
+        gui.append((c, n, k.get("token")))
+    monkeypatch.setattr(zalo_bot, "gui_tin", ghi)
+    _gui(may_khach, _su_kien("giá giga phường hải châu"))
+    assert len(gui) == 1 and "Internet Giga" in gui[0][1] and gui[0][2] == TOKEN
+
+
+def test_toc_do_gon():
+    assert nd.toc_do_gon("300 Mbps / 300 Mbps") == "300 Mbps"
+    assert nd.toc_do_gon("1 Gbps / 300 Mbps") == "1 Gbps / 300 Mbps"
+    assert nd.toc_do_gon(None) == ""
 
 
 def test_lenh_help_va_huong_dan_co_ba_vi_du():
@@ -211,11 +311,11 @@ def test_lenh_help_va_huong_dan_co_ba_vi_du():
 
 # ------------------------------------------------------------------ tin dài
 def test_chia_tin_dai_dung_gioi_han_va_danh_so():
-    khoi = [("• dòng " + "x" * 80 + "\n") * 12 for _ in range(6)] + ["y" * 3000]
+    khoi = [[nd.dong_chu(f"• dòng {k}.{i} " + "x" * 80) for i in range(12)] for k in range(6)] + [[nd.dong_chu("y" * 100) for _ in range(40)]]
     tin = nd.chia_tin(khoi)
     assert len(tin) > 2 and all(len(t) <= 2000 for t in tin)
     assert tin[0].startswith(f"(1/{len(tin)})") and tin[-1].startswith(f"({len(tin)}/{len(tin)})")
-    assert nd.chia_tin(["ngắn"]) == ["ngắn"]
+    assert [str(t) for t in nd.chia_tin([[nd.dong_chu("ngắn")]])] == ["ngắn"]
 
 
 # ------------------------------------------------------------------ webhook

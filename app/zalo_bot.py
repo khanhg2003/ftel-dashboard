@@ -110,17 +110,18 @@ def _goi_api(ten_ham: str, goi: dict, han: float = HAN_GIAY, token: str | None =
     return kq
 
 
-def gui_tin_du_phong(chat_id: str, noi_dung: str, han: float = HAN_GIAY) -> bool:
+def gui_tin_du_phong(chat_id: str, noi_dung: str, han: float = HAN_GIAY, token: str | None = None) -> bool:
     """Gửi tin kèm kiểu chữ (`noi_dung.kieu`); Zalo từ chối thì gửi lại bản CHỮ TRƠN để người nhận vẫn có tin.
     True = đã phải dùng chữ trơn. Không có kiểu chữ mà lỗi thì ném `LoiZalo` như `gui_tin`."""
     kieu = getattr(noi_dung, "kieu", None)
+    them = {} if token is None else {"token": token}          # bot Bản tin (mặc định) gọi y như cũ
     try:
-        gui_tin(chat_id, noi_dung, han=han, text_styles=kieu)
+        gui_tin(chat_id, noi_dung, han=han, text_styles=kieu, **them)
         return False
     except LoiZalo:
         if not kieu:
             raise
-    gui_tin(chat_id, str(noi_dung), han=han)
+    gui_tin(chat_id, str(noi_dung), han=han, **them)
     return True
 
 
