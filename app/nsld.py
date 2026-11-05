@@ -141,8 +141,9 @@ def nsld_nhan_su(df: pd.DataFrame, den_thang: int) -> pd.DataFrame:
     """Dòng = nhân sự, cột t1..tN = ITN tháng đó, tb = bình quân các tháng có số."""
     if df.empty:
         return pd.DataFrame()
-    pv = df.pivot_table(index="ma_nv", columns="so_thang", values="diem_itn", aggfunc="first")
     moi_nhat = df.sort_values("thang").groupby("ma_nv").tail(1).set_index("ma_nv")
+    # pivot bỏ người chưa có điểm ITN nào (vd nhân sự mới thêm): giữ lại để dòng nhân sự không thiếu người
+    pv = df.pivot_table(index="ma_nv", columns="so_thang", values="diem_itn", aggfunc="first").reindex(moi_nhat.index)
     out = pd.DataFrame(index=pv.index)
     for t in range(1, den_thang + 1):
         out[f"t{t}"] = pv[t].round(2) if t in pv.columns else None
@@ -211,8 +212,8 @@ def tan_binh_nhan_su(df: pd.DataFrame, nam: int, den_thang: int) -> pd.DataFrame
     if tb.empty:
         return pd.DataFrame()
     nghi = _da_nghi(tb, df.thang.max())
-    pv = tb.pivot_table(index="ma_nv", columns="thang_lam_viec", values="diem_itn", aggfunc="first")
     cuoi = tb.sort_values("thang").groupby("ma_nv").tail(1).set_index("ma_nv")
+    pv = tb.pivot_table(index="ma_nv", columns="thang_lam_viec", values="diem_itn", aggfunc="first").reindex(cuoi.index)
     out = pd.DataFrame(index=pv.index)
     for k in range(1, den_thang + 1):
         out[f"k{k}"] = pv[k].round(1) if k in pv.columns else None

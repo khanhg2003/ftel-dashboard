@@ -144,6 +144,20 @@ def _cap_nhat_nhan_su_ibb6() -> None:
                         "UPDATE staff_map SET phong_code = 'IBB6', ten_hien_thi = 'ThuNA54' "
                         "WHERE acc_norm = 'dng.thuna54' AND phong_code != 'IBB6'"
                     ))
+            if "dim_employee" in tables:
+                # NSLĐ lấy ngày vào từ dim_employee (JOIN theo ma_nv): thiếu dòng này thì tháng làm việc
+                # của ThuNA54 là rỗng và số tân binh / số người của IBB6 lệch. Thâm niên 2 tháng tại 2026-08
+                # tức vào làm tháng 07/2026 (giống Hồ Duy Phú cùng nhóm); mã NV tạm, thay bằng mã thật khi có.
+                emp_exists = c.execute(text(
+                    "SELECT COUNT(*) FROM dim_employee WHERE ma_nv = 'THUNA54'"
+                )).scalar()
+                if not emp_exists:
+                    c.execute(text(
+                        "INSERT INTO dim_employee (ma_nv, ho_ten, acc, acc_norm, vi_tri, don_vi_ps, phong_ps, "
+                        "ngay_tinh_luong, trang_thai, updated_at) "
+                        "VALUES ('THUNA54', 'ThuNA54', 'DNG.ThuNA54', 'dng.thuna54', 'NVKD', 'DNG', 'DNGB6', "
+                        "'2026-07-01', 'Đang làm việc', CURRENT_TIMESTAMP)"
+                    ))
             hr_exists = c.execute(text(
                 "SELECT COUNT(*) FROM hr_monthly WHERE LOWER(TRIM(acc)) = 'dng.thuna54'"
             )).scalar()
