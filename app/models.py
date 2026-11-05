@@ -528,4 +528,24 @@ class BanTinChoDuyet(Base):
     nhan_cuoi: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)     # UTC
 
 
+class ZaloGiaTin(Base):
+    """Mỗi tin Zalo bot Tra cứu giá đã nhận: message_id duy nhất để KHÔNG trả lời hai lần khi Zalo gửi lại sự kiện, và
+    đếm số câu của mỗi chat trong 1 phút để giới hạn tốc độ. KHÔNG lưu nội dung tin."""
+    __tablename__ = "zalo_gia_tin"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ma_tin: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    chat_id: Mapped[str] = mapped_column(String(80), index=True)
+    luc: Mapped[datetime] = mapped_column(DateTime, index=True)          # UTC
+
+
+class ZaloGiaHoiLai(Base):
+    """Câu bot đang hỏi lại một người (chọn số / bổ sung phường), hết hạn sau 10 phút. Khoá = chat + người nhắn, vì trong nhóm
+    nhiều sale cùng hỏi. Lưu ở database chứ không ở bộ nhớ vì Vercel chạy nhiều máy. Chỉ có tên gói / phường đã chuẩn hoá, không có tên khách."""
+    __tablename__ = "zalo_gia_hoi_lai"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    khoa: Mapped[str] = mapped_column(String(180), unique=True, index=True)
+    du_lieu: Mapped[str] = mapped_column(Text)
+    het_han: Mapped[datetime] = mapped_column(DateTime)                  # UTC
+
+
 from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)
