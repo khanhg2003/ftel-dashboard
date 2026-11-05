@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import gia_fpt as gf                      # noqa: E402
 from app import gia_fpt_nhom as gn                 # noqa: E402
 from app import zalo_bot, zalo_gia as zg           # noqa: E402
+from app import zalo_gia_anh as za                 # noqa: E402
 from app import zalo_gia_nd as nd                  # noqa: E402
 from app.config import DATA_DIR                    # noqa: E402
 from app.thoi_gian import utc_bay_gio              # noqa: E402
@@ -61,7 +62,7 @@ class Ghi(list):
 
     def __init__(self):
         super().__init__()
-        self.kieu = []
+        self.kieu, self.anh, self.su_kien = [], [], []
 
 
 PHI = {"goi-giga": 300000, "goi-sky": None, "goi-meta-f1": 0}
@@ -95,7 +96,17 @@ def moi_truong(monkeypatch):
     def ghi(c, n, *a, **k):
         gui.append((c, n, k.get("token")))
         gui.kieu.append(k.get("text_styles"))
+        gui.su_kien.append("tin")
     monkeypatch.setattr(zalo_bot, "gui_tin", ghi)
+
+    def ghi_anh(c, url, caption="", han=0, token=None):
+        gui.anh.append((c, url, caption, han, token))
+        gui.su_kien.append("anh")
+    monkeypatch.setattr(zalo_bot, "gui_anh", ghi_anh)
+    monkeypatch.delenv("APP_URL", raising=False)
+    monkeypatch.delenv("ZALO_GIA_ANH", raising=False)
+    monkeypatch.setattr(gf, "chi_tiet_goi", lambda code, t, p, gia: _ct(PHI.get(code, 500000)))
+    za._cache.clear()
     yield gui
     don()
 
@@ -469,3 +480,147 @@ def test_gui_tin_dung_token_rieng_va_khong_lo_token_khi_loi(monkeypatch):
     assert thay[1].endswith("/bot111:BAN-TIN/sendMessage")                # mặc định vẫn là bot Bản tin
     with pytest.raises(zalo_bot.LoiZalo, match="token cho bot Zalo này"):
         zalo_bot.gui_tin("c", "xin chào", token="")
+
+
+# ------------------------------------------------------------------ ảnh banner
+def _png_hop_le(b):
+    import io
+
+    from PIL import Image
+    anh = Image.open(io.BytesIO(b))
+    anh.load()
+    return anh.format == "PNG" and anh.size == (za.W, za.W)
+
+
+def _ct_day_du():
+    ct = _ct(300000)
+    ct["mo_ta"] = ["Modem Wi-Fi 6", "Kết nối 25 thiết bị"]
+    ct["lua_chon"][2]["qua"] = "Tặng 1 Camera trong nhà"
+    return ct
+
+
+def test_ve_banner_ra_png_dung_kich_thuoc_voi_va_khong_co_qua_phi_thieu():
+    g = {**GOI[0], "gia": 195000}
+    assert _png_hop_le(za.ve_banner(g, _ct_day_du(), "Phường Nam Nha Trang, Khánh Hòa", utc_bay_gio()))       # đủ quà + modem
+    assert _png_hop_le(za.ve_banner(g, _ct(300000), "Phường Hải Châu, Đà Nẵng"))                              # không có quà
+    assert _png_hop_le(za.ve_banner(g, _ct(None), "Phường Hải Châu, Đà Nẵng"))                                # phí thiếu
+    assert _png_hop_le(za.ve_banner({**g, "toc_do": None, "gia": None}, None, "Xã Quế Sơn, Đà Nẵng"))        # gần như không có dữ liệu
+    assert _png_hop_le(za.ve_banner({**g, "ten": "Combo Internet Giga Eyes3 Play4 V.VIP Lite " * 2}, _ct_day_du(), "x" * 200))   # tên / địa chỉ rất dài
+
+
+def test_du_lieu_banner_chi_lay_cai_co_that():
+    g = {**GOI[0], "gia": 195000}
+    dl = za.du_lieu(g, _ct_day_du())
+    assert dl["ten_goi"] == "Giga" and dl["toc"] == ["300 Mbps", "300 Mbps"] and dl["phi"] == "300.000đ"
+    assert dl["pills"] == ["Tặng 1 Camera trong nhà", "Modem Wi-Fi 6"] and dl["han"] == "Chính sách áp dụng đến hết 31/12/2026"
+    assert dl["tra_truoc"]["thang"] == 13 and dl["tra_truoc"]["tang"] == 1                                    # cách tặng nhiều nhất
+    trong = za.du_lieu({**g, "toc_do": None}, None)
+    assert trong["pills"] == [] and trong["toc"] == [] and trong["tra_truoc"] is None and trong["han"] == ""
+    assert "Mbps" not in str(za.du_lieu({**g, "toc_do": None}, _ct(300000))["toc"])
+
+
+def test_phi_banner_thieu_la_chua_ro_khong_mien_phi_tru_khi_dich_vu_ghi_0():
+    g = GOI[0]
+    assert za.du_lieu(g, _ct(None))["phi"] == "Chưa rõ" and za.du_lieu(g, None)["phi"] == "Chưa rõ"
+    assert za.du_lieu(g, _ct(0))["phi"] == "Miễn phí"
+    khac = _ct(500000)
+    khac["phi_nhom"] = [["Trả theo tháng", 1000000], ["Trả trước", 600000]]
+    assert za.du_lieu(g, khac)["phi"] == "600.000đ - 1.000.000đ"
+
+
+def test_ma_ky_dung_sai_het_han_hong():
+    import time
+    ma = za.tao_ma(511, 1, "goi-giga")
+    assert za.doc_ma(ma) == (511, 1, "goi-giga")
+    tinh, phuong, code, han, ky = ma.split(".")
+    for xau in (f"511.2.{code}.{han}.{ky}", f"511.1.goi-sky.{han}.{ky}", f"511.1.{code}.{int(han) + 99}.{ky}", f"511.1.{code}.{han}.{'0' * 32}",
+                "", "abc", "511.1.goi-giga", "511.1.goi giga.1.2", f"511.1.{code}.{han}.{ky}.x"):
+        assert za.doc_ma(xau) is None, xau
+    assert za.doc_ma(ma, bay_gio=time.time() + za.HAN_ANH_GIAY + 60) is None                  # hết hạn
+    assert za.tao_ma(511, 1, "goi-giga", bay_gio=time.time() - 3600).startswith("511.1.goi-giga.")
+    assert za.doc_ma(za.tao_ma(511, 1, "goi-giga", bay_gio=time.time() - 3600)) is None
+    assert za.url_anh("https://x.vn", 511, 1, "co dau cach") is None
+
+
+def test_khoa_anh_khac_khoa_webhook_va_khoa_anh_ban_tin():
+    from app import ban_tin_anh as bta
+    assert za._ky(511, 1, "goi-giga", 5) != bta._ky("2026-09-01", 5) and za._NHAN_KHOA == b"zalo-gia-anh"
+
+
+def test_duong_anh_200_png_va_moi_loi_deu_404_giong_nhau(may_khach):
+    import time
+    ma = za.tao_ma(511, 1, "goi-giga")
+    r = may_khach.get(f"/api/zalo-gia/anh/{ma}.png")
+    assert r.status_code == 200 and r.mimetype == "image/png" and r.data[:8] == b"\x89PNG\r\n\x1a\n" and _png_hop_le(r.data)
+    assert "Cache-Control" in r.headers and "no-store" in r.headers["Cache-Control"]
+    hong = [f"{ma[:-3]}abc", "rac", za.tao_ma(511, 1, "goi-giga", bay_gio=time.time() - 9999), za.tao_ma(511, 1, "khong-co-goi"),
+            za.tao_ma(511, 999999, "goi-giga")]
+    kq = [may_khach.get(f"/api/zalo-gia/anh/{m}.png") for m in hong]
+    assert {(x.status_code, x.data) for x in kq} == {(404, "Không tìm thấy.".encode())}
+    assert may_khach.get(f"/api/zalo-gia/anh/{ma}.png?tinh=8&phuong=2&goi=goi-sky").data == r.data   # không nhận tham số nào khác
+
+
+def test_duong_anh_khong_can_dang_nhap_va_dung_lai_trong_vai_phut(may_khach, monkeypatch):
+    ma = za.tao_ma(511, 1, "goi-giga")
+    dem = []
+    goc = za.ve_banner
+    monkeypatch.setattr(za, "ve_banner", lambda *a, **k: dem.append(1) or goc(*a, **k))
+    for _ in range(3):
+        assert may_khach.get(f"/api/zalo-gia/anh/{ma}.png").status_code == 200
+    assert len(dem) == 1
+
+
+def test_gui_chi_tiet_mot_goi_gui_anh_truoc_roi_tin_chu(may_khach, gui, monkeypatch):
+    monkeypatch.setenv("APP_URL", "https://app.example.vn/")
+    _gui(may_khach, _su_kien("@Bot giá giga phường nam nha trang khánh hòa"))
+    assert gui.su_kien == ["anh", "tin"] and len(gui.anh) == 1
+    c, url, caption, han, token = gui.anh[0]
+    assert c == "g1" and token == TOKEN and han <= 8
+    assert caption == "Gói Giga · Phường Nam Nha Trang · 245.000đ/tháng"
+    assert url.startswith("https://app.example.vn/api/zalo-gia/anh/") and url.endswith(".png")
+    assert za.doc_ma(url.rsplit("/", 1)[1][:-4]) == (56, 10, "goi-giga")             # mã trong link khớp đúng gói + phường vừa hỏi
+    assert "Internet Giga" in gui[0][1]
+
+
+def test_banner_loi_thi_van_gui_tin_chu_khong_bao_loi_cho_nguoi_dung(may_khach, gui, monkeypatch):
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import AuditLog
+    monkeypatch.setenv("APP_URL", "https://app.example.vn")
+
+    def hong(*a, **k):
+        raise zalo_bot.LoiZalo("Zalo từ chối (mã 400).")
+    monkeypatch.setattr(zalo_bot, "gui_anh", hong)
+    _gui(may_khach, _su_kien("giá giga phường hải châu"))
+    assert len(gui) == 1 and "Internet Giga" in gui[0][1] and "lỗi" not in gui[0][1].lower()
+    with session_scope() as s:
+        ds = [r.detail for r in s.execute(select(AuditLog).where(AuditLog.action == "zalo_gia_la")).scalars()]
+    assert ds == ["banner không gửi được: Zalo từ chối (mã 400)."] and "/anh/" not in ds[0]
+    monkeypatch.setattr(zalo_bot, "gui_anh", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("https://x/anh/BI-MAT.png")))
+    _gui(may_khach, _su_kien("giá sky phường hải châu", ma="m2"))
+    assert len(gui) == 2
+
+
+def test_khong_co_app_url_https_hoac_tat_bang_bien_thi_khong_gui_anh(may_khach, gui, monkeypatch):
+    _gui(may_khach, _su_kien("giá giga phường hải châu", ma="a"))                               # chưa cài APP_URL
+    monkeypatch.setenv("APP_URL", "http://app.example.vn")
+    _gui(may_khach, _su_kien("giá giga phường hải châu", ma="b"))                               # http
+    monkeypatch.setenv("APP_URL", "https://app.example.vn")
+    monkeypatch.setenv("ZALO_GIA_ANH", "0")
+    _gui(may_khach, _su_kien("giá giga phường hải châu", ma="c"))                               # tắt
+    assert not gui.anh and len(gui) == 3
+    monkeypatch.setenv("ZALO_GIA_ANH", "1")
+    _gui(may_khach, _su_kien("giá giga phường hải châu", ma="d"))
+    assert len(gui.anh) == 1
+
+
+def test_danh_sach_hoi_lai_va_nhieu_goi_khong_gui_anh(may_khach, gui, monkeypatch):
+    monkeypatch.setenv("APP_URL", "https://app.example.vn")
+    _gui(may_khach, _su_kien("giá cước phường hải châu", ma="a"))                              # danh sách
+    _gui(may_khach, _su_kien("giá meta phường hải châu", ma="b"))                              # hỏi lại
+    _gui(may_khach, _su_kien("giá giga và sky phường hải châu", ma="c"))                       # hai gói
+    assert not gui.anh and len(gui) == 3
+    _gui(may_khach, _su_kien("giá meta phường hải châu", ma="d"))
+    _gui(may_khach, _su_kien("2", ma="e"))                                                     # chọn số -> một gói -> có ảnh
+    assert len(gui.anh) == 1 and gui.anh[0][2].startswith("Gói Meta F2")

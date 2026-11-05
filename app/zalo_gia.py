@@ -25,7 +25,9 @@ from sqlalchemy.exc import IntegrityError
 from app import gia_fpt as gf
 from app import gia_fpt_nhom as gn
 from app import zalo_bot
+from app import zalo_gia_anh as za
 from app import zalo_gia_nd as nd
+from app import ban_tin_anh
 from app.auth import ghi_log
 from app.config import SECRET_KEY
 from app.db import engine, session_scope
@@ -36,6 +38,7 @@ DUONG_DAN = "/api/zalo-gia/webhook"
 HAN_HOI_LAI = timedelta(minutes=10)
 TOI_DA_CAU_PHUT = 10              # số câu mỗi chat trong 1 phút
 HAN_TRA_LOI = 40                  # giây; Vercel cho 60
+HAN_ANH_GIAY = 6                  # giây chờ Zalo tải banner: chậm hơn thì bỏ ảnh, tin chữ vẫn đi
 TOI_DA_LUA_CHON = 8
 TOI_DA_GOI_CHI_TIET = 3
 SO_LUONG = 8
@@ -358,7 +361,10 @@ def _chi_tiet(chon: list[dict], goi: list[dict], tinh: int, phuong: int, vi_tri:
     if gan:
         khoi.append([nd.dong_chu("Gói tương tự (gõ tên đầy đủ để xem):")] + nd.danh_sach_don(gan[:4]))
     khoi.append(chan)
-    return {"tin": nd.chia_tin(khoi), "hoi": None, "nhat_ky": (", ".join(g["ten"] for g in chon), vi_tri)}
+    kq = {"tin": nd.chia_tin(khoi), "hoi": None, "nhat_ky": (", ".join(g["ten"] for g in chon), vi_tri)}
+    if len(chon) == 1:          # đúng một gói thì gửi kèm ảnh banner (hỏi 2-3 gói cùng lúc thì chỉ tin chữ)
+        kq["banner"] = {"tinh": tinh, "phuong": phuong, "code": chon[0]["code"], "ten": chon[0]["ten"], "vi_tri": vi_tri, "gia": chon[0]["gia"]}
+    return kq
 
 
 def _liet_ke(nhom: dict[str, list[dict]], vi_tri: str, chan: list, nhom_hoi: list[str], tokens: list[str]) -> dict:
@@ -483,6 +489,22 @@ def _gui(chat_id: str, tin: list) -> None:
             return
 
 
+def _gui_banner(chat_id: str, b: dict | None) -> None:
+    """Ảnh banner gửi TRƯỚC tin chữ (có hạn ngắn). Tắt bằng ZALO_GIA_ANH=0; cần APP_URL https. Lỗi gì cũng bỏ qua ảnh, KHÔNG báo người dùng,
+    chỉ ghi nhật ký gọn (thông báo của `gui_anh` đã xoá token và mã trong đường dẫn)."""
+    if not b or (os.environ.get("ZALO_GIA_ANH") or "1").strip() == "0":
+        return
+    goc = ban_tin_anh.app_url()
+    if not goc:
+        return
+    try:
+        url = za.url_anh(goc, b["tinh"], b["phuong"], b["code"])
+        if url:
+            zalo_bot.gui_anh(chat_id, url, za.chu_thich(b["ten"], b["vi_tri"], b["gia"]), han=HAN_ANH_GIAY, token=zalo_bot.token_gia())
+    except Exception as e:
+        ghi_log("zalo_gia_la", f"banner không gửi được: {str(e) if isinstance(e, zalo_bot.LoiZalo) else type(e).__name__}"[:200])
+
+
 def _xu_ly(payload) -> None:
     tin = doc_tin(payload)
     if os.environ.get("ZALO_GIA_GHI_LOG") == "1" or (not tin and _la_su_kien_chu(payload)):
@@ -508,6 +530,7 @@ def _xu_ly(payload) -> None:
     khoa = _khoa_hoi(tin)
     kq = tra_loi(tin["text"], doc_hoi_lai(khoa))
     luu_hoi_lai(khoa, kq["hoi"])
+    _gui_banner(chat_id, kq.get("banner"))
     _gui(chat_id, kq["tin"])
     if kq["nhat_ky"]:
         ghi_log("zalo_gia", f"chat {chat_id}: gói={kq['nhat_ky'][0]}; phường={kq['nhat_ky'][1]}")
