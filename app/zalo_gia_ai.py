@@ -260,6 +260,51 @@ def dinh_dang_theo_tinh(ket_qua: str) -> str | None:
     return "\n".join([f"{pham_vi} {chi_so} {tong['n']} hợp đồng {ky}:", *[f"{d['tinh']}: {d['n']} ({d['pct']})" for d in cac_tinh]])
 
 
+NL_CSV = chr(10)
+_DAU_NGUOI = re.compile(r"SỐ (?P<chi>HỢP ĐỒNG TẠO MỚI \(bán\)|HỢP ĐỒNG ONLINE) THEO TỈNH, (?P<ky>[^:]+?): (?P<ten>.+?) \((?P<goc>[^)]*)\) · phòng (?P<p>.+?): (?P<tong>\d+) hợp đồng")
+_DAU_PHONG = re.compile(r"SỐ (?P<chi>HỢP ĐỒNG TẠO MỚI \(bán\)|HỢP ĐỒNG ONLINE) THEO TỈNH TỪNG NHÂN SỰ, (?P<ky>[^;]+); phòng (?P<p>[^.]+)\.")
+_DONG_NGUOI_TINH = re.compile(r'^(?P<tinh>.+),(?P<n>\d+),"(?P<pct>[^"]*)"$')
+_DONG_NGUOI = re.compile(r'^(?P<ten>.+),(?P<acc>[^,]*),(?P<n>\d+),"(?P<ts>[^"]*)"$')
+
+
+def _ky_ngan(ky: str) -> str:
+    return re.sub(r"/20\d\d$", "", ky.strip())
+
+
+def _chi_so(chi: str) -> str:
+    return "bán" if chi.startswith("HỢP ĐỒNG TẠO MỚI") else "online"
+
+
+def dinh_dang_theo_nguoi(ket_qua: str) -> str | None:
+    """Như `dinh_dang_theo_tinh` nhưng cho công cụ `nhan_su_theo_tinh`: MỘT người -> "<Tên> (<phòng>) bán <n> hợp đồng <dd/mm>:" + mỗi tỉnh một dòng "Đà Nẵng: 5 (71,4%)";
+    cả phòng -> mỗi người một dòng "<Tên>: <tổng> (Đà Nẵng 4; Quảng Nam 2)". Không đọc được thì None để dùng câu của AI."""
+    dong_dau, _, con_lai = ket_qua.partition(NL_CSV)
+    m = _DAU_NGUOI.match(dong_dau)
+    if m:
+        dong = [_DONG_NGUOI_TINH.match(x.strip()) for x in con_lai.splitlines()[1:] if x.strip()] if con_lai else []
+        if not dong or any(d is None for d in dong):
+            return None
+        return NL_CSV.join([f"{m['ten'].strip()} ({m['p'].strip()}) {_chi_so(m['chi'])} {m['tong']} hợp đồng {_ky_ngan(m['ky'])}:",
+                            *[f"{d['tinh']}: {d['n']} ({d['pct']})" for d in dong]])
+    m = _DAU_PHONG.match(ket_qua.splitlines()[0] if ket_qua else "")
+    if not m:
+        return None
+    nguoi, tong = [], None
+    for x in ket_qua.splitlines()[2:]:
+        x = x.strip()
+        if x.startswith("TỔNG PHÒNG,"):
+            tong = x.split(",")[2]
+        elif x and not x.startswith("("):
+            d = _DONG_NGUOI.match(x)
+            if d is None:
+                return None
+            nguoi.append(d)
+    if tong is None or not nguoi:
+        return None
+    return NL_CSV.join([f"{m['p'].strip()} {_chi_so(m['chi'])} {tong} hợp đồng {_ky_ngan(m['ky'])}, từng người:",
+                        *[f"{d['ten'].strip()}: {d['n']} ({d['ts'].replace(': ', ' ')})" for d in nguoi]])
+
+
 def tra_loi(chat_id: str, khoa: str, cau: str) -> list:
     """Hỏi trợ lý bằng quyền của tài khoản đại diện, trả các tin chữ trơn. Không bao giờ ném lỗi."""
     u = tai_khoan()
@@ -282,6 +327,8 @@ def tra_loi(chat_id: str, khoa: str, cau: str) -> list:
                       khoa_luu=f"zalo-gia|{gio_viet_nam():%Y-%m-%d}|v{PHIEN_DAN_ZALO}")
         if len(goi) == 1 and goi[0][0] == "ban_theo_tinh":                    # chỉ hỏi số theo tỉnh: định dạng bằng code, không tin AI giữ đúng mẫu
             chu = dinh_dang_theo_tinh(goi[0][2]) or chu
+        elif len(goi) == 1 and goi[0][0] == "nhan_su_theo_tinh":
+            chu = dinh_dang_theo_nguoi(goi[0][2]) or chu
     except ai.LoiAI as e:
         return [_loi_de_hieu(e)]
     except Exception:

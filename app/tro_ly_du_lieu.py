@@ -43,7 +43,7 @@ COT_NV = {"ho_ten": "Họ tên", "acc": "Acc", "hang": "Hạng", "online": "Onli
           "ton": "Tồn", "ton_qua_7": "Hợp đồng chờ quá 7 ngày", "ngay_lien_chua_co_so": "Ngày liền chưa có số",
           "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó", "ket_luan": "NSLĐ tháng gần nhất",
           "muc_chu_y": "Mức chú ý", "chu_y": "Cần chú ý"}
-TOI_DA_TINH_NGUOI = 10            # công cụ nhan_su_theo_tinh (một người): từ tỉnh thứ 11 gộp "Khác"
+TOI_DA_TINH_NGUOI = 40            # công cụ nhan_su_theo_tinh (một người): từ tỉnh thứ 41 gộp "Khác" (bot Zalo liệt kê HẾT các tỉnh)
 TOI_DA_NGUOI = 20                 # công cụ nhan_su_theo_tinh (cả phòng): tối đa 20 người một lượt
 TOI_DA_TINH = 40                  # công cụ ban_theo_tinh: từ tỉnh thứ 41 gộp "Khác" (chủ app 05/11/2026: bot Zalo phải liệt kê HẾT các tỉnh)
 TEN_CHI_SO = {"online": "Số online", "vvip": "V.VIP", "fptplay": "FPT Play (combo)", "camera": "Camera",

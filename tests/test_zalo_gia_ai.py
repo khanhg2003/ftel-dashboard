@@ -392,3 +392,29 @@ def test_cau_hoi_theo_tinh_tra_bang_code_khong_lay_cau_cua_ai(may_khach, gui, mo
     monkeypatch.setattr(ai, "chat", chat_tinh)
     _hoi(may_khach, "IBB5 hôm qua bán ở nhiều ở tỉnh thành nào")
     assert gui[0][1].splitlines() == ["IBB5 bán 34 hợp đồng 04/11:", "Đà Nẵng: 23 (67,6%)", "Quảng Nam: 3 (8,8%)", "Hồ Chí Minh: 1 (2,9%)", "Tây Ninh: 1 (2,9%)"]
+
+
+KQ_NGUOI = ("SỐ HỢP ĐỒNG TẠO MỚI (bán) THEO TỈNH, 04/11/2026: RinND (DNG.RinND) · phòng IBB7: 7 hợp đồng, trong đó đã online 3. Tỉnh theo CN quản lý của hợp đồng (nơi khách ở).\n"
+            'Tỉnh,Số hợp đồng,% của người này\nĐà Nẵng,5,"71,4%"\nQuảng Nam,2,"28,6%"')
+KQ_PHONG = ("SỐ HỢP ĐỒNG TẠO MỚI (bán) THEO TỈNH TỪNG NHÂN SỰ, 04/11/2026; phòng IBB6. Tỉnh theo CN quản lý của hợp đồng (nơi khách ở).\n"
+            'Nhân sự,Acc,Tổng,Tỉnh nhiều nhất\nHuyTA,DNG.Huyta5,6,"Đà Nẵng: 4; Quảng Nam: 2"\nVân,DNG.Van1,3,"Đà Nẵng: 3"\n'
+            '(còn 2 người khác: tổng 2)\nTỔNG PHÒNG,,11,\n(trưởng phòng và người không xếp hạng cá nhân: 0 hợp đồng)')
+
+
+def test_dinh_dang_theo_nguoi_mot_nguoi_va_ca_phong():
+    assert za.dinh_dang_theo_nguoi(KQ_NGUOI) == "RinND (IBB7) bán 7 hợp đồng 04/11:\nĐà Nẵng: 5 (71,4%)\nQuảng Nam: 2 (28,6%)"
+    assert za.dinh_dang_theo_nguoi(KQ_NGUOI.replace("TẠO MỚI (bán)", "ONLINE")).startswith("RinND (IBB7) online 7 hợp đồng 04/11:")
+    assert za.dinh_dang_theo_nguoi(KQ_PHONG) == ("IBB6 bán 11 hợp đồng 04/11, từng người:\nHuyTA: 6 (Đà Nẵng 4; Quảng Nam 2)\nVân: 3 (Đà Nẵng 3)")
+    assert za.dinh_dang_theo_nguoi("SỐ HỢP ĐỒNG ... không có hợp đồng nào") is None and za.dinh_dang_theo_nguoi(KQ_NGUOI.split("\n")[0]) is None
+
+
+def test_cau_hoi_mot_nguoi_theo_tinh_tra_bang_code(may_khach, gui, monkeypatch):
+    from app import tro_ly_du_lieu as dl
+    monkeypatch.setattr(dl, "chay_cong_cu", lambda user, ten, ts: KQ_NGUOI)
+
+    def chat_nguoi(user, lich_su, cau, ngu_canh, cong_cu, chay_cong_cu, khoa_luu=None):
+        chay_cong_cu("nhan_su_theo_tinh", {"nguoi": "RinND", "tu": "2026-11-04", "den": "2026-11-04"})
+        return "RinND bán 7 hợp đồng. • Vị trí: ngày 04/11 RinND có 1 online."
+    monkeypatch.setattr(ai, "chat", chat_nguoi)
+    _hoi(may_khach, "hôm qua RinND IBB7 bán bao nhiêu số, ở đâu ?")
+    assert gui[0][1].splitlines() == ["RinND (IBB7) bán 7 hợp đồng 04/11:", "Đà Nẵng: 5 (71,4%)", "Quảng Nam: 2 (28,6%)"]
