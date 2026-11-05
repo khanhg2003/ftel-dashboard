@@ -77,6 +77,7 @@ def moi_truong(monkeypatch):
 
     def chat_gia(user, lich_su, cau, ngu_canh, cong_cu, chay_cong_cu, khoa_luu=None):
         gui.ai.append((user.username, list(lich_su), cau, khoa_luu))
+        gui.ngu_canh = ngu_canh
         if tra["loi"] is not None:
             raise tra["loi"]
         return tra["chu"]
@@ -147,6 +148,14 @@ def test_cau_so_lieu_di_ai_tra_tin_chu_tron_dung_quyen_admin(may_khach, gui):
 def test_giu_nguyen_giong_fox_va_khong_cache_qua_ngay(may_khach, gui):
     _hoi(may_khach, CAU_SO_LIEU[1])
     assert gui.ai[0][3].startswith("zalo-gia|20")                                       # khoá lưu có ngày hôm nay: "hôm qua" không dính bản cũ
+
+
+def test_lan_goi_ai_co_loi_dan_tra_loi_ngan_cho_zalo_va_khoa_luu_theo_phien(may_khach, gui):
+    """Chủ app 05/11/2026 thấy câu trả lời dài, có nhận định thừa: lời dặn Zalo đi kèm và đổi phiên thì bản nhớ cũ hết hiệu lực."""
+    _hoi(may_khach, CAU_SO_LIEU[1])
+    co_dinh, _ = gui.ngu_canh
+    assert "CÁCH TRẢ LỜI TRÊN ZALO" in co_dinh and "KHÔNG nhận định" in co_dinh
+    assert gui.ai[0][3].endswith(f"|v{za.PHIEN_DAN_ZALO}")
 
 
 def test_gia_khong_ra_gi_thi_chuyen_ai_con_gia_tra_loi_duoc_thi_khong(may_khach, gui):

@@ -207,6 +207,18 @@ def _loi_de_hieu(e: ai.LoiAI) -> str:
 
 
 # ------------------------------------------------------------------ trả lời
+PHIEN_DAN_ZALO = 2        # tăng khi đổi DAN_ZALO để câu trả lời đã nhớ theo lời dặn cũ hết hiệu lực
+DAN_ZALO = """
+
+CÁCH TRẢ LỜI TRÊN ZALO (ưu tiên hơn mọi lời dặn về độ dài ở trên):
+- Trả lời NGẮN, 1-4 dòng, đi thẳng vào con số người hỏi cần. Không mở đầu bằng khoảng ngày trong ngoặc.
+- Dòng đầu: "<phạm vi> online <dd/mm>: <số> hợp đồng". Rồi nếu có so sánh thì một dòng: "So với <dd/mm>: <số> (tăng/giảm <x>)".
+- Ghi ngày cụ thể dd/mm, không viết "hôm qua" trơn. Số của ngày chưa chốt thì thêm đúng chữ "(tạm tính)" sau con số.
+- KHÔNG nhận định, KHÔNG suy diễn nguyên nhân, KHÔNG khen chê. Chỉ nêu số và so sánh; người hỏi muốn phân tích thì sẽ hỏi.
+- Hỏi nhiều phòng hoặc nhiều người thì mỗi dòng một phòng / người, kiểu "IBB7: 21", không viết thành đoạn văn.
+- Chỉ dùng số lấy từ công cụ; không có số thì nói "chưa có số" kèm lý do ngắn."""
+
+
 def tra_loi(chat_id: str, khoa: str, cau: str) -> list:
     """Hỏi trợ lý bằng quyền của tài khoản đại diện, trả các tin chữ trơn. Không bao giờ ném lỗi."""
     u = tai_khoan()
@@ -218,8 +230,9 @@ def tra_loi(chat_id: str, khoa: str, cau: str) -> list:
     _ghi(chat_id, cau)
     lich_su = doc_hoi_thoai(khoa)
     try:
-        chu = ai.chat(u, lich_su, cau[:600], dl.ngu_canh_chat(u, "/", {}), dl.cong_cu(u), lambda ten, ts: dl.chay_cong_cu(u, ten, ts),
-                      khoa_luu=f"zalo-gia|{gio_viet_nam():%Y-%m-%d}")
+        co_dinh, thay_doi = dl.ngu_canh_chat(u, "/", {})
+        chu = ai.chat(u, lich_su, cau[:600], (co_dinh + DAN_ZALO, thay_doi), dl.cong_cu(u), lambda ten, ts: dl.chay_cong_cu(u, ten, ts),
+                      khoa_luu=f"zalo-gia|{gio_viet_nam():%Y-%m-%d}|v{PHIEN_DAN_ZALO}")
     except ai.LoiAI as e:
         return [_loi_de_hieu(e)]
     except Exception:
