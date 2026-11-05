@@ -42,6 +42,7 @@ COT_NV = {"ho_ten": "Họ tên", "acc": "Acc", "hang": "Hạng", "online": "Onli
           "ton": "Tồn", "ton_qua_7": "Hợp đồng chờ quá 7 ngày", "ngay_lien_chua_co_so": "Ngày liền chưa có số",
           "tuan_nay": "7 ngày gần nhất", "tuan_truoc": "7 ngày trước đó", "ket_luan": "NSLĐ tháng gần nhất",
           "muc_chu_y": "Mức chú ý", "chu_y": "Cần chú ý"}
+TOI_DA_TINH = 12                  # công cụ ban_theo_tinh: từ tỉnh thứ 13 gộp "Khác"
 TEN_CHI_SO = {"online": "Số online", "vvip": "V.VIP", "fptplay": "FPT Play (combo)", "camera": "Camera",
               "ban_moi": "Hợp đồng tạo mới"}
 
@@ -484,6 +485,14 @@ def cong_cu(user) -> list[dict]:
                  "phân tích / có vấn đề gì'; gọi một lần là đủ.",
                  den=_ngay("Ngày luỹ kế đến"),
                  phong={"type": "string", "description": "Mã phòng; bỏ trống = cả phạm vi được xem", "tuy_chon": True}),
+        _cong_cu("ban_theo_tinh", "Số hợp đồng theo TỈNH (nơi khách ở = CN quản lý của hợp đồng) trong một khoảng ngày, đúng như thẻ 'Bán theo tỉnh' "
+                 "của trang Phân tích bán hàng: số hợp đồng từng tỉnh, % trên tổng, số của khoảng liền trước để so, dòng TỔNG. Muốn MỘT ngày thì "
+                 "truyền tu = den. HAI CHỈ SỐ KHÁC NHAU: chi_so='online' (mặc định) = hợp đồng online trong khoảng; chi_so='ban' = hợp đồng TẠO MỚI "
+                 "trong khoảng (số bán, gồm cả hợp đồng chưa online). Hỏi 'bán ở tỉnh nào' thì dùng 'ban'; hỏi 'online ở tỉnh nào' thì dùng 'online'. "
+                 "Bỏ trống phong = mọi phòng được xem.",
+                 tu=_ngay("Từ ngày"), den=_ngay("Đến ngày"),
+                 chi_so={"type": "string", "enum": ["online", "ban"], "tuy_chon": True},
+                 phong={"type": "string", "description": "Mã phòng, bỏ trống = mọi phòng được xem", "tuy_chon": True}),
         _cong_cu("du_bao_cuoi_thang", "Dự báo online cuối tháng của từng phòng so với mục tiêu tháng "
                  "(công thức của hệ thống).", den=_ngay("Ngày luỹ kế đến"),
                  chi_nhanh={"type": "string", "enum": ["all", "DNG", "QNM"], "tuy_chon": True}),
@@ -530,6 +539,40 @@ def tim_nhan_su(user, nguoi: str, d: date) -> str:
                     + ", ".join(f"{r.ho_ten} ({r.acc}, {r.phong})" for r in hop.head(6).itertuples())
                     + ". Gọi lại với acc chính xác.")
     return str(hop.iloc[0].acc_norm)
+
+
+def ban_theo_tinh(user, tu: str | None, den: str | None, phong: str | None, chi_so: str | None) -> str:
+    """Số hợp đồng theo tỉnh của một khoảng ngày: dùng đúng hàm của thẻ "Bán theo tỉnh" (`phan_tich.hd_theo_tinh` + `bang_tinh`), không viết lại công thức.
+    Số chung (không tên nhân sự, không tên khách); chỉ trong `phong_duoc_xem()`. Tối đa `TOI_DA_TINH` tỉnh, phần còn lại gộp "Khác"."""
+    d = _ngay_hop_le(den)
+    try:
+        d_tu = min(date.fromisoformat(str(tu or "")[:10]), d)
+    except ValueError:
+        d_tu = d.replace(day=1)
+    theo = "ban" if chi_so == "ban" else "online"
+    pv = user.phong_duoc_xem()
+    chon = {_ma_phong(x) for x in str(phong or "").split(",") if x.strip()}
+    if chon and pv is not None and not chon <= set(pv):
+        raise LoiAI("Bạn không có quyền xem số của phòng này.")
+    scope = sorted(chon) if chon else (None if pv is None else sorted(pv))
+    ck, _ = pt.khoang_so_sanh(d_tu.isoformat(), d.isoformat())
+    df, df_ck = pt.hd_theo_tinh(d_tu.isoformat(), d.isoformat(), scope, theo), pt.hd_theo_tinh(ck[0], ck[1], scope, theo)
+    bang = pt.bang_tinh(df, df_ck)
+    ky = f"{d:%d/%m/%Y}" if d_tu == d else f"{d_tu:%d/%m} - {d:%d/%m/%Y}"
+    ky_ck = f"{date.fromisoformat(ck[0]):%d/%m}" + (f" - {date.fromisoformat(ck[1]):%d/%m}" if ck[0] != ck[1] else "")
+    ten_p = ", ".join(sorted(chon)) if chon else "mọi phòng được xem"
+    dau = (f"SỐ {'HỢP ĐỒNG TẠO MỚI (bán)' if theo == 'ban' else 'HỢP ĐỒNG ONLINE'} THEO TỈNH, {ky}; phòng: {ten_p}. Tỉnh theo CN quản lý của hợp đồng (nơi khách ở). "
+           f"Cột 'Cùng kỳ' = {ky_ck}.")
+    if bang.empty:
+        return dau + "\n(không có hợp đồng nào trong khoảng này)"
+    tong, tong_ck = int(bang.online.sum()), int(bang.ck.sum())
+    top, con = bang.head(TOI_DA_TINH), bang.iloc[TOI_DA_TINH:]
+    dong = [(r.tinh, int(r.online), int(r.ck)) for r in top.itertuples()]
+    if len(con):
+        dong.append(("Khác", int(con.online.sum()), int(con.ck.sum())))
+    dong.append(("TỔNG", tong, tong_ck))
+    pct = lambda n: '"' + (f"{n / tong * 100:.1f}".replace(".", ",") if tong else "0") + '%"'        # noqa: E731  - dấu phẩy thập phân nằm trong ngoặc kép của CSV
+    return dau + "\nTỉnh,Số hợp đồng,% trên tổng,Cùng kỳ\n" + "\n".join(f"{t},{n},{pct(n)},{c}" for t, n, c in dong)
 
 
 def nhan_su_ca_nhan(user, nguoi: str, den: str | None) -> str:
@@ -594,6 +637,8 @@ def chay_cong_cu(user, ten: str, ts: dict) -> str:
         out = bang.rename(index=ten_p)
         out.loc["TỔNG"] = out.sum()
         return f"{TEN_CHI_SO[chi_so]} từng ngày tháng {thang} (cột = ngày):\n" + out.to_csv().strip()
+    if ten == "ban_theo_tinh":
+        return ban_theo_tinh(user, ts.get("tu"), ts.get("den"), ts.get("phong"), ts.get("chi_so"))
     if ten == "nhan_su_ca_nhan":
         return nhan_su_ca_nhan(user, str(ts.get("nguoi") or ""), ts.get("den"))
     if ten == "nhan_su_phong":

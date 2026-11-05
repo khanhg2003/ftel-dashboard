@@ -184,7 +184,16 @@ def bo_markdown(chu: str) -> str:
         d = d.replace("`", "")
         d = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"\1", d)
         ra.append(d)
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(ra)).strip()
+    return bo_khoang_ngay_dau(re.sub(r"\n{3,}", "\n\n", "\n".join(ra)).strip())
+
+
+_KHOANG_NGAY_DAU = re.compile(r"^\s*\(\s*(?:(?:ngày|tháng)\s*)?[\d/\-–.,\s]*\d[\d/\-–.,\s]*\)[\s:,.-]*")
+
+
+def bo_khoang_ngay_dau(chu: str) -> str:
+    """Lớp an toàn thứ hai: AI vẫn mở đầu bằng khoảng ngày trong ngoặc ("(01-04/11)") dù đã dặn không thì bỏ đoạn đó (dòng chỉ có khoảng ngày thì bỏ cả dòng)."""
+    moi = _KHOANG_NGAY_DAU.sub("", chu or "", count=1)
+    return moi.lstrip("\n").strip() if moi != chu else chu
 
 
 def chia_tin_chu(chu: str) -> list:
@@ -207,16 +216,18 @@ def _loi_de_hieu(e: ai.LoiAI) -> str:
 
 
 # ------------------------------------------------------------------ trả lời
-PHIEN_DAN_ZALO = 2        # tăng khi đổi DAN_ZALO để câu trả lời đã nhớ theo lời dặn cũ hết hiệu lực
+PHIEN_DAN_ZALO = 3        # tăng khi đổi DAN_ZALO để câu trả lời đã nhớ theo lời dặn cũ hết hiệu lực (khoá lưu của `tro_ly.chat` có số phiên này)
 DAN_ZALO = """
 
-CÁCH TRẢ LỜI TRÊN ZALO (ưu tiên hơn mọi lời dặn về độ dài ở trên):
-- Trả lời NGẮN, 1-4 dòng, đi thẳng vào con số người hỏi cần. Không mở đầu bằng khoảng ngày trong ngoặc.
-- Dòng đầu: "<phạm vi> online <dd/mm>: <số> hợp đồng". Rồi nếu có so sánh thì một dòng: "So với <dd/mm>: <số> (tăng/giảm <x>)".
+CÁCH TRẢ LỜI TRÊN ZALO (ưu tiên hơn MỌI lời dặn về độ dài, mở đầu và định dạng ở trên, kể cả quy tắc 'Mở đầu gọn bằng kỳ trong ngoặc'):
+- NGẮN, 1-4 dòng, đi thẳng vào con số người hỏi cần. Hỏi theo tỉnh / nhiều phòng / nhiều người thì mỗi dòng một mục.
+- Dòng đầu tiên KHÔNG ĐƯỢC bắt đầu bằng ngoặc đơn chứa khoảng ngày (kiểu "(01-04/11)"): mở đầu thẳng bằng câu trả lời.
 - Ghi ngày cụ thể dd/mm, không viết "hôm qua" trơn. Số của ngày chưa chốt thì thêm đúng chữ "(tạm tính)" sau con số.
+- Một con số: "<phạm vi> online <dd/mm>: <số> hợp đồng". Có so sánh thì thêm một dòng: "So với <dd/mm>: <số> (tăng/giảm <x>)".
+- Hỏi THEO TỈNH / THÀNH (bán hoặc online ở tỉnh nào, bao nhiêu %): gọi ban_theo_tinh (hỏi "bán" thì chi_so 'ban', hỏi "online" thì 'online'; "bán" và "online" là HAI chỉ số khác nhau, nói đúng chữ người hỏi dùng), rồi trả mỗi dòng "Đà Nẵng: 45 (76,3%)" theo thứ tự công cụ trả, cuối cùng một dòng "Tổng <dd/mm>: <số> hợp đồng" (khoảng nhiều ngày thì ghi "dd/mm - dd/mm"). Không chép lại cột cùng kỳ nếu người hỏi không hỏi so sánh.
 - KHÔNG nhận định, KHÔNG suy diễn nguyên nhân, KHÔNG khen chê. Chỉ nêu số và so sánh; người hỏi muốn phân tích thì sẽ hỏi.
-- Hỏi nhiều phòng hoặc nhiều người thì mỗi dòng một phòng / người, kiểu "IBB7: 21", không viết thành đoạn văn.
-- Chỉ dùng số lấy từ công cụ; không có số thì nói "chưa có số" kèm lý do ngắn."""
+- TUYỆT ĐỐI KHÔNG nhắc tên công cụ, tên tham số (như chi_nhanh), mã nội bộ hay chữ "Fox"; KHÔNG hứa "sẽ làm / sẽ gửi / sẽ tổng hợp sau"; KHÔNG viết đoạn giải thích về giới hạn của dữ liệu hay cách báo cáo hoạt động.
+- Chỉ dùng số lấy từ công cụ. Nếu thật sự không có số thì viết MỘT câu ngắn: "Chưa có số <cái gì> (lý do ngắn)"."""
 
 
 def tra_loi(chat_id: str, khoa: str, cau: str) -> list:

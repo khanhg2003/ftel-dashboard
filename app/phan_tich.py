@@ -11,6 +11,8 @@ khớp với cột "Số online" của Báo cáo Tổng:
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import numpy as np
 import pandas as pd
 
@@ -132,6 +134,17 @@ def cung_ky_thang_truoc(thang: str, ngay: int) -> tuple[str, str]:
     pm = prev_month(thang)
     _, _, days = month_range(pm)
     return f"{pm}-01", f"{pm}-{min(ngay, days):02d}"
+
+
+def khoang_so_sanh(tu: str, den: str) -> tuple[tuple[str, str], bool]:
+    """(khoảng so sánh, là luỹ kế): luỹ kế (từ ngày 01) so cùng kỳ tháng trước; khoảng tự chọn (kể cả một ngày) so khoảng liền trước cùng số ngày.
+    Dùng chung cho thẻ "Bán theo tỉnh" của trang Phân tích và công cụ `ban_theo_tinh` của trợ lý AI."""
+    d, d_tu = date.fromisoformat(den), date.fromisoformat(tu)
+    if d_tu == d.replace(day=1):
+        return cung_ky_thang_truoc(f"{d:%Y-%m}", d.day), True
+    so = (d - d_tu).days + 1
+    e = d_tu - timedelta(days=1)
+    return ((e - timedelta(days=so - 1)).isoformat(), e.isoformat()), False
 
 
 def bang_theo_phong(df: pd.DataFrame, ton: pd.DataFrame, thang: str,

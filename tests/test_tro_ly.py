@@ -276,7 +276,7 @@ def test_phan_quyen_cong_cu():
     nhap_lieu = _nguoi("operator")
     assert {c["function"]["name"] for c in dl.cong_cu(nhap_lieu)} == {"bao_cao_tong", "so_theo_ngay",
                                                                      "du_bao_cuoi_thang", "chat_luong_ban",
-                                                                     "phan_tich_nguyen_nhan"}
+                                                                     "phan_tich_nguyen_nhan", "ban_theo_tinh"}
     with pytest.raises(ai.LoiAI):
         dl.chay_cong_cu(nhap_lieu, "nhan_su_phong", {"phong": "IBB2", "den": "2026-09-11"})
     tp = _nguoi("phong", "kiemthu.tp", ["IBB2"])

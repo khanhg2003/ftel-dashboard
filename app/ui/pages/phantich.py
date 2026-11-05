@@ -13,7 +13,7 @@ Bố cục theo câu hỏi người xem đặt ra trong giao ban:
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from types import SimpleNamespace
 
 import pandas as pd
@@ -467,16 +467,13 @@ def _ky(tu_iso: str | None, den_iso: str | None):
         tu = den[:8] + "01"
     d_tu = date.fromisoformat(tu)
     thang = f"{d.year}-{d.month:02d}"
-    luy_ke = d_tu == d.replace(day=1)
+    ck, luy_ke = pt.khoang_so_sanh(tu, den)
     if luy_ke:
-        ck = pt.cung_ky_thang_truoc(thang, d.day)
         ten_ck = f"cùng kỳ T{int(ck[0][5:7])}"
         nhan = f"01 - {d:%d/%m/%Y}"
         ten, truoc = f"tháng {d.month}", "tháng trước"
     else:
         so = (d - d_tu).days + 1
-        e = d_tu - timedelta(days=1)
-        ck = ((e - timedelta(days=so - 1)).isoformat(), e.isoformat())
         ten_ck = "khoảng trước đó"
         nhan = f"{d:%d/%m/%Y}" if so == 1 else f"{d_tu:%d/%m} - {d:%d/%m/%Y}"
         ten = f"ngày {d:%d/%m}" if so == 1 else f"{d_tu:%d/%m}-{d:%d/%m}"

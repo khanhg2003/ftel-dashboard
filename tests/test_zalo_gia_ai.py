@@ -76,7 +76,7 @@ def moi_truong(monkeypatch):
     tra = {"chu": "**IBB7** hôm qua có 12 online (cùng kỳ 9).", "loi": None}
 
     def chat_gia(user, lich_su, cau, ngu_canh, cong_cu, chay_cong_cu, khoa_luu=None):
-        gui.ai.append((user.username, list(lich_su), cau, khoa_luu))
+        gui.ai.append((user.username, list(lich_su), cau, khoa_luu, ngu_canh, [c["function"]["name"] for c in cong_cu]))
         gui.ngu_canh = ngu_canh
         if tra["loi"] is not None:
             raise tra["loi"]
@@ -336,3 +336,30 @@ def test_tin_cua_bot_khong_hoi_ai(may_khach, gui):
     may_khach.post("/api/zalo-gia/webhook", data=json.dumps(payload), content_type="application/json",
                    headers={"X-Bot-Api-Secret-Token": zg.khoa_webhook()})
     assert not gui.ai and not gui
+
+
+# ------------------------------------------------------------------ lời dặn Zalo + làm sạch lớp 2
+def test_loi_dan_zalo_cam_ten_cong_cu_loi_hua_va_mo_dau_bang_khoang_ngay(may_khach, gui):
+    _hoi(may_khach, "b5 hôm qua bán ở những tỉnh thành nào")
+    co_dinh = gui.ai[0][4][0]
+    assert za.DAN_ZALO in co_dinh and za.PHIEN_DAN_ZALO == 3 and gui.ai[0][3].endswith("|v3")
+    for y in ("KHÔNG ĐƯỢC bắt đầu bằng ngoặc đơn chứa khoảng ngày", "ban_theo_tinh", "Đà Nẵng: 45 (76,3%)", "TUYỆT ĐỐI KHÔNG nhắc tên công cụ",
+              "chi_nhanh", "KHÔNG hứa", 'MỘT câu ngắn: "Chưa có số', "HAI chỉ số khác nhau"):
+        assert y in za.DAN_ZALO, y
+    assert "ban_theo_tinh" in gui.ai[0][5]                                                # công cụ theo tỉnh có trong bộ công cụ gửi cho trợ lý
+
+
+def test_bo_khoang_ngay_dau_ca_dong_rieng_lan_dau_dong():
+    f = za.bo_khoang_ngay_dau
+    assert f("(01-04/11)\nB5: 59 hợp đồng") == "B5: 59 hợp đồng"
+    assert f("(01-04/11) B5: 59") == "B5: 59"
+    assert f("(01/11 - 04/11/2026)\n\nĐà Nẵng: 45 (76,3%)\nTổng: 59") == "Đà Nẵng: 45 (76,3%)\nTổng: 59"
+    assert f("(ngày 04/11): B5 59") == "B5 59"
+    for giu in ("B5 online 04/11: 59 (tạm tính)", "(tạm tính) 59 hợp đồng", "Đà Nẵng: 45 (76,3%)", "", "Tổng 01-04/11: 59 (tạm tính)"):
+        assert f(giu) == giu
+
+
+def test_cau_tra_loi_mo_dau_bang_khoang_ngay_thi_zalo_nhan_ban_da_bo(may_khach, gui):
+    gui.tra["chu"] = "(01-04/11)\n**B5** (IBB5) online 01-04/11: 59 hợp đồng"
+    _hoi(may_khach, "b5 hôm qua bán ở tỉnh nào")
+    assert gui[0][1] == "B5 (IBB5) online 01-04/11: 59 hợp đồng"
