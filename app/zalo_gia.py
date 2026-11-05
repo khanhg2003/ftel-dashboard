@@ -499,6 +499,7 @@ def _gui_banner(chat_id: str, b: dict | None) -> None:
         return
     goc = ban_tin_anh.app_url()
     if not goc:
+        ghi_log("zalo_gia_la", "banner bỏ qua: APP_URL chưa đặt hoặc không bắt đầu bằng https")
         return
     try:
         url = za.url_anh(goc, b["tinh"], b["phuong"], b["code"])

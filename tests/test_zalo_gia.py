@@ -279,7 +279,7 @@ def _doan_co_kieu(tin, kieu):
 def test_danh_sach_gia_noi_bat_va_so_kieu_duoi_tran():
     tin = zg.tra_loi("giá cước phường hải châu", None)["tin"][0]
     assert "245.000đ" in _doan_co_kieu(tin, "c_f27806") and "340.000đ" in _doan_co_kieu(tin, "c_f27806")
-    assert any({"b", "c_f27806", "f_18"} <= set(k["st"]) for k in tin.kieu)                   # giá: đậm + cam + cỡ lớn
+    assert any({"b", "c_f27806"} <= set(k["st"]) and "f_18" not in k["st"] for k in tin.kieu)   # giá: đậm + cam, cỡ thường
     assert "Internet Giga" in _doan_co_kieu(tin, "b") and "Internet cá nhân" in _doan_co_kieu(tin, "b")
     assert 0 < len(tin.kieu) <= nd.TRAN_KIEU
 

@@ -16,7 +16,7 @@ from app.thoi_gian import chu_gio_vn
 
 TOI_DA_TIN = 1900                  # Zalo cho 2.000; chừa chỗ cho đầu đề "(2/3)"
 TRAN_KIEU = 35                     # dưới trần 40 của Bản tin: Zalo từ chối tin có quá nhiều kiểu chữ
-KIEU_GIA = ("b", "c_f27806", "f_18")      # giá: đậm + cam + cỡ lớn
+KIEU_GIA = ("b", "c_f27806")      # giá: đậm + cam, cỡ chữ thường (chủ app 05/11/2026: cỡ lớn chiếm chỗ)
 CHUA_RO = "Chưa rõ, xem trên fpt.vn"
 
 HUONG_DAN = (
