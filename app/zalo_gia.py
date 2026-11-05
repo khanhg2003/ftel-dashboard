@@ -25,9 +25,8 @@ from sqlalchemy.exc import IntegrityError
 from app import gia_fpt as gf
 from app import gia_fpt_nhom as gn
 from app import zalo_bot
-from app import zalo_gia_anh as za
+from app import zalo_gia_ai as za_ai
 from app import zalo_gia_nd as nd
-from app import ban_tin_anh
 from app.auth import ghi_log
 from app.config import SECRET_KEY
 from app.db import engine, session_scope
@@ -38,8 +37,6 @@ DUONG_DAN = "/api/zalo-gia/webhook"
 HAN_HOI_LAI = timedelta(minutes=10)
 TOI_DA_CAU_PHUT = 10              # số câu mỗi chat trong 1 phút
 HAN_TRA_LOI = 40                  # giây; Vercel cho 60
-HAN_ANH_GIAY = 15                 # giây chờ Zalo tải banner (gồm tải ảnh fpt.vn + dựng); lần đầu máy nguội có thể ~5-8 giây
-SO_LAN_GUI_ANH = 2                # lần đầu lỗi / quá hạn thì thử lại một lần (máy chủ đã nóng, banner đã nhớ tạm) rồi mới bỏ ảnh
 TOI_DA_LUA_CHON = 8
 TOI_DA_GOI_CHI_TIET = 3
 SO_LUONG = 8
@@ -381,10 +378,7 @@ def _chi_tiet(chon: list[dict], goi: list[dict], tinh: int, phuong: int, vi_tri:
     if gan:
         khoi.append([nd.dong_chu("Gói tương tự (gõ tên đầy đủ để xem):")] + nd.danh_sach_don(gan[:4]))
     khoi.append(chan)
-    kq = {"tin": nd.chia_tin(khoi), "hoi": None, "nhat_ky": (", ".join(g["ten"] for g in chon), vi_tri)}
-    if len(chon) == 1:          # đúng một gói thì gửi kèm ảnh banner (hỏi 2-3 gói cùng lúc thì chỉ tin chữ)
-        kq["banner"] = {"tinh": tinh, "phuong": phuong, "code": chon[0]["code"], "ten": chon[0]["ten"], "vi_tri": vi_tri, "gia": chon[0]["gia"]}
-    return kq
+    return {"tin": nd.chia_tin(khoi), "hoi": None, "nhat_ky": (", ".join(g["ten"] for g in chon), vi_tri)}
 
 
 def _liet_ke(nhom: dict[str, list[dict]], vi_tri: str, chan: list, nhom_hoi: list[str], tokens: list[str]) -> dict:
@@ -509,30 +503,21 @@ def _gui(chat_id: str, tin: list) -> None:
             return
 
 
-def _gui_banner(chat_id: str, b: dict | None) -> None:
-    """Ảnh banner gửi TRƯỚC tin chữ (có hạn ngắn). Tắt bằng ZALO_GIA_ANH=0; cần APP_URL https. Lỗi gì cũng bỏ qua ảnh, KHÔNG báo người dùng,
-    chỉ ghi nhật ký gọn (thông báo của `gui_anh` đã xoá token và mã trong đường dẫn)."""
-    if not b or (os.environ.get("ZALO_GIA_ANH") or "1").strip() == "0":
-        return
-    goc = ban_tin_anh.app_url()
-    if not goc:
-        ghi_log("zalo_gia_la", "banner bỏ qua: APP_URL chưa đặt hoặc không bắt đầu bằng https")
-        return
-    try:
-        url = za.url_anh(goc, b["tinh"], b["phuong"], b["code"])
-    except Exception as e:
-        ghi_log("zalo_gia_la", f"banner không ký được: {type(e).__name__}"[:200])
-        return
-    if not url:
-        return
-    loi = ""
-    for lan in range(1, SO_LAN_GUI_ANH + 1):
-        try:
-            zalo_bot.gui_anh(chat_id, url, za.chu_thich(b["ten"], b["vi_tri"], b["gia"]), han=HAN_ANH_GIAY, token=zalo_bot.token_gia())
-            return
-        except Exception as e:
-            loi = str(e) if isinstance(e, zalo_bot.LoiZalo) else type(e).__name__
-    ghi_log("zalo_gia_la", f"banner không gửi được sau {SO_LAN_GUI_ANH} lần: {loi}"[:200])
+def _tra_loi_dinh_tuyen(tin: dict, khoa: str) -> dict:
+    """Câu giá đi đường quy tắc cũ (không AI); câu số liệu đi trợ lý AI bằng tài khoản admin đại diện (`zalo_gia_ai`). Mơ hồ: giá trước."""
+    text, hoi_lai = tin["text"], doc_hoi_lai(khoa)
+    q_goc = bo_mention(text)
+    huong = za_ai.huong(chuan(q_goc), hoi_lai, za_ai.dang_hoi(khoa) if za_ai.bat() else False)
+    if huong == "ai_mem" and za_ai.tai_khoan() is None:
+        huong = "gia"
+    kq = tra_loi(text, hoi_lai) if huong in ("gia", "gia_roi_ai") else None
+    if huong == "gia_roi_ai" and not za_ai.gia_khong_ra_gi(kq):
+        huong = "gia"
+    if kq is not None and huong != "gia_roi_ai":
+        luu_hoi_lai(khoa, kq["hoi"])
+        return kq
+    luu_hoi_lai(khoa, None)
+    return {"tin": za_ai.tra_loi(tin["chat_id"], khoa, q_goc), "hoi": None, "nhat_ky": None}
 
 
 def _xu_ly(payload) -> None:
@@ -558,9 +543,7 @@ def _xu_ly(payload) -> None:
         _gui(chat_id, [nd.CHUA_CAP_QUYEN.format(id=chat_id)])
         return
     khoa = _khoa_hoi(tin)
-    kq = tra_loi(tin["text"], doc_hoi_lai(khoa))
-    luu_hoi_lai(khoa, kq["hoi"])
-    _gui_banner(chat_id, kq.get("banner"))
+    kq = _tra_loi_dinh_tuyen(tin, khoa)
     _gui(chat_id, kq["tin"])
     if kq["nhat_ky"]:
         ghi_log("zalo_gia", f"chat {chat_id}: gói={kq['nhat_ky'][0]}; phường={kq['nhat_ky'][1]}")

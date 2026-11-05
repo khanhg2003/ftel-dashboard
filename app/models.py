@@ -548,4 +548,14 @@ class ZaloGiaHoiLai(Base):
     het_han: Mapped[datetime] = mapped_column(DateTime)                  # UTC
 
 
+class ZaloGiaHoiThoai(Base):
+    """Vài lượt hỏi đáp số liệu gần nhất của một người trong bot Zalo (để hỏi tiếp "còn hôm kia?"), hết hạn sau 10 phút. Khoá = chat + người
+    nhắn. `du_lieu` là JSON [{role, content}] đã bỏ tên khách; không lưu lâu hơn cần thiết."""
+    __tablename__ = "zalo_gia_hoi_thoai"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    khoa: Mapped[str] = mapped_column(String(180), unique=True, index=True)
+    du_lieu: Mapped[str] = mapped_column(Text)
+    het_han: Mapped[datetime] = mapped_column(DateTime)                  # UTC
+
+
 from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)

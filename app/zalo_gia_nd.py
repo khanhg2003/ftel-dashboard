@@ -6,7 +6,6 @@ Bản tin): tổng kiểu mỗi tin giữ dưới `TRAN_KIEU` (quá thì `_giam_
 
 Chỉ DỰNG CHỮ từ dữ liệu `app/gia_fpt.py` (không tự tính giá, không viết lại công thức phí). Phí hòa mạng thiếu thì ghi
 "Chưa rõ, xem trên fpt.vn", không bao giờ ghi "Miễn phí" khi chỉ là mất dòng (quy tắc ở AGENTS.md, mục Tra cứu giá).
-Giai đoạn 2 sẽ thêm ảnh banner gói: chỗ cắm là `anh_banner_goi` (chưa dựng ảnh).
 """
 from __future__ import annotations
 
@@ -30,11 +29,6 @@ HUONG_DAN = (
     "Lệnh: /help xem hướng dẫn · /id xem mã chat")
 
 CHUA_CAP_QUYEN = "Chat này chưa được cấp quyền. Mã chat: {id}. Gửi mã này cho Admin để được mở."
-
-
-def anh_banner_goi(goi: dict, ct: dict | None) -> None:
-    """Giai đoạn 2: dựng ảnh banner của gói để gửi kèm. Chưa làm, để sẵn chỗ cắm."""
-    return None
 
 
 # ------------------------------------------------------------------ ghép dòng / khối / tin
@@ -121,7 +115,7 @@ def _dong_thanh_toan(z: dict) -> "bt._Soan":
     phan = ["• ", f"{nhan} · ", (tong + ("/tháng" if tra_sau else ""), "b")]
     if not tra_sau and z.get("tang") and z.get("thang_dong"):
         phan.append(f" (đóng {z['thang_dong']:g}, tặng {z['tang']:g})")
-    return _dong(*phan)         # chủ app 05/11/2026: bỏ đuôi quà "Nhận thêm Camera + Cloud 12T miễn phí" khỏi tin chữ (banner giữ nguyên)
+    return _dong(*phan)         # chủ app 05/11/2026: bỏ đuôi quà "Nhận thêm Camera + Cloud 12T miễn phí" khỏi tin chữ
 
 
 def _han_chinh_sach(lua_chon: list[dict]) -> str:
