@@ -657,6 +657,13 @@ def test_hoi_combo_ra_combo_con_hoi_ten_tran_ra_goi_thuong():
         assert kq["hoi"] is None and mong in _chu(kq).splitlines()[0], q
 
 
+def test_dong_tra_truoc_khong_co_duoi_qua_camera_cloud():
+    """Chủ app 05/11/2026: tin chữ bỏ "Nhận thêm Camera + Cloud 12T miễn phí" ở từng cách thanh toán."""
+    z = {"hinh_thuc": "Trả trước", "thang": 13, "tong": 2340000, "thang_dong": 12, "tang": 1, "qua": "Nhận thêm Camera + Cloud 12T miễn phí"}
+    chu = nd._chu(nd._dong_thanh_toan(z))
+    assert "2.340.000đ" in chu and "tặng 1" in chu and "Camera" not in chu and "Cloud" not in chu
+
+
 # ------------------------------------------------------------------ ảnh gói lấy từ fpt.vn
 URL_ANH = "https://s3-api.fpt.vn/fptvn-storage/uploads/internet-giga-3.jpg"
 

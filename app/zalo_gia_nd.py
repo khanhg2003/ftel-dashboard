@@ -121,9 +121,7 @@ def _dong_thanh_toan(z: dict) -> "bt._Soan":
     phan = ["• ", f"{nhan} · ", (tong + ("/tháng" if tra_sau else ""), "b")]
     if not tra_sau and z.get("tang") and z.get("thang_dong"):
         phan.append(f" (đóng {z['thang_dong']:g}, tặng {z['tang']:g})")
-    if z.get("qua"):
-        phan.append(f" · {z['qua']}")
-    return _dong(*phan)
+    return _dong(*phan)         # chủ app 05/11/2026: bỏ đuôi quà "Nhận thêm Camera + Cloud 12T miễn phí" khỏi tin chữ (banner giữ nguyên)
 
 
 def _han_chinh_sach(lua_chon: list[dict]) -> str:
