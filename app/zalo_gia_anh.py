@@ -2,6 +2,11 @@
 có tên gói, nửa dưới navy có GIÁ vàng rất lớn, tốc độ, viên thuốc cam nêu quà / ưu đãi, phí hòa mạng, cách trả trước có lợi nhất.
 Chỉ hình khối đơn giản + logo và font đi kèm app (`export_png._font`), không ảnh có bản quyền.
 
+Ảnh quảng cáo của gói (`images[0].url` của dịch vụ fpt.vn, đã vào `gia_fpt._chuan_goi` thành trường `anh`) được tải về làm PHẦN TRÊN của banner
+(khổ dọc rộng 1080, cắt giữa về tỉ lệ cố định `ANH_TY_LE`), khối giá navy nằm dưới. Gói không có ảnh hoặc tải / đọc ảnh lỗi thì dùng banner
+tự vẽ (vuông) làm dự phòng, không báo lỗi. Chống SSRF: chỉ tải `https://s3-api.fpt.vn` (đúng tên máy, cổng 443, không đăng nhập trong địa chỉ),
+KHÔNG đi theo chuyển hướng, tối đa 3 MB, hạn 5 giây, phải mở được bằng Pillow (JPEG / PNG / WEBP); nhớ tạm trong tiến trình.
+
 Số liệu CÙNG NGUỒN với tin chữ (`gia_fpt`: `goi_theo_phuong`, `chi_tiet_goi`); thiếu dữ liệu nào thì bỏ dòng đó. Phí hòa mạng thiếu ghi
 "Chưa rõ", không bao giờ "Miễn phí" (chỉ khi dịch vụ ghi rõ phí 0).
 
@@ -16,7 +21,9 @@ import hmac
 import io
 import re
 import time
+import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 from PIL import Image, ImageDraw
 
@@ -29,6 +36,13 @@ from app.thoi_gian import chu_gio_vn, utc_bay_gio
 HAN_ANH_GIAY = 15 * 60
 DUONG_DAN = "/api/zalo-gia/anh/"
 _NHAN_KHOA = b"zalo-gia-anh"
+HOST_ANH = "s3-api.fpt.vn"             # nguồn ảnh duy nhất được tải (chống SSRF)
+TOI_DA_BYTE_ANH = 3 * 1024 * 1024
+HAN_TAI_ANH = 5                        # giây; sendPhoto của bot chờ 8 giây gồm cả tải ảnh + dựng
+ANH_TY_LE = 1.4                        # rộng : cao của phần ảnh fpt.vn (mọi ảnh cùng chiều cao)
+_TON_ANH, _TON_ANH_LOI = 3600, 120     # giây nhớ ảnh đã tải / nhớ việc tải hỏng (khỏi chờ 5 giây mỗi lượt)
+_anh_cache: dict = {}
+_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 _TON_CACHE = 180                      # giây giữ PNG đã dựng (không bắt buộc: Vercel có thể đổi máy)
 _TOI_DA_CACHE = 24
 _cache: dict = {}
@@ -76,11 +90,16 @@ def url_anh(goc_https: str, tinh: int, phuong: int, code: str) -> str | None:
     return f"{goc_https}{DUONG_DAN}{tao_ma(tinh, phuong, code)}.png"
 
 
+def _nhan_goi(ten: str) -> str:
+    """"Gói Giga" (website đã ghi sẵn chữ Gói thì không thêm lần nữa), "Gói Sky" cho "Internet Sky"."""
+    ten_goi = re.sub(r"^internet\s+", "", ten or "", flags=re.I)
+    return ten_goi if re.match(r"^(g[oó]i|combo)\s", ten_goi, flags=re.I) else f"Gói {ten_goi}"
+
+
 def chu_thich(ten: str, vi_tri: str, gia) -> str:
     """Caption ngắn của ảnh: "Gói Giga · Phường Nam Nha Trang · 195.000đ/tháng"."""
     gia_chu = f"{gf.chu_tien(gia)}/tháng" if gia is not None else "chưa rõ giá"
-    ten_goi = re.sub(r"^internet\s+", "", ten, flags=re.I)
-    return f"Gói {ten_goi} · {vi_tri.split(',')[0]} · {gia_chu}"
+    return f"{_nhan_goi(ten)} · {vi_tri.split(',')[0]} · {gia_chu}"
 
 
 def dung_theo_ma(tinh: int, phuong: int, code: str) -> bytes:
@@ -103,6 +122,69 @@ def dung_theo_ma(tinh: int, phuong: int, code: str) -> bytes:
         _cache.pop(next(iter(_cache)))
     _cache[khoa] = (time.monotonic(), png)
     return png
+
+
+# ------------------------------------------------------------------ ảnh gói của fpt.vn
+class _KhongChuyenHuong(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):          # chuyển hướng sang máy khác là cách vượt rào SSRF: không đi theo
+        return None
+
+
+_opener = urllib.request.build_opener(_KhongChuyenHuong)
+
+
+def url_anh_hop_le(url: str) -> bool:
+    try:
+        p = urlparse(url or "")
+        return p.scheme == "https" and p.hostname == HOST_ANH and p.port in (None, 443) and not p.username and not p.password
+    except ValueError:
+        return False
+
+
+def _tai_byte(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "image/*"})
+    with _opener.open(req, timeout=HAN_TAI_ANH) as r:
+        dai = r.headers.get("Content-Length")
+        if dai and int(dai) > TOI_DA_BYTE_ANH:
+            raise ValueError("ảnh quá lớn")
+        b = r.read(TOI_DA_BYTE_ANH + 1)
+    if len(b) > TOI_DA_BYTE_ANH:
+        raise ValueError("ảnh quá lớn")
+    return b
+
+
+def tai_anh_goc(url: str) -> Image.Image | None:
+    """Ảnh quảng cáo của gói đã mở bằng Pillow; None nếu địa chỉ không hợp lệ, tải lỗi, quá lớn hay không phải ảnh."""
+    if not url_anh_hop_le(url):
+        return None
+    cu = _anh_cache.get(url)
+    if cu and time.monotonic() - cu[0] < (_TON_ANH if cu[1] else _TON_ANH_LOI):
+        b = cu[1]
+    else:
+        try:
+            b = _tai_byte(url)
+        except Exception:
+            b = None
+        if len(_anh_cache) >= 16:
+            _anh_cache.pop(next(iter(_anh_cache)))
+        _anh_cache[url] = (time.monotonic(), b)
+    if not b:
+        return None
+    try:
+        im = Image.open(io.BytesIO(b))
+        im.load()
+        return im if im.format in ("JPEG", "PNG", "WEBP") and max(im.size) <= 6000 else None
+    except Exception:
+        return None
+
+
+def _bia_anh(anh: Image.Image) -> Image.Image:
+    """Đưa ảnh về rộng `W`, cao `W / ANH_TY_LE`: phủ kín khung, cắt phần thừa ở giữa."""
+    cao = round(W / ANH_TY_LE)
+    ty = max(W / anh.width, cao / anh.height)
+    a = anh.convert("RGB").resize((max(W, round(anh.width * ty)), max(cao, round(anh.height * ty))), Image.LANCZOS)
+    x0, y0 = (a.width - W) // 2, (a.height - cao) // 2
+    return a.crop((x0, y0, x0 + W, y0 + cao))
 
 
 # ------------------------------------------------------------------ dữ liệu hiển thị
@@ -243,25 +325,24 @@ def _vien_thuoc(d, y: float, chu: list[str]) -> float:
     return y + cao
 
 
-def ve_banner(g: dict, ct: dict | None, vi_tri: str, luc=None) -> bytes:
-    """PNG vuông 1080x1080 của một gói (xem docstring đầu file)."""
-    dl = du_lieu(g, ct)
-    d0 = ImageDraw.Draw(Image.new("RGB", (4, 4)))
-    dong_tieu_de, co = _tieu_de(d0, dl["ten"])
-    co_dong = co * 1.04
-    y_dau = 236 + co * 0.9
-    y_phu = y_dau + co_dong * (len(dong_tieu_de) - 1) + 58
-    cao_xanh = y_phu + 38
-    img, d = _nen(W, cao_xanh)
-    _logo(img)
-    for i, t in enumerate(dong_tieu_de):
-        d.text((_k(48), _k(y_dau + i * co_dong)), t, font=_f("rat_dam", co), fill=TRANG, anchor="ls")
-    d.text((_k(48), _k(y_phu)), "Internet cáp quang FPT Telecom", font=_f("dam", 34), fill=(*NHAT, 255), anchor="ls")
-    y = cao_xanh + 46
+def _logo_nho(img, x: float, y: float) -> None:
+    d = ImageDraw.Draw(img, "RGBA")
+    d.rounded_rectangle([_k(x), _k(y), _k(x + 84), _k(y + 84)], radius=_k(18), fill=(255, 255, 255, 255))
+    if LOGO.exists():
+        lg = Image.open(LOGO).convert("RGBA")
+        lg.thumbnail((_k(80), _k(80)))
+        img.alpha_composite(lg, (_k(x + 42) - lg.width // 2, _k(y + 42) - lg.height // 2))
+
+
+def _khoi_duoi(img, d, y: float, dl: dict, y_toi_da: float, logo: bool = False) -> float:
+    """Khối giá: "Gói ...", GIÁ vàng, tốc độ, viên thuốc cam, phí hòa mạng, trả trước, hạn. Trả về đường cơ sở của dòng cuối đã vẽ.
+    Dòng hạn bị bỏ nếu quá `y_toi_da` (không đè chân ảnh)."""
     if dl["ten_goi"]:
-        nhan = _cat(d, f"Gói {dl['ten_goi']}", _f("dam", 44), W - 96)
+        nhan = _cat(d, _nhan_goi(dl["ten_goi"]), _f("dam", 44), W - 96 - (110 if logo else 0))
         d.text((_k(48), _k(y + 14)), nhan, font=_f("dam", 44), fill=(*NHAT, 255), anchor="ls")
-        y += 62
+        if logo:
+            _logo_nho(img, W - 48 - 84, y - 32)
+        y += 70 if logo else 62
     if dl["gia"] is not None:
         y += 112
         _dong(d, 48, y, [(gf.chu_tien(dl["gia"]), "rat_dam", 168, VANG), (" /tháng", "dam", 52, TRANG)])
@@ -283,16 +364,72 @@ def ve_banner(g: dict, ct: dict | None, vi_tri: str, luc=None) -> bytes:
         if z.get("tang"):
             doan.append((f"  (tặng {z['tang']:g} tháng)", "thuong", 36, TRANG))
         _dong(d, 48, y, doan)
-    if dl["han"] and y + 44 <= W - 96:                      # hết chỗ thì bỏ dòng hạn, không đè chân ảnh
+    if dl["han"] and y + 44 <= y_toi_da:
         y += 44
         _dong(d, 48, y, [(dl["han"], "thuong", 28, (*NHAT, 255))])
+    return y
+
+
+def _chan_anh(d, y_duong: float, vi_tri: str, luc) -> None:
     ngay = chu_gio_vn(luc or utc_bay_gio(), "%d/%m/%Y")
     pie = _cat(d, f"Giá tại {vi_tri} · fpt.vn · {ngay}", _f("thuong", 25), W - 96)
-    d.line([(_k(48), _k(W - 72)), (_k(W - 48), _k(W - 72))], fill=(255, 255, 255, 40), width=_k(2))
-    d.text((_k(48), _k(W - 36)), pie, font=_f("thuong", 25), fill=(*NHAT, 255), anchor="ls")
+    d.line([(_k(48), _k(y_duong)), (_k(W - 48), _k(y_duong))], fill=(255, 255, 255, 40), width=_k(2))
+    d.text((_k(48), _k(y_duong + 36)), pie, font=_f("thuong", 25), fill=(*NHAT, 255), anchor="ls")
+
+
+def _png(img, rong: int, cao: int) -> bytes:
     ra = io.BytesIO()
-    img.convert("RGB").resize((W, W), Image.LANCZOS).save(ra, "PNG", optimize=True)
+    img.convert("RGB").resize((rong, cao), Image.LANCZOS).save(ra, "PNG", optimize=True)
     return ra.getvalue()
+
+
+def ve_banner(g: dict, ct: dict | None, vi_tri: str, luc=None) -> bytes:
+    """Banner của một gói: có ảnh fpt.vn thì khổ dọc (ảnh trên, khối giá dưới), không thì bản tự vẽ vuông (dự phòng, không báo lỗi)."""
+    anh = tai_anh_goc(g.get("anh") or "")
+    if anh is not None:
+        try:
+            return _ve_voi_anh(g, ct, vi_tri, luc, anh)
+        except Exception:
+            pass
+    return _ve_tu_ve(g, ct, vi_tri, luc)
+
+
+def _ve_voi_anh(g: dict, ct: dict | None, vi_tri: str, luc, anh: Image.Image) -> bytes:
+    """PNG rộng 1080: ảnh quảng cáo fpt.vn ở trên (đã bo góc dưới bằng khối navy chồng lên), khối giá dưới, chân ảnh."""
+    dl = du_lieu(g, ct)
+    cao_anh, chong = round(W / ANH_TY_LE), 36
+    lop = Image.new("RGBA", (_k(W), _k(1500)), (0, 0, 0, 0))
+    d = ImageDraw.Draw(lop, "RGBA")
+    d.rounded_rectangle([0, 0, _k(W), _k(1560)], radius=_k(40), fill=(*NAVY, 255))
+    y = _khoi_duoi(lop, d, 78, dl, 10 ** 6, logo=True)
+    _chan_anh(d, y + 34, vi_tri, luc)
+    cao_lop = round(y + 34 + 36 + 34)
+    duoi = lop.crop((0, 0, _k(W), _k(cao_lop))).resize((W, cao_lop), Image.LANCZOS)
+    ra = Image.new("RGBA", (W, cao_anh - chong + cao_lop), (*NAVY, 255))
+    ra.paste(_bia_anh(anh), (0, 0))
+    ra.alpha_composite(duoi, (0, cao_anh - chong))
+    b = io.BytesIO()
+    ra.convert("RGB").save(b, "PNG", optimize=True)
+    return b.getvalue()
+
+
+def _ve_tu_ve(g: dict, ct: dict | None, vi_tri: str, luc=None) -> bytes:
+    """PNG vuông 1080x1080 tự vẽ (xem docstring đầu file): dùng khi gói không có ảnh fpt.vn."""
+    dl = du_lieu(g, ct)
+    d0 = ImageDraw.Draw(Image.new("RGB", (4, 4)))
+    dong_tieu_de, co = _tieu_de(d0, dl["ten"])
+    co_dong = co * 1.04
+    y_dau = 236 + co * 0.9
+    y_phu = y_dau + co_dong * (len(dong_tieu_de) - 1) + 58
+    cao_xanh = y_phu + 38
+    img, d = _nen(W, cao_xanh)
+    _logo(img)
+    for i, t in enumerate(dong_tieu_de):
+        d.text((_k(48), _k(y_dau + i * co_dong)), t, font=_f("rat_dam", co), fill=TRANG, anchor="ls")
+    d.text((_k(48), _k(y_phu)), "Internet cáp quang FPT Telecom", font=_f("dam", 34), fill=(*NHAT, 255), anchor="ls")
+    _khoi_duoi(img, d, cao_xanh + 46, dl, W - 96)
+    _chan_anh(d, W - 72, vi_tri, luc)
+    return _png(img, W, W)
 
 
 def _ve_toc_do(d, y: float, toc: list[str]) -> None:

@@ -119,7 +119,15 @@ def _chuan_goi(x: dict) -> dict:
             "toc_do": _toc_do(x, mo_ta), "thiet_bi": int(tb) if str(tb or "").isdigit() else None,
             "uu_dai": "" if ((x.get("tagline") or "") in NHAN_PHU or "camera" in (x.get("tagline") or "").lower())
             else (x.get("tagline") or "").replace("12T", "12 tháng"),   # website lúc ghi 12T lúc 12 tháng; CEO bỏ dòng quà tặng Camera AI + Cloud (23/10/2026)
-            "nhan": x.get("tagline") if (x.get("tagline") or "") in NHAN_PHU else "", "mo_ta": mo_ta}
+            "nhan": x.get("tagline") if (x.get("tagline") or "") in NHAN_PHU else "", "mo_ta": mo_ta, "anh": _anh_goi(x)}
+
+
+def _anh_goi(x: dict) -> str:
+    """Đường dẫn ảnh quảng cáo của gói trên fpt.vn (`images[0].url`); gói không có ảnh thì rỗng."""
+    ds = x.get("images")
+    dau = ds[0] if isinstance(ds, list) and ds else None
+    url = dau.get("url") if isinstance(dau, dict) else dau
+    return url.strip() if isinstance(url, str) else ""
 
 
 def _thu_tu(g: dict):

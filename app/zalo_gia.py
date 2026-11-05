@@ -38,7 +38,7 @@ DUONG_DAN = "/api/zalo-gia/webhook"
 HAN_HOI_LAI = timedelta(minutes=10)
 TOI_DA_CAU_PHUT = 10              # số câu mỗi chat trong 1 phút
 HAN_TRA_LOI = 40                  # giây; Vercel cho 60
-HAN_ANH_GIAY = 6                  # giây chờ Zalo tải banner: chậm hơn thì bỏ ảnh, tin chữ vẫn đi
+HAN_ANH_GIAY = 8                  # giây chờ Zalo tải banner (gồm tải ảnh fpt.vn + dựng): chậm hơn thì bỏ ảnh, tin chữ vẫn đi
 TOI_DA_LUA_CHON = 8
 TOI_DA_GOI_CHI_TIET = 3
 SO_LUONG = 8
@@ -52,6 +52,9 @@ _TU_CHUNG = set("gia cuoc goi internet combo o tai phuong xa thi tran dac khu ti
 # Chủ app chốt 05/11/2026: bot chỉ hiện ba nhóm dưới đây, theo thứ tự này. Muốn bật lại nhóm nào thì bỏ khỏi NHOM_AN.
 NHOM_AN = {"Internet game thủ", "Internet doanh nghiệp", "Combo Internet Camera"}
 NHOM_THU_TU = ["Internet cá nhân", "Internet gia đình", "Combo Internet + V.VIP"]
+# Nhóm V.VIP chỉ giữ hai combo này (chủ app chốt 05/11/2026; bỏ Meta, Lux 800 và mọi combo V.VIP khác). Muốn thêm combo thì thêm mã vào đây.
+NHOM_VVIP = "Combo Internet + V.VIP"
+COMBO_VVIP_GIU = {"combo-internet-giga-vvip-lite", "combo-internet-sky-vvip-lite"}
 _NHOM_TU_KHOA = [(tk, nhan) for tk, nhan in [
     ("doanh nghiep", "Internet doanh nghiệp"), ("camera", "Combo Internet Camera"), ("vvip", "Combo Internet + V.VIP"),
     ("v vip", "Combo Internet + V.VIP"), ("gia dinh", "Internet gia đình"), ("game thu", "Internet game thủ"),
@@ -231,7 +234,7 @@ def nhom_hien(goi: list[dict], ch: dict | None = None) -> dict[str, list[dict]]:
     thu_tu = [k for k in NHOM_THU_TU if k in nhom] + [k for k in nhom if k not in NHOM_THU_TU]
     da, ra = set(), {}
     for k in thu_tu:
-        moi = [g for g in nhom[k] if g["code"] not in da]
+        moi = [g for g in nhom[k] if g["code"] not in da and (k != NHOM_VVIP or g["code"] in COMBO_VVIP_GIU)]
         da |= {g["code"] for g in moi}
         if moi:
             ra[k] = moi
