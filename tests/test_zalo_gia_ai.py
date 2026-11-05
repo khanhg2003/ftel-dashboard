@@ -342,8 +342,8 @@ def test_tin_cua_bot_khong_hoi_ai(may_khach, gui):
 def test_loi_dan_zalo_cam_ten_cong_cu_loi_hua_va_mo_dau_bang_khoang_ngay(may_khach, gui):
     _hoi(may_khach, "b5 hôm qua bán ở những tỉnh thành nào")
     co_dinh = gui.ai[0][4][0]
-    assert za.DAN_ZALO in co_dinh and za.PHIEN_DAN_ZALO == 5 and gui.ai[0][3].endswith("|v5")
-    for y in ("KHÔNG ĐƯỢC bắt đầu bằng ngoặc đơn chứa khoảng ngày", "ban_theo_tinh", "Đà Nẵng: 45 (76,3%)", "TUYỆT ĐỐI KHÔNG nhắc tên công cụ",
+    assert za.DAN_ZALO in co_dinh and za.PHIEN_DAN_ZALO == 6 and gui.ai[0][3].endswith("|v6")
+    for y in ("KHÔNG ĐƯỢC bắt đầu bằng ngoặc đơn chứa khoảng ngày", "ban_theo_tinh", "IBB5 bán 34 hợp đồng 04/11:", "Đà Nẵng: 23 (67,6%)", "không thêm dòng \"Tổng\"", "TUYỆT ĐỐI KHÔNG nhắc tên công cụ",
               "chi_nhanh", "KHÔNG hứa", 'MỘT câu ngắn: "Chưa có số', "HAI chỉ số khác nhau",
               "BẮT BUỘC truyền đúng mã phòng", "không được bỏ trống phong",
               "nhan_su_theo_tinh", "<Tên> (<phòng>) bán <n> hợp đồng <dd/mm>:", "Đà Nẵng: 5 (71,4%)"):
