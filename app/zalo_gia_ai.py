@@ -237,6 +237,29 @@ Mỗi tỉnh một dòng "<Tỉnh>: <số> (<%>)", đủ MỌI tỉnh công cụ
 - Chỉ dùng số lấy từ công cụ. Nếu thật sự không có số thì viết MỘT câu ngắn: "Chưa có số <cái gì> (lý do ngắn)"."""
 
 
+_DONG_TINH = re.compile(r'^(?P<tinh>.+),(?P<n>\d+),"(?P<pct>[^"]*)",(?P<ck>\d+)$')
+
+
+def dinh_dang_theo_tinh(ket_qua: str) -> str | None:
+    """Chủ app 05/11/2026: câu "<phòng> hôm qua bán ở tỉnh nào" phải ra ĐÚNG mẫu mỗi tỉnh một dòng, không để AI tự viết lại (AI hay gộp tỉnh nhỏ
+    vào một dòng, thêm gạch đầu dòng và lời bình). Dựng từ kết quả công cụ `ban_theo_tinh`; không đọc được thì trả None để dùng câu của AI."""
+    dau, _, than = ket_qua.partition("\nTỉnh,")
+    m = re.match(r"SỐ (HỢP ĐỒNG TẠO MỚI \(bán\)|HỢP ĐỒNG ONLINE) THEO TỈNH, (?P<ky>[^;]+); phòng: (?P<p>[^.]+)\.", dau)
+    if not m or not than:
+        return None
+    dong = [_DONG_TINH.match(x.strip()) for x in than.splitlines()[1:] if x.strip()]
+    if not dong or any(d is None for d in dong):
+        return None
+    tong = next((d for d in dong if d["tinh"] == "TỔNG"), None)
+    cac_tinh = [d for d in dong if d["tinh"] != "TỔNG"]
+    if tong is None or not cac_tinh:
+        return None
+    ky = re.sub(r"/20\d\d$", "", m["ky"].strip())
+    pham_vi = "Toàn chi nhánh" if m["p"].startswith("mọi phòng") else m["p"].strip()
+    chi_so = "bán" if m.group(1).startswith("HỢP ĐỒNG TẠO MỚI") else "online"
+    return "\n".join([f"{pham_vi} {chi_so} {tong['n']} hợp đồng {ky}:", *[f"{d['tinh']}: {d['n']} ({d['pct']})" for d in cac_tinh]])
+
+
 def tra_loi(chat_id: str, khoa: str, cau: str) -> list:
     """Hỏi trợ lý bằng quyền của tài khoản đại diện, trả các tin chữ trơn. Không bao giờ ném lỗi."""
     u = tai_khoan()
@@ -249,8 +272,16 @@ def tra_loi(chat_id: str, khoa: str, cau: str) -> list:
     lich_su = doc_hoi_thoai(khoa)
     try:
         co_dinh, thay_doi = dl.ngu_canh_chat(u, "/", {})
-        chu = ai.chat(u, lich_su, cau[:600], (co_dinh + DAN_ZALO, thay_doi), dl.cong_cu(u), lambda ten, ts: dl.chay_cong_cu(u, ten, ts),
+        goi: list[tuple[str, dict, str]] = []
+
+        def chay(ten, ts):
+            kq = dl.chay_cong_cu(u, ten, ts)
+            goi.append((ten, ts, kq))
+            return kq
+        chu = ai.chat(u, lich_su, cau[:600], (co_dinh + DAN_ZALO, thay_doi), dl.cong_cu(u), chay,
                       khoa_luu=f"zalo-gia|{gio_viet_nam():%Y-%m-%d}|v{PHIEN_DAN_ZALO}")
+        if len(goi) == 1 and goi[0][0] == "ban_theo_tinh":                    # chỉ hỏi số theo tỉnh: định dạng bằng code, không tin AI giữ đúng mẫu
+            chu = dinh_dang_theo_tinh(goi[0][2]) or chu
     except ai.LoiAI as e:
         return [_loi_de_hieu(e)]
     except Exception:

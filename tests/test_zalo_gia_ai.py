@@ -365,3 +365,30 @@ def test_cau_tra_loi_mo_dau_bang_khoang_ngay_thi_zalo_nhan_ban_da_bo(may_khach, 
     gui.tra["chu"] = "(01-04/11)\n**B5** (IBB5) online 01-04/11: 59 hợp đồng"
     _hoi(may_khach, "b5 hôm qua bán ở tỉnh nào")
     assert gui[0][1] == "B5 (IBB5) online 01-04/11: 59 hợp đồng"
+
+
+# ------------------------------------------------------------------ số theo tỉnh: định dạng bằng code
+KQ_TINH = ("SỐ HỢP ĐỒNG TẠO MỚI (bán) THEO TỈNH, 04/11/2026; phòng: IBB5. Tỉnh theo CN quản lý của hợp đồng (nơi khách ở). Cột Cùng kỳ = 03/11.\n"
+           'Tỉnh,Số hợp đồng,% trên tổng,Cùng kỳ\nĐà Nẵng,23,"67,6%",10\nQuảng Nam,3,"8,8%",1\nHồ Chí Minh,1,"2,9%",0\n'
+           'Tây Ninh,1,"2,9%",0\nTỔNG,34,"100%",11')
+
+
+def test_dinh_dang_theo_tinh_moi_tinh_mot_dong_dung_mau_chu_app():
+    assert za.dinh_dang_theo_tinh(KQ_TINH) == ("IBB5 bán 34 hợp đồng 04/11:\nĐà Nẵng: 23 (67,6%)\nQuảng Nam: 3 (8,8%)\n"
+                                              "Hồ Chí Minh: 1 (2,9%)\nTây Ninh: 1 (2,9%)")
+    chi_nhanh = KQ_TINH.replace("phòng: IBB5", "phòng: mọi phòng được xem").replace("TẠO MỚI (bán)", "ONLINE").replace("04/11/2026;", "01/11 - 04/11/2026;")
+    assert za.dinh_dang_theo_tinh(chi_nhanh).splitlines()[0] == "Toàn chi nhánh online 34 hợp đồng 01/11 - 04/11:"
+    assert za.dinh_dang_theo_tinh("(không có hợp đồng nào)") is None and za.dinh_dang_theo_tinh(KQ_TINH.replace("TỔNG,34", "x,34")) is None
+
+
+def test_cau_hoi_theo_tinh_tra_bang_code_khong_lay_cau_cua_ai(may_khach, gui, monkeypatch):
+    """AI gọi đúng một lần ban_theo_tinh thì câu trả lời là bản dựng bằng code (liệt kê hết tỉnh, không gạch đầu dòng, không lời bình)."""
+    from app import tro_ly_du_lieu as dl
+    monkeypatch.setattr(dl, "chay_cong_cu", lambda user, ten, ts: KQ_TINH)
+
+    def chat_tinh(user, lich_su, cau, ngu_canh, cong_cu, chay_cong_cu, khoa_luu=None):
+        chay_cong_cu("ban_theo_tinh", {"tu": "2026-11-04", "den": "2026-11-04", "phong": "IBB5", "chi_so": "ban"})
+        return "• Đà Nẵng: 23 — là tỉnh nhiều nhất. Các tỉnh khác còn lại: Tây Ninh 1."
+    monkeypatch.setattr(ai, "chat", chat_tinh)
+    _hoi(may_khach, "IBB5 hôm qua bán ở nhiều ở tỉnh thành nào")
+    assert gui[0][1].splitlines() == ["IBB5 bán 34 hợp đồng 04/11:", "Đà Nẵng: 23 (67,6%)", "Quảng Nam: 3 (8,8%)", "Hồ Chí Minh: 1 (2,9%)", "Tây Ninh: 1 (2,9%)"]
