@@ -104,3 +104,9 @@ def test_khong_co_ten_nhan_su_hay_ten_khach_trong_ket_qua():
 def test_khoang_khong_co_hop_dong_thi_bao_gon():
     kq = dl.chay_cong_cu(_nguoi(), "ban_theo_tinh", {"tu": "2026-01-01", "den": "2026-01-02"})
     assert "không có hợp đồng nào" in kq
+
+
+def test_ma_phong_hieu_cach_goi_B5_phong_5_la_IBB5():
+    """Chủ app 05/11/2026 hỏi "b5 hôm qua bán ở tỉnh nào": AI truyền "b5", bị báo lỗi rồi bỏ trống phòng nên ra số cả chi nhánh."""
+    from app import tro_ly_du_lieu as dl
+    assert [dl._ma_phong(q) for q in ("b5", "B5", "phòng 5", "ibb 5", "IBB7", "Phong 7")] == ["IBB5", "IBB5", "IBB5", "IBB5", "IBB7", "IBB7"]

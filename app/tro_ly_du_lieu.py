@@ -7,6 +7,7 @@ Bảng gửi đi dạng CSV cho gọn token. Không có tên khách hàng.
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import date, timedelta
 
@@ -75,6 +76,11 @@ def _ma_phong(phong: str | None) -> str | None:
     for x in phong_order():
         if p in (x["code"].lower(), x["ten"].lower()):
             return x["code"]
+    m = re.fullmatch(r"(?:ibb|b|phong|phòng)\s*(\d+)", p)      # người dùng gọi "B5", "phòng 5" cho IBB5
+    if m:
+        for x in phong_order():
+            if x["code"].lower() == f"ibb{int(m.group(1))}":
+                return x["code"]
     raise LoiAI(f"'{phong}' không phải mã phòng. Nếu đây là một nhân sự thì gọi công cụ nhan_su_ca_nhan; "
                 "nếu là phòng thì lấy đúng mã trong danh sách phòng ở ngữ cảnh.")
 

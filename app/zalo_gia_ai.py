@@ -216,10 +216,11 @@ def _loi_de_hieu(e: ai.LoiAI) -> str:
 
 
 # ------------------------------------------------------------------ trả lời
-PHIEN_DAN_ZALO = 3        # tăng khi đổi DAN_ZALO để câu trả lời đã nhớ theo lời dặn cũ hết hiệu lực (khoá lưu của `tro_ly.chat` có số phiên này)
+PHIEN_DAN_ZALO = 4        # tăng khi đổi DAN_ZALO để câu trả lời đã nhớ theo lời dặn cũ hết hiệu lực (khoá lưu của `tro_ly.chat` có số phiên này)
 DAN_ZALO = """
 
 CÁCH TRẢ LỜI TRÊN ZALO (ưu tiên hơn MỌI lời dặn về độ dài, mở đầu và định dạng ở trên, kể cả quy tắc 'Mở đầu gọn bằng kỳ trong ngoặc'):
+- PHẠM VI: câu hỏi nhắc tới một phòng (B5 = IBB5, B7 = IBB7, "phòng 5"...) thì BẮT BUỘC truyền đúng mã phòng đó (IBB5...) vào tham số phong của MỌI công cụ, không được bỏ trống phong (bỏ trống là số của TẤT CẢ phòng, sai ý người hỏi). Câu trả lời phải mở đầu bằng tên phạm vi ("IBB5 ...", "Toàn chi nhánh ..."), và nếu người hỏi nói một phòng thì số trả lời CHỈ là số của phòng đó.
 - NGẮN, 1-4 dòng, đi thẳng vào con số người hỏi cần. Hỏi theo tỉnh / nhiều phòng / nhiều người thì mỗi dòng một mục.
 - Dòng đầu tiên KHÔNG ĐƯỢC bắt đầu bằng ngoặc đơn chứa khoảng ngày (kiểu "(01-04/11)"): mở đầu thẳng bằng câu trả lời.
 - Ghi ngày cụ thể dd/mm, không viết "hôm qua" trơn. Số của ngày chưa chốt thì thêm đúng chữ "(tạm tính)" sau con số.
