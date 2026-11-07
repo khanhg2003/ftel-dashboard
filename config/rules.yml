@@ -88,6 +88,12 @@ soan_mail:
 ban_tinh:
   phong: [IBB7]
 
+# Phòng Online (trang /phongonline, app/phong_online.py), chốt 07/11/2026: nhóm 5 người của IBB2 gom vào một bảng riêng cho BGĐ
+# theo dõi. IBB2 vẫn hiển thị đủ người như cũ. Chỉ BGĐ (role admin, không phải tài khoản kỹ thuật) và tài khoản vai trò "online" xem được.
+phong_online:
+  phong_goc: IBB2
+  acc: [dng.hieunt310, dng.haoctp2, dng.mottm, dng.thutu, dng.vannhk]   # Ngô Trung Hiếu, Cao Trần Phong Hào, Trần Thị Mi Mơ, Trần Uyên Thư, Nguyễn Hà Khánh Vân
+
 nhap_ton:
   phong: [IBB7]
   han_tra_ve_ngay: 3

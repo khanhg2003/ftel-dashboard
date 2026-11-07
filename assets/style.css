@@ -2098,3 +2098,8 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 #bt-modal .modal-than:has(.dash-dropdown[data-state="open"]),
 #btd-modal .modal-than:has(.dash-dropdown[data-state="open"]) { padding-bottom: 230px; }   /* chừa chỗ cho danh sách xổ xuống, hộp thoại cắt nội dung tràn */
 #bt-modal .modal-hop, #btd-modal .modal-hop { top: 9vh; transform: translateX(-50%); }   /* neo đầu hộp để ô Phòng không nhảy khi hộp dài ra */
+
+/* ---------- Phòng Online: 5 thẻ chỉ số ---------- */
+.kpi-row.kpi-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 1280px) { .kpi-row.kpi-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .kpi-row.kpi-5 { grid-template-columns: 1fr 1fr; } }

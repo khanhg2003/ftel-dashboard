@@ -26,7 +26,8 @@ import os as _os
 ADMIN_USERNAME: str = _os.getenv("ADMIN_USERNAME", "admin").strip().lower()
 
 ROLE_LABEL = {"admin": "Quản trị (BGD)", "operator": "Nhập liệu",
-              "phong": "Trưởng phòng", "nvkd": "Nhân viên KD", "nhanvien": "Nhân viên", "dvkh": "Khối DVKH"}
+              "phong": "Trưởng phòng", "nvkd": "Nhân viên KD", "nhanvien": "Nhân viên", "dvkh": "Khối DVKH",
+              "online": "Phòng Online"}
 # Khối làm việc (app/ui/khoi.py): Quản trị (BGĐ) chuyển được giữa mọi khối; "dvkh" chỉ thấy khối Dịch vụ khách hàng;
 # các vai trò còn lại là của khối Kinh doanh. Thêm khối Kỹ thuật thì thêm vai trò "kt" vào đây.
 ROLE_KHOI = {"dvkh": "DVKH"}
@@ -47,6 +48,8 @@ ROLE_XEM_NHAN_SU = {"admin", "phong", "nvkd"}
 # Nhân viên KD (tài khoản dùng chung của một phòng, chốt 21/09/2026): chỉ vào đúng các trang này,
 # chi tiết nhân sự chỉ phòng mình, Ads chỉ khi phòng mình là phòng chạy Ads.
 TRANG_NVKD = {"/baocaongay", "/nhapton", "/soanmail", "/danhba", "/giafpt", "/phong", "/ads", "/taikhoan", "/huongdan"}
+# Tài khoản vai trò "online" (Phòng Online, chốt 07/11/2026) chỉ vào đúng trang này (+ Tài khoản, Hướng dẫn).
+TRANG_ONLINE = {"/phongonline", "/taikhoan", "/huongdan"}
 PHONG_ADS = "IBB7"
 
 
@@ -108,6 +111,12 @@ class SessionUser(UserMixin):
         Chỉ superadmin (username=ADMIN_USERNAME) và nvkd IBB7 mới vào.
         """
         return self.la_superadmin or (self.role == "nvkd" and PHONG_ADS in self.scope)
+
+    @property
+    def duoc_xem_phong_online(self) -> bool:
+        """Trang Phòng Online (nhóm 5 người của IBB2): BGĐ (role admin, KHÔNG phải tài khoản kỹ thuật) và tài khoản
+        vai trò "online". Các tài khoản khác kể cả superadmin không xem được (chủ app chốt 07/11/2026)."""
+        return self.role == "online" or (self.role == "admin" and not self.la_superadmin)
 
     def _phong_bat(self, muc: str) -> list[str]:
         """Phòng bật một mục trong rules.yml, giao với phạm vi nhân sự của tài khoản.
@@ -179,6 +188,10 @@ class SessionUser(UserMixin):
         khoi = khoi_cua_duong_dan(path)
         if khoi is not None and khoi not in self.khoi_duoc_xem():
             return False
+        if path == "/phongonline":
+            return self.duoc_xem_phong_online
+        if self.role == "online":
+            return path in TRANG_ONLINE
         if self.role != "nvkd":
             return True
         return path in TRANG_NVKD or (path == "/phantich" and self.duoc_xem_ban_tinh)
@@ -187,6 +200,8 @@ class SessionUser(UserMixin):
         """Phạm vi SỐ CHUNG. None = toàn chi nhánh, ngược lại là danh sách mã phòng."""
         if self.role in ("admin", "operator", "phong", "nvkd"):
             return None
+        if self.role == "online":        # chỉ trang Phòng Online, tự lấy số của nhóm; không có số chung nào khác
+            return []
         if self.role == "nhanvien":
             return self.phong_cua_minh()
         return list(self.scope)

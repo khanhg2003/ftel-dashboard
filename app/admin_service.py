@@ -20,7 +20,7 @@ from app.thoi_gian import chu_gio_vn, gio_viet_nam, utc_bay_gio
 
 ph = PasswordHasher()
 ROLES = [("admin", "Quản trị (BGD)"), ("operator", "Nhập liệu"), ("phong", "Trưởng phòng"),
-         ("nvkd", "Nhân viên KD"), ("dvkh", "Khối DVKH")]
+         ("nvkd", "Nhân viên KD"), ("dvkh", "Khối DVKH"), ("online", "Phòng Online")]
 ROLE_CO_PHONG = {"phong", "nvkd"}       # vai trò phải gán phòng (Nhân viên KD: tài khoản dùng chung của phòng)
 ROLE_TEN = {**dict(ROLES), "bay": "Trưởng phòng", "nhanvien": "Nhân viên"}
 TEN_ROLE = {v: k for k, v in ROLES}

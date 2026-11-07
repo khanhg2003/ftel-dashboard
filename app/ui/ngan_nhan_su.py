@@ -95,7 +95,11 @@ def _chua_co(tieu: str, nd: str):
 
 def noi_dung(acc: str, goi_y_phong: list[str | None], den_iso: str | None):
     """(tiêu đề, thân) của ngăn cho một nhân sự, hoặc thông báo vì sao chưa mở được."""
-    if not current_user.duoc_xem_nhan_su:
+    from app import phong_online as po
+    la_online = current_user.role == "online"      # tài khoản Phòng Online: chỉ 5 người của nhóm, không phải cả IBB2
+    if la_online and not po.la_nguoi_online(acc):
+        return _chua_co("Không có quyền", "Tài khoản này chỉ xem được nhân sự của Phòng Online.")
+    if not (current_user.duoc_xem_nhan_su or la_online):
         return _chua_co("Không có quyền", "Tài khoản này không có quyền xem chi tiết nhân sự.")
     ngays = cac_ngay_co_du_lieu()
     den = kc.ngay_co_so(den_iso, ngays)
@@ -103,7 +107,7 @@ def noi_dung(acc: str, goi_y_phong: list[str | None], den_iso: str | None):
         return _chua_co("Chưa có số liệu", "Chưa có số liệu để xem chi tiết nhân sự này.")
     d = date.fromisoformat(den)
     thang = f"{d.year}-{d.month:02d}"
-    for code in _ung_vien(acc, thang, goi_y_phong):
+    for code in ([po.phong_goc()] if la_online else _ung_vien(acc, thang, goi_y_phong)):
         nv = bp.bang_nhan_su(thang, d.day, code)
         r = nv[(nv.acc_norm == acc) & (nv.loai_dong == "data")]
         if not r.empty:

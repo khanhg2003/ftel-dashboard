@@ -55,6 +55,8 @@ def trang_mo_dau(user) -> str:
         return "/dvkh"
     if user.role == "nvkd":
         return "/baocaongay" if user.duoc_bao_cao_ngay else "/nhapton"
+    if user.role == "online":
+        return "/phongonline"
     return "/phong" if user.role == "phong" and user.phong_nhan_su() else "/"
 
 
@@ -150,6 +152,7 @@ NAV = [
     ]),
     ("Phòng & nhân sự", [
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
+        ("/phongonline", "Phòng Online", "table", None),
         ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
     ]),
     ("Phân tích", [
@@ -392,7 +395,7 @@ def _thanh_du_lieu(path):
     return thanh_du_lieu()
 
 
-TRANG_CAN_SO = {"/", "/phong", "/phantich", "/tracking", "/sosanh", "/hr", "/chatluong"}
+TRANG_CAN_SO = {"/", "/phong", "/phongonline", "/phantich", "/tracking", "/sosanh", "/hr", "/chatluong"}
 
 
 def _chua_co_du_lieu():
@@ -466,6 +469,9 @@ def _router(path, search=None, store=None):
                 _topbar_simple("Báo cáo phòng" if path == "/phong" else "Nhân sự & NSLĐ"))
     if path == "/phong":
         return phong.layout(ky), phong.topbar()
+    if path == "/phongonline":
+        from app.ui.pages import phongonline
+        return phongonline.layout(ky), phongonline.topbar()
     if path == "/phantich":
         return phantich.layout(ky), phantich.topbar()
     if path in ("/tracking", "/sosanh"):
@@ -521,7 +527,8 @@ def _register_pages():
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, danhba, giafpt, nhapton, quantri_ban_tin, soanmail
     from app.ui.pages import dvkh as dvkh_page
-    for mod in (dvkh_page, tongquan, phong, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
+    from app.ui.pages import phongonline
+    for mod in (dvkh_page, tongquan, phong, phongonline, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
                 danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin):
         mod.register(app)

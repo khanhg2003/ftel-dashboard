@@ -46,13 +46,20 @@ def phong_cung_nhom(code: str, thang: str) -> list[str]:
 
 
 # ------------------------------------------------------------------ nhân sự
-def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
-    """Một dòng = một nhân sự của phòng, kèm dòng TỔNG PHÒNG ở cuối."""
+def bang_nhan_su(thang: str, ngay: int, code: str, acc: list[str] | None = None) -> pd.DataFrame:
+    """Một dòng = một nhân sự của phòng, kèm dòng TỔNG PHÒNG ở cuối.
+
+    `acc` (danh sách acc_norm) chỉ giữ một nhóm nhân sự của phòng đó (Phòng Online gom 5 người của IBB2):
+    hạng, TỔNG và mọi tỷ lệ tính lại trong riêng nhóm, các cột còn lại tính y hệt phòng thường.
+    """
     tu, den = f"{thang}-01", f"{thang}-{ngay:02d}"
     d_den = date.fromisoformat(den)
 
     hd = pt.hop_dong_online(tu, den, [code])
     ton = pt.hop_dong_ton([code])
+    if acc is not None:
+        giu = set(acc)
+        hd, ton = hd[hd.acc_norm.isin(giu)], ton[ton.acc_norm.isin(giu)]
 
     # chỉ dòng danh mục có hiệu lực trong kỳ (người đã chuyển phòng không còn hiện ở phòng cũ)
     staff = _q("""SELECT acc, acc_norm, ghi_chu, ten_hien_thi, hieu_luc_den FROM staff_map WHERE phong_code = :c
@@ -61,6 +68,9 @@ def bang_nhan_su(thang: str, ngay: int, code: str) -> pd.DataFrame:
     vvip = _dem_theo_acc("fact_fptplay", "ngay_online", tu, den, code, " AND la_vvip = TRUE")
     camera = _dem_theo_acc("fact_camera", "ngay_online", tu, den, code)
     ban_moi = _dem_theo_acc("fact_internet", "ngay_tao_hd", tu, den, code)
+    if acc is not None:
+        staff = staff[staff.acc_norm.isin(giu)]
+        vvip, camera, ban_moi = (s[s.index.isin(giu)] for s in (vvip, camera, ban_moi))
     # người chỉ bán V.VIP / Camera / hợp đồng mới (chưa có online) cũng phải có dòng,
     # nếu không dòng TỔNG PHÒNG sẽ thiếu so với Báo cáo Tổng
     ban_ra = set(hd.acc_norm) | set(ton.acc_norm) | set(vvip.index) | set(camera.index) | set(ban_moi.index)
