@@ -140,8 +140,12 @@ dat_bien() {
 }
 
 chuyen_du_lieu() {
-  local url pg
-  read -rsp "Chuỗi kết nối Supabase (cổng 5432, gõ ẩn): " url; echo
+  local url pg f=/root/supabase.url
+  if [ -s "$f" ]; then         # chuỗi kết nối đặt sẵn trong file (dán bằng Notepad rồi gửi lên); đọc xong xoá ngay
+    url="$(tr -d '[:space:]' < "$f")"; shred -u "$f" 2>/dev/null || rm -f "$f"
+  else
+    read -rsp "Chuỗi kết nối Supabase (cổng 5432, gõ ẩn): " url; echo
+  fi
   [ -n "$url" ] || { echo "Chưa nhập."; exit 1; }
   pg="$(grep '^DATABASE_URL=' "$GOC/.env" | cut -d= -f2-)"
   systemctl stop ftel
