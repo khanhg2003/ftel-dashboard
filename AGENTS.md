@@ -14,7 +14,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 ## 1. App là gì, nằm ở đâu
 
 - **Việc app làm:** Dash 4 + dash-ag-grid + Plotly + pandas + SQLAlchemy + Flask-Login. App thay các Google Sheet báo cáo bán hàng và nhân sự của chi nhánh Đà Nẵng + Quảng Nam.
-- **Chạy thật:** Vercel (`api/index.py`, vùng Tokyo) + Supabase Postgres (Tokyo).
+- **Chạy thật (từ 09/11/2026):** máy chủ riêng `43.240.117.117` (Ubuntu 24.04, Postgres 17, Caddy HTTPS, dịch vụ systemd `ftel`; xem `docs/MAY_CHU.md`), địa chỉ `https://ftel-dng.duckdns.org`. Vercel + Supabase chỉ còn là bản dự phòng, sẽ tắt sau khi máy mới chạy ổn khoảng 1 tuần: **`git push` KHÔNG còn tự cập nhật app**, phải chạy `deploy/day_len.ps1` (mục 7).
 - **Trên máy:** SQLite `data/ftel.db`. Test dùng `data/kiemthu.db`, dựng từ dữ liệu gốc kỳ 01-11/09/2026.
 - **Quy tắc nghiệp vụ** (công thức Tracking, gán phòng, MTTN, số tồn, camera...) nằm ở `config/rules.yml`, `config/org.yml` và docstring từng module. **Không đoán quy tắc.** Không rõ thì hỏi chủ app rồi ghi lại.
 
@@ -281,7 +281,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
    - *Nhân viên AI* (chốt 22/10/2026, chủ app là CEO): **agent theo vai trò** là các file `.claude/agents/*.md` (CHỈ còn `coder`: tự lên kế hoạch, viết code + test, sửa lỗi, xem giao diện; **chủ app bỏ hết agent khác ngày 23/10/2026**: 4 agent làm việc đơn giản chậm và đốt token, 2 agent vẫn thừa vì việc chủ yếu là sửa lỗi / thêm chức năng),
      nằm trong git (`.gitignore` mở riêng `.claude/agents/`, `.claude/settings.json` và `.claude/quy_tac_ngan.md`, phần còn lại của `.claude/` vẫn bị bỏ qua). **Phần `description` trong frontmatter PHẢI đặt trong
      dấu nháy kép**: câu có ": " (hai chấm + cách) làm YAML hỏng và agent bị bỏ qua lặng lẽ (lỗi thật lúc làm). Agent mới chỉ dùng được SAU KHI mở lại phiên Claude Code. Quy trình:
-     Quy trình tuỳ độ phức tạp của việc (chốt 23/10/2026, xem mục 7): việc ĐƠN GIẢN trợ lý sửa thẳng rồi đẩy Vercel; việc lớn trợ lý tự làm hoặc giao trọn gói cho `coder`, rồi báo CEO; kiểm bằng CÔNG CỤ (ruff + pytest), không dùng AI đi test AI. Ghi / xoá dữ liệu thật (Supabase) và đổi công thức đã chốt thì vẫn phải chờ CEO đồng ý rõ ràng.
+     Quy trình tuỳ độ phức tạp của việc (chốt 23/10/2026, xem mục 7): việc ĐƠN GIẢN trợ lý sửa thẳng rồi đẩy lên máy chủ; việc lớn trợ lý tự làm hoặc giao trọn gói cho `coder`, rồi báo CEO; kiểm bằng CÔNG CỤ (ruff + pytest), không dùng AI đi test AI. Ghi / xoá dữ liệu thật (Supabase) và đổi công thức đã chốt thì vẫn phải chờ CEO đồng ý rõ ràng.
      **Hook** (`scripts/claude_hook.py`, cấu hình `.claude/settings.json`): sau khi sửa file .py báo ngay lỗi cú pháp / tên chưa định nghĩa; trước mỗi lệnh Bash chặn `git add -A` / `git add .` (chữ trong dấu nháy và
      heredoc không tính) và chặn `git commit` nếu `ruff` còn cảnh báo hoặc có test lỗi (không còn lỗi cũ nào được bỏ qua; mỗi lần commit
      mất ~90 giây vì chạy cả bộ test); ghi nhật ký hoạt động vào `data/van_phong/su_kien.jsonl` (không lên GitHub, mỗi dòng một sự kiện: giao việc, agent bắt đầu / xong, công cụ vừa dùng, lệnh của CEO; đã che mật khẩu / token /
@@ -501,7 +501,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 
 ### 7.0 Chọn đường: việc đơn giản hay phức tạp (chốt 23/10/2026, chủ app muốn nhanh và tiết kiệm token mà chất lượng vẫn tốt)
 
-**Việc ĐƠN GIẢN: trợ lý TỰ SỬA THẲNG, không gọi nhân viên AI, rồi đẩy Vercel luôn (không chờ hỏi).** Thoả TẤT CẢ:
+**Việc ĐƠN GIẢN: trợ lý TỰ SỬA THẲNG, không gọi nhân viên AI, rồi đẩy lên máy chủ luôn (không chờ hỏi).** Thoả TẤT CẢ:
 - sửa khoảng 3 file trở xuống, chỗ sửa rõ ràng (chữ, lời giải thích, tên gọi, màu / CSS nhỏ, bố cục nhỏ, lỗi một chỗ, thêm / chỉnh test cho đúng chỗ đó);
 - KHÔNG đổi công thức, cách đếm, quyền xem, cấu trúc database, đường nạp file, và KHÔNG ghi dữ liệu thật.
 Cách làm: sửa → `ruff check app --select F,E9` + chỉ chạy test của vùng vừa sửa → nhìn nhanh giao diện nếu thay đổi nhìn thấy được (vùng đã đổi, một độ rộng laptop) → commit từng file (mục 7.7; hook commit đã tự chạy ruff + cả bộ test, đừng chạy tay thêm lần nữa ngay trước đó) → `git push origin main` → báo ngắn.
@@ -511,7 +511,7 @@ Cách làm: sửa → `ruff check app --select F,E9` + chỉ chạy test của v
 2. Làm tay hoặc giao TRỌN việc cho `coder` (một lần, brief ngắn: yêu cầu, file liên quan, thế nào là xong): coder tự viết test, code, chạy ruff + pytest vùng sửa, tự sửa lỗi, tự xem giao diện khi có thay đổi nhìn thấy. Kẹt một lỗi sau 3 lần thử khác nhau thì coder dừng báo; hook chặn lần giao việc cho coder thứ 4 trong cùng một lệnh của CEO.
 3. **Kiểm bằng công cụ thật, không bằng AI:** trợ lý chạy ruff + CẢ BỘ `pytest` đúng MỘT lần (hook commit đã tự chạy cả hai, đừng chạy tay thêm ngay trước đó); đỏ thì sửa tiếp.
 4. Có thay đổi nhìn thấy thì xem nhanh vùng đã đổi (1300 và 800 px).
-Sau đó commit + đẩy Vercel luôn; **ngoại lệ vẫn PHẢI hỏi chủ app trước:** ghi / xoá dữ liệu thật (Supabase), và đổi công thức / quy tắc nghiệp vụ đã chốt (mục 4).
+Sau đó commit + đẩy lên máy chủ luôn (`git push origin main` rồi `.\deploy\day_len.ps1 -May root@43.240.117.117 -Cong 24700 -Khoa "$env:USERPROFILE\.ssh\ftel_may_chu"`); **ngoại lệ vẫn PHẢI hỏi chủ app trước:** ghi / xoá dữ liệu thật (Supabase), và đổi công thức / quy tắc nghiệp vụ đã chốt (mục 4).
 
 **Tiết kiệm thời gian và token:**
 - Mặc định trợ lý tự làm. Chạy lệnh, đọc file, trả lời câu hỏi, sửa chữ / màu / một chỗ thì KHÔNG gọi agent; chỉ giao `coder` khi việc đủ lớn để đáng.
@@ -532,5 +532,5 @@ Sau đó commit + đẩy Vercel luôn; **ngoại lệ vẫn PHẢI hỏi chủ a
    - tác giả `git -c user.name=khanhg2003 commit`;
    - lời commit nói rõ *đổi gì, vì sao*;
    - cuối lời commit có dòng: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`;
-   - đẩy lên: `git push origin main` (Vercel tự triển khai sau khoảng nửa phút; kiểm bằng `/healthz` và một lớp CSS mới ở `/assets/style.css`). Việc đơn giản và việc phức tạp đã qua tester đều đẩy luôn, xem 7.0.
+   - đẩy lên: `git push origin main` (lưu code lên GitHub) **rồi bắt buộc chạy** `.\deploy\day_len.ps1 -May root@43.240.117.117 -Cong 24700 -Khoa "$env:USERPROFILE\.ssh\ftel_may_chu"` (chủ app chốt 09/11/2026: sửa code xong là đẩy lên web app máy chủ riêng luôn, không còn Vercel; lệnh đóng gói bản ĐÃ COMMIT, chép lên, cài thư viện, khởi động lại, mất ~1-2 phút); kiểm bằng `https://ftel-dng.duckdns.org/healthz`. Việc đơn giản và việc phức tạp đã qua tester đều đẩy luôn, xem 7.0.
 8. **Báo lại cho chủ app** bằng tiếng Việt ngắn gọn: đã đổi gì, kiểm tra thế nào, còn gì chưa làm hoặc cần họ quyết.
