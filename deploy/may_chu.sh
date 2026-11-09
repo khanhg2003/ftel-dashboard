@@ -112,8 +112,11 @@ EOF
   chmod +x "$GOC/sao_luu.sh"
   echo '0 19 * * * root /opt/ftel/sao_luu.sh >> /opt/ftel/logs/sao_luu.log 2>&1' > /etc/cron.d/ftel-sao-luu   # 19:00 UTC = 02:00 giờ VN
 
-  ufw allow OpenSSH >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; ufw --force enable
-  systemctl enable --now fail2ban
+  # Nhà cung cấp có thể đổi cổng SSH khỏi 22 (máy này dùng 24700): lấy cổng THẬT đang chạy, mở tường lửa đúng cổng đó, kẻo tự khoá mình ngoài.
+  local cong_ssh; cong_ssh="$(sshd -T | awk '/^port /{print $2; exit}')"; cong_ssh="${cong_ssh:-22}"
+  ufw allow "${cong_ssh}/tcp" >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null; ufw --force enable
+  printf '[sshd]\nenabled = true\nport = %s\n' "$cong_ssh" > /etc/fail2ban/jail.d/ftel-ssh.local
+  systemctl enable fail2ban; systemctl restart fail2ban
   systemctl daemon-reload; systemctl enable ftel; systemctl restart caddy
   doi_khoi_dong
   echo
