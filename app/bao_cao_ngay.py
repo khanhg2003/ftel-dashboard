@@ -76,18 +76,22 @@ def hom_nay() -> date:
     return gio_viet_nam().date()
 
 
-def onl_tu_ca_bat() -> bool:
-    """Công tắc `rules.yml` → `bao_cao_ngay.onl_tu_ca`: tắt thì ba ô ONL sáng / chiều / Đã online luôn do sale gõ tay (xem `che_do_onl`)."""
+def onl_tu_ca_bat(phong: list[str] | None = None) -> bool:
+    """Công tắc `rules.yml` → `bao_cao_ngay.onl_tu_ca`: tắt thì ba ô ONL sáng / chiều / Đã online luôn do sale gõ tay (xem `che_do_onl`).
+    Nhóm Phòng Online có công tắc riêng `phong_online.onl_tu_ca` (chủ app mở 10/11/2026), độc lập với IBB7."""
+    if phong and PHONG_ONLINE in phong:
+        from app import phong_online as po
+        return po.onl_tu_ca()
     return bool(cau_hinh().get("onl_tu_ca"))
 
 
-def che_do_onl(ngay: date) -> str:
+def che_do_onl(ngay: date, phong: list[str] | None = None) -> str:
     """Ba ô ONL sáng / ONL chiều / Đã online lấy số từ đâu (chủ app chốt 13/10/2026, phương án A): sale thường nhập dự kiến cho ngày mai vào tối hôm trước,
     còn đến ngày đó thì số phải theo ca thật ở Theo dõi Online (xếp khung giờ + đổi tình trạng ở thẻ ca là số nhảy).
       "" = ngày CHƯA TỚI: sale gõ tay, ô nào cũng sửa được.
       "het" = HÔM NAY: cả phòng tự đếm từ ca (người chưa có ca thì 0), không gõ tay; số sale đã gõ tối hôm trước vẫn còn trong database để đối chiếu.
       "co_ca" = ngày ĐÃ QUA: người nào có ca thì tự đếm, người không có ca (ngày trước khi có mục Theo dõi Online) giữ số đã gõ và vẫn sửa được."""
-    if not onl_tu_ca_bat():
+    if not onl_tu_ca_bat(phong):
         return ""
     h = hom_nay()
     return "" if ngay > h else "het" if ngay == h else "co_ca"
@@ -95,7 +99,7 @@ def che_do_onl(ngay: date) -> str:
 
 def khoa_onl(acc_norm: str, phong: list[str], ngay: date) -> bool:
     """True nếu ba ô tự đếm của người này trong ngày KHÔNG được gõ tay."""
-    m = che_do_onl(ngay)
+    m = che_do_onl(ngay, phong)
     if not m:
         return False
     if m == "het":
@@ -324,7 +328,7 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     df["thuc_hien"] = pd.to_numeric(df.get("da_online"), errors="coerce").fillna(0).astype(int)
     df["dk_toi_qua"] = df.onl_sang + df.onl_chieu                # số sale GÕ TAY (thường là tối hôm trước); hôm nay chỉ để đối chiếu với số ca đã xếp
     df["tu_ca"], df["chua_xep"] = False, 0
-    che_do = che_do_onl(ngay)
+    che_do = che_do_onl(ngay, phong)
     if che_do:
         from app import online_ca as oc
         dem = oc.dem_theo_nguoi(phong, ngay)
@@ -449,7 +453,7 @@ def moc_cap_nhat(phong: list[str], ngay: date | None = None) -> str:
                                WHERE ngay = :n AND phong_code IN ({cho})"""),
                       {**ma, "n": ngay.isoformat()}).one()
     moc = f"{r[0]}|{r[1] or ''}"
-    if che_do_onl(ngay):                                        # số tự đếm từ ca nên ca đổi là bảng phải nạp lại
+    if che_do_onl(ngay, phong):                                        # số tự đếm từ ca nên ca đổi là bảng phải nạp lại
         from app import online_ca as oc
         moc += "|" + oc.moc(phong, ngay)
     return moc

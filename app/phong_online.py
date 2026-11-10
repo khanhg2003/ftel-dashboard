@@ -34,6 +34,11 @@ def bao_cao_ngay_bat() -> bool:
     return bool(_cfg().get("bao_cao_ngay"))
 
 
+def onl_tu_ca() -> bool:
+    """ONL sáng / chiều / Đã online của Báo cáo ngày nhóm tự đếm từ ca ở Theo dõi Online (`rules.yml` → `phong_online.onl_tu_ca`)."""
+    return bool(_cfg().get("onl_tu_ca"))
+
+
 def la_nguoi_online(acc_norm: str | None) -> bool:
     return (acc_norm or "").strip().lower() in set(acc_nhom())
 

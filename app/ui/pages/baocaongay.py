@@ -95,7 +95,7 @@ def _dau_khoi(c: dict) -> dict:
     return c
 
 
-def _cot() -> list[dict]:
+def _cot(tu_ca_bat: bool = False) -> list[dict]:
     # cellClass phải kèm "ag-right-aligned-cell": đặt cellClass cho cột numericColumn thì mất lớp
     # căn phải của kiểu cột, số trong ô sale nhập sẽ lệch hàng với các cột số còn lại
     sua = {"editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale", "cellClassRules": THIEU,
@@ -104,7 +104,7 @@ def _cot() -> list[dict]:
     sua_doc = {**doc, "editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale"}
     sua_onl = {**sua, "editable": {"function": SUA_ONL}, "cellClassRules": THIEU_ONL, "valueFormatter": SO_ONL}
     tu_ca = ("\nNgày mai trở đi: sale gõ dự kiến trước.\nHôm nay: app tự đếm từ mục Theo dõi Online bên dưới, "
-             "xếp khung giờ và đổi tình trạng ở thẻ ca là số nhảy.") if bc.onl_tu_ca_bat() else ""
+             "xếp khung giờ và đổi tình trạng ở thẻ ca là số nhảy.") if tu_ca_bat else ""
 
     ban = [
         {"field": "muc_tieu", "headerName": "MT ngày *", "headerClass": "vung-sale",
@@ -127,7 +127,7 @@ def _cot() -> list[dict]:
          "editable": {"function": SUA_ONL}, "cellClassRules": {"o-tu-ca": "params.data.tu_ca"},
          "headerTooltip": "Số đã online của người này, không lấy từ file Internet." + (
              "\nNgày mai trở đi: sale gõ.\nHôm nay: app tự đếm số ca bấm \"Đã online\" ở mục Theo dõi Online bên dưới."
-             if bc.onl_tu_ca_bat() else "\nSale tự gõ.")},
+             if tu_ca_bat else "\nSale tự gõ.")},
         {"field": "con_phai_onl", "headerName": "Còn phải ONL", **doc, "cellStyle": MAU_CON,
          "valueGetter": CON_PHAI_ONL,
          "headerTooltip": "Dự kiến ONL trừ đã online.\nSố âm màu xanh nghĩa là người đó đã online "
@@ -168,7 +168,7 @@ def layout():
     bc.dam_bao_bang()
     ten = {**{p["code"]: p["ten"] for p in phong_order()}, bc.PHONG_ONLINE: "Phòng Online"}
     hom = bc.hom_nay()
-    rieng_online = ds == [bc.PHONG_ONLINE]      # nhóm Phòng Online: không có Theo dõi Online theo ca (ca gắn với phòng thật)
+    rieng_online = ds == [bc.PHONG_ONLINE]      # nhóm Phòng Online: bảng ngắn (5 người) nên cao vừa đủ, không để khoảng trống phía dưới
     return html.Div([
         html.Div([
             html.Div(field("Phòng", dcc.Dropdown(id="bn-phong", options=[{"label": ten.get(c, c), "value": c}
@@ -183,8 +183,8 @@ def layout():
                                                   style={"minWidth": "220px"})),
                      style={} if _dung_chung() else AN),
             html.Div(className="grow"),
-            *([] if rieng_online else [html.Button([icon("trend", 14), html.Span("Hiệu quả & xu hướng")], id="onl-hq-mo", className="btn", n_clicks=0,
-                        title="Tỷ lệ ca lên đúng dự kiến và xu hướng theo ngày")]),
+            html.Button([icon("trend", 14), html.Span("Hiệu quả & xu hướng")], id="onl-hq-mo", className="btn", n_clicks=0,
+                        title="Tỷ lệ ca lên đúng dự kiến và xu hướng theo ngày"),
             html.Button([icon("camera", 14), html.Span("Tạo ảnh báo cáo", id="bn-png-chu")], id="bn-png",
                         className="btn primary", n_clicks=0, title="Vẽ ảnh PNG để gửi nhóm Zalo"),
         ], className="toolbar loc-trang"),
@@ -216,7 +216,7 @@ def layout():
                       html.Span(id="bn-luu-tt", className="bn-luu-tt"),
                       html.Div(_chon_dang(), className="bn-chi-dt")],
                      className="the-thanh"),
-            html.Div(bang("bn-luoi", _cot(), cao=560, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
+            html.Div(bang("bn-luoi", _cot(bc.onl_tu_ca_bat(ds)), cao=None if rieng_online else 560, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
                           cot_mac_dinh={"resizable": True, "sortable": False, "suppressMovable": True,
                                         "wrapHeaderText": True, "autoHeaderHeight": True},
                           getRowId="params.data.id",
@@ -233,7 +233,7 @@ def layout():
                       "Bấm đúp vào tên nhân sự để xem hồ sơ bán hàng chi tiết.", tip(GOI_Y)], className="goi-y-bam bn-laptop"),
         ], className="card"),
 
-        *([] if rieng_online else _khung_online()),
+        *_khung_online(bc.onl_tu_ca_bat(ds)),
         _khoi_chu(),
         modal("bn-md", html.Span(id="bn-md-tieu-de"), [
             dcc.Store(id="bn-md-acc"),
@@ -262,10 +262,10 @@ def _chon_dang():
     return t
 
 
-def _khung_online() -> list:
+def _khung_online(dang_chay: bool = False) -> list:
     """Mục Theo dõi Online dưới bảng (xem `baocaongay_online.py`)."""
     from app.ui.pages import baocaongay_hq, baocaongay_online
-    return [*baocaongay_online.khung(), baocaongay_hq.khung()]
+    return [*baocaongay_online.khung(dang_chay), baocaongay_hq.khung()]
 
 
 def _khung_giong() -> list:
@@ -389,14 +389,14 @@ def _dong_luoi(df: pd.DataFrame) -> list[dict]:
     return ds
 
 
-def _mo_ta(t: dict, d: date, df: pd.DataFrame, toi_la):
+def _mo_ta(t: dict, d: date, df: pd.DataFrame, toi_la, phong: list[str] | None = None):
     """Dòng mô tả dưới tiêu đề bảng. Ngày đã tới thì nói rõ ba ô ONL tự đếm từ ca, còn bao nhiêu ca chưa xếp giờ, và (hôm nay) số sale đã gõ tối hôm trước
     để không ai tưởng số dự kiến "biến mất" khi sang ngày."""
     mo_ta = (f"{t['so_nguoi']} nhân sự · {t['chua_nhap']} người chưa nhập. "
              "Ô có dấu * là sale nhập, còn lại app tự lấy từ file Internet.")
     if d > bc.hom_nay():
         mo_ta = f"Ngày {d:%d/%m} chưa tới nên các cột app tự lấy từ file vẫn đang là số của hôm nay. " + mo_ta
-    elif bc.che_do_onl(d) and not df.empty:
+    elif bc.che_do_onl(d, phong) and not df.empty:
         mo_ta += " ONL sáng, ONL chiều, Đã online tự đếm từ ca ở mục Theo dõi Online bên dưới (ô xám)."
         chua = int(df.chua_xep.sum())
         if chua:
@@ -509,12 +509,12 @@ def register(app):
             # KHÔNG cập nhật `bn-moc` ở đây: moc lúc này đã gồm cả lần sửa của NGƯỜI KHÁC xen giữa mà dòng đó chưa được đẩy về bảng. Nhớ moc mới là
             # nhịp tự nạp kế tiếp tưởng "không ai sửa gì" và bỏ qua mãi - bảng giữ số cũ của người ta trong khi dòng TỔNG đã tính số mới.
             return (chon, _tom_tat(t), no_update, no_update, _ghim(df),
-                    no_update, no_update, _mo_ta(t, d, df, toi_la), no_update, _tien_do(df, d), no_update)
+                    no_update, no_update, _mo_ta(t, d, df, toi_la, phong), no_update, _tien_do(df, d), no_update)
         dien_thoai = (vw or {}).get("w", 1440) < 768
         tieu_de = [f"Bảng chỉ số toàn bộ nhân sự · {d:%d/%m/%Y}"]
         if d > bc.hom_nay():                      # điền trước cho hôm sau: phải nói rõ kẻo đọc nhầm
             tieu_de.append(html.Span("Nhập trước", className="bn-sau"))
-        mo_ta = _mo_ta(t, d, df, toi_la)
+        mo_ta = _mo_ta(t, d, df, toi_la, phong)
         if ctx.triggered_id == "bn-nhip":
             # nhịp tự nạp: KHÔNG ghi đè cả bảng, chỉ gửi số mới để trình duyệt cập nhật các dòng (trừ dòng đang chờ lưu / đang gõ)
             return (chon, _tom_tat(t), no_update, no_update, _ghim(df), _the(df) if dien_thoai else [], tieu_de, mo_ta, moc, _tien_do(df, d),

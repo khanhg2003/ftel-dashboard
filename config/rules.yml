@@ -92,6 +92,7 @@ ban_tinh:
 # theo dõi. IBB2 vẫn hiển thị đủ người như cũ. Chỉ BGĐ (role admin, không phải tài khoản kỹ thuật) và tài khoản vai trò "online" xem được.
 phong_online:
   phong_goc: IBB2
+  onl_tu_ca: true             # ONL sáng / chiều / Đã online tự đếm từ ca ở Theo dõi Online (nhóm này KHÔNG nối Nhập tồn)
   bao_cao_ngay: true          # tài khoản vai trò online có Báo cáo ngày + KHTN riêng của nhóm (mã ảo ONLINE, tách hẳn IBB7)
   acc: [dng.hieunt310, dng.haoctp2, dng.mottm, dng.thutu, dng.vannhk]   # Ngô Trung Hiếu, Cao Trần Phong Hào, Trần Thị Mi Mơ, Trần Uyên Thư, Nguyễn Hà Khánh Vân
 

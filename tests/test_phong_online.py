@@ -153,3 +153,39 @@ def test_quyen_bao_cao_ngay_va_cong_cu_cua_nhom():
     assert nvkd.phong_bao_cao_ngay() == ["IBB7"]                                   # IBB7 giữ nguyên
     from app.ui.app import trang_mo_dau
     assert trang_mo_dau(online) == "/baocaongay"
+
+
+# ------------------------------------------------------------------ Theo dõi Online của nhóm: cập nhật khung giờ, KHÔNG nối Nhập tồn (10/11/2026)
+def test_theo_doi_online_cua_nhom_khong_noi_nhap_ton():
+    from sqlalchemy import delete, func, select
+
+    from app import bao_cao_ngay as bc
+    from app import online_ca as oc
+    from app import online_ton as ot
+    from app.db import session_scope
+    from app.models import OnlineCa, TonTheoDoi
+    ngay, acc = date(2026, 9, 10), po.acc_nhom()[0]
+    ph = [bc.PHONG_ONLINE]
+    assert {x["a"] for x in oc.nhan_vien(tuple(ph), ngay.isoformat())} <= set(po.acc_nhom())         # chỉ người của nhóm
+    assert not ot.noi_ton(ph) and ot.noi_ton(["IBB7"]) and ot._ton(ph).empty
+    oc.dam_bao_bang()
+    with session_scope() as sess:
+        sess.execute(delete(OnlineCa).where(OnlineCa.phong_code == bc.PHONG_ONLINE))
+        truoc = sess.execute(select(func.count()).select_from(TonTheoDoi)).scalar()
+    try:
+        ket = oc.them_nhieu("DAAAP6381 DAAAP6382", acc, oc.khung()[0]["ma"], ph, "kiemthu", ngay, ghi_chu="khách hẹn sáng")
+        assert ket["them"] == ["DAAAP6381", "DAAAP6382"] and not ket["hoi"]                          # không hỏi xác nhận ngày với Nhập tồn
+        ca = oc.ds_ca(ph, ngay)
+        assert len(ca) == 2 and all(c["acc"] == acc and c["gc"] == "khách hẹn sáng" for c in ca)
+        oc.doi_trang_thai(ca[0]["id"], "da_online", ph, "kiemthu")
+        oc.doi_khung(ca[1]["id"], "chua", ph, "kiemthu")
+        gd = oc.du_lieu(ph, ngay)
+        assert gd["tu_ca"] is True and gd["hen"] == {} and gd["lech"] == {} and gd["ton"] == {}
+        with session_scope() as sess:
+            assert sess.execute(select(func.count()).select_from(TonTheoDoi)).scalar() == truoc    # không ghi gì sang Nhập tồn
+        d = bc.bang(ph, ngay).set_index("acc_norm").loc[acc]                                       # ngày đã qua: người có ca thì tự đếm
+        assert d.tu_ca and d.thuc_hien == 1 and d.onl_sang == 1 and d.chua_xep == 1
+        assert bc.khoa_onl(acc, ph, ngay) and not bc.che_do_onl(ngay, ["IBB7"])                    # IBB7 vẫn tạm dừng, không bị ảnh hưởng
+    finally:
+        with session_scope() as sess:
+            sess.execute(delete(OnlineCa).where(OnlineCa.phong_code == bc.PHONG_ONLINE))

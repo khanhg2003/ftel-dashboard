@@ -86,7 +86,10 @@ def nhan_vien(phong: tuple, ngay_iso: str) -> list[dict]:
     """Nhân sự đang làm của phòng (cùng danh sách bảng Báo cáo ngày): [{a: acc_norm, t: họ tên}]."""
     ngay = date.fromisoformat(ngay_iso)
     dau = date(ngay.year, ngay.month, 1)
-    staff = bc._nhan_su_dang_lam(list(phong), dau, ngay)
+    thuc, loc = bc._nguon(list(phong))
+    staff = bc._nhan_su_dang_lam(thuc, dau, ngay)
+    if loc is not None:                                    # nhóm Phòng Online: chỉ 5 người của nhóm
+        staff = staff[staff.acc_norm.isin(loc)]
     if staff.empty:
         return []
     ten = pd.read_sql_query(text("SELECT acc_norm, ho_ten FROM dim_employee WHERE acc_norm IS NOT NULL"), engine)
@@ -237,7 +240,7 @@ def dong_bo_ghi_chu_ngay(phong: list[str], ngay: date, ai: str = "tự đồng b
         rows = s.execute(select(OnlineCa).where(OnlineCa.ngay == ngay, OnlineCa.phong_code.in_(phong), OnlineCa.trang_thai != "doi_mai")).scalars().all()
         if not rows:
             return 0
-        gc_ton = ot.ghi_chu_ton({r.ma_hd for r in rows})
+        gc_ton = ot.ghi_chu_ton({r.ma_hd for r in rows}, phong)
         n, sang_ton = 0, {}
         for r in rows:
             ton = gc_ton.get(r.ma_hd, "")
@@ -265,7 +268,7 @@ def du_lieu(phong: list[str], ngay: date) -> dict:
     nv = nhan_vien(tuple(phong), ngay.isoformat())
     from app import online_ton as ot
     ca = ds_ca(phong, ngay)
-    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "tu_ca": bc.onl_tu_ca_bat(), "khung": khung(), "nv": nv, "ca": ca, "hen": ot.hen_cho_ngay(phong, ngay),
+    return {"ngay": ngay.isoformat(), "hom_nay": bc.hom_nay().isoformat(), "tu_ca": bc.onl_tu_ca_bat(phong), "khung": khung(), "nv": nv, "ca": ca, "hen": ot.hen_cho_ngay(phong, ngay),
             "lech": ot.lech_ngay(ca, ngay, phong),
             "ton": ton_tat_ca(phong, ngay), "doi": ca_doi(phong, ngay), "xa_nhat": bc.ngay_xa_nhat().isoformat(), "moc": moc(phong, ngay)}
 
@@ -317,7 +320,7 @@ def them_nhieu(chu, acc_norm: str, khung_ma: str, phong: list[str], ai: str, nga
     _khung_hop_le(khung_ma)
     from app import online_ton as ot
     xd = {x["ma"]: x for x in ot.xung_dot(ma_ds, ngay, phong)}
-    gc_ton = ot.ghi_chu_ton(ma_ds)
+    gc_ton = ot.ghi_chu_ton(ma_ds, phong)
     ket = {"them": [], "bo_qua": [(t, "mã không hợp lệ") for t in sai], "hoi": []}
     sang_ton = {}                                           # mã -> ghi chú mới cần chép sang Nhập tồn
     with session_scope() as s:

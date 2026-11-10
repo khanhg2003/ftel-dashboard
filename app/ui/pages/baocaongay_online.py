@@ -21,17 +21,17 @@ from app.thoi_gian import gio_viet_nam
 from app.ui.components import alert, modal
 
 
-def khung() -> list:
-    """Thẻ Theo dõi Online + hộp sửa ca, đặt ngay dưới bảng Báo cáo ngày."""
+def khung(dang_chay: bool = False) -> list:
+    """Thẻ Theo dõi Online + hộp sửa ca, đặt ngay dưới bảng Báo cáo ngày. `dang_chay` = nhóm đang dùng mục này (Phòng Online): mở sẵn, không ghi "Tạm dừng"."""
     oc.dam_bao_bang()
     return [
         dcc.Store(id="onl-du-lieu"), dcc.Store(id="onl-sk"), dcc.Store(id="onl-lam-moi"), dcc.Store(id="onl-ve"),
         dcc.Store(id="onl-thong-bao"), dcc.Store(id="onl-bao-xong"), dcc.Store(id="onl-toi-la-xong"), dcc.Store(id="onl-hoi"), dcc.Store(id="onl-hoi-xong"),
         # Mục này đang TẠM DỪNG (chủ app 15/10/2026): giữ nguyên logic + giao diện nhưng thu gọn thành MỘT thanh nhỏ, bấm mới mở. Đóng thì máy chủ không nạp gì
         # (đỡ CPU Vercel, và các bước tự đồng bộ ghi chú / kéo ca không chạy ngầm); nhớ trạng thái mở / đóng trên máy.
-        dcc.Store(id="onl-mo", storage_type="local", data=False), dcc.Store(id="onl-mo-xong"),
-        html.Button([html.B("Theo dõi Online"), html.Span("Tạm dừng · bấm để mở", className="onl-gap-ghi"), html.Span("▾", className="onl-gap-mui")],
-                    id="onl-gap", className="onl-gap", n_clicks=0, title="Mục theo dõi ca online theo khung giờ đang tạm dừng, bấm để mở / thu gọn"),
+        dcc.Store(id="onl-mo", storage_type="local", data=dang_chay), dcc.Store(id="onl-mo-xong"),
+        html.Button([html.B("Theo dõi Online"), html.Span("Cập nhật khung giờ online · bấm để thu gọn / mở" if dang_chay else "Tạm dừng · bấm để mở", className="onl-gap-ghi"), html.Span("▾", className="onl-gap-mui")],
+                    id="onl-gap", className="onl-gap", n_clicks=0, title="Mục theo dõi ca online theo khung giờ, bấm để mở / thu gọn" if dang_chay else "Mục theo dõi ca online theo khung giờ đang tạm dừng, bấm để mở / thu gọn"),
         html.Div([
             html.Div([
                 html.Div(id="onl-hero"),
@@ -58,7 +58,7 @@ def khung() -> list:
 def _bao_bang(d: date, truoc: set, phong: list[str], sk: dict | None = None) -> tuple:
     """Hai đầu ra `bn-da-luu` + `bn-nhip-va`: báo bảng phía trên nạp lại dòng của những người vừa có ca đổi (cả người cũ và người mới khi chuyển ca).
     Ngày chưa tới thì bảng gõ tay, không có gì phải báo."""
-    if not bc.che_do_onl(d):
+    if not bc.che_do_onl(d, phong):
         return no_update, no_update
     accs = truoc | {c["acc"] for c in oc.ds_ca(phong, d)} | {(sk or {}).get("acc")}
     accs.discard(None)
@@ -110,7 +110,7 @@ def register(app):
             raise PreventUpdate
         phong, d, ai = _ngu_canh(code, ngay, toi_la)
         act, thong_bao, canh_bao, hoi = sk["act"], no_update, None, no_update
-        truoc = {c["acc"] for c in oc.ds_ca(phong, d)} if bc.che_do_onl(d) else set()       # người có ca TRƯỚC khi đổi (ca xoá / dời đi không còn ở sau)
+        truoc = {c["acc"] for c in oc.ds_ca(phong, d)} if bc.che_do_onl(d, phong) else set()       # người có ca TRƯỚC khi đổi (ca xoá / dời đi không còn ở sau)
         try:
             if act == "them":
                 kq = oc.them_nhieu(sk.get("text"), sk.get("acc"), sk.get("khung"), phong, ai, d, ghi_chu=sk.get("gc") or "", xac_nhan=bool(sk.get("xn")))

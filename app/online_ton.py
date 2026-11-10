@@ -16,14 +16,21 @@ from __future__ import annotations
 
 from datetime import date
 
+import pandas as pd
 from sqlalchemy import select
 
+from app import bao_cao_ngay as bc
 from app import nhap_ton as nt
 from app import phan_tich as pt
 from app.db import session_scope
 from app.models import OnlineCa, TonTheoDoi
 
 PA_CHO = "Đang chờ triển khai"
+
+
+def noi_ton(phong: list[str]) -> bool:
+    """Nhóm Phòng Online chỉ dùng Theo dõi Online để cập nhật khung giờ, KHÔNG nối Nhập tồn (chủ app chốt 10/11/2026): mọi hàm dưới đây bỏ qua."""
+    return bc.PHONG_ONLINE not in phong
 
 
 def _moc(mas) -> dict[str, dict]:
@@ -37,10 +44,10 @@ def _moc(mas) -> dict[str, dict]:
                 for r in s.execute(select(TonTheoDoi).where(TonTheoDoi.hop_dong.in_(mas))).scalars()}
 
 
-def ghi_chu_ton(mas) -> dict[str, str]:
+def ghi_chu_ton(mas, phong: list[str] | None = None) -> dict[str, str]:
     """Ghi chú tình trạng đang có ở Nhập tồn của các mã (chỉ mã đã có chữ)."""
     mas = list(mas)
-    if not mas:
+    if not mas or (phong is not None and not noi_ton(phong)):
         return {}
     nt.dam_bao_bang()
     with session_scope() as s:
@@ -60,6 +67,8 @@ def gop_ghi_chu(co_san: str, moi: str) -> str:
 
 def ca_sang_ton(ma: str, ghi_chu: str, phong: list[str], ai: str) -> None:
     """Chép ghi chú của ca sang "Ghi chú tình trạng" ở Nhập tồn (giống chữ thì thôi). HĐ không còn trong tồn thì bỏ qua."""
+    if not noi_ton(phong):
+        return
     gc = (ghi_chu or "").strip()
     if gc == ghi_chu_ton([ma]).get(ma, ""):
         return
@@ -70,6 +79,8 @@ def ca_sang_ton(ma: str, ghi_chu: str, phong: list[str], ai: str) -> None:
 
 
 def _ton(phong: list[str]):
+    if not noi_ton(phong):
+        return pd.DataFrame(columns=["hop_dong"])
     return pt.hop_dong_ton(list(phong))
 
 
@@ -111,7 +122,7 @@ def lech_ngay(ca: list[dict], ngay: date, phong: list[str]) -> dict[str, dict]:
 def dong_bo_hen(mas, ngay: date, phong: list[str], ai: str) -> int:
     """Đặt mốc Hẹn thi công `ngay` ở Nhập tồn cho các mã (bỏ qua mã đã khớp hoặc không còn tồn). Trả số mã đã sửa."""
     mas = list(mas)
-    if not mas:
+    if not mas or not noi_ton(phong):
         return 0
     moc = _moc(mas)
     n = 0
@@ -129,6 +140,8 @@ def dong_bo_hen(mas, ngay: date, phong: list[str], ai: str) -> int:
 
 def dong_bo_tt(ma: str, tt: str, phong: list[str], ai: str) -> None:
     """Ca đổi trạng thái: Đã online -> phương án "Đã triển khai"; bỏ Đã online -> về "Đang chờ triển khai" nếu đang là Đã triển khai."""
+    if not noi_ton(phong):
+        return
     x = _moc([ma]).get(ma)
     if tt == "da_online":
         pa = nt.PA_DA_TRIEN_KHAI

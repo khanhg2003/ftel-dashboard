@@ -63,7 +63,7 @@ def _don():
 @pytest.fixture()
 def tu_ca_bat(monkeypatch):
     """Bật công tắc nối Theo dõi Online với ba ô ONL của bảng (mặc định đang TẮT: `rules.yml` → `bao_cao_ngay.onl_tu_ca`)."""
-    monkeypatch.setattr(bc, "onl_tu_ca_bat", lambda: True)
+    monkeypatch.setattr(bc, "onl_tu_ca_bat", lambda phong=None: True)
 
 
 @pytest.fixture()
