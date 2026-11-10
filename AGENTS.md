@@ -14,7 +14,7 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 ## 1. App là gì, nằm ở đâu
 
 - **Việc app làm:** Dash 4 + dash-ag-grid + Plotly + pandas + SQLAlchemy + Flask-Login. App thay các Google Sheet báo cáo bán hàng và nhân sự của chi nhánh Đà Nẵng + Quảng Nam.
-- **Chạy thật (từ 09/11/2026):** máy chủ riêng `43.240.117.117` (Ubuntu 24.04, Postgres 17, Caddy HTTPS, dịch vụ systemd `ftel`; xem `docs/MAY_CHU.md`), địa chỉ `https://ftel-dng.duckdns.org`. Vercel + Supabase chỉ còn là bản dự phòng, sẽ tắt sau khi máy mới chạy ổn khoảng 1 tuần: **`git push` KHÔNG còn tự cập nhật app**, phải chạy `deploy/day_len.ps1` (mục 7).
+- **Chạy thật (từ 09/11/2026):** máy chủ riêng `43.240.117.117` (Ubuntu 24.04, Postgres 17, Caddy HTTPS, dịch vụ systemd `ftel`; xem `docs/MAY_CHU.md`), địa chỉ `https://ftel-dng.duckdns.org`. Vercel đã TẮT ngày 10/11/2026 (`vercel.json` chỉ còn chuyển hướng 307 mọi đường dẫn sang địa chỉ mới; muốn bật lại thì khôi phục `vercel.json` cũ từ git); Supabase chỉ còn giữ làm bản dự phòng (chưa xoá). **`git push` KHÔNG tự cập nhật app**, phải chạy `deploy/day_len.ps1` (mục 7).
 - **Trên máy:** SQLite `data/ftel.db`. Test dùng `data/kiemthu.db`, dựng từ dữ liệu gốc kỳ 01-11/09/2026.
 - **Quy tắc nghiệp vụ** (công thức Tracking, gán phòng, MTTN, số tồn, camera...) nằm ở `config/rules.yml`, `config/org.yml` và docstring từng module. **Không đoán quy tắc.** Không rõ thì hỏi chủ app rồi ghi lại.
 
