@@ -62,7 +62,7 @@ def topbar():
 
 
 def _dung_chung() -> bool:
-    return current_user.role == "nvkd"
+    return current_user.role in ("nvkd", "online")     # tài khoản dùng chung của cả phòng: có ô "Tôi là"
 
 
 def nt_ten(acc_norm) -> str | None:
@@ -166,8 +166,9 @@ def layout():
     if not ds:
         return alert("Tài khoản này không dùng mục Báo cáo ngày.", "bad")
     bc.dam_bao_bang()
-    ten = {p["code"]: p["ten"] for p in phong_order()}
+    ten = {**{p["code"]: p["ten"] for p in phong_order()}, bc.PHONG_ONLINE: "Phòng Online"}
     hom = bc.hom_nay()
+    rieng_online = ds == [bc.PHONG_ONLINE]      # nhóm Phòng Online: không có Theo dõi Online theo ca (ca gắn với phòng thật)
     return html.Div([
         html.Div([
             html.Div(field("Phòng", dcc.Dropdown(id="bn-phong", options=[{"label": ten.get(c, c), "value": c}
@@ -182,8 +183,8 @@ def layout():
                                                   style={"minWidth": "220px"})),
                      style={} if _dung_chung() else AN),
             html.Div(className="grow"),
-            html.Button([icon("trend", 14), html.Span("Hiệu quả & xu hướng")], id="onl-hq-mo", className="btn", n_clicks=0,
-                        title="Tỷ lệ ca lên đúng dự kiến và xu hướng theo ngày"),
+            *([] if rieng_online else [html.Button([icon("trend", 14), html.Span("Hiệu quả & xu hướng")], id="onl-hq-mo", className="btn", n_clicks=0,
+                        title="Tỷ lệ ca lên đúng dự kiến và xu hướng theo ngày")]),
             html.Button([icon("camera", 14), html.Span("Tạo ảnh báo cáo", id="bn-png-chu")], id="bn-png",
                         className="btn primary", n_clicks=0, title="Vẽ ảnh PNG để gửi nhóm Zalo"),
         ], className="toolbar loc-trang"),
@@ -232,7 +233,7 @@ def layout():
                       "Bấm đúp vào tên nhân sự để xem hồ sơ bán hàng chi tiết.", tip(GOI_Y)], className="goi-y-bam bn-laptop"),
         ], className="card"),
 
-        *_khung_online(),
+        *([] if rieng_online else _khung_online()),
         _khoi_chu(),
         modal("bn-md", html.Span(id="bn-md-tieu-de"), [
             dcc.Store(id="bn-md-acc"),
@@ -335,8 +336,8 @@ def _the_so(nhan: str, so, goi_y: str, mau: str = "", id_: str | None = None) ->
 
 
 def _sua_duoc_muc_tieu() -> bool:
-    """Chỉ Quản trị (BGĐ) đặt mục tiêu tháng - chủ app chốt 02/10/2026."""
-    return bool(getattr(current_user, "duoc_cau_hinh", False))
+    """Chỉ Quản trị (BGĐ) đặt mục tiêu tháng - chủ app chốt 02/10/2026; thêm tài khoản Phòng Online cho nhóm của mình (10/11/2026)."""
+    return bool(getattr(current_user, "duoc_cau_hinh", False)) or getattr(current_user, "role", "") == "online"
 
 
 def _tom_tat(t: dict) -> list:

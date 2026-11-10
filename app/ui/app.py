@@ -56,7 +56,7 @@ def trang_mo_dau(user) -> str:
     if user.role == "nvkd":
         return "/baocaongay" if user.duoc_bao_cao_ngay else "/nhapton"
     if user.role == "online":
-        return "/phongonline"
+        return "/baocaongay" if user.duoc_bao_cao_ngay else "/phongonline"
     return "/phong" if user.role == "phong" and user.phong_nhan_su() else "/"
 
 

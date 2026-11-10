@@ -13,6 +13,7 @@ from app.config import rules_config
 from app.metrics import bang_ngay_theo_acc
 
 TEN = "Phòng Online"
+MA = "ONLINE"            # mã "phòng" ảo của nhóm: Báo cáo ngày của nhóm lưu với mã này, tách hẳn IBB7 (xem `bao_cao_ngay.PHONG_ONLINE`)
 
 
 def _cfg() -> dict:
@@ -26,6 +27,11 @@ def phong_goc() -> str:
 def acc_nhom() -> list[str]:
     """acc_norm của những người thuộc Phòng Online."""
     return [str(a).strip().lower() for a in (_cfg().get("acc") or [])]
+
+
+def bao_cao_ngay_bat() -> bool:
+    """Tài khoản vai trò "online" có mục Báo cáo ngày riêng (`rules.yml` → `phong_online.bao_cao_ngay`)."""
+    return bool(_cfg().get("bao_cao_ngay"))
 
 
 def la_nguoi_online(acc_norm: str | None) -> bool:
@@ -53,3 +59,36 @@ def so_theo_ngay(thang: str, ngay: int, khoi: str, cong_don: bool = False) -> pd
     dong_tong = {"loai_dong": "subtotal", "phong_code": "ONLINE", "phong": TEN, "acc": f"TỔNG {TEN.upper()}",
                  "acc_norm": "", "ten": "", **tong}
     return pd.concat([nguoi, pd.DataFrame([dong_tong])], ignore_index=True)
+
+
+def khtn_theo_ngay(thang: str, ngay: int) -> pd.DataFrame:
+    """Báo cáo KHTN của từng người trong nhóm, lấy từ ô KHTN ở Báo cáo ngày của nhóm (khách đang theo, chưa lên hợp đồng).
+
+    Mỗi dòng một người; cột `d01`... là số KHTN người đó báo từng ngày (None = ngày đó người đó chưa có báo cáo nào, khác hẳn số 0 đã nhập).
+    Cột `hom_nay` / `hom_qua` là hai ngày cuối kỳ, `tb` bình quân các ngày ĐÃ nhập, `cao_nhat`, `so_ngay_nhap`."""
+    from datetime import date
+
+    from sqlalchemy import text
+
+    from app import bao_cao_ngay as bc
+    from app.db import engine
+    d = date(int(thang[:4]), int(thang[5:7]), ngay)
+    nguoi = bc.bang([bc.PHONG_ONLINE], d)
+    if nguoi.empty:
+        return pd.DataFrame()
+    raw = pd.read_sql_query(text("SELECT ngay, acc_norm, khtn FROM bao_cao_ngay WHERE phong_code = :p AND ngay >= :tu AND ngay <= :den"),
+                            engine, params={"p": bc.PHONG_ONLINE, "tu": f"{thang}-01", "den": d.isoformat()})
+    raw = raw[raw.khtn.notna()]
+    raw["ngay"] = pd.to_datetime(raw["ngay"]).dt.day
+    pv = raw.pivot_table(index="acc_norm", columns="ngay", values="khtn", aggfunc="max")
+    out = nguoi[["acc_norm", "acc", "ho_ten"]].copy()
+    for n in range(1, ngay + 1):
+        out[f"d{n:02d}"] = out.acc_norm.map(pv[n]) if n in pv.columns else None
+    cot = [f"d{n:02d}" for n in range(1, ngay + 1)]
+    so = out[cot].apply(pd.to_numeric, errors="coerce")
+    out["hom_nay"] = so[cot[-1]]
+    out["hom_qua"] = so[cot[-2]] if len(cot) > 1 else None
+    out["tb"] = so.mean(axis=1).round(1)
+    out["cao_nhat"] = so.max(axis=1)
+    out["so_ngay_nhap"] = so.notna().sum(axis=1)
+    return out.sort_values(["hom_nay", "ho_ten"], ascending=[False, True], na_position="last").reset_index(drop=True)

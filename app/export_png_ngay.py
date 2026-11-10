@@ -382,7 +382,7 @@ def anh_bao_cao_ngay(phong_code: str, ngay: date | None = None) -> bytes:
     df = bc.bang([phong_code], ngay)
     t = bc.tom_tat([phong_code], ngay)
     chu = bc.chu(phong_code, ngay)
-    ten_phong = {p["code"]: p["ten"] for p in phong_order()}.get(phong_code, phong_code)
+    ten_phong = {**{p["code"]: p["ten"] for p in phong_order()}, bc.PHONG_ONLINE: "Phòng Online"}.get(phong_code, phong_code)
 
     cao = 132 + 302 + KHE + 44 + 38 + CAO_DONG * max(len(df), 1) + 42 + KHE + 400 + KHE + 60
     img = Image.new("RGBA", (_k(RONG), _k(cao)))

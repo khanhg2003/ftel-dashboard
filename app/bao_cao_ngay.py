@@ -43,6 +43,15 @@ GHI_CHU_TOI_DA = 400
 TOI_DA = 999                       # chặn gõ nhầm 9999
 TRUOC_TOI_DA = 7                   # số ngày tương lai được phép nhập trước (chốt 26/09/2026)
 _da_tao = False
+PHONG_ONLINE = "ONLINE"            # "phòng" ảo của nhóm Phòng Online (app/phong_online.py): số nhập lưu với mã này, riêng hẳn IBB7
+
+
+def _nguon(phong: list[str]) -> tuple[list[str], set[str] | None]:
+    """(mã phòng THẬT để đọc file, acc được giữ lại). Phòng thường: (phong, None); nhóm Phòng Online: đọc IBB2 rồi chỉ giữ 5 người của nhóm."""
+    if PHONG_ONLINE in phong:
+        from app import phong_online as po
+        return [po.phong_goc()], set(po.acc_nhom())
+    return list(phong), None
 
 
 class LoiBaoCao(ValueError):
@@ -143,7 +152,11 @@ def muc_tieu_thang(thang: str, phong: list[str]) -> int:
     tong = 0
     for c in phong:
         v = _muc_tieu(thang, "PHONG", c, CHI_TIEU_THANG)
-        if v is None:
+        if v is None and c == PHONG_ONLINE:        # chưa đặt riêng: cộng mục tiêu tháng từng người trong nhóm
+            from app import phong_online as po
+            mt = _mt_nhan_vien(thang)
+            v = sum(float(mt.get(a, 0) or 0) for a in po.acc_nhom())
+        elif v is None:
             v = _muc_tieu(thang, "PHONG", c, "internet")
         tong += int(v or 0)
     return tong
@@ -263,10 +276,14 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     ngay = ngay or hom_nay()
     thang = f"{ngay:%Y-%m}"
     dau, _, _ = month_range(thang)
-    hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
-    vvip = _vvip_theo_acc(phong, dau.isoformat(), ngay.isoformat())
+    thuc, loc = _nguon(phong)
+    hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), thuc)
+    vvip = _vvip_theo_acc(thuc, dau.isoformat(), ngay.isoformat())
     nhap = _da_nhap(ngay, phong)
-    staff = _nhan_su_dang_lam(phong, dau, ngay)
+    staff = _nhan_su_dang_lam(thuc, dau, ngay)
+    if loc is not None:
+        hd, staff = hd[hd.acc_norm.isin(loc)], staff[staff.acc_norm.isin(loc)]
+        vvip = vvip[vvip.index.isin(loc)]
     if hd.empty and staff.empty and nhap.empty and vvip.empty:
         return pd.DataFrame()
 
@@ -275,6 +292,8 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
          if len(hd) else pd.DataFrame(columns=["acc", "phong_code", "pttb_thang"],
                                       index=pd.Index([], name="acc_norm")))
     df = g.reset_index()
+    if loc is not None:
+        df["phong_code"] = phong[0]
     # Nhân sự trong danh mục chưa bán gì trong tháng, hoặc người chỉ bán V.VIP/đã tự nhập (chưa có
     # hợp đồng Internet online), cũng phải có dòng - nếu không dòng TỔNG sẽ thiếu so với Báo cáo
     # phòng, và nhân sự đó không nhập báo cáo được (lỗi thật 01/10/2026).
@@ -332,7 +351,10 @@ def tom_tat(phong: list[str], ngay: date | None = None) -> dict:
     thang = f"{ngay:%Y-%m}"
     dau, _, _ = month_range(thang)
     df = bang(phong, ngay)
-    hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), list(phong))
+    thuc, loc = _nguon(phong)
+    hd = pt.hop_dong_online(dau.isoformat(), ngay.isoformat(), thuc)
+    if loc is not None:
+        hd = hd[hd.acc_norm.isin(loc)]
     hqua = ngay - timedelta(days=1)
     onl_hqua = int((hd.ngay_online.dt.date == hqua).sum()) if len(hd) else 0
     mt_thang = muc_tieu_thang(thang, phong)

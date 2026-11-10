@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -65,8 +66,9 @@ def test_quyen_xem_trang():
 
 def test_tai_khoan_online_chi_vao_dung_trang():
     online = _tk("online")
-    assert online.vao_duoc("/taikhoan") and online.vao_duoc("/huongdan")
-    for trang in ("/", "/phong", "/hr", "/phantich", "/tracking", "/upload", "/quantri", "/ads", "/baocaongay", "/dvkh"):
+    for trang in ("/taikhoan", "/huongdan", "/baocaongay", "/soanmail", "/danhba", "/giafpt"):    # báo cáo ngày + 3 công cụ (10/11/2026)
+        assert online.vao_duoc(trang), trang
+    for trang in ("/", "/phong", "/hr", "/phantich", "/tracking", "/upload", "/quantri", "/ads", "/nhapton", "/dvkh"):
         assert not online.vao_duoc(trang), trang
     assert online.phong_duoc_xem() == [] and online.phong_nhan_su() == []     # không có số chung / nhân sự nào khác
     assert not online.duoc_cau_hinh and not online.duoc_upload and not online.duoc_xem_nhan_su
@@ -84,3 +86,70 @@ def test_ngan_nhan_su_chi_mo_nguoi_trong_nhom(monkeypatch, acc, duoc):
     monkeypatch.setattr(ns, "_ngan_noi_dung", lambda thang, ngay, code, r: ("mo", code))   # chỉ kiểm cổng quyền, không dựng ngăn thật
     tieu_de, _ = ns.noi_dung(acc, [None], f"{THANG}-{NGAY:02d}")
     assert (tieu_de == "mo") == duoc if isinstance(tieu_de, str) else not duoc
+
+
+# ------------------------------------------------------------------ Báo cáo ngày riêng + KHTN (10/11/2026)
+def test_bao_cao_ngay_cua_nhom_rieng_voi_ibb7():
+    from app import bao_cao_ngay as bc
+    ds = bc.bang([bc.PHONG_ONLINE], date(2026, 9, 10))
+    assert set(ds.acc_norm) <= set(po.acc_nhom()) and len(ds) >= 1 and set(ds.phong_code) == {bc.PHONG_ONLINE}
+    ibb2 = bp.bang_nhan_su(THANG, 10, "IBB2")
+    ibb2 = ibb2[(ibb2.loai_dong == "data") & ibb2.acc_norm.isin(po.acc_nhom())].set_index("acc_norm")
+    for r in ds.itertuples():                  # PTTB luỹ kế y hệt Báo cáo phòng IBB2
+        assert r.pttb_thang == ibb2.loc[r.acc_norm, "online"], r.acc_norm
+    assert not set(bc.bang(["IBB7"], date(2026, 9, 10)).acc_norm) & set(po.acc_nhom())      # IBB7 không lẫn người của nhóm
+    t = bc.tom_tat([bc.PHONG_ONLINE], date(2026, 9, 10))
+    assert t["luy_ke"] == int(ds.pttb_thang.sum()) and t["so_nguoi"] == len(ds)
+
+
+def test_khtn_luu_rieng_va_bao_cao_theo_nguoi():
+    from sqlalchemy import delete, select
+
+    from app import bao_cao_ngay as bc
+    from app.db import session_scope
+    from app.models import BaoCaoNgay
+    ngay, acc = date(2026, 9, 10), po.acc_nhom()[0]
+    bc.dam_bao_bang()
+    with session_scope() as sess:
+        sess.execute(delete(BaoCaoNgay).where(BaoCaoNgay.acc_norm.in_(po.acc_nhom())))
+    try:
+        bc.luu(acc, {"khtn": 6, "ghi_chu": "x"}, [bc.PHONG_ONLINE], "kiemthu", date(2026, 9, 9))
+        bc.luu(acc, {"khtn": 9}, [bc.PHONG_ONLINE], "kiemthu", ngay)
+        bc.luu(po.acc_nhom()[1], {"ghi_chu": "chỉ ghi chú"}, [bc.PHONG_ONLINE], "kiemthu", ngay)      # đã có báo cáo trong ngày (dù chỉ ghi chú) thì KHTN là số 0 đã nhập, như bảng Báo cáo ngày
+        k = po.khtn_theo_ngay(THANG, 10).set_index("acc_norm")
+        assert k.loc[acc, "hom_nay"] == 9 and k.loc[acc, "hom_qua"] == 6 and k.loc[acc, "tb"] == 7.5 and k.loc[acc, "so_ngay_nhap"] == 2
+        assert k.loc[acc, "cao_nhat"] == 9 and k.loc[acc, "d09"] == 6
+        assert k.loc[po.acc_nhom()[1], "so_ngay_nhap"] == 1 and k.loc[po.acc_nhom()[1], "hom_nay"] == 0
+        chua = k[~k.index.isin(po.acc_nhom()[:2])]
+        assert len(chua) and chua.so_ngay_nhap.eq(0).all() and chua.hom_nay.isna().all()      # người chưa có báo cáo nào: vẫn có dòng, ô trống (không ghi 0)
+        with session_scope() as sess:                                           # số lưu với mã ảo, không dính IBB7
+            ma = {r[0] for r in sess.execute(select(BaoCaoNgay.phong_code).where(BaoCaoNgay.acc_norm == acc))}
+        assert ma == {bc.PHONG_ONLINE}
+    finally:
+        with session_scope() as sess:
+            sess.execute(delete(BaoCaoNgay).where(BaoCaoNgay.acc_norm.in_(po.acc_nhom())))
+
+
+def test_muc_tieu_thang_nhom_la_tong_muc_tieu_tung_nguoi():
+    from app import bao_cao_ngay as bc
+    acc = po.acc_nhom()
+    bc.dat_muc_tieu(THANG, "NHAN_VIEN", acc[0], "internet", 20, "kiemthu")
+    bc.dat_muc_tieu(THANG, "NHAN_VIEN", acc[1], "internet", 15, "kiemthu")
+    try:
+        assert bc.muc_tieu_thang(THANG, [bc.PHONG_ONLINE]) >= 35
+    finally:
+        from sqlalchemy import delete
+
+        from app.db import session_scope
+        from app.models import Target
+        with session_scope() as sess:
+            sess.execute(delete(Target).where(Target.thang == THANG, Target.doi_tuong == "NHAN_VIEN", Target.ma_doi_tuong.in_(acc[:2])))
+
+
+def test_quyen_bao_cao_ngay_va_cong_cu_cua_nhom():
+    online, bgd, ky_thuat, nvkd = _tk("online"), _tk("admin"), _tk("admin", username=ADMIN_USERNAME), _tk("nvkd", scope=["IBB7"])
+    assert online.phong_bao_cao_ngay() == ["ONLINE"] and online.duoc_bao_cao_ngay and online.duoc_soan_mail
+    assert "ONLINE" not in ky_thuat.phong_bao_cao_ngay() and "ONLINE" not in nvkd.phong_bao_cao_ngay() and "ONLINE" not in bgd.phong_bao_cao_ngay()
+    assert nvkd.phong_bao_cao_ngay() == ["IBB7"]                                   # IBB7 giữ nguyên
+    from app.ui.app import trang_mo_dau
+    assert trang_mo_dau(online) == "/baocaongay"

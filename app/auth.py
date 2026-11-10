@@ -49,7 +49,7 @@ ROLE_XEM_NHAN_SU = {"admin", "phong", "nvkd"}
 # chi tiết nhân sự chỉ phòng mình, Ads chỉ khi phòng mình là phòng chạy Ads.
 TRANG_NVKD = {"/baocaongay", "/nhapton", "/soanmail", "/danhba", "/giafpt", "/phong", "/ads", "/taikhoan", "/huongdan"}
 # Tài khoản vai trò "online" (Phòng Online, chốt 07/11/2026) chỉ vào đúng trang này (+ Tài khoản, Hướng dẫn).
-TRANG_ONLINE = {"/phongonline", "/taikhoan", "/huongdan"}
+TRANG_ONLINE = {"/phongonline", "/baocaongay", "/soanmail", "/danhba", "/giafpt", "/taikhoan", "/huongdan"}
 PHONG_ADS = "IBB7"
 
 
@@ -139,7 +139,11 @@ class SessionUser(UserMixin):
         return self._phong_bat("nhap_ton")
 
     def phong_bao_cao_ngay(self) -> list[str]:
-        """Phòng được xem / ghi Báo cáo đầu ngày (chốt 24/09/2026)."""
+        """Phòng được xem / ghi Báo cáo đầu ngày (chốt 24/09/2026). Vai trò "online": báo cáo riêng của nhóm Phòng Online (mã ảo
+        ONLINE, chốt 10/11/2026), KHÔNG liên quan IBB7; superadmin không thấy mã này."""
+        if self.role == "online":
+            from app import phong_online as po
+            return [po.MA] if po.bao_cao_ngay_bat() else []
         return self._phong_bat("bao_cao_ngay")
 
     def phong_soan_mail(self) -> list[str]:
@@ -159,8 +163,9 @@ class SessionUser(UserMixin):
 
     @property
     def duoc_soan_mail(self) -> bool:
-        """Soạn email + Danh bạ: admin (BGĐ + tài khoản kỹ thuật) và nvkd đúng phòng IBB7 (chủ app chốt 10/10/2026)."""
-        return self.role == "admin" or self.la_superadmin or (self.role == "nvkd" and bool(self.phong_soan_mail()))
+        """Soạn email + Danh bạ: admin (BGĐ + tài khoản kỹ thuật), nvkd đúng phòng IBB7 (chủ app chốt 10/10/2026) và tài khoản Phòng Online (10/11/2026)."""
+        return (self.role in ("admin", "online") or self.la_superadmin
+                or (self.role == "nvkd" and bool(self.phong_soan_mail())))
 
     @property
     def duoc_nhap_ton(self) -> bool:

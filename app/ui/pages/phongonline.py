@@ -8,14 +8,17 @@ from __future__ import annotations
 
 from datetime import date
 
+import pandas as pd
+
 import dash_ag_grid as dag
-from dash import Input, Output, Patch, dcc, html
+from dash import Input, Output, Patch, State, dcc, html
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
 from app import cot_phong as cp
 from app import canh_bao as quy_tac
 from app import phong_online as po
+from app.auth import ghi_log
 from app.metrics import cac_ngay_co_du_lieu
 from app.overview import trang_thai_ngay
 from app.ui import ky_chung as kc
@@ -23,7 +26,19 @@ from app.ui import lien_ket as lk
 from app.ui import ngan_nhan_su as nn
 from app.ui.components import (DONG_TONG_NGAY, HEAT_NGAY, LOCALE_VI, LOP_DONG_NGAY, alert, chon_ngay, chu_giai,
                                field, gan_chon_ngay, ghi_chu, kpi, lop_cot_ngay, seg_control)
+from app.ui.icons import icon
+from app.ui.luoi import bang
 from app.ui.pages.phong import DINH_NGHIA, ROW_STYLE, TEN_KHOI, _cot_nv
+
+
+SO_TRONG = {"function": "params.value == null || isNaN(params.value) ? '–' : Number(params.value).toLocaleString('vi-VN')"}
+CHENH_TRONG = {"function": "params.value == null || isNaN(params.value) ? '–' : (params.value > 0 ? '+' : '') + params.value"}
+
+
+def _tong(serie) -> int | None:
+    """Tổng một cột, bỏ ô chưa nhập; cả cột chưa nhập thì để trống (không ghi 0 cho người chưa báo)."""
+    v = pd.to_numeric(serie, errors="coerce")
+    return int(v.sum()) if v.notna().any() else None
 
 
 def _duoc_xem() -> bool:
@@ -45,6 +60,23 @@ def layout(ky: dict | None = None):
                  className="toolbar loc-trang"),
         html.Div(id="po-canh-bao"),
         dcc.Loading(html.Div(id="po-kpi", className="kpi-row kpi-5"), type="dot"),
+
+        # Báo cáo KHTN từng bạn (để báo cáo sếp): lấy từ ô KHTN ở Báo cáo ngày của nhóm
+        html.Div([
+            html.Div([
+                html.Div([html.H3("Báo cáo KHTN từng bạn", style={"margin": 0}),
+                          html.Div(id="po-khtn-mo-ta", className="desc", style={"margin": "2px 0 0"})]),
+                html.Div(className="grow"),
+                seg_control("po-khtn-xem", [("tt", "Tóm tắt"), ("ngay", "Từng ngày")], "tt"),
+                html.Button([icon("download", 14), html.Span("Excel")], id="po-khtn-xls", className="btn",
+                            title="File Excel KHTN từng ngày của từng bạn, gửi sếp"),
+            ], className="the-thanh"),
+            dcc.Download(id="po-khtn-tai"),
+            dcc.Loading(bang("po-khtn", [], lop="ag-theme-quartz ag-theme-ftel luoi-ke")),
+            ghi_chu("KHTN là số khách đang theo, chưa lên hợp đồng, do từng bạn tự nhập ở Báo cáo ngày. "
+                    "Ô trống (–) là ngày đó bạn chưa nhập, không phải số 0. Trung bình chỉ tính các ngày đã nhập.",
+                    nhan="Cách đọc", style={"margin": "10px 0 4px"}),
+        ], className="card"),
 
         html.Div([
             html.Div([
@@ -129,6 +161,57 @@ def register(app):
         mo_ta = (f"{int((du_lieu.khong_xet != 'Trưởng phòng').sum())} nhân sự · {so_ngay_ngay} trao đổi ngay · "
                  f"{len(can_chu_y) - so_ngay_ngay} theo dõi · luỹ kế 01 - {ngay:02d}/{d.month:02d}")
         return (_the(tong), badge, canh_bao, mo_ta, lk.them_giai_thich(_cot_nv(thang, ngay, tong, xem or "ban")), rows, [tong])
+
+    @app.callback(Output("po-khtn", "columnDefs"), Output("po-khtn", "rowData"), Output("po-khtn", "pinnedBottomRowData"),
+                  Output("po-khtn-mo-ta", "children"), Input("po-date", "date"), Input("po-khtn-xem", "value"))
+    def _khtn(ngay_iso, xem):
+        if not _duoc_xem() or not ngay_iso:
+            raise PreventUpdate
+        d = date.fromisoformat(ngay_iso)
+        df = po.khtn_theo_ngay(f"{d.year}-{d.month:02d}", d.day)
+        if df.empty:
+            return [], [], [], "Chưa có nhân sự để báo cáo."
+        so = {"type": "numericColumn", "valueFormatter": SO_TRONG, "minWidth": 70, "flex": 1}
+        ten = {"field": "ho_ten", "headerName": "Nhân sự", "pinned": "left", "width": 190, "tooltipField": "acc",
+               "cellClass": "o-dam"}
+        mo_ta = f"{int(df.so_ngay_nhap.gt(0).sum())}/{len(df)} bạn đã báo KHTN trong tháng · tính đến {d:%d/%m/%Y}"
+        if xem == "ngay":
+            cot = [ten] + [{"field": c, "headerName": c[1:], "width": 52, "minWidth": 46, "type": "numericColumn",
+                            "valueFormatter": SO_TRONG, "cellClass": "o-giua " + lop_cot_ngay(f"{d.year}-{d.month:02d}", c[1:]),
+                            "headerClass": "tieu-de-giua"} for c in df.columns if c.startswith("d") and c[1:].isdigit()]
+            cot += [{"field": "tb", "headerName": "TB", "pinned": "right", "width": 70, **so, "cellStyle": {"fontWeight": "700"}}]
+            tong = {"ho_ten": "TỔNG", **{c: _tong(df[c]) for c in df.columns if c.startswith("d") and c[1:].isdigit()},
+                    "tb": _tong(df["tb"])}
+            return cot, df.to_dict("records"), [tong], mo_ta
+        cot = [ten,
+               {"field": "hom_nay", "headerName": f"Hôm nay {d:%d/%m}", **so, "cellStyle": {"fontWeight": "700"}},
+               {"field": "hom_qua", "headerName": "Hôm qua", **so},
+               {"field": "chenh", "headerName": "+/−", **so, "valueFormatter": CHENH_TRONG,
+                "cellStyle": {"styleConditions": [{"condition": "params.value > 0", "style": {"color": "#1B7A4B", "fontWeight": "600"}},
+                                                  {"condition": "params.value < 0", "style": {"color": "#B3261E", "fontWeight": "600"}}]}},
+               {"field": "tb", "headerName": "TB tháng", **so}, {"field": "cao_nhat", "headerName": "Cao nhất", **so},
+               {"field": "so_ngay_nhap", "headerName": "Số ngày đã nhập", **so}]
+        df["chenh"] = df.hom_nay - df.hom_qua
+        tong = {"ho_ten": "TỔNG", "hom_nay": _tong(df.hom_nay), "hom_qua": _tong(df.hom_qua), "chenh": _tong(df.chenh),
+                "tb": _tong(df.tb), "cao_nhat": _tong(df.cao_nhat)}
+        return cot, df.to_dict("records"), [tong], mo_ta
+
+    @app.callback(Output("po-khtn-tai", "data"), Input("po-khtn-xls", "n_clicks"), State("po-date", "date"),
+                  prevent_initial_call=True)
+    def _khtn_excel(_n, ngay_iso):
+        if not _duoc_xem() or not ngay_iso:
+            raise PreventUpdate
+        d = date.fromisoformat(ngay_iso)
+        df = po.khtn_theo_ngay(f"{d.year}-{d.month:02d}", d.day)
+        if df.empty:
+            raise PreventUpdate
+        ngay_cot = [c for c in df.columns if c.startswith("d") and c[1:].isdigit()]
+        out = df[["ho_ten", "acc"]].rename(columns={"ho_ten": "Nhân sự", "acc": "Acc"})
+        for c in ngay_cot:
+            out[c[1:]] = df[c]
+        out["Trung bình"], out["Cao nhất"], out["Số ngày đã nhập"] = df.tb, df.cao_nhat, df.so_ngay_nhap
+        ghi_log("xuat_khtn_phong_online", f"{d:%d/%m/%Y}")
+        return dcc.send_data_frame(out.to_excel, f"KHTN_PhongOnline_{d:%Y%m%d}.xlsx", sheet_name="KHTN", index=False)
 
     @app.callback(Output("po-nv-ngay", "columnDefs"), Output("po-nv-ngay", "rowData"), Output("po-ngay-mo-ta", "children"),
                   Input("po-date", "date"), Input("po-khoi", "value"), Input("po-khoi-xem", "value"))
