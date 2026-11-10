@@ -1,12 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["hnd1"],
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60
-    }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
+  "redirects": [
+    { "source": "/(.*)", "destination": "https://ftel-dng.duckdns.org/$1", "permanent": false }
   ]
 }
