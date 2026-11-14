@@ -208,10 +208,10 @@ def _cac_id(node, out=None):
 def test_menu_con_8_muc_theo_nhom():
     from app.ui.app import NAV
     muc = [href for _, ds in NAV for href, *_ in ds]
-    assert len(muc) == 16 and len(set(muc)) == 16          # 07/11/2026 thêm Phòng Online; 28/10/2026 thêm Phản hồi; 24/09/2026 thêm Báo cáo ngày; 10/10/2026 thêm Soạn email + Danh bạ; 22/10/2026 thêm Tra cứu giá
+    assert len(muc) == 17 and len(set(muc)) == 17          # 14/11/2026 thêm Điều hành liên khối (nhánh thi-lien-khoi); 07/11/2026 thêm Phòng Online; 28/10/2026 thêm Phản hồi; 24/09/2026 thêm Báo cáo ngày; 10/10/2026 thêm Soạn email + Danh bạ; 22/10/2026 thêm Tra cứu giá
     assert {"/nhapton", "/baocaongay", "/soanmail", "/danhba", "/giafpt"} <= set(muc)
     assert "/settings" not in muc and "/sosanh" not in muc
-    assert [n for n, _ in NAV] == ["Hằng ngày", "Nhập liệu", "Công cụ", "Phòng & nhân sự", "Phân tích", "Dữ liệu", "Hệ thống"]
+    assert [n for n, _ in NAV] == ["Hằng ngày", "Nhập liệu", "Công cụ", "Phòng & nhân sự", "Phân tích", "Liên khối", "Dữ liệu", "Hệ thống"]
 
 
 @pytest.mark.parametrize("duong_dan, tim_thay", [
