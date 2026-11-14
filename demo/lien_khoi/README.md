@@ -9,6 +9,8 @@
 | `kt.csv` | sự kiện Kỹ thuật: tồn, triển khai, checklist lặp, checklist sau triển khai, cáp LAN | 5 file báo cáo Kỹ thuật (Kon Tum), đã đổi mã và tên KTV thành `ktv_NN` |
 | `sr_bi_dong.csv`, `sr_chu_dong.csv` | SR của DVKH | mượn loại yêu cầu / tình trạng / kết quả tư vấn từ dữ liệu DVKH sẵn có, đổi mã hợp đồng và người thành `cskh_NN` |
 | `no_cuoc.csv` | hợp đồng nằm trong danh sách nợ cước | chọn ngẫu nhiên có hạt giống cố định |
+| `dich_vu.csv` | FPT Play (có V.VIP) và Camera kèm hợp đồng | mượn tên gói và giá từ các dòng thật, gắn ngẫu nhiên |
+| `nguoi_nhan.csv` | danh sách người nhận việc: mã, tên, khối, vai trò, quản lý, mã chat GIẢ (`demo:...`) | dựng từ các tài khoản đã đổi tên + đội trưởng / trưởng phòng / giám đốc giả |
 | `meta.json` | ngày "hôm nay" của bộ minh hoạ (14/11/2026) | |
 
 **Không có** tên khách hàng, địa chỉ, số điện thoại, mã hợp đồng thật hay tài khoản nhân sự thật. Script dựng (`scripts/dung_demo_lien_khoi.py`) tự kiểm và dừng nếu còn

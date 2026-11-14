@@ -100,10 +100,12 @@ def healthz():
 from app.api_ads import bp as _api_ads  # noqa: E402
 from app.api_ban_tin import bp as _api_ban_tin  # noqa: E402
 from app.api_zalo_gia import bp as _api_zalo_gia  # noqa: E402
+from app.api_lien_khoi import bp as _api_lien_khoi  # noqa: E402
 
 server.register_blueprint(_api_ads)
 server.register_blueprint(_api_ban_tin)
 server.register_blueprint(_api_zalo_gia)
+server.register_blueprint(_api_lien_khoi)
 
 
 @server.before_request
@@ -116,6 +118,8 @@ def _bat_buoc_dang_nhap():
     if path.startswith("/api/ban-tin/"):      # n8n làm đồng hồ Bản tin 8h: xác thực bằng khoá (app/api_ban_tin.py)
         return None
     if path.startswith("/api/zalo-gia/"):     # bot Zalo Tra cứu giá: xác thực bằng khoá webhook (app/api_zalo_gia.py)
+        return None
+    if path.startswith("/api/lien-khoi/"):    # bot Zalo giao việc liên khối: xác thực bằng khoá webhook, mặc định đóng (app/api_lien_khoi.py)
         return None
     if not current_user.is_authenticated:
         if path.startswith("/_dash"):

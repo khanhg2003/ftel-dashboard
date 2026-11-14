@@ -7,6 +7,7 @@ File xuất từ hệ thống Kỹ thuật có phần định dạng mà openpyx
 """
 from __future__ import annotations
 
+import json
 import re
 import zipfile
 import xml.etree.ElementTree as ET
@@ -14,7 +15,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-KT_COT = ["so_hd", "loai", "thoi_diem", "chi_tiet", "nguoi", "so_lan", "goi", "sale", "tg_tao_hd", "tg_online"]
+KT_COT = ["so_hd", "loai", "thoi_diem", "chi_tiet", "nguoi", "so_lan", "goi", "sale", "tg_tao_hd", "tg_online", "thuoc_tinh"]
 TEN_LOAI_KT = {"ton_kt": "Tồn Kỹ thuật", "trien_khai": "Triển khai", "checklist": "Checklist lặp (sự cố)",
                "checklist_sau_tk": "Checklist sau triển khai", "cap_lan": "Cáp LAN"}
 
@@ -89,6 +90,17 @@ def loai_file(cot) -> str | None:
     return None
 
 
+def _thuoc_tinh(d: pd.DataFrame, anh_xa: dict[str, str], ngay: tuple = ()) -> pd.Series:
+    """Các cột phân loại có ích cho hồ sơ hợp đồng -> chuỗi JSON mỗi dòng ({khoá ngắn: giá trị}). Chỉ lấy cột dạng nhóm / con số; KHÔNG lấy ghi chú tự do,
+    tên khách hay tài khoản. Cột `ngay` được đổi sang ngày giờ dạng 2026-11-07 10:13."""
+    d = d.reset_index(drop=True)
+    cot = {k: _chu(d[c]) for k, c in anh_xa.items() if c in d.columns}
+    for k in ngay:
+        if k in cot:
+            cot[k] = _t(d[anh_xa[k]]).dt.strftime("%Y-%m-%d %H:%M").fillna("")
+    return pd.Series([json.dumps({k: v for k, v in ((k, cot[k].iloc[i]) for k in cot) if v}, ensure_ascii=False) for i in range(len(d))])
+
+
 def _khung(**cot) -> pd.DataFrame:
     n = max((len(v) for v in cot.values() if not isinstance(v, str)), default=0)           # chữ đơn (loai) áp cho mọi dòng
     d = pd.DataFrame({k: pd.Series([v] * n) if isinstance(v, str) else pd.Series(v).reset_index(drop=True) for k, v in cot.items()})
@@ -105,23 +117,33 @@ def su_kien_tu_bang(d: pd.DataFrame) -> pd.DataFrame:
     if k == "ton":
         return _khung(so_hd=d["Số HĐ"], loai="ton_kt", thoi_diem=_t(d["TG tạo PTC"]), nguoi=_chu(d["Nhân sự"]), goi=_chu(d["Gói dịch vụ"]),
                       sale=_chu(d["Sale HĐ"]),
-                      chi_tiet="Tồn Kỹ thuật: " + _chu(d["Tình trạng"]) + " - " + _chu(d["Loại triển khai"]))
+                      chi_tiet="Tồn Kỹ thuật: " + _chu(d["Tình trạng"]) + " - " + _chu(d["Loại triển khai"]),
+                      thuoc_tinh=_thuoc_tinh(d, {"tinh_trang": "Tình trạng", "loai_trien_khai": "Loại triển khai", "hen_xanh": "TG Hẹn xanh", "hen_do": "TG Hẹn đỏ"},
+                                             ngay=("hen_xanh", "hen_do")))
     if k == "trien_khai":
         hoan_tat = _t(d["Ngày hoàn tất PTC"]).fillna(_t(d["Ngày online"]))
         dung = _chu(d["Đúng hẹn"]).eq("1")
         return _khung(so_hd=d["Số hợp đồng"], loai="trien_khai", thoi_diem=hoan_tat, nguoi=_chu(d["Nhân viên"]), so_lan=_so(d["Số lần hẹn"]),
                       goi=_chu(d["Gói dịch vụ"]), tg_tao_hd=_t(d["Ngày tạo hợp đồng"]), tg_online=_t(d["Ngày online"]),
-                      chi_tiet="Triển khai: hẹn " + _chu(d["Số lần hẹn"]) + " lần, " + dung.map({True: "đúng hẹn", False: "không đúng hẹn"}))
+                      chi_tiet="Triển khai: hẹn " + _chu(d["Số lần hẹn"]) + " lần, " + dung.map({True: "đúng hẹn", False: "không đúng hẹn"}),
+                      thuoc_tinh=_thuoc_tinh(d.assign(**{"TGXL-72H": _so(d["TGXL-72H"]).round(1).map(lambda x: "" if pd.isna(x) else f"{x:g}")}),
+                                             {"so_lan_hen": "Số lần hẹn", "loai_dich_vu": "Loại dịch vụ", "loai_giao_dich": "Loại giao dịch", "tgxl_72h": "TGXL-72H",
+                                                 "cap_indoor": "Indoor(m)", "cap_outdoor": "Outdoor(m)"}))
     if k == "checklist":
         return _khung(so_hd=d["Số HĐ"], loai="checklist", thoi_diem=_t(d["Tg tạo CL"]), nguoi=_chu(d["Nhân viên"]), so_lan=_so(d["Số lần lặp"]),
-                      tg_online=_t(d["Tg online"]), chi_tiet="Checklist lặp lần thứ " + _chu(d["Số lần lặp"]) + " trong 30 ngày")
+                      tg_online=_t(d["Tg online"]), chi_tiet="Checklist lặp lần thứ " + _chu(d["Số lần lặp"]) + " trong 30 ngày",
+                      thuoc_tinh=_thuoc_tinh(d, {"so_lan_lap": "Số lần lặp", "so_lan_hen": "Số lần Hẹn", "trieu_chung": "(Cấp 1)Tình trạng đầu vào",
+                                                 "phan_tu_loi": "(Cấp 1)Phần tử lỗi", "nguyen_nhan_loi": "(Cấp 1)Nguyên nhân lỗi", "huong_xu_ly": "(Cấp 1)Hướng xử lý"}))
     if k == "checklist_sau_tk":
         return _khung(so_hd=d["Hợp đồng"], loai="checklist_sau_tk", thoi_diem=_t(d["Ngày checklist"]), nguoi=_chu(d["Nhân viên"]),
-                      goi=_chu(d["Gói dịch vụ"]), chi_tiet="Checklist sau triển khai: " + _chu(d["Tình trạng"]))
+                      goi=_chu(d["Gói dịch vụ"]), chi_tiet="Checklist sau triển khai: " + _chu(d["Tình trạng"]),
+                      thuoc_tinh=_thuoc_tinh(d, {"loai_giao_dich": "Loại giao dịch", "phan_tu_loi": "(Cấp 1)Phần tử lỗi", "loai_ket_noi": "Loại kết nối",
+                                                 "cap_indoor": "Cáp Indoor", "cap_outdoor": "Cáp Outdoor"}))
     if k == "cap_lan":
         ly_do = _chu(d["Nguyên nhân không dùng Cap Lan"]).where(lambda x: ~x.isin(["", "Không chọn nguyên nhân"]), "")
         return _khung(so_hd=d["HĐ"], loai="cap_lan", thoi_diem=_t(d["Ngày active"], ngay_truoc=False), nguoi=_chu(d["Nhân sự"]),
-                      chi_tiet="Cáp LAN: kích hoạt bằng " + _chu(d["Active by"]) + ly_do.map(lambda x: f" ({x})" if x else ""))
+                      chi_tiet="Cáp LAN: kích hoạt bằng " + _chu(d["Active by"]) + ly_do.map(lambda x: f" ({x})" if x else ""),
+                      thuoc_tinh=_thuoc_tinh(d, {"active_by": "Active by", "tong_cap": "Tổng M cap", "nguyen_nhan": "Nguyên nhân không dùng Cap Lan"}))
     return pd.DataFrame(columns=KT_COT)
 
 

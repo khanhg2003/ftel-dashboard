@@ -115,7 +115,7 @@ def test_mac_dinh_la_du_lieu_that_va_chi_dung_bo_minh_hoa_khi_dat_dung_bien(monk
 def test_module_lien_khoi_khong_ghi_database():
     """Hướng liên khối chỉ ĐỌC: không có lệnh ghi / commit nào trong các module của nó."""
     goc = Path(__file__).resolve().parents[1] / "app" / "lien_khoi"
-    ma = "\n".join(p.read_text(encoding="utf-8") for p in goc.glob("*.py"))
+    ma = "\n".join(p.read_text(encoding="utf-8") for p in goc.glob("*.py") if p.name != "theo_doi.py")      # theo_doi.py chỉ ghi FILE SQLITE RIÊNG (xem test_lien_khoi_theo_doi.py)
     assert not re.search(r"\b(INSERT|UPDATE|DELETE)\b|\.commit\(|session_scope|\.add\(|to_sql", ma)
 
 
@@ -126,15 +126,17 @@ def _doc_demo() -> dict[str, pd.DataFrame]:
 
 def test_bo_minh_hoa_khong_chua_ma_hop_dong_ten_hay_tai_khoan_that():
     d = _doc_demo()
-    assert set(d) == {"kd", "kt", "sr_bi_dong", "sr_chu_dong", "no_cuoc"}
+    assert set(d) == {"kd", "kt", "sr_bi_dong", "sr_chu_dong", "no_cuoc", "dich_vu", "nguoi_nhan"}
     for ten, bang in d.items():
-        assert not any(re.search(r"ten|khach|dia_chi|sdt|phone|email", c, re.I) for c in bang.columns), ten      # không có cột nhạy cảm
-        assert bang["so_hd"].str.fullmatch(r"MHAAA\d{4}").all(), ten                                           # mọi mã đều là mã giả
-    nguoi = pd.concat([d["kd"]["sale"], d["kt"]["nguoi"], d["sr_bi_dong"]["nhan_su_au"], d["sr_chu_dong"]["nhan_su_au"]])
-    assert nguoi[nguoi != ""].str.fullmatch(r"(sale|cskh|ktv)_\d{2}").all()                                      # mọi tên người đã bị đổi
+        assert not any(re.search(r"ten_kh|ten_khach|khach|dia_chi|sdt|phone|email", c, re.I) for c in bang.columns), ten      # không có cột nhạy cảm
+        assert "so_hd" not in bang.columns or bang["so_hd"].str.fullmatch(r"MHAAA\d{4}").all(), ten                                          # mọi mã đều là mã giả
+    nn = d["nguoi_nhan"]
+    nguoi = pd.concat([d["kd"]["sale"], d["kt"]["nguoi"], d["sr_bi_dong"]["nhan_su_au"], d["sr_chu_dong"]["nhan_su_au"], nn["ma"], nn["quan_ly"]])
+    assert nn["chat_id"].str.startswith("demo:").all()                                                          # mã chat chỉ là chữ giả, không phải mã Zalo thật
+    assert nguoi[nguoi != ""].str.fullmatch(r"(sale|cskh|ktv|tp_kd|dt_dvkh|dt_kt|gd)_\d{2}").all()                                     # mọi tên người đã bị đổi
     toan_bo = " ".join(" ".join(b.astype(str).to_numpy().ravel()) for b in d.values())
     assert not re.search(r"\b(?!MH)[A-Z]{5}\d{4}\b", toan_bo)                                                   # không còn mã hợp đồng dạng thật
-    assert not re.search(r"dng\.|tin\.|hni\.|ktm|kon tum|\d{9,}", toan_bo, re.I)                             # không còn tài khoản / địa danh / số điện thoại
+    assert not re.search(r"dng\.|tin\.|hni\.|ktm|kon tum|(?<![\d.])\d{9,}", toan_bo, re.I)                             # không còn tài khoản / địa danh / số điện thoại
 
 
 def test_bo_minh_hoa_noi_duoc_ca_ba_khoi_va_chay_du_bon_luat(monkeypatch):

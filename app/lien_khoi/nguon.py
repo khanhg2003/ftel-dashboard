@@ -22,7 +22,9 @@ from app.metrics import dieu_kien_ton
 
 THU_MUC_DEMO = Path(BASE_DIR) / "demo" / "lien_khoi"
 COT_KD = ["so_hd", "ngay_tao", "ngay_online", "ngay_huy", "sale", "phong", "goi", "tinh_trang", "ton"]
-COT_KT = ["so_hd", "loai", "thoi_diem", "chi_tiet", "nguoi", "so_lan"]
+COT_KT = ["so_hd", "loai", "thoi_diem", "chi_tiet", "nguoi", "so_lan", "thuoc_tinh"]
+COT_KD_THEM = ["cuoc_thang", "hinh_thuc_tt", "so_thang_tra_truoc", "so_tien_tra_truoc", "tien_hoa_mang", "chinh_sach", "doi_tuong", "nguon_ban", "cn_quan_ly"]
+COT_DICH_VU = ["so_hd", "nhom", "ten", "so_luong", "don_gia", "vvip"]
 
 
 def che_do() -> str:
@@ -55,8 +57,12 @@ def ngay_tham_chieu() -> pd.Timestamp | None:
 @nho("so_lieu", 60)
 def _kd_that() -> pd.DataFrame:
     """Hợp đồng Internet của khối Kinh doanh (không lấy tên khách). `ton` = đúng định nghĩa "Số tồn" của app: chưa online và còn trong file mới nhất."""
-    df = pd.read_sql_query(text("""SELECT hop_dong, ngay_tao_hd, ngay_online, ngay_huy, acc_nhan_vien, phong_code, goi_dich_vu,
-                                   tinh_trang FROM fact_internet"""), engine, parse_dates=["ngay_tao_hd", "ngay_online", "ngay_huy"])
+    df = pd.read_sql_query(text("""SELECT hop_dong, ngay_tao_hd, ngay_online, ngay_huy, acc_nhan_vien, phong_code, goi_dich_vu, tinh_trang,
+                                   arpu_tra_sau, arpu_tra_truoc, hinh_thuc_tt, so_thang_tra_truoc, so_tien_tra_truoc, tien_hoa_mang,
+                                   chinh_sach_ban, doi_tuong_kh, nguon_ban, cn_quan_ly FROM fact_internet"""), engine,
+                           parse_dates=["ngay_tao_hd", "ngay_online", "ngay_huy"])
+    df["cuoc_thang"] = pd.to_numeric(df["arpu_tra_sau"], errors="coerce").where(lambda x: x > 0, pd.to_numeric(df["arpu_tra_truoc"], errors="coerce"))
+    df = df.rename(columns={"chinh_sach_ban": "chinh_sach", "doi_tuong_kh": "doi_tuong"}).drop(columns=["arpu_tra_sau", "arpu_tra_truoc"])
     dk, tham_so = dieu_kien_ton()
     ton = pd.read_sql_query(text(f"SELECT hop_dong FROM fact_internet WHERE {dk}"), engine, params=tham_so)
     df = df.rename(columns={"ngay_tao_hd": "ngay_tao", "acc_nhan_vien": "sale", "phong_code": "phong", "goi_dich_vu": "goi"})
@@ -75,7 +81,7 @@ def kd() -> pd.DataFrame:
         return _kd_that()
     d = _csv("kd", ["ngay_tao", "ngay_online", "ngay_huy"])
     d["ton"] = d["ton"].eq("1")
-    return d[COT_KD]
+    return d[COT_KD + [c for c in COT_KD_THEM if c in d.columns]]
 
 
 # ------------------------------------------------------------------ DVKH
@@ -104,6 +110,35 @@ def _danh_sach_that() -> pd.DataFrame:
 def danh_sach_dvkh() -> pd.DataFrame:
     """Hợp đồng nợ cước / YCH trong file DVKH (chỉ có mã hợp đồng và ngày chốt, không có tên người phụ trách)."""
     return _csv("no_cuoc") if la_demo() else _danh_sach_that()
+
+
+@nho("so_lieu", 60)
+def _dich_vu_that() -> pd.DataFrame:
+    """Dịch vụ kèm theo hợp đồng: FPT Play (có cờ V.VIP) và Camera. Chỉ lấy tên gói và giá, không có tên khách."""
+    fpl = pd.read_sql_query(text("SELECT hop_dong, goi_fpt_play, la_vvip, loai_box, gia_box FROM fact_fptplay"), engine)
+    cam = pd.read_sql_query(text("SELECT hop_dong, ten_goi_cloud, so_luong_cloud, gia_cuoc_cloud FROM fact_camera"), engine)
+    a = pd.DataFrame({"so_hd": _chuan(fpl["hop_dong"]), "nhom": "FPT Play", "ten": fpl["goi_fpt_play"].fillna("").astype(str).str.cat(fpl["loai_box"].fillna("").astype(str), sep=" ").str.strip(),
+                      "so_luong": "1", "don_gia": pd.to_numeric(fpl["gia_box"], errors="coerce"), "vvip": fpl["la_vvip"].fillna(0).astype(int).astype(str)})
+    b = pd.DataFrame({"so_hd": _chuan(cam["hop_dong"]), "nhom": "Camera", "ten": cam["ten_goi_cloud"].fillna("").astype(str),
+                      "so_luong": pd.to_numeric(cam["so_luong_cloud"], errors="coerce").fillna(1).astype(int).astype(str),
+                      "don_gia": pd.to_numeric(cam["gia_cuoc_cloud"], errors="coerce"), "vvip": "0"})
+    return pd.concat([a, b], ignore_index=True)
+
+
+def dich_vu_kem() -> pd.DataFrame:
+    if not la_demo():
+        return _dich_vu_that()
+    d = _csv("dich_vu")
+    d["don_gia"] = pd.to_numeric(d["don_gia"], errors="coerce")
+    return d[COT_DICH_VU]
+
+
+def nguoi_nhan() -> pd.DataFrame:
+    """Danh sách người nhận việc của bộ minh hoạ (mã, tên, khối, vai trò, quản lý, mã chat giả). Dữ liệu thật: bảng `nguoi_nhan` ở file trạng thái (`theo_doi.py`)."""
+    if not la_demo():
+        from app.lien_khoi import theo_doi
+        return theo_doi.nguoi_nhan_that()
+    return _csv("nguoi_nhan")
 
 
 # ------------------------------------------------------------------ Kỹ thuật

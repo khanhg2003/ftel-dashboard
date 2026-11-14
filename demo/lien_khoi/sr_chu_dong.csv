@@ -1,43 +1,43 @@
-so_hd,tg_do,nhom_ct,chuong_trinh,tinh_trang,ket_qua_tu_van,diem_rm,nhan_su_au,no_cuoc
-MHAAA0130,2026-11-12 08:42:00,Nguy cơ rời mạng (SOS),Ngưng kết nối,Chưa xử lý,,875.0,cskh_10,0
-MHAAA0131,2026-11-14 12:00:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,982.0,cskh_10,0
-MHAAA0134,2026-11-14 12:00:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,983.0,cskh_06,0
-MHAAA0144,2026-11-12 13:14:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,983.0,cskh_03,0
-MHAAA0150,2026-11-14 12:00:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,984.0,cskh_02,0
-MHAAA0113,2026-11-14 12:00:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,983.0,cskh_11,0
-MHAAA0089,2026-11-12 15:07:00,Nguy cơ rời mạng (SOS),Ngưng kết nối,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_08,0
-MHAAA0090,2026-11-13 10:34:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T-,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,,0
-MHAAA0091,2026-11-14 12:00:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T-,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_05,0
-MHAAA0092,2026-11-13 16:29:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T-,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_11,0
-MHAAA0094,2026-11-13 16:40:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Đóng tự động bởi hệ thống,"KH không đồng ý, yêu cầu thanh lý",998.0,cskh_07,0
-MHAAA0095,2026-11-13 09:19:00,Nguy cơ rời mạng (SOS),Ngưng kết nối,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",227.0,cskh_02,0
-MHAAA0030,2026-11-02 11:32:00,Nhóm chất lượng hạ tầng,Homewifi,Đã xử lý,KH đồng ý sử dụng tiếp và không cần hỗ trợ,-1.0,cskh_04,0
-MHAAA0143,2026-11-02 08:17:00,Nhóm chất lượng dịch vụ,Khôi phục dịch vụ,Chưa phân công,,-1.0,cskh_06,0
-MHAAA0122,2026-11-05 16:00:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_05,0
-MHAAA0008,2026-11-03 11:24:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Chưa bắt máy,-1.0,,0
-MHAAA0005,2026-11-08 16:51:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_02,0
-MHAAA0101,2026-11-05 13:11:00,Nhóm chất lượng dịch vụ,Khôi phục dịch vụ,Chưa phân công,,-1.0,cskh_02,0
-MHAAA0050,2026-11-08 14:51:00,Nhóm chương trình sự kiện,CSKH yêu câu hủy,Đã hoàn tất,KH đồng ý sử dụng tiếp và không cần hỗ trợ,,cskh_08,0
-MHAAA0149,2026-11-07 10:05:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,,0
-MHAAA0128,2026-11-09 08:05:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_05,0
-MHAAA0137,2026-11-03 11:47:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,,0
-MHAAA0031,2026-11-10 13:38:00,Nhóm chất lượng dịch vụ,Khôi phục dịch vụ,Chưa phân công,,-1.0,cskh_07,0
-MHAAA0078,2026-11-03 10:59:00,Nhóm chương trình sự kiện,CSKH sau khóa vi phạm CMR Buffet,Chưa xử lý,,-1.0,cskh_06,0
-MHAAA0032,2026-11-04 15:06:00,Nhóm chương trình sự kiện,CSKH yêu câu hủy,Đã hoàn tất,KH không cần phục vụ,,,0
-MHAAA0034,2026-11-10 16:41:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_09,0
-MHAAA0054,2026-11-09 10:36:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_02,0
-MHAAA0094,2026-11-10 17:58:00,Nhóm chất lượng dịch vụ,CSKH sau nâng gói & chuyển đổi Wifi6,Đã hoàn tất,KH không cần phục vụ,,cskh_07,0
-MHAAA0051,2026-11-05 10:18:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Chưa bắt máy,-1.0,cskh_12,0
-MHAAA0113,2026-11-03 10:36:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_11,0
-MHAAA0074,2026-11-09 17:43:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_04,0
-MHAAA0109,2026-11-06 13:18:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_02,0
-MHAAA0064,2026-11-07 09:55:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_04,0
-MHAAA0167,2026-11-06 08:31:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_12,0
-MHAAA0129,2026-11-02 16:26:00,Nhóm chất lượng dịch vụ,Khôi phục dịch vụ,Chưa phân công,,-1.0,cskh_11,0
-MHAAA0048,2026-11-10 13:42:00,Nhóm chất lượng dịch vụ,Khôi phục dịch vụ,Chưa phân công,,-1.0,cskh_07,0
-MHAAA0136,2026-11-06 10:31:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_02,0
-MHAAA0117,2026-11-08 08:06:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Chưa bắt máy,-1.0,cskh_06,0
-MHAAA0161,2026-11-02 14:38:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_06,0
-MHAAA0099,2026-11-04 09:22:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,,0
-MHAAA0001,2026-11-06 12:38:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_11,0
-MHAAA0072,2026-11-09 17:13:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,,0
+so_hd,tg_do,nhom_ct,chuong_trinh,tinh_trang,ket_qua_tu_van,diem_rm,nhan_su_au,no_cuoc,do_uu_tien,so_lan_cs,ly_do_mat_kn,qua_han
+MHAAA0090,2026-11-13 09:28:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,982.0,cskh_09,0,Thấp,0,,Chưa xử lý
+MHAAA0101,2026-11-12 09:37:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,979.0,cskh_09,0,Thấp,0,,Chưa xử lý
+MHAAA0102,2026-11-13 13:18:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,982.0,cskh_10,0,Thấp,0,,Chưa xử lý
+MHAAA0110,2026-11-12 11:56:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,981.0,cskh_10,0,Thấp,0,,Chưa xử lý
+MHAAA0127,2026-11-13 12:02:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Chưa xử lý,,981.0,cskh_10,0,Thấp,0,,Chưa xử lý
+MHAAA0111,2026-11-14 12:00:00,Nguy cơ rời mạng (SOS),Dự đoán RM,Đang xử lý,,988.0,,0,Thấp,1,,Quá hạn đang xử lý
+MHAAA0088,2026-11-13 08:55:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T-,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_04,0,Rất cao,1,,Quá hạn đang xử lý
+MHAAA0089,2026-11-12 12:50:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_04,0,Rất cao,2,,Quá hạn đang xử lý
+MHAAA0092,2026-11-14 12:00:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_06,0,Rất cao,1,,Quá hạn đang xử lý
+MHAAA0093,2026-11-14 09:14:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T-,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_04,0,Rất cao,1,,Quá hạn đang xử lý
+MHAAA0094,2026-11-12 14:38:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T-,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_02,0,Rất cao,1,,Quá hạn đang xử lý
+MHAAA0095,2026-11-13 09:22:00,Nguy cơ rời mạng (SOS),CSKH không PSLL vết T,Đang xử lý,"KH không đồng ý, yêu cầu thanh lý",,cskh_10,0,Rất cao,1,,Quá hạn đang xử lý
+MHAAA0074,2026-11-07 12:23:00,Nhóm chương trình sự kiện,CSKH yêu câu hủy,Đã xử lý,KH đồng ý sử dụng tiếp và không cần hỗ trợ,,cskh_06,0,Thấp,1,,Hoàn tất trong hạn
+MHAAA0075,2026-11-05 17:35:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_03,0,Khá cao,1,,Chưa xử lý
+MHAAA0071,2026-11-03 10:44:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_12,0,Khá cao,1,,Chưa xử lý
+MHAAA0154,2026-11-10 16:22:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_11,0,Khá cao,1,,Chưa xử lý
+MHAAA0101,2026-11-04 17:11:00,Nhóm chất lượng dịch vụ,CSKH sau nâng gói & chuyển đổi Wifi6,Đã hoàn tất,KH đồng ý sử dụng tiếp và không cần hỗ trợ,,cskh_09,0,Thấp,1,,Hoàn tất trong hạn
+MHAAA0020,2026-11-03 15:26:00,Nhóm chương trình sự kiện,CSKH sau khóa vi phạm CMR Buffet,Chưa xử lý,,-1.0,cskh_08,0,Thấp,0,,Chưa xử lý
+MHAAA0149,2026-11-03 12:02:00,Nhóm chất lượng dịch vụ,Khôi phục dịch vụ,Chưa phân công,,-1.0,cskh_01,0,Thấp,0,,Hoàn tất trong hạn
+MHAAA0054,2026-11-09 11:46:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_07,0,Khá cao,1,,Chưa xử lý
+MHAAA0070,2026-11-04 10:29:00,Nhóm chương trình sự kiện,CSKH yêu câu hủy,Đã hoàn tất,KH đồng ý sử dụng tiếp và không cần hỗ trợ,,cskh_11,0,Thấp,1,,Hoàn tất quá hạn
+MHAAA0130,2026-11-07 08:09:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_02,0,Khá cao,1,,Chưa xử lý
+MHAAA0109,2026-11-03 10:23:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_10,0,Khá cao,1,,Chưa xử lý
+MHAAA0084,2026-11-10 17:59:00,Nhóm chương trình sự kiện,CSKH sau khóa vi phạm CMR Buffet,Đã xử lý,KH đồng ý sử dụng tiếp và không cần hỗ trợ,-1.0,cskh_10,0,Thấp,1,,Hoàn tất trong hạn
+MHAAA0050,2026-11-10 09:47:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_08,0,Khá cao,1,,Chưa xử lý
+MHAAA0010,2026-11-07 17:37:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_01,0,Khá cao,1,,Chưa xử lý
+MHAAA0107,2026-11-06 12:59:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_11,0,Khá cao,1,,Chưa xử lý
+MHAAA0102,2026-11-09 15:17:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Chưa bắt máy,-1.0,cskh_10,0,Khá cao,1,,Chưa xử lý
+MHAAA0124,2026-11-05 12:12:00,Nhóm chất lượng dịch vụ,CSKH sau nâng gói & chuyển đổi Wifi6,Đã xử lý,KH đồng ý sử dụng tiếp và không cần hỗ trợ,,cskh_01,0,Thấp,1,,Hoàn tất trong hạn
+MHAAA0093,2026-11-03 08:41:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_04,0,Khá cao,1,,Chưa xử lý
+MHAAA0016,2026-11-03 13:03:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Đã xử lý,KH đồng ý sử dụng tiếp và không cần hỗ trợ,-1.0,cskh_09,0,Khá cao,1,,Hoàn tất trong hạn
+MHAAA0146,2026-11-03 13:53:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_02,0,Khá cao,1,,Chưa xử lý
+MHAAA0080,2026-11-02 09:41:00,Nhóm chất lượng dịch vụ,Khôi phục dịch vụ,Chưa phân công,,-1.0,,0,Thấp,0,,Hoàn tất trong hạn
+MHAAA0113,2026-11-06 09:06:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_06,0,Khá cao,1,,Chưa xử lý
+MHAAA0156,2026-11-03 15:56:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_10,0,Khá cao,1,,Chưa xử lý
+MHAAA0019,2026-11-05 16:50:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Chưa bắt máy,-1.0,cskh_09,0,Khá cao,1,,Chưa xử lý
+MHAAA0123,2026-11-05 10:51:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_06,0,Khá cao,1,,Chưa xử lý
+MHAAA0120,2026-11-07 12:56:00,Nhóm chất lượng hạ tầng,Homewifi,Đang xử lý,KH đồng ý sử dụng tiếp và cần hỗ trợ,-1.0,,0,Khá cao,1,,Quá hạn đang xử lý
+MHAAA0036,2026-11-03 15:18:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Chưa bắt máy,-1.0,,0,Khá cao,1,,Chưa xử lý
+MHAAA0094,2026-11-05 13:47:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_02,0,Khá cao,1,,Chưa xử lý
+MHAAA0134,2026-11-08 16:46:00,Nhóm chất lượng hạ tầng,Homewifi,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_11,0,Khá cao,1,,Chưa xử lý
+MHAAA0155,2026-11-02 16:38:00,Nhóm chất lượng hạ tầng,Chất lượng kết nối NET,Chưa xử lý,Thuê bao không liên lạc được,-1.0,cskh_05,0,Khá cao,1,,Chưa xử lý

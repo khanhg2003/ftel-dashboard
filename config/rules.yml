@@ -132,6 +132,7 @@ ban_tin:
 # Điều hành liên khối (nhánh thi-lien-khoi, 14/11/2026): ngưỡng của ba luật đầu. Sửa ở đây, không sửa trong code.
 lien_khoi:
   han_gio: 24                                   # việc mới sinh ra phải có kết quả trong N giờ (quá hạn thì nhắc, gấp đôi thì báo quản lý)
+  bao_quan_ly_gio: 48                           # quá N giờ kể từ lúc giao mà chưa xong thì báo quản lý của người nhận
   cho_online: {so_ngay: 2, cao_tu: 7}           # HĐ chưa online sau N ngày kể từ ngày tạo; từ `cao_tu` ngày là mức Cao (như mốc "tồn từ 7 ngày" của báo cáo)
   loi_som: {so_ngay: 30, loai_yc: ["Khiếu nại, phàn nàn"]}   # online xong trong N ngày đã có SR bị động thuộc các loại này
   su_co_lap: {tu_lan: 2, cao_tu_lan: 3}         # Kỹ thuật ghi checklist lặp từ `tu_lan` lần; từ `cao_tu_lan` lần (hoặc DVKH cũng có SR khiếu nại) là mức Cao
