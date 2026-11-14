@@ -499,6 +499,8 @@ Viết lời cho người dùng bằng **tiếng Việt**, dễ hiểu với ng�
 
 ## 7. Quy trình mỗi lần sửa
 
+> **Nhánh `thi-lien-khoi` (từ 14/11/2026, bản thi liên kết 3 khối):** làm riêng, chỉ chạy thử trên máy (`.\scripts\chay_thi.ps1`, database riêng `data/thi.db`, cổng 8060), **KHÔNG đẩy lên máy chủ đang chạy** (`deploy/day_len.ps1` tự từ chối khi không ở nhánh `main`). Quy tắc "sửa xong đẩy máy chủ luôn" bên dưới chỉ áp dụng cho nhánh `main`. Làm theo kiểu cộng thêm (file mới, bảng mới, công tắc ở `rules.yml`) để sau này gộp vào `main` ít xung đột; định kỳ nhập `main` vào nhánh thi. Dữ liệu ghép mã hợp đồng giữa 3 khối chỉ là dữ liệu minh hoạ, phải ghi rõ trên giao diện.
+
 ### 7.0 Chọn đường: việc đơn giản hay phức tạp (chốt 23/10/2026, chủ app muốn nhanh và tiết kiệm token mà chất lượng vẫn tốt)
 
 **Việc ĐƠN GIẢN: trợ lý TỰ SỬA THẲNG, không gọi nhân viên AI, rồi đẩy lên máy chủ luôn (không chờ hỏi).** Thoả TẤT CẢ:

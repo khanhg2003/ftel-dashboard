@@ -11,6 +11,9 @@ param(
     [string]$TenMien = ""
 )
 $ErrorActionPreference = "Stop"
+# Chặn đẩy nhầm: chỉ nhánh main mới được lên máy chủ đang chạy (nhánh thi-lien-khoi chỉ chạy thử trên máy).
+$nhanh = (git rev-parse --abbrev-ref HEAD).Trim()
+if ($nhanh -ne "main") { throw "Đang đứng ở nhánh '$nhanh'. Chỉ nhánh main mới được đẩy lên máy chủ đang chạy." }
 $tuyChon = @("-o", "StrictHostKeyChecking=accept-new")
 if ($Khoa) { $tuyChon += @("-i", $Khoa) }   # đăng nhập bằng khoá thay cho mật khẩu
 $tar = Join-Path $env:TEMP "ftel.tar.gz"
