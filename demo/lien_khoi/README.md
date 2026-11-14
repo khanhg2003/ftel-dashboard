@@ -6,6 +6,7 @@
 | File | Nội dung | Nguồn gốc |
 |---|---|---|
 | `kd.csv` | hợp đồng Kinh doanh: ngày tạo, online, sale, gói, đang tồn hay không | dựng từ ngày trong file Kỹ thuật, sale đổi thành `sale_NN` |
+| `kt_block.csv` | KPI Kỹ thuật theo block / lô (đúng hẹn lần 1, đúng hẹn, quá hẹn, bảo trì quá 24 giờ, thời gian xử lý), không có mã hợp đồng | file KPI Kỹ thuật, tên block đổi thành `Block NN` |
 | `kt.csv` | sự kiện Kỹ thuật: tồn, triển khai, checklist lặp, checklist sau triển khai, cáp LAN | 5 file báo cáo Kỹ thuật (Kon Tum), đã đổi mã và tên KTV thành `ktv_NN` |
 | `sr_bi_dong.csv`, `sr_chu_dong.csv` | SR của DVKH | mượn loại yêu cầu / tình trạng / kết quả tư vấn từ dữ liệu DVKH sẵn có, đổi mã hợp đồng và người thành `cskh_NN` |
 | `no_cuoc.csv` | hợp đồng nằm trong danh sách nợ cước | chọn ngẫu nhiên có hạt giống cố định |

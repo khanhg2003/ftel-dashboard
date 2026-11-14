@@ -396,6 +396,9 @@ def _thanh_du_lieu(path):
     if (k if k in duoc else duoc[0]) == kh.DVKH:
         from app.ui.pages.dvkh_chung import thanh_du_lieu as dvkh_thanh
         return dvkh_thanh()
+    if (k if k in duoc else duoc[0]) == kh.KT:
+        from app.ui.pages.kt_chung import thanh_du_lieu as kt_thanh
+        return kt_thanh()
     from app.ui.lien_ket import thanh_du_lieu
     return thanh_du_lieu()
 
@@ -445,9 +448,8 @@ def _router(path, search=None, store=None):
         from app.ui.pages import dvkh as dvkh_page
         return dvkh_page.trang(path, tab)
     if kh.khoi_cua_duong_dan(path) == kh.KT:
-        return (html.Div([html.H3("Khối Kỹ thuật đang được xây dựng"),
-                          html.Div("Trang này sẽ có khi khối Kỹ thuật có dữ liệu và chỉ số riêng.", className="desc")], className="card"),
-                _topbar_simple("Khối Kỹ thuật", "Sắp có"))
+        from app.ui.pages import kt as kt_page
+        return kt_page.trang(path)
     if path == "/baocaongay":
         from app.ui.pages import baocaongay
         return baocaongay.layout(), baocaongay.topbar()
@@ -535,8 +537,9 @@ def _register_pages():
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, danhba, giafpt, nhapton, quantri_ban_tin, soanmail
     from app.ui.pages import dvkh as dvkh_page
+    from app.ui.pages import kt as kt_page
     from app.ui.pages import lienkhoi, phongonline
-    for mod in (dvkh_page, tongquan, phong, phongonline, lienkhoi, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
+    for mod in (dvkh_page, kt_page, tongquan, phong, phongonline, lienkhoi, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
                 danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin):
         mod.register(app)

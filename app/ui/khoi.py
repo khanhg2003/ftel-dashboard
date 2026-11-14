@@ -12,7 +12,7 @@ KHOI = {
          "ten_ngan": "Khối KD"},
     DVKH: {"ten": "Dịch vụ khách hàng", "ten_day_du": "Khối Dịch vụ khách hàng", "mo_ta": "Customer Service Control", "trang_chu": "/dvkh",
            "tien_to": "/dvkh", "san_sang": True, "ten_ngan": "Khối DVKH"},
-    KT: {"ten": "Kỹ thuật", "ten_day_du": "Khối Kỹ thuật", "mo_ta": "Technical Operations", "trang_chu": "/kt", "tien_to": "/kt", "san_sang": False,
+    KT: {"ten": "Kỹ thuật", "ten_day_du": "Khối Kỹ thuật", "mo_ta": "Technical Operations", "trang_chu": "/kt", "tien_to": "/kt", "san_sang": True,
          "ten_ngan": "Khối KT"},
 }
 THU_TU = [KD, DVKH, KT]
@@ -39,4 +39,10 @@ NAV_DVKH = [
     ("Dữ liệu", [("/dvkh/nap", "Cập nhật Excel", "upload", "duoc_nap_dvkh")]),
     ("Hệ thống", [("/quantri", "Quản trị", "settings", "settings"), ("/phanhoi", "Phản hồi", "phan_hoi", "settings")]),
 ]
-NAV_KT = [("Khối Kỹ thuật", [("/kt", "Sắp có", "tool", None)])]
+NAV_KT = [
+    ("Điều hành", [("/kt", "Tổng quan Kỹ thuật", "dashboard", None), ("/kt/nhan-su", "Hiệu suất KTV", "users", None)]),
+    ("Chỉ số", [("/kt/ton", "Tồn và lịch hẹn", "inbox", None), ("/kt/trien-khai", "Triển khai đúng hẹn", "check", None),
+                ("/kt/su-co", "Sự cố và checklist", "tool", None)]),
+    ("Liên khối", [("/lienkhoi", "Điều hành liên khối", "trend", "settings")]),
+    ("Hệ thống", [("/quantri", "Quản trị", "settings", "settings"), ("/phanhoi", "Phản hồi", "phan_hoi", "settings")]),
+]

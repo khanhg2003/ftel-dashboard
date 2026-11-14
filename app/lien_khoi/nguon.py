@@ -18,6 +18,7 @@ from app.bo_nho import nho
 from app.config import BASE_DIR
 from app.db import engine
 from app.dvkh import nap, so_lieu
+from app.lien_khoi import doc_kt
 from app.metrics import dieu_kien_ton
 
 THU_MUC_DEMO = Path(BASE_DIR) / "demo" / "lien_khoi"
@@ -142,10 +143,49 @@ def nguoi_nhan() -> pd.DataFrame:
 
 
 # ------------------------------------------------------------------ Kỹ thuật
+def thu_muc_kt() -> Path | None:
+    """Dữ liệu thật của khối Kỹ thuật: đặt biến `LIEN_KHOI_KT_THU_MUC` trỏ tới thư mục chứa các file .xlsx báo cáo Kỹ thuật (chỉ ĐỌC). Chưa đặt thì rỗng."""
+    p = os.getenv("LIEN_KHOI_KT_THU_MUC", "").strip()
+    return Path(p) if p and Path(p).is_dir() else None
+
+
+def _dau_vet(p: Path) -> tuple:
+    return tuple((f.name, f.stat().st_mtime_ns) for f in sorted(p.glob("*.xlsx")))
+
+
+_KT_THAT: dict = {}
+
+
+def _kt_that() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Đọc lại thư mục file Kỹ thuật chỉ khi file đổi (file xlsx đọc bằng XML mất vài giây)."""
+    p = thu_muc_kt()
+    if p is None:
+        return pd.DataFrame(columns=COT_KT), pd.DataFrame(columns=doc_kt.KPI_COT)
+    dv = (str(p), _dau_vet(p))
+    if _KT_THAT.get("dv") != dv:
+        _KT_THAT.update(dv=dv, kq=doc_kt.doc_thu_muc(p))
+    ev, kpi = _KT_THAT["kq"]
+    return ev.copy(), kpi.copy()
+
+
 def kt() -> pd.DataFrame:
-    """Sự kiện của khối Kỹ thuật (`COT_KT`). Dữ liệu thật: chưa có bảng nên rỗng. Khi có, đọc ở đây (bộ đọc file nằm ở `doc_kt.py`)."""
+    """Sự kiện của khối Kỹ thuật (`COT_KT`). Minh hoạ: demo/lien_khoi/kt.csv. Thật: các file trong thư mục `LIEN_KHOI_KT_THU_MUC`, chưa đặt thì rỗng."""
     if not la_demo():
-        return pd.DataFrame(columns=COT_KT)
+        ev = _kt_that()[0]
+        for c in COT_KT:
+            if c not in ev.columns:
+                ev[c] = pd.NA
+        return ev[COT_KT]
     d = _csv("kt", ["thoi_diem"])
     d["so_lan"] = pd.to_numeric(d["so_lan"], errors="coerce")
     return d[COT_KT]
+
+
+def kt_block() -> pd.DataFrame:
+    """KPI Kỹ thuật theo block / lô (`doc_kt.KPI_COT`): số lần hẹn đúng, quá hẹn, bảo trì quá 24 giờ, thời gian xử lý. Không có mã hợp đồng."""
+    if not la_demo():
+        return _kt_that()[1]
+    d = _csv("kt_block")
+    for c in doc_kt.KPI_COT[3:]:
+        d[c] = pd.to_numeric(d[c], errors="coerce").fillna(0)
+    return d[doc_kt.KPI_COT]

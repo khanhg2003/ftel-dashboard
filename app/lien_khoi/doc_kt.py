@@ -147,6 +147,42 @@ def su_kien_tu_bang(d: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(columns=KT_COT)
 
 
+KPI_COT = ["vung", "block", "lo", "dung_hen_l1", "dung_hen", "qua_hen", "tich_tin_pnc", "bao_tri_24h", "tong_l1", "tong", "kh_co_cl", "tong_tgxl"]
+
+
+def la_file_kpi(cot) -> bool:
+    return {"Block", "Lô", "Đúng hẹn lần 1", "Bảo trì quá 24H"} <= set(cot)
+
+
+def kpi_block(d: pd.DataFrame) -> pd.DataFrame:
+    """File KPI theo block / lô (không có mã hợp đồng): chỉ lấy SỐ ĐẾM, tỷ lệ tự tính lại ở `app/kt/so_lieu.py`. Các cột "%" trùng tên nên đọc theo vị trí."""
+    if d.empty or not la_file_kpi(d.columns):
+        return pd.DataFrame(columns=KPI_COT)
+    v = d.iloc[:, [0, 2, 3, 4, 6, 8, 10, 15, 14, 17, 18, 19]].copy()
+    v.columns = KPI_COT
+    for c in KPI_COT[3:]:
+        v[c] = _so(v[c]).fillna(0)
+    for c in ("vung", "block", "lo"):
+        v[c] = _chu(v[c])
+    return v[v["block"].ne("")].reset_index(drop=True)
+
+
+def doc_thu_muc(thu_muc) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Đọc mọi file .xlsx báo cáo Kỹ thuật trong một thư mục -> (sự kiện theo mã hợp đồng, KPI theo block). File lạ hoặc hỏng thì bỏ qua."""
+    from pathlib import Path
+    ev, kpi = [], []
+    for f in sorted(Path(thu_muc).glob("*.xlsx")):
+        try:
+            d = doc_bang(f)
+        except Exception:                                  # noqa: BLE001 - file không đúng định dạng thì bỏ qua, không làm hỏng cả trang
+            continue
+        if la_file_kpi(d.columns):
+            kpi.append(kpi_block(d))
+        elif len(e := su_kien_tu_bang(d)):
+            ev.append(e)
+    return (pd.concat(ev, ignore_index=True) if ev else pd.DataFrame(columns=KT_COT)), (pd.concat(kpi, ignore_index=True) if kpi else pd.DataFrame(columns=KPI_COT))
+
+
 def su_kien_tu_cac_file(duong_dan: list) -> pd.DataFrame:
     """Gộp sự kiện của nhiều file Kỹ thuật (file không nhận ra thì bỏ qua)."""
     ds = [su_kien_tu_bang(doc_bang(p)) for p in duong_dan]

@@ -53,6 +53,21 @@ def _doc_kt(thu_muc: Path) -> tuple[pd.DataFrame, list[pd.DataFrame]]:
     return doc_kt.su_kien_tu_cac_file(files), [doc_kt.doc_bang(f) for f in files]
 
 
+def _kpi_block(thu_muc: Path) -> tuple[pd.DataFrame, list[pd.DataFrame]]:
+    """KPI theo block / lô: số đếm thật nhưng tên block đổi thành "Block 01"... (tên phường / xã là địa danh thật). Không có file thì để trống."""
+    files = sorted(thu_muc.glob("Bao-cao-KPI*.xlsx"))
+    if not files:
+        return pd.DataFrame(columns=doc_kt.KPI_COT), []
+    b = doc_kt.doc_bang(files[0])
+    k = doc_kt.kpi_block(b)
+    ten = {x: f"Block {i:02d}" for i, x in enumerate(dict.fromkeys(k["block"]), 1)}
+    lo = {x: ("NA" if x == "NA" else f"{ten[bl]}.L{i:02d}") for i, (bl, x) in enumerate(zip(k["block"], k["lo"]), 1)}
+    k["lo"] = [lo[x] for x in k["lo"]]
+    k["block"] = k["block"].map(ten)
+    k["vung"] = "Vùng minh hoạ"
+    return k[doc_kt.KPI_COT], [b]
+
+
 def _ma_gia(kt: pd.DataFrame) -> dict[str, str]:
     return {h: f"MHAAA{i:04d}" for i, h in enumerate(dict.fromkeys(kt["so_hd"]), 1)}
 
@@ -276,11 +291,13 @@ def main() -> None:
     mask_cskh = [f"cskh_{i:02d}" for i in range(1, 13)]
     db = sqlite3.connect(a.db)
     db.row_factory = sqlite3.Row
+    kpi, bang_kpi = _kpi_block(Path(a.kt))
+    bang_kt = bang_kt + bang_kpi
     kd = _dung_kd(kt, ma, mask_sale, pool_sale, rng, _don_kd(db))
     bd, cd = _dung_sr(kt, kd, ma, db, mask_cskh, rng)
     bd["tg_yc"] = pd.to_datetime(bd["tg_yc"]).dt.strftime("%Y-%m-%d %H:%M:%S")
     cd["tg_do"] = pd.to_datetime(cd["tg_do"]).dt.strftime("%Y-%m-%d %H:%M:%S")
-    ra = {"kd": kd, "kt": _kt_csv(kt, ma, mask_ktv), "sr_bi_dong": bd, "sr_chu_dong": cd, "no_cuoc": _no_cuoc(ma, bd, rng), "dich_vu": _dich_vu(ma, db, rng)}
+    ra = {"kd": kd, "kt": _kt_csv(kt, ma, mask_ktv), "kt_block": kpi, "sr_bi_dong": bd, "sr_chu_dong": cd, "no_cuoc": _no_cuoc(ma, bd, rng), "dich_vu": _dich_vu(ma, db, rng)}
     ra["nguoi_nhan"] = _nguoi_nhan(ra)
     _kiem_an_toan(ra, bang_kt, db)
     out = Path(a.out)
