@@ -43,11 +43,12 @@ def _dung_database() -> bool:
 SAN_SANG = _dung_database()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def database_kiem_thu():
-    """Chặn cả bộ kiểm thử nếu không dựng được dữ liệu mẫu."""
-    if not SAN_SANG:
-        pytest.skip("Thiếu file dữ liệu gốc để dựng database kiểm thử", allow_module_level=True)
+@pytest.fixture(autouse=True)
+def database_kiem_thu(request):
+    """Bỏ qua bài kiểm thử nếu không dựng được dữ liệu mẫu. NGOẠI LỆ: các bài `test_lien_khoi*` (nhánh thi-lien-khoi) chỉ dùng bộ dữ liệu minh hoạ
+    trong `demo/lien_khoi` nên luôn chạy, để người không có file dữ liệu thật (đồng đội) vẫn có lưới an toàn."""
+    if not SAN_SANG and not Path(str(request.node.fspath)).name.startswith("test_lien_khoi"):
+        pytest.skip("Thiếu file dữ liệu gốc để dựng database kiểm thử")
     yield
 
 
