@@ -3,6 +3,8 @@ data/
 backups/
 logs/
 *.csv
+# ngoại lệ DUY NHẤT: bộ dữ liệu MINH HOẠ của hướng liên khối (đã đổi hết mã / tên, có test chặn lọt dữ liệu thật)
+!demo/lien_khoi/*.csv
 *.xlsx
 *.db
 *.db-*

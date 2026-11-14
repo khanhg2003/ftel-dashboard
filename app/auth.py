@@ -195,6 +195,8 @@ class SessionUser(UserMixin):
             return False
         if path == "/phongonline":
             return self.duoc_xem_phong_online
+        if path == "/lienkhoi":                # bản thử của nhánh thi-lien-khoi: chỉ Quản trị
+            return self.duoc_cau_hinh
         if self.role == "online":
             return path in TRANG_ONLINE
         if self.role != "nvkd":

@@ -159,6 +159,7 @@ NAV = [
         ("/phantich", "Phân tích bán hàng", "pie", None),
         ("/ads", "Ads IBB7", "trend", "ads"),
     ]),
+    ("Liên khối", [("/lienkhoi", "Điều hành liên khối", "trend", "settings")]),
     ("Dữ liệu", [
         ("/upload", "Nạp dữ liệu", "upload", "upload"),
         ("/chatluong", "Chất lượng dữ liệu", "database", None),
@@ -433,6 +434,9 @@ def _router(path, search=None, store=None):
         return (html.Div([html.H3("Tài khoản này không mở được trang này"),
                           dcc.Link("← Về trang chính của bạn", href=trang_mo_dau(current_user), className="btn primary")], className="card"),
                 _topbar_simple("Không có quyền"))
+    if path == "/lienkhoi":
+        from app.ui.pages import lienkhoi
+        return lienkhoi.layout(), lienkhoi.topbar()
     if kh.khoi_cua_duong_dan(path) == kh.DVKH:
         from app.ui.pages import dvkh as dvkh_page
         return dvkh_page.trang(path, tab)
@@ -527,8 +531,8 @@ def _register_pages():
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, danhba, giafpt, nhapton, quantri_ban_tin, soanmail
     from app.ui.pages import dvkh as dvkh_page
-    from app.ui.pages import phongonline
-    for mod in (dvkh_page, tongquan, phong, phongonline, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
+    from app.ui.pages import lienkhoi, phongonline
+    for mod in (dvkh_page, tongquan, phong, phongonline, lienkhoi, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
                 danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin):
         mod.register(app)

@@ -128,3 +128,11 @@ ban_tin:
   tp_dang: anh
   khong_trao_doi:
     IBB7: [dng.khanhvhg, dng.duynt121]    # Văn Hữu Gia Khánh, Nguyễn Trúc Duy
+
+# Điều hành liên khối (nhánh thi-lien-khoi, 14/11/2026): ngưỡng của ba luật đầu. Sửa ở đây, không sửa trong code.
+lien_khoi:
+  han_gio: 24                                   # việc mới sinh ra phải có kết quả trong N giờ (quá hạn thì nhắc, gấp đôi thì báo quản lý)
+  cho_online: {so_ngay: 2, cao_tu: 7}           # HĐ chưa online sau N ngày kể từ ngày tạo; từ `cao_tu` ngày là mức Cao (như mốc "tồn từ 7 ngày" của báo cáo)
+  loi_som: {so_ngay: 30, loai_yc: ["Khiếu nại, phàn nàn"]}   # online xong trong N ngày đã có SR bị động thuộc các loại này
+  su_co_lap: {tu_lan: 2, cao_tu_lan: 3}         # Kỹ thuật ghi checklist lặp từ `tu_lan` lần; từ `cao_tu_lan` lần (hoặc DVKH cũng có SR khiếu nại) là mức Cao
+  co_y_roi: {so_ngay_gan: 3, diem_rm_cao: 800}               # chỉ xét SR trong N ngày gần nhất của dữ liệu (việc MỚI); điểm nguy cơ rời mạng từ 800 là bậc cao nhất của DVKH
