@@ -8,7 +8,7 @@ import pandas as pd
 from dash import Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
 
-from app.lien_khoi import luat, nguon, theo_doi as td, zalo_viec as zv
+from app.lien_khoi import luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
 from app.ui.components import alert, callback_can_quyen, card, kpi
 from app.ui.luoi import bang
 
@@ -33,6 +33,7 @@ COT_TD = [
     {"headerName": "Đã gửi", "field": "da_gui", "width": 105},
     {"headerName": "Nhắc", "field": "nhac", "width": 105},
     {"headerName": "Báo QL", "field": "bao_ql", "width": 105},
+    {"headerName": "Nguồn", "field": "nguon", "width": 100},
     {"headerName": "Ghi chú", "field": "ghi_chu", "minWidth": 200, "flex": 1, "wrapText": True, "autoHeight": True},
 ]
 COT_THU = [
@@ -65,6 +66,7 @@ def _dong(d: pd.DataFrame) -> list[dict]:
     for c, moi in (("da_gui_luc", "da_gui"), ("nhac_luc", "nhac"), ("bao_quan_ly_luc", "bao_ql")):
         out[moi] = out[c].map(_vn)
     out["ghi_chu"] = out["ghi_chu"].fillna("")
+    out["nguon"] = out["mo_phong"].fillna(0).astype(int).map({1: "Mô phỏng", 0: "Thật"})
     return out.drop(columns=["han_luc", "da_gui_luc", "nhac_luc", "bao_quan_ly_luc"]).to_dict("records")
 
 
@@ -83,7 +85,8 @@ def layout():
         card([
             html.Div([nut("lk-td-dongbo", "1. Lấy việc từ các luật", "btn primary"), nut("lk-td-gui", "2. Gửi việc mới qua Zalo", "btn primary"),
                       nut("lk-td-nhac", "3. Chạy nhắc & báo quản lý", "btn primary"),
-                      *([nut("lk-td-lui1", "Lùi đồng hồ +25 giờ"), nut("lk-td-lui2", "Lùi đồng hồ +49 giờ"), nut("lk-td-reset", "Làm lại từ đầu")] if gia_lap else [])],
+                      *([nut("lk-td-lui1", "Lùi đồng hồ +25 giờ"), nut("lk-td-lui2", "Lùi đồng hồ +49 giờ"), nut("lk-td-reset", "Làm lại từ đầu"),
+                         nut("lk-td-chuan-bi", "Chuẩn bị demo (nạp 14 ngày mô phỏng)")] if gia_lap else [])],
                      className="lk-badges"),
             html.Div(id="lk-td-dong-ho", className="lk-ghi-chu", style={"marginTop": "8px"}),
             html.Div(id="lk-td-thongbao", style={"marginTop": "10px"}),
@@ -132,10 +135,16 @@ def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str) -> str:
         return f"Đã nhắc {r['nhac']} phần việc quá hạn và báo {r['bao_quan_ly']} quản lý."
     if ma in ("lk-td-lui1", "lk-td-lui2"):
         gio = td.them_gio_gia_lap(25 if ma == "lk-td-lui1" else 49)
-        return f"Đã lùi đồng hồ minh hoạ, tổng cộng {gio:.0f} giờ."
+        r = mp.tien_thoi_gian()
+        return (f"Đã lùi đồng hồ minh hoạ, tổng cộng {gio:.0f} giờ. Trong lúc đó người nhận (mô phỏng) đã làm xong {r['xong']} phần việc, "
+                f"không làm được {r['khong_lam_duoc']}, mới nhận {r['da_nhan']}; phần còn lại chưa ai đụng tới.")
     if ma == "lk-td-reset":
         td.xoa_het_minh_hoa()
         return "Đã xoá giao việc, nhật ký, hộp thư và đồng hồ giả lập của bản minh hoạ."
+    if ma == "lk-td-chuan-bi":
+        r = mp.chuan_bi_demo()
+        return (f"Đã chuẩn bị demo: nạp {r['mo_phong']} phần việc MÔ PHỎNG của 14 ngày qua và {r['moi']} phần việc mới hôm nay (chưa gửi). "
+                "Sang tab Hiệu quả để xem số đo; ở đây bấm \"2. Gửi việc mới qua Zalo\" để chạy kịch bản.")
     if ma == "lk-td-tl-gui":
         if not nguoi or not (chu or "").strip():
             return "Chọn người nhận và gõ câu trả lời."
@@ -151,7 +160,7 @@ def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str) -> str:
 
 def register(app):
     cb = callback_can_quyen(app, QUYEN)
-    nut = ["lk-td-dongbo", "lk-td-gui", "lk-td-nhac", "lk-td-lui1", "lk-td-lui2", "lk-td-reset", "lk-td-nhan", "lk-td-xong", "lk-td-khong", "lk-td-tl-gui"]
+    nut = ["lk-td-dongbo", "lk-td-gui", "lk-td-nhac", "lk-td-lui1", "lk-td-lui2", "lk-td-reset", "lk-td-chuan-bi", "lk-td-nhan", "lk-td-xong", "lk-td-khong", "lk-td-tl-gui"]
 
     @cb(Output("lk-td-thongbao", "children"), Output("lk-td-tick", "data"), *[Input(i, "n_clicks") for i in nut],
         State("lk-td-luoi", "selectedRows"), State("lk-td-lydo", "value"), State("lk-td-tl-nguoi", "value"), State("lk-td-tl-chu", "value"),

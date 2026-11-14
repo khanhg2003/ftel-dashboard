@@ -57,6 +57,11 @@ def _da_giao(kq: str) -> bool:
     return kq in ("ok", "gia_lap")
 
 
+def thuc(d: pd.DataFrame) -> pd.Series:
+    """Phần việc THẬT (không phải lịch sử mô phỏng của bản minh hoạ): chỉ những phần này được gửi, nhắc, báo quản lý hoặc nhận trả lời."""
+    return d["mo_phong"].fillna(0) == 0 if "mo_phong" in d.columns else pd.Series(True, index=d.index)
+
+
 def _ngay(t) -> str:
     return pd.Timestamp(t).strftime("%d/%m %H:%M")
 
@@ -98,7 +103,7 @@ def gui_viec_moi(now: datetime | None = None) -> dict:
         return {"nguoi": 0, "viec": 0, "tin": 0}
     han, _ = td.cau_hinh_gio()
     ds = _chu_nguoi(td.nguoi_nhan())
-    d = d[d["dang_mo"] & d["da_gui_luc"].isna()]
+    d = d[d["dang_mo"] & d["da_gui_luc"].isna() & thuc(d)]
     n_nguoi = n_viec = n_tin = 0
     for ma, rows in _theo_nguoi(d).items():
         p = ds.get(ma, {"ten": ma, "chat_id": ""})
@@ -123,7 +128,7 @@ def chay_nhac(now: datetime | None = None) -> dict:
     if d.empty:
         return {"nhac": 0, "bao_quan_ly": 0}
     ds = _chu_nguoi(td.nguoi_nhan())
-    mo = d[d["dang_mo"]]
+    mo = d[d["dang_mo"] & thuc(d)]
     a = mo[(mo["tao_luc"] + pd.Timedelta(hours=han) <= pd.Timestamp(now)) & mo["nhac_luc"].isna()]
     for ma, rows in _theo_nguoi(a).items():
         p = ds.get(ma, {"chat_id": ""})
@@ -220,11 +225,13 @@ def _ap_dung(ma: str, chu: str, now: datetime) -> str:
     if tt is None:
         return "Em chưa hiểu. " + HUONG_DAN
     d = td.danh_sach(now)
-    mo = d[(d["nguoi"] == ma) & d["dang_mo"]] if len(d) else d
+    mo = d[(d["nguoi"] == ma) & d["dang_mo"] & thuc(d)] if len(d) else d
     if not codes:
         hd = list(dict.fromkeys(mo["so_hd"])) if len(mo) else []
         if len(hd) != 1:
-            return "Anh/chị đang có " + (f"{len(hd)} việc" if hd else "không có việc nào") + " mở. " + ("Nhớ ghi mã hợp đồng, ví dụ: xong " + hd[0] + ". " if hd else "") + HUONG_DAN
+            if not hd:
+                return "Hiện anh/chị không có việc nào đang mở. Cảm ơn anh/chị."
+            return f"Anh/chị đang có {len(hd)} việc mở. Nhớ ghi mã hợp đồng, ví dụ: xong {hd[0]}. " + HUONG_DAN
         codes = hd
     if tt == "khong_lam_duoc" and not ghi_chu:
         return "Anh/chị ghi thêm lý do giúp em, ví dụ: không được " + codes[0] + " khách hẹn tuần sau."

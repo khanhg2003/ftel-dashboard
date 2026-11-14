@@ -16,10 +16,10 @@ from app.lien_khoi import ho_so as hs
 from app.lien_khoi import luat, nguon, su_kien as sk
 from app.ui.components import alert, callback_can_quyen, card, ghi_chu, kpi, seg_control
 from app.ui.luoi import bang
-from app.ui.pages import lienkhoi_hs, lienkhoi_td
+from app.ui.pages import lienkhoi_hq, lienkhoi_hs, lienkhoi_td
 
 QUYEN = "duoc_cau_hinh"
-TAB = [("viec", "Việc cần làm"), ("td", "Theo dõi & Zalo"), ("hd", "Hồ sơ hợp đồng"), ("nguon", "Nguồn dữ liệu")]
+TAB = [("viec", "Việc cần làm"), ("td", "Theo dõi & Zalo"), ("hq", "Hiệu quả"), ("hd", "Hồ sơ hợp đồng"), ("nguon", "Nguồn dữ liệu")]
 MUC_MAU = {"styleConditions": [{"condition": "params.value == 'Cao'", "style": {"color": "#b42318", "fontWeight": 600}},
                                {"condition": "params.value == 'Trung bình'", "style": {"color": "#b54708", "fontWeight": 600}}]}
 COT_VIEC = [
@@ -71,6 +71,7 @@ def layout():
             ], title="Việc cần làm", desc="Mỗi dòng là một việc: ai nhận, vì sao. Người nhận chưa biết thì ghi tên hàng chờ. Mức Cao xếp trước."),
         ], id="lk-viec"),
         html.Div(lienkhoi_td.layout(), id="lk-td", style=an),
+        html.Div(lienkhoi_hq.layout(), id="lk-hq", style=an),
         html.Div([
             html.Div([dcc.Input(id="lk-hd-ma", type="text", debounce=True, className="inp", style={"width": "260px"}, placeholder="Gõ mã hợp đồng rồi Enter")],
                      style={"marginBottom": "12px"}),
@@ -116,11 +117,12 @@ def _goi_y():
 def register(app):
     cb = callback_can_quyen(app, QUYEN)
     lienkhoi_td.register(app)
+    lienkhoi_hq.register(app)
 
-    @cb(Output("lk-viec", "style"), Output("lk-td", "style"), Output("lk-hd", "style"), Output("lk-nguon", "style"), Input("lk-tab", "value"))
+    @cb(Output("lk-viec", "style"), Output("lk-td", "style"), Output("lk-hq", "style"), Output("lk-hd", "style"), Output("lk-nguon", "style"), Input("lk-tab", "value"))
     def _hien(tab):
         an, hien = {"display": "none"}, {"display": "block"}
-        return tuple(hien if tab == k else an for k in ("viec", "td", "hd", "nguon"))
+        return tuple(hien if tab == k else an for k in ("viec", "td", "hq", "hd", "nguon"))
 
     @cb(Output("lk-kpi", "children"), Output("lk-luoi-viec", "rowData"), Input("lk-tab", "value"), Input("lk-luat", "value"))
     def _viec(tab, ma_luat):

@@ -27,10 +27,11 @@ MO = ("moi", "da_nhan")                                   # còn phải làm
 VAI_TRO = {"sale": "Sale", "dvkh": "DVKH", "kt": "Kỹ thuật"}
 COT_NGUOI = ["ma", "ten", "khoi", "vai_tro", "quan_ly", "chat_id"]
 _KHOA = threading.Lock()
+_DA_TAO: set[str] = set()
 DDL = """
 CREATE TABLE IF NOT EXISTS giao (id INTEGER PRIMARY KEY AUTOINCREMENT, so_hd TEXT NOT NULL, luat TEXT NOT NULL, vai_tro TEXT NOT NULL, nguoi TEXT NOT NULL,
   nguoi_goc TEXT, ten_luat TEXT, muc TEXT, ly_do TEXT, de_xuat TEXT, trang_thai TEXT NOT NULL, tao_luc TEXT NOT NULL, han_luc TEXT NOT NULL, da_gui_luc TEXT,
-  nhac_luc TEXT, bao_quan_ly_luc TEXT, cap_nhat_luc TEXT, cap_nhat_boi TEXT, ghi_chu TEXT, UNIQUE (so_hd, luat, vai_tro));
+  nhac_luc TEXT, bao_quan_ly_luc TEXT, cap_nhat_luc TEXT, cap_nhat_boi TEXT, ghi_chu TEXT, mo_phong INTEGER DEFAULT 0, UNIQUE (so_hd, luat, vai_tro));
 CREATE TABLE IF NOT EXISTS nhat_ky (id INTEGER PRIMARY KEY AUTOINCREMENT, giao_id INTEGER, luc TEXT, boi TEXT, hanh_dong TEXT, ghi_chu TEXT);
 CREATE TABLE IF NOT EXISTS hop_thu (id INTEGER PRIMARY KEY AUTOINCREMENT, luc TEXT, den_nguoi TEXT, chat_id TEXT, loai TEXT, noi_dung TEXT, kenh TEXT, ket_qua TEXT);
 CREATE TABLE IF NOT EXISTS cai_dat (khoa TEXT PRIMARY KEY, gia_tri TEXT);
@@ -50,7 +51,14 @@ def _ket_noi() -> sqlite3.Connection:
     p.parent.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(p, timeout=20)
     c.row_factory = sqlite3.Row
-    c.executescript(DDL)
+    c.execute("PRAGMA synchronous=NORMAL")                       # file trạng thái nhỏ, ghi rất nhiều lần: không cần chờ đĩa ở mỗi lần lưu
+    if str(p) not in _DA_TAO:                                    # tạo bảng một lần cho mỗi file trong mỗi tiến trình (mở kết nối rất nhiều lần)
+        c.execute("PRAGMA journal_mode=WAL")
+        c.executescript(DDL)
+        if "mo_phong" not in {r[1] for r in c.execute("PRAGMA table_info(giao)")}:       # file trạng thái tạo từ bản cũ: thêm cột đánh dấu dữ liệu mô phỏng
+            c.execute("ALTER TABLE giao ADD COLUMN mo_phong INTEGER DEFAULT 0")
+        c.commit()
+        _DA_TAO.add(str(p))
     return c
 
 
@@ -148,35 +156,38 @@ def _nguoi_giao(r, ds: pd.DataFrame) -> list[tuple[str, str, str]]:
 
 # ------------------------------------------------------------------ đồng bộ với các luật
 def dong_bo(viec: pd.DataFrame, now: datetime | None = None) -> dict:
-    """Đưa việc hiện tại của các luật vào bảng giao việc: việc mới thì thêm, việc cũ giữ nguyên trạng thái, việc hết dấu hiệu thì đóng."""
+    """Đưa việc hiện tại của các luật vào bảng giao việc: việc mới thì thêm, việc cũ giữ nguyên trạng thái, việc hết dấu hiệu thì đóng.
+    Làm trong MỘT lần mở file (hàng trăm phần việc, mở từng lần rất chậm)."""
     now = now or bay_gio()
     han, _ = cau_hinh_gio()
     ds = nguoi_nhan()
     hien_co: set[tuple] = set()
-    moi = mo_lai = 0
-    for r in viec.to_dict("records"):
-        for vt, ma_nguoi, goc in _nguoi_giao(r, ds):
-            khoa = (r["so_hd"], r["luat"], vt)
-            hien_co.add(khoa)
-            cu = _cau("SELECT id, trang_thai FROM giao WHERE so_hd=? AND luat=? AND vai_tro=?", khoa)
-            if not cu:
-                gid = _ghi("INSERT INTO giao (so_hd, luat, vai_tro, nguoi, nguoi_goc, ten_luat, muc, ly_do, de_xuat, trang_thai, tao_luc, han_luc) "
-                           "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (*khoa, ma_nguoi, goc, r["ten_luat"], r["muc"], r["ly_do"], r["de_xuat"], "moi", _s(now), _s(now + timedelta(hours=han))))
-                _ghi("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (gid, _s(now), "he_thong", "giao", r["ly_do"]))
-                moi += 1
-            elif cu[0]["trang_thai"] == "tu_het":                    # dấu hiệu quay lại: mở lại, tính hạn mới
-                _ghi("UPDATE giao SET trang_thai='moi', tao_luc=?, han_luc=?, da_gui_luc=NULL, nhac_luc=NULL, bao_quan_ly_luc=NULL, muc=?, ly_do=?, de_xuat=? WHERE id=?",
-                     (_s(now), _s(now + timedelta(hours=han)), r["muc"], r["ly_do"], r["de_xuat"], cu[0]["id"]))
-                _ghi("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (cu[0]["id"], _s(now), "he_thong", "mo_lai", "Dấu hiệu quay lại"))
-                mo_lai += 1
-            elif cu[0]["trang_thai"] in MO:
-                _ghi("UPDATE giao SET muc=?, ly_do=?, de_xuat=? WHERE id=?", (r["muc"], r["ly_do"], r["de_xuat"], cu[0]["id"]))
-    het = 0
-    for r in _cau("SELECT id, so_hd, luat, vai_tro FROM giao WHERE trang_thai IN ('moi','da_nhan')"):
-        if (r["so_hd"], r["luat"], r["vai_tro"]) not in hien_co:
-            _ghi("UPDATE giao SET trang_thai='tu_het', cap_nhat_luc=?, cap_nhat_boi='he_thong', ghi_chu='Luật không còn thấy dấu hiệu' WHERE id=?", (_s(now), r["id"]))
-            _ghi("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (r["id"], _s(now), "he_thong", "tu_het", "Luật không còn thấy dấu hiệu"))
-            het += 1
+    moi = mo_lai = het = 0
+    tao, han_luc = _s(now), _s(now + timedelta(hours=han))
+    nk = "INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)"
+    with _KHOA, _kn() as c:
+        for r in viec.to_dict("records"):
+            for vt, ma_nguoi, goc in _nguoi_giao(r, ds):
+                khoa = (r["so_hd"], r["luat"], vt)
+                hien_co.add(khoa)
+                cu = c.execute("SELECT id, trang_thai FROM giao WHERE so_hd=? AND luat=? AND vai_tro=?", khoa).fetchone()
+                if cu is None:
+                    gid = c.execute("INSERT INTO giao (so_hd, luat, vai_tro, nguoi, nguoi_goc, ten_luat, muc, ly_do, de_xuat, trang_thai, tao_luc, han_luc) "
+                                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (*khoa, ma_nguoi, goc, r["ten_luat"], r["muc"], r["ly_do"], r["de_xuat"], "moi", tao, han_luc)).lastrowid
+                    c.execute(nk, (gid, tao, "he_thong", "giao", r["ly_do"]))
+                    moi += 1
+                elif cu["trang_thai"] == "tu_het":                       # dấu hiệu quay lại: mở lại, tính hạn mới
+                    c.execute("UPDATE giao SET trang_thai='moi', tao_luc=?, han_luc=?, da_gui_luc=NULL, nhac_luc=NULL, bao_quan_ly_luc=NULL, muc=?, ly_do=?, de_xuat=? WHERE id=?",
+                              (tao, han_luc, r["muc"], r["ly_do"], r["de_xuat"], cu["id"]))
+                    c.execute(nk, (cu["id"], tao, "he_thong", "mo_lai", "Dấu hiệu quay lại"))
+                    mo_lai += 1
+                elif cu["trang_thai"] in MO:
+                    c.execute("UPDATE giao SET muc=?, ly_do=?, de_xuat=? WHERE id=?", (r["muc"], r["ly_do"], r["de_xuat"], cu["id"]))
+        for r in c.execute("SELECT id, so_hd, luat, vai_tro FROM giao WHERE trang_thai IN ('moi','da_nhan') AND COALESCE(mo_phong, 0) = 0").fetchall():   # lịch sử mô phỏng không bị luật đóng
+            if (r["so_hd"], r["luat"], r["vai_tro"]) not in hien_co:
+                c.execute("UPDATE giao SET trang_thai='tu_het', cap_nhat_luc=?, cap_nhat_boi='he_thong', ghi_chu='Luật không còn thấy dấu hiệu' WHERE id=?", (tao, r["id"]))
+                c.execute(nk, (r["id"], tao, "he_thong", "tu_het", "Luật không còn thấy dấu hiệu"))
+                het += 1
     return {"moi": moi, "mo_lai": mo_lai, "het": het}
 
 
@@ -196,6 +207,47 @@ def danh_sach(now: datetime | None = None) -> pd.DataFrame:
     return d.sort_values(["_t", "tao_luc"], ascending=[True, False]).drop(columns="_t").reset_index(drop=True)
 
 
+def danh_sach_day_du(now: datetime | None = None) -> pd.DataFrame:
+    """`danh_sach` kèm `phan_hoi_luc` (lần đầu người nhận làm gì đó với phần việc: nhận, xong hoặc không làm được) để đo thời gian phản hồi."""
+    d = danh_sach(now)
+    if d.empty:
+        return d.assign(phan_hoi_luc=pd.NaT)
+    ph = pd.DataFrame([dict(r) for r in _cau("SELECT giao_id, MIN(luc) AS luc FROM nhat_ky WHERE hanh_dong IN ('da_nhan','da_xong','khong_lam_duoc') GROUP BY giao_id")],
+                      columns=["giao_id", "luc"])
+    ph["luc"] = pd.to_datetime(ph["luc"])
+    d = d.merge(ph.rename(columns={"giao_id": "id", "luc": "phan_hoi_luc"}), on="id", how="left")
+    d["cap_nhat_luc"] = pd.to_datetime(d["cap_nhat_luc"])
+    d["bao_quan_ly_luc"] = pd.to_datetime(d["bao_quan_ly_luc"])
+    return d
+
+
+def chen_lich_su(rows: list[dict]) -> int:
+    """Nạp lịch sử MÔ PHỎNG (chỉ chế độ minh hoạ, xem `mo_phong.py`): mỗi dòng gồm các cột `giao` và `nhat_ky` = [(luc, boi, hanh_dong, ghi_chu)]. Mọi dòng bị đánh dấu `mo_phong`."""
+    if not nguon.la_demo():
+        raise RuntimeError("Chỉ được nạp lịch sử mô phỏng ở chế độ minh hoạ.")
+    cot = ("so_hd", "luat", "vai_tro", "nguoi", "ten_luat", "muc", "ly_do", "de_xuat", "trang_thai", "tao_luc", "han_luc", "da_gui_luc", "nhac_luc",
+           "bao_quan_ly_luc", "cap_nhat_luc", "cap_nhat_boi", "ghi_chu")
+    with _KHOA, _kn() as c:
+        for r in rows:
+            gid = c.execute(f"INSERT OR IGNORE INTO giao ({', '.join(cot)}, mo_phong) VALUES ({', '.join('?' * len(cot))}, 1)", tuple(r.get(k) for k in cot)).lastrowid
+            if gid:
+                c.executemany("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", [(gid, *n) for n in r.get("nhat_ky", [])])
+    return len(rows)
+
+
+def doc_moc() -> dict:
+    """Mốc đo được TRƯỚC khi dùng hệ thống (người dùng nhập): {"gio_xu_ly": số giờ, "ty_le_dung_han": %}. Chưa nhập thì không có khoá đó."""
+    return {r["khoa"][4:]: float(r["gia_tri"]) for r in _cau("SELECT khoa, gia_tri FROM cai_dat WHERE khoa LIKE 'moc_%'") if r["gia_tri"] not in (None, "")}
+
+
+def ghi_moc(gio_xu_ly: float | None, ty_le_dung_han: float | None) -> None:
+    for k, v in (("moc_gio_xu_ly", gio_xu_ly), ("moc_ty_le_dung_han", ty_le_dung_han)):
+        if v is None:
+            _ghi("DELETE FROM cai_dat WHERE khoa=?", (k,))
+        else:
+            _ghi("INSERT INTO cai_dat (khoa, gia_tri) VALUES (?, ?) ON CONFLICT(khoa) DO UPDATE SET gia_tri=excluded.gia_tri", (k, str(float(v))))
+
+
 def tom_tat(d: pd.DataFrame) -> dict:
     if d.empty:
         return {"tong": 0, "moi": 0, "da_nhan": 0, "da_xong": 0, "khong_lam_duoc": 0, "tu_het": 0, "qua_han": 0, "da_bao_ql": 0, "ty_le_xong": None}
@@ -213,6 +265,19 @@ def cap_nhat(giao_id: int, trang_thai: str, boi: str, ghi_chu: str = "", now: da
     _ghi("UPDATE giao SET trang_thai=?, cap_nhat_luc=?, cap_nhat_boi=?, ghi_chu=? WHERE id=?", (trang_thai, _s(now), boi, ghi_chu or None, giao_id))
     _ghi("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (giao_id, _s(now), boi, trang_thai, ghi_chu))
     return True
+
+
+def cap_nhat_nhieu(thay_doi: list[tuple]) -> int:
+    """Như nhiều lần `cap_nhat` nhưng trong MỘT lần mở file: [(giao_id, trạng thái, người, ghi chú, giờ UTC)]. Dòng có trạng thái lạ bị bỏ qua."""
+    n = 0
+    with _KHOA, _kn() as c:
+        for gid, tt, boi, ghi_chu, luc in thay_doi:
+            if tt not in ("da_nhan", "da_xong", "khong_lam_duoc"):
+                continue
+            c.execute("UPDATE giao SET trang_thai=?, cap_nhat_luc=?, cap_nhat_boi=?, ghi_chu=? WHERE id=?", (tt, _s(luc), boi, ghi_chu or None, int(gid)))
+            c.execute("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (int(gid), _s(luc), boi, tt, ghi_chu or ""))
+            n += 1
+    return n
 
 
 def danh_dau(ids: list[int], cot: str, now: datetime | None = None) -> None:
