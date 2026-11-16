@@ -1,76 +1,85 @@
 ma,ten,khoi,vai_tro,quan_ly,chat_id
-sale_01,Sale 01,KD,nhan_vien,tp_kd_01,demo:sale_01
-sale_02,Sale 02,KD,nhan_vien,tp_kd_01,demo:sale_02
-sale_03,Sale 03,KD,nhan_vien,tp_kd_01,demo:sale_03
-sale_04,Sale 04,KD,nhan_vien,tp_kd_01,demo:sale_04
-sale_05,Sale 05,KD,nhan_vien,tp_kd_01,demo:sale_05
-sale_06,Sale 06,KD,nhan_vien,tp_kd_01,demo:sale_06
-sale_07,Sale 07,KD,nhan_vien,tp_kd_01,demo:sale_07
-sale_08,Sale 08,KD,nhan_vien,tp_kd_01,demo:sale_08
-sale_09,Sale 09,KD,nhan_vien,tp_kd_01,demo:sale_09
-sale_10,Sale 10,KD,nhan_vien,tp_kd_01,demo:sale_10
-sale_11,Sale 11,KD,nhan_vien,tp_kd_01,demo:sale_11
-sale_12,Sale 12,KD,nhan_vien,tp_kd_01,demo:sale_12
-sale_13,Sale 13,KD,nhan_vien,tp_kd_01,demo:sale_13
-sale_14,Sale 14,KD,nhan_vien,tp_kd_01,demo:sale_14
-sale_15,Sale 15,KD,nhan_vien,tp_kd_01,demo:sale_15
-sale_16,Sale 16,KD,nhan_vien,tp_kd_01,demo:sale_16
-sale_17,Sale 17,KD,nhan_vien,tp_kd_01,demo:sale_17
-sale_18,Sale 18,KD,nhan_vien,tp_kd_01,demo:sale_18
-sale_19,Sale 19,KD,nhan_vien,tp_kd_01,demo:sale_19
-sale_20,Sale 20,KD,nhan_vien,tp_kd_01,demo:sale_20
-sale_21,Sale 21,KD,nhan_vien,tp_kd_01,demo:sale_21
-sale_22,Sale 22,KD,nhan_vien,tp_kd_01,demo:sale_22
-sale_23,Sale 23,KD,nhan_vien,tp_kd_01,demo:sale_23
-sale_24,Sale 24,KD,nhan_vien,tp_kd_01,demo:sale_24
-sale_25,Sale 25,KD,nhan_vien,tp_kd_01,demo:sale_25
-sale_26,Sale 26,KD,nhan_vien,tp_kd_01,demo:sale_26
-sale_27,Sale 27,KD,nhan_vien,tp_kd_01,demo:sale_27
-sale_28,Sale 28,KD,nhan_vien,tp_kd_01,demo:sale_28
-sale_29,Sale 29,KD,nhan_vien,tp_kd_01,demo:sale_29
-sale_30,Sale 30,KD,nhan_vien,tp_kd_01,demo:sale_30
-sale_31,Sale 31,KD,nhan_vien,tp_kd_01,demo:sale_31
-sale_32,Sale 32,KD,nhan_vien,tp_kd_01,demo:sale_32
-sale_33,Sale 33,KD,nhan_vien,tp_kd_01,demo:sale_33
-sale_34,Sale 34,KD,nhan_vien,tp_kd_01,demo:sale_34
-sale_35,Sale 35,KD,nhan_vien,tp_kd_01,demo:sale_35
-sale_36,Sale 36,KD,nhan_vien,tp_kd_01,demo:sale_36
-sale_37,Sale 37,KD,nhan_vien,tp_kd_01,demo:sale_37
-sale_38,Sale 38,KD,nhan_vien,tp_kd_01,demo:sale_38
-sale_39,Sale 39,KD,nhan_vien,tp_kd_01,demo:sale_39
-sale_40,Sale 40,KD,nhan_vien,tp_kd_01,demo:sale_40
-sale_41,Sale 41,KD,nhan_vien,tp_kd_01,demo:sale_41
-sale_42,Sale 42,KD,nhan_vien,tp_kd_01,demo:sale_42
-sale_43,Sale 43,KD,nhan_vien,tp_kd_01,demo:sale_43
-sale_44,Sale 44,KD,nhan_vien,tp_kd_01,demo:sale_44
-cskh_01,CSKH 01,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_01
-cskh_02,CSKH 02,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_02
-cskh_03,CSKH 03,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_03
-cskh_04,CSKH 04,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_04
-cskh_05,CSKH 05,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_05
-cskh_06,CSKH 06,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_06
-cskh_07,CSKH 07,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_07
-cskh_08,CSKH 08,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_08
-cskh_09,CSKH 09,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_09
-cskh_10,CSKH 10,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_10
-cskh_11,CSKH 11,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_11
-cskh_12,CSKH 12,DVKH,nhan_vien,dt_dvkh_01,demo:cskh_12
-ktv_01,KTV 01,KT,nhan_vien,dt_kt_01,demo:ktv_01
-ktv_02,KTV 02,KT,nhan_vien,dt_kt_01,demo:ktv_02
-ktv_03,KTV 03,KT,nhan_vien,dt_kt_01,demo:ktv_03
-ktv_04,KTV 04,KT,nhan_vien,dt_kt_01,demo:ktv_04
-ktv_05,KTV 05,KT,nhan_vien,dt_kt_01,demo:ktv_05
-ktv_06,KTV 06,KT,nhan_vien,dt_kt_01,demo:ktv_06
-ktv_07,KTV 07,KT,nhan_vien,dt_kt_01,demo:ktv_07
-ktv_08,KTV 08,KT,nhan_vien,dt_kt_01,demo:ktv_08
-ktv_09,KTV 09,KT,nhan_vien,dt_kt_01,demo:ktv_09
-ktv_10,KTV 10,KT,nhan_vien,dt_kt_01,demo:ktv_10
-ktv_11,KTV 11,KT,nhan_vien,dt_kt_01,demo:ktv_11
-ktv_12,KTV 12,KT,nhan_vien,dt_kt_01,demo:ktv_12
-ktv_13,KTV 13,KT,nhan_vien,dt_kt_01,demo:ktv_13
-ktv_14,KTV 14,KT,nhan_vien,dt_kt_01,demo:ktv_14
-ktv_15,KTV 15,KT,nhan_vien,dt_kt_01,demo:ktv_15
-tp_kd_01,Trưởng phòng KD (minh hoạ),KD,truong_phong,gd_01,demo:tp_kd_01
-dt_dvkh_01,Đội trưởng DVKH (minh hoạ),DVKH,doi_truong,gd_01,demo:dt_dvkh_01
-dt_kt_01,Đội trưởng Kỹ thuật (minh hoạ),KT,doi_truong,gd_01,demo:dt_kt_01
-gd_01,Giám đốc (minh hoạ),BGD,giam_doc,,demo:gd_01
+sale_01,Sale 01,KD,nhan_vien,tpkd_01,demo:sale_01
+sale_02,Sale 02,KD,nhan_vien,tpkd_01,demo:sale_02
+sale_03,Sale 03,KD,nhan_vien,tpkd_01,demo:sale_03
+sale_04,Sale 04,KD,nhan_vien,tpkd_01,demo:sale_04
+sale_05,Sale 05,KD,nhan_vien,tpkd_01,demo:sale_05
+sale_06,Sale 06,KD,nhan_vien,tpkd_01,demo:sale_06
+sale_07,Sale 07,KD,nhan_vien,tpkd_01,demo:sale_07
+sale_08,Sale 08,KD,nhan_vien,tpkd_01,demo:sale_08
+sale_09,Sale 09,KD,nhan_vien,tpkd_02,demo:sale_09
+sale_10,Sale 10,KD,nhan_vien,tpkd_02,demo:sale_10
+sale_11,Sale 11,KD,nhan_vien,tpkd_02,demo:sale_11
+sale_12,Sale 12,KD,nhan_vien,tpkd_02,demo:sale_12
+sale_13,Sale 13,KD,nhan_vien,tpkd_02,demo:sale_13
+sale_14,Sale 14,KD,nhan_vien,tpkd_02,demo:sale_14
+sale_15,Sale 15,KD,nhan_vien,tpkd_02,demo:sale_15
+sale_16,Sale 16,KD,nhan_vien,tpkd_03,demo:sale_16
+sale_17,Sale 17,KD,nhan_vien,tpkd_03,demo:sale_17
+sale_18,Sale 18,KD,nhan_vien,tpkd_03,demo:sale_18
+sale_19,Sale 19,KD,nhan_vien,tpkd_03,demo:sale_19
+sale_20,Sale 20,KD,nhan_vien,tpkd_03,demo:sale_20
+sale_21,Sale 21,KD,nhan_vien,tpkd_03,demo:sale_21
+sale_22,Sale 22,KD,nhan_vien,tpkd_03,demo:sale_22
+sale_23,Sale 23,KD,nhan_vien,tpkd_04,demo:sale_23
+sale_24,Sale 24,KD,nhan_vien,tpkd_04,demo:sale_24
+sale_25,Sale 25,KD,nhan_vien,tpkd_04,demo:sale_25
+sale_26,Sale 26,KD,nhan_vien,tpkd_04,demo:sale_26
+sale_27,Sale 27,KD,nhan_vien,tpkd_04,demo:sale_27
+sale_28,Sale 28,KD,nhan_vien,tpkd_04,demo:sale_28
+sale_29,Sale 29,KD,nhan_vien,tpkd_04,demo:sale_29
+sale_30,Sale 30,KD,nhan_vien,tpkd_04,demo:sale_30
+sale_31,Sale 31,KD,nhan_vien,tpkd_05,demo:sale_31
+sale_32,Sale 32,KD,nhan_vien,tpkd_05,demo:sale_32
+sale_33,Sale 33,KD,nhan_vien,tpkd_05,demo:sale_33
+sale_34,Sale 34,KD,nhan_vien,tpkd_05,demo:sale_34
+sale_35,Sale 35,KD,nhan_vien,tpkd_05,demo:sale_35
+sale_36,Sale 36,KD,nhan_vien,tpkd_05,demo:sale_36
+sale_37,Sale 37,KD,nhan_vien,tpkd_05,demo:sale_37
+sale_38,Sale 38,KD,nhan_vien,tpkd_06,demo:sale_38
+sale_39,Sale 39,KD,nhan_vien,tpkd_06,demo:sale_39
+sale_40,Sale 40,KD,nhan_vien,tpkd_06,demo:sale_40
+sale_41,Sale 41,KD,nhan_vien,tpkd_06,demo:sale_41
+sale_42,Sale 42,KD,nhan_vien,tpkd_06,demo:sale_42
+sale_43,Sale 43,KD,nhan_vien,tpkd_06,demo:sale_43
+sale_44,Sale 44,KD,nhan_vien,tpkd_06,demo:sale_44
+tpkd_01,Trưởng phòng KD team 1 (minh hoạ),KD,truong_phong,gd_01,demo:tpkd_01
+tpkd_02,Trưởng phòng KD team 2 (minh hoạ),KD,truong_phong,gd_01,demo:tpkd_02
+tpkd_03,Trưởng phòng KD team 3 (minh hoạ),KD,truong_phong,gd_01,demo:tpkd_03
+tpkd_04,Trưởng phòng KD team 4 (minh hoạ),KD,truong_phong,gd_01,demo:tpkd_04
+tpkd_05,Trưởng phòng KD team 5 (minh hoạ),KD,truong_phong,gd_01,demo:tpkd_05
+tpkd_06,Trưởng phòng KD team 6 (minh hoạ),KD,truong_phong,gd_01,demo:tpkd_06
+cskh_01,CSKH 01,DVKH,nhan_vien,tn_dvkh_01,demo:cskh_01
+cskh_02,CSKH 02,DVKH,nhan_vien,tn_dvkh_01,demo:cskh_02
+cskh_03,CSKH 03,DVKH,nhan_vien,tn_dvkh_01,demo:cskh_03
+cskh_04,CSKH 04,DVKH,nhan_vien,tn_dvkh_01,demo:cskh_04
+cskh_05,CSKH 05,DVKH,nhan_vien,tn_dvkh_01,demo:cskh_05
+cskh_06,CSKH 06,DVKH,nhan_vien,tn_dvkh_01,demo:cskh_06
+cskh_07,CSKH 07,DVKH,nhan_vien,tn_dvkh_02,demo:cskh_07
+cskh_08,CSKH 08,DVKH,nhan_vien,tn_dvkh_02,demo:cskh_08
+cskh_09,CSKH 09,DVKH,nhan_vien,tn_dvkh_02,demo:cskh_09
+cskh_10,CSKH 10,DVKH,nhan_vien,tn_dvkh_02,demo:cskh_10
+cskh_11,CSKH 11,DVKH,nhan_vien,tn_dvkh_02,demo:cskh_11
+cskh_12,CSKH 12,DVKH,nhan_vien,tn_dvkh_02,demo:cskh_12
+tn_dvkh_01,Trưởng nhóm DVKH 1 (minh hoạ),DVKH,truong_nhom,tp_dvkh_01,demo:tn_dvkh_01
+tn_dvkh_02,Trưởng nhóm DVKH 2 (minh hoạ),DVKH,truong_nhom,tp_dvkh_01,demo:tn_dvkh_02
+ktv_01,KTV 01,KT,nhan_vien,dh_kt_01,demo:ktv_01
+ktv_02,KTV 02,KT,nhan_vien,dh_kt_01,demo:ktv_02
+ktv_03,KTV 03,KT,nhan_vien,dh_kt_01,demo:ktv_03
+ktv_04,KTV 04,KT,nhan_vien,dh_kt_01,demo:ktv_04
+ktv_05,KTV 05,KT,nhan_vien,dh_kt_01,demo:ktv_05
+ktv_06,KTV 06,KT,nhan_vien,dh_kt_01,demo:ktv_06
+ktv_07,KTV 07,KT,nhan_vien,dh_kt_01,demo:ktv_07
+ktv_08,KTV 08,KT,nhan_vien,dh_kt_01,demo:ktv_08
+ktv_09,KTV 09,KT,nhan_vien,dh_kt_02,demo:ktv_09
+ktv_10,KTV 10,KT,nhan_vien,dh_kt_02,demo:ktv_10
+ktv_11,KTV 11,KT,nhan_vien,dh_kt_02,demo:ktv_11
+ktv_12,KTV 12,KT,nhan_vien,dh_kt_02,demo:ktv_12
+ktv_13,KTV 13,KT,nhan_vien,dh_kt_02,demo:ktv_13
+ktv_14,KTV 14,KT,nhan_vien,dh_kt_02,demo:ktv_14
+ktv_15,KTV 15,KT,nhan_vien,dh_kt_02,demo:ktv_15
+dh_kt_01,Điều hành Kỹ thuật khu vực 1 (minh hoạ),KT,dieu_hanh,tp_kt_01,demo:dh_kt_01
+dh_kt_02,Điều hành Kỹ thuật khu vực 2 (minh hoạ),KT,dieu_hanh,tp_kt_01,demo:dh_kt_02
+tp_dvkh_01,Trưởng phòng DVKH (minh hoạ),DVKH,tp_khoi,gd_01,demo:tp_dvkh_01
+tp_kt_01,Trưởng phòng Kỹ thuật (minh hoạ),KT,tp_khoi,gd_01,demo:tp_kt_01
+gd_01,Giám đốc chi nhánh (minh hoạ),BGD,giam_doc,,demo:gd_01

@@ -24,7 +24,9 @@ COT_TD = [
     {"headerName": "Luật", "field": "ten_luat", "width": 140},
     {"headerName": "Mức", "field": "muc", "width": 95, "cellStyle": {"styleConditions": [{"condition": "params.value == 'Cao'", "style": {"color": "#b42318", "fontWeight": 600}}]}},
     {"headerName": "Vai trò", "field": "vai_tro_ten", "width": 100},
-    {"headerName": "Người nhận", "field": "nguoi", "width": 140},
+    {"headerName": "Nhân viên / hàng chờ", "field": "nguoi", "width": 150},
+    {"headerName": "Quản lý nhận tin", "field": "quan_ly", "width": 140},
+    {"headerName": "Đã giao cho", "field": "giao_cho", "width": 130},
     {"headerName": "Trạng thái", "field": "trang_thai_ten", "width": 130, "cellStyle": MAU_TT},
     {"headerName": "Giao lúc", "field": "tao_luc", "width": 120},
     {"headerName": "Hạn", "field": "han", "width": 120},
@@ -42,6 +44,7 @@ COT_THU = [
     {"headerName": "Nội dung tin", "field": "noi_dung", "minWidth": 420, "flex": 1, "wrapText": True, "autoHeight": True},
 ]
 TEN_LOAI_TIN = {"giao": "Giao việc", "nhac": "Nhắc quá hạn", "quan_ly": "Báo quản lý", "phan_hoi": "Phản hồi của bot", "nhan_tu_nguoi": "Người trả lời"}
+TEN_HANH_DONG = {"giao": "Hệ thống tạo việc", "giao_cho": "Quản lý giao cho nhân viên", "mo_lai": "Dấu hiệu quay lại", "tu_het": "Hết dấu hiệu"}
 LOC = [("mo", "Đang mở"), ("qua_han", "Quá hạn"), ("da_xong", "Đã xong"), ("khong_lam_duoc", "Không làm được"), ("tu_het", "Hết dấu hiệu"), ("all", "Tất cả")]
 
 
@@ -66,6 +69,7 @@ def _dong(d: pd.DataFrame) -> list[dict]:
     for c, moi in (("da_gui_luc", "da_gui"), ("nhac_luc", "nhac"), ("bao_quan_ly_luc", "bao_ql")):
         out[moi] = out[c].map(_vn)
     out["ghi_chu"] = out["ghi_chu"].fillna("")
+    out["giao_cho"] = out["giao_cho"].fillna("") if "giao_cho" in out.columns else ""
     out["nguon"] = out["mo_phong"].fillna(0).astype(int).map({1: "Mô phỏng", 0: "Thật"})
     return out.drop(columns=["han_luc", "da_gui_luc", "nhac_luc", "bao_quan_ly_luc"]).to_dict("records")
 
@@ -74,6 +78,19 @@ def _loc(d: pd.DataFrame, ma: str) -> pd.DataFrame:
     if d.empty or ma == "all":
         return d
     return d[d["qua_han"]] if ma == "qua_han" else (d[d["dang_mo"]] if ma == "mo" else d[d["trang_thai"] == ma])
+
+
+def _pham_vi_quan_ly(d: pd.DataFrame, ma_ql: str) -> pd.DataFrame:
+    """Việc thuộc phạm vi một quản lý: team của họ và team của các quản lý cấp dưới. "all" = giám đốc chi nhánh, thấy hết."""
+    if d.empty or not ma_ql or ma_ql == "all":
+        return d
+    return d[d["quan_ly"].isin(td.pham_vi(ma_ql, td.nguoi_nhan().fillna("")))]
+
+
+def _ds_quan_ly() -> list[dict]:
+    ds = td.nguoi_nhan().fillna("")
+    ql = ds[ds["vai_tro"].isin(td.VAI_TRO_QUAN_LY) & (ds["vai_tro"] != "giam_doc")]
+    return [{"label": "Tất cả (giám đốc chi nhánh xem)", "value": "all"}] + [{"label": f"{r['ten']} ({r['ma']})", "value": r["ma"]} for r in ql.to_dict("records")]
 
 
 def layout():
@@ -90,38 +107,43 @@ def layout():
                      className="lk-badges"),
             html.Div(id="lk-td-dong-ho", className="lk-ghi-chu", style={"marginTop": "8px"}),
             html.Div(id="lk-td-thongbao", style={"marginTop": "10px"}),
-        ], title="Giao việc", desc="Bước 1 đưa việc từ các luật vào bảng theo dõi (việc cũ giữ nguyên trạng thái). Bước 2 nhắn từng người việc của họ. Bước 3 nhắc việc quá 24 giờ và báo quản lý khi quá 48 giờ."),
+        ], title="Giao việc", desc="Bước 1 đưa việc từ các luật vào bảng theo dõi (việc cũ giữ nguyên trạng thái). Bước 2 gửi cho từng QUẢN LÝ một tin tổng hợp việc của team (nhân viên không nhận tin). Bước 3 nhắc việc quá 24 giờ và báo quản lý khi quá 48 giờ."),
         html.Div(id="lk-td-kpi", className="kpi-row kpi-6"),
         card([
-            html.Div([html.Label("Xem", style={"marginRight": "8px"}), dcc.Dropdown(id="lk-td-loc", options=[{"label": t, "value": k} for k, t in LOC], value="mo",
-                                                                                   clearable=False, style={"width": "220px"})],
+            html.Div([html.Label("Tôi là", style={"marginRight": "8px"}), dcc.Dropdown(id="lk-td-ql", options=_ds_quan_ly(), value="all", clearable=False, style={"width": "340px"}),
+                      html.Label("Xem", style={"margin": "0 8px 0 18px"}), dcc.Dropdown(id="lk-td-loc", options=[{"label": t, "value": k} for k, t in LOC], value="mo",
+                                                                                         clearable=False, style={"width": "200px"})],
                      style={"display": "flex", "alignItems": "center", "marginBottom": "10px"}),
-            bang("lk-td-luoi", COT_TD, cao=420, tuy_chon={"rowSelection": "single"}),
-            html.Div([nut("lk-td-nhan", "Đã nhận"), nut("lk-td-xong", "Đã xong", "btn primary"), nut("lk-td-khong", "Không làm được"),
-                      dcc.Input(id="lk-td-lydo", type="text", className="inp", placeholder="Lý do (bắt buộc khi không làm được)", style={"width": "300px"})],
+            bang("lk-td-luoi", COT_TD, cao=420, tuy_chon={"rowSelection": {"mode": "multiRow", "checkboxes": False, "headerCheckbox": False, "enableClickSelection": True}}),
+            html.Div([dcc.Dropdown(id="lk-td-giao-cho", placeholder="Giao cho (chọn người của team)", style={"width": "300px"}), nut("lk-td-giao", "Giao các việc đã chọn", "btn primary"),
+                      nut("lk-td-xong", "Đã xong"), nut("lk-td-khong", "Không làm được"),
+                      dcc.Input(id="lk-td-lydo", type="text", className="inp", placeholder="Lý do (bắt buộc khi không làm được)", style={"width": "280px"})],
                      className="lk-badges", style={"marginTop": "10px"}),
-            html.Div("Chọn một dòng rồi bấm nút: giống như người nhận bấm trả lời trên Zalo.", className="lk-ghi-chu", style={"marginTop": "6px"}),
+            html.Div(id="lk-td-chon", className="lk-ghi-chu", style={"marginTop": "6px"}),
+            html.Div("Chọn nhiều dòng (giữ Ctrl hoặc Shift, hoặc bấm từng dòng), chọn người rồi bấm Giao một lần. Quản lý làm việc này trên app, không phải trả lời từng mã trên Zalo.",
+                     className="lk-ghi-chu", style={"marginTop": "6px"}),
             html.Div(id="lk-td-nhat-ky", style={"marginTop": "10px"}),
-        ], title="Trạng thái từng phần việc", desc="Mỗi dòng là phần việc của MỘT người (sale, DVKH hoặc Kỹ thuật) với một hợp đồng. Quá hạn xếp trước."),
+        ], title="Trạng thái từng phần việc", desc="Mỗi dòng là phần việc của MỘT nhân viên (sale, DVKH hoặc Kỹ thuật) với một hợp đồng, do quản lý team đó nhận tin và giao. Quá hạn xếp trước. Chọn tên quản lý ở ô Tôi là để xem đúng phần việc của team."),
         card([
             html.Div([dcc.Dropdown(id="lk-td-tl-nguoi", placeholder="Chọn người nhận", style={"width": "220px"}),
                       dcc.Input(id="lk-td-tl-chu", type="text", className="inp", placeholder='Ví dụ: xong MHAAA0007', style={"width": "340px"}),
                       nut("lk-td-tl-gui", "Gửi trả lời")], className="lk-badges"),
-            html.Div("Giả lập người nhận nhắn lại cho bot trên Zalo. Cách nhắn: nhận MÃ, xong MÃ, không được MÃ lý do.", className="lk-ghi-chu", style={"marginTop": "6px"}),
-        ], title="Giả lập trả lời Zalo"),
+            html.Div("Tuỳ chọn: giả lập quản lý nhắn lại cho bot. Cách nhắn: nhận MÃ, xong MÃ, không được MÃ lý do. Cách chính là chọn nhiều việc và giao trên bảng phía trên.",
+                     className="lk-ghi-chu", style={"marginTop": "6px"}),
+        ], title="Giả lập trả lời Zalo (tuỳ chọn)"),
         card([bang("lk-td-thu", COT_THU, cao=360)], title="Hộp thư Zalo", desc="Mọi tin bot gửi và tin người nhận trả lời (mới nhất ở trên)."),
     ])
 
 
 def _kpi_hang(d: pd.DataFrame) -> list:
     t = td.tom_tat(d)
-    return [kpi("Phần việc đã giao", t["tong"], "Mỗi người, mỗi hợp đồng, mỗi luật là một phần"), kpi("Mới giao", t["moi"], "Chưa nhận"),
-            kpi("Đã nhận", t["da_nhan"], "Đang làm"), kpi("Đã xong", t["da_xong"], f"{t['ty_le_xong']}% số việc thật" if t["ty_le_xong"] is not None else "Chưa có"),
+    return [kpi("Phần việc đã giao", t["tong"], "Mỗi nhân viên, mỗi hợp đồng, mỗi luật là một phần"), kpi("Mới giao", t["moi"], "Quản lý chưa giao cho ai"),
+            kpi("Đã giao / đang làm", t["da_nhan"], "Quản lý đã giao cho nhân viên"), kpi("Đã xong", t["da_xong"], f"{t['ty_le_xong']}% số việc thật" if t["ty_le_xong"] is not None else "Chưa có"),
             kpi("Quá hạn", t["qua_han"], f"{t['da_bao_ql']} việc đã báo quản lý", trang_thai="bad" if t["qua_han"] else ""),
             kpi("Không làm được", t["khong_lam_duoc"], f"{t['tu_het']} việc tự hết dấu hiệu")]
 
 
-def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str) -> str:
+def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str, giao_cho: str | None = None, ql: str | None = None) -> str:
     """Chạy một hành động bấm trên trang; trả về dòng thông báo."""
     if ma == "lk-td-dongbo":
         r = td.dong_bo(luat.danh_sach_viec())
@@ -129,9 +151,12 @@ def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str) -> str:
     if ma == "lk-td-gui":
         td.dong_bo(luat.danh_sach_viec())
         r = zv.gui_viec_moi()
-        return f"Đã soạn {r['tin']} tin cho {r['nguoi']} người ({r['viec']} phần việc). Kênh: {NHAN_KENH[zv.kenh()]}"
+        doi_tuong = "quản lý" if zv.tin_cho() == "quan_ly" else "người"
+        return f"Đã soạn {r['tin']} tin cho {r['nguoi']} {doi_tuong} ({r['viec']} phần việc). Kênh: {NHAN_KENH[zv.kenh()]}"
     if ma == "lk-td-nhac":
         r = zv.chay_nhac()
+        if zv.tin_cho() == "quan_ly":
+            return f"Đã nhắc quản lý {r['nhac']} phần việc quá hạn và báo giám đốc chi nhánh {r.get('viec_bao', 0)} việc quá {td.cau_hinh_gio()[1]} giờ chưa xong."
         return f"Đã nhắc {r['nhac']} phần việc quá hạn và báo {r['bao_quan_ly']} quản lý."
     if ma in ("lk-td-lui1", "lk-td-lui2"):
         gio = td.them_gio_gia_lap(25 if ma == "lk-td-lui1" else 49)
@@ -149,40 +174,48 @@ def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str) -> str:
         if not nguoi or not (chu or "").strip():
             return "Chọn người nhận và gõ câu trả lời."
         return "Bot phản hồi: " + zv.xu_ly_tra_loi(nguoi, chu).replace("\n", " | ")
-    tt = {"lk-td-nhan": "da_nhan", "lk-td-xong": "da_xong", "lk-td-khong": "khong_lam_duoc"}[ma]
     if not chon:
-        return "Chọn một dòng trong bảng trước."
+        return "Chọn ít nhất một dòng trong bảng trước."
+    boi = ql if ql and ql != "all" else "quản lý"
+    if ma == "lk-td-giao":
+        if not giao_cho:
+            return "Chọn người nhận việc ở ô Giao cho."
+        n = td.giao_viec([int(r["id"]) for r in chon], giao_cho, boi)
+        return f"Đã giao {n} phần việc cho {giao_cho}" + (f" ({len(chon) - n} việc đã xong hoặc đã đóng nên không đổi)." if n < len(chon) else ".")
+    tt = {"lk-td-xong": "da_xong", "lk-td-khong": "khong_lam_duoc"}[ma]
     if tt == "khong_lam_duoc" and not (ly_do or "").strip():
         return "Ghi lý do khi không làm được."
-    ok = td.cap_nhat(int(chon[0]["id"]), tt, chon[0]["nguoi"], (ly_do or "").strip())
-    return f"Đã ghi: {chon[0]['so_hd']} · {chon[0]['nguoi']} → {td.TRANG_THAI[tt]}." if ok else "Không cập nhật được."
+    n = sum(1 for r in chon if td.cap_nhat(int(r["id"]), tt, boi, (ly_do or "").strip()))
+    return f"Đã ghi {n} phần việc → {td.TRANG_THAI[tt]}." if n else "Không cập nhật được."
 
 
 def register(app):
     cb = callback_can_quyen(app, QUYEN)
-    nut = ["lk-td-dongbo", "lk-td-gui", "lk-td-nhac", "lk-td-lui1", "lk-td-lui2", "lk-td-reset", "lk-td-chuan-bi", "lk-td-nhan", "lk-td-xong", "lk-td-khong", "lk-td-tl-gui"]
+    nut = ["lk-td-dongbo", "lk-td-gui", "lk-td-nhac", "lk-td-lui1", "lk-td-lui2", "lk-td-reset", "lk-td-chuan-bi", "lk-td-giao", "lk-td-xong", "lk-td-khong", "lk-td-tl-gui"]
 
     @cb(Output("lk-td-thongbao", "children"), Output("lk-td-tick", "data"), *[Input(i, "n_clicks") for i in nut],
         State("lk-td-luoi", "selectedRows"), State("lk-td-lydo", "value"), State("lk-td-tl-nguoi", "value"), State("lk-td-tl-chu", "value"),
-        State("lk-td-tick", "data"), prevent_initial_call=True)
+        State("lk-td-giao-cho", "value"), State("lk-td-ql", "value"), State("lk-td-tick", "data"), prevent_initial_call=True)
     def _bam(*a):
         ma = ctx.triggered_id
         if ma not in nut or not ctx.triggered[0]["value"]:
             raise PreventUpdate
-        chon, ly_do, nguoi, chu, tick = a[len(nut):]
+        chon, ly_do, nguoi, chu, giao_cho, ql, tick = a[len(nut):]
         try:
-            thong_bao = alert(_hanh_dong(ma, chon, ly_do, nguoi, chu), "info")
+            thong_bao = alert(_hanh_dong(ma, chon, ly_do, nguoi, chu, giao_cho, ql), "info")
         except RuntimeError as e:
             thong_bao = alert(str(e), "bad")
         return thong_bao, (tick or 0) + 1
 
     @cb(Output("lk-td-kenh", "children"), Output("lk-td-kpi", "children"), Output("lk-td-luoi", "rowData"), Output("lk-td-thu", "rowData"),
         Output("lk-td-dong-ho", "children"), Output("lk-td-tl-nguoi", "options"),
-        Input("lk-tab", "value"), Input("lk-td-tick", "data"), Input("lk-td-loc", "value"))
-    def _ve(tab, _tick, loc):
+        Input("lk-tab", "value"), Input("lk-td-tick", "data"), Input("lk-td-loc", "value"), Input("lk-td-ql", "value"))
+    def _ve(tab, _tick, loc, ql):
         if tab != "td":
             raise PreventUpdate
-        d = td.danh_sach()
+        d = _pham_vi_quan_ly(td.danh_sach(), ql)
+        if len(d):                                                                  # việc THẬT hôm nay lên trước lịch sử mô phỏng (giữ nguyên thứ tự quá hạn / mức Cao bên trong mỗi nhóm)
+            d = d.assign(_mp=d["mo_phong"].fillna(0)).sort_values("_mp", kind="stable").drop(columns="_mp")
         thu = td.hop_thu()
         thu["loai_ten"] = thu["loai"].map(lambda x: TEN_LOAI_TIN.get(x, x))
         thu["luc"] = thu["luc"].map(_vn)
@@ -192,11 +225,21 @@ def register(app):
         kenh = alert(NHAN_KENH[zv.kenh()], "warn" if zv.kenh() != "zalo" else "ok")
         return kenh, _kpi_hang(d), _dong(_loc(d, loc)) if len(d) else [], thu.to_dict("records"), dong_ho, nguoi
 
+    @cb(Output("lk-td-giao-cho", "options"), Output("lk-td-giao-cho", "value"), Input("lk-td-ql", "value"))
+    def _giao_cho(ql):
+        ds = td.nguoi_nhan().fillna("")
+        cap = ds[ds["vai_tro"] == "nhan_vien"] if not ql or ql == "all" else ds[ds["quan_ly"].isin(td.pham_vi(ql, ds))]       # mọi người nằm dưới quản lý này (nhân viên và quản lý cấp dưới)
+        return [{"label": f"{r['ten']} ({r['ma']})", "value": r["ma"]} for r in cap.to_dict("records")], None
+
+    @cb(Output("lk-td-chon", "children"), Input("lk-td-luoi", "selectedRows"))
+    def _chon(chon):
+        return f"Đã chọn {len(chon)} phần việc ({len({r['so_hd'] for r in chon})} hợp đồng)." if chon else "Chưa chọn dòng nào."
+
     @cb(Output("lk-td-nhat-ky", "children"), Input("lk-td-luoi", "selectedRows"))
     def _nhat_ky(chon):
-        if not chon:
+        if not chon or len(chon) != 1:
             return ""
         n = td.nhat_ky(int(chon[0]["id"]))
         return html.Div([html.Div(f"Nhật ký {chon[0]['so_hd']} · {chon[0]['nguoi']}:", className="lk-nhan")] +
-                        [html.Div(f"{_vn(r['luc'])} · {r['boi']} · {td.TRANG_THAI.get(r['hanh_dong'], r['hanh_dong'])}" + (f" · {r['ghi_chu']}" if r["ghi_chu"] else ""),
+                        [html.Div(f"{_vn(r['luc'])} · {r['boi']} · {TEN_HANH_DONG.get(r['hanh_dong'], td.TRANG_THAI.get(r['hanh_dong'], r['hanh_dong']))}" + (f" · {r['ghi_chu']}" if r["ghi_chu"] else ""),
                                   className="lk-ghi-chu") for r in n.to_dict("records")])

@@ -33,6 +33,7 @@ def trang_thai(tmp_path, monkeypatch):
     """File trạng thái tạm + chế độ minh hoạ + người nhận dựng tay + chặn mọi lệnh gửi thật."""
     monkeypatch.setenv("LIEN_KHOI_DB", str(tmp_path / "td.db"))
     monkeypatch.setenv("LIEN_KHOI_NGUON", "demo")
+    monkeypatch.setenv("LIEN_KHOI_TIN_CHO", "nhan_vien")                 # file này kiểm cách CŨ (giao thẳng từng người); cách mới (tin cho quản lý) ở test_lien_khoi_quan_ly.py
     monkeypatch.delenv("LIEN_KHOI_ZALO_TOKEN", raising=False)
     monkeypatch.delenv("LIEN_KHOI_ZALO_GUI", raising=False)
     monkeypatch.setattr(td, "nguoi_nhan", lambda: NGUOI)
@@ -241,7 +242,11 @@ def test_bo_minh_hoa_co_danh_sach_nguoi_nhan_day_du(monkeypatch):
     monkeypatch.setenv("LIEN_KHOI_NGUON", "demo")
     n = nguon.nguoi_nhan()
     assert list(n.columns) == td.COT_NGUOI and n["chat_id"].str.startswith("demo:").all()
-    assert {"doi_truong"} <= set(n["vai_tro"]) and set(n["khoi"]) >= {"KD", "DVKH", "KT"}
+    assert {"truong_phong", "truong_nhom", "dieu_hanh", "tp_khoi", "giam_doc"} <= set(n["vai_tro"]) and set(n["khoi"]) >= {"KD", "DVKH", "KT", "BGD"}
+    nv = n[n["vai_tro"] == "nhan_vien"]
+    assert set(nv["quan_ly"]) <= set(n["ma"]) and nv["quan_ly"].nunique() >= 8                # mọi nhân viên có quản lý trong danh sách, chia thành nhiều team
+    ql = n[n["vai_tro"] != "nhan_vien"]
+    assert set(ql.loc[ql["vai_tro"] != "giam_doc", "quan_ly"]) <= set(n["ma"]) and (ql.loc[ql["vai_tro"] == "giam_doc", "quan_ly"] == "").all()
     v = luat.danh_sach_viec()
     nguoi_trong_viec = set(v["giao_sale"]) | set(v["giao_dvkh"]) | set(v["giao_kt"])
     thieu = {x for x in nguoi_trong_viec if x and x not in set(n["ma"]) and not x.startswith(("Hàng chờ", "Không có"))}

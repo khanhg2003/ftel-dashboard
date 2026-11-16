@@ -31,7 +31,8 @@ _DA_TAO: set[str] = set()
 DDL = """
 CREATE TABLE IF NOT EXISTS giao (id INTEGER PRIMARY KEY AUTOINCREMENT, so_hd TEXT NOT NULL, luat TEXT NOT NULL, vai_tro TEXT NOT NULL, nguoi TEXT NOT NULL,
   nguoi_goc TEXT, ten_luat TEXT, muc TEXT, ly_do TEXT, de_xuat TEXT, trang_thai TEXT NOT NULL, tao_luc TEXT NOT NULL, han_luc TEXT NOT NULL, da_gui_luc TEXT,
-  nhac_luc TEXT, bao_quan_ly_luc TEXT, cap_nhat_luc TEXT, cap_nhat_boi TEXT, ghi_chu TEXT, mo_phong INTEGER DEFAULT 0, UNIQUE (so_hd, luat, vai_tro));
+  nhac_luc TEXT, bao_quan_ly_luc TEXT, cap_nhat_luc TEXT, cap_nhat_boi TEXT, ghi_chu TEXT, mo_phong INTEGER DEFAULT 0, giao_cho TEXT, giao_luc TEXT,
+  UNIQUE (so_hd, luat, vai_tro));
 CREATE TABLE IF NOT EXISTS nhat_ky (id INTEGER PRIMARY KEY AUTOINCREMENT, giao_id INTEGER, luc TEXT, boi TEXT, hanh_dong TEXT, ghi_chu TEXT);
 CREATE TABLE IF NOT EXISTS hop_thu (id INTEGER PRIMARY KEY AUTOINCREMENT, luc TEXT, den_nguoi TEXT, chat_id TEXT, loai TEXT, noi_dung TEXT, kenh TEXT, ket_qua TEXT);
 CREATE TABLE IF NOT EXISTS cai_dat (khoa TEXT PRIMARY KEY, gia_tri TEXT);
@@ -55,8 +56,10 @@ def _ket_noi() -> sqlite3.Connection:
     if str(p) not in _DA_TAO:                                    # tạo bảng một lần cho mỗi file trong mỗi tiến trình (mở kết nối rất nhiều lần)
         c.execute("PRAGMA journal_mode=WAL")
         c.executescript(DDL)
-        if "mo_phong" not in {r[1] for r in c.execute("PRAGMA table_info(giao)")}:       # file trạng thái tạo từ bản cũ: thêm cột đánh dấu dữ liệu mô phỏng
-            c.execute("ALTER TABLE giao ADD COLUMN mo_phong INTEGER DEFAULT 0")
+        co = {r[1] for r in c.execute("PRAGMA table_info(giao)")}
+        for cot, kieu in (("mo_phong", "INTEGER DEFAULT 0"), ("giao_cho", "TEXT"), ("giao_luc", "TEXT")):      # file trạng thái tạo từ bản cũ: thêm cột còn thiếu
+            if cot not in co:
+                c.execute(f"ALTER TABLE giao ADD COLUMN {cot} {kieu}")
         c.commit()
         _DA_TAO.add(str(p))
     return c
@@ -132,10 +135,47 @@ def nguoi_nhan() -> pd.DataFrame:
     return nguon.nguoi_nhan() if nguon.la_demo() else nguoi_nhan_that()
 
 
+VAI_TRO_QUAN_LY = ("tp_khoi", "truong_phong", "truong_nhom", "dieu_hanh", "doi_truong", "giam_doc")
+THU_TU_HANG_CHO = ("tp_khoi", "doi_truong")                # ai nhận việc hàng chờ của một khối: trưởng phòng khối trước, không có thì đội trưởng
+
+
 def doi_truong(khoi: str, ds: pd.DataFrame) -> str:
-    """Mã đội trưởng của một khối (người nhận hàng chờ). Chưa có thì rỗng."""
-    x = ds[(ds["khoi"] == khoi) & (ds["vai_tro"] == "doi_truong")]
+    """Mã người nhận hàng chờ của một khối (trưởng phòng khối, không có thì đội trưởng). Chưa có thì rỗng."""
+    for vt in THU_TU_HANG_CHO:
+        x = ds[(ds["khoi"] == khoi) & (ds["vai_tro"] == vt)]
+        if len(x):
+            return str(x["ma"].iloc[0])
+    return ""
+
+
+def quan_ly_cua(ma: str, ds: pd.DataFrame) -> str:
+    """Quản lý trực tiếp nhận tin của một phần việc: nhân viên thì lấy quản lý trong danh sách; người nhận đã là quản lý (việc hàng chờ) thì chính họ."""
+    x = ds[ds["ma"] == ma]
+    if x.empty:
+        return ""
+    r = x.iloc[0]
+    return str(r["quan_ly"] or "") if r["vai_tro"] == "nhan_vien" else str(ma)
+
+
+def giam_doc(ds: pd.DataFrame) -> str:
+    """Mã giám đốc chi nhánh (nhận báo cáo việc quá mốc báo quản lý). Chưa có thì rỗng."""
+    x = ds[ds["vai_tro"] == "giam_doc"]
     return str(x["ma"].iloc[0]) if len(x) else ""
+
+
+def cap_duoi(ma_ql: str, ds: pd.DataFrame) -> pd.DataFrame:
+    """Người báo cáo trực tiếp cho một quản lý: nhân viên trong team và các quản lý cấp dưới. Dùng cho danh sách "Giao cho"."""
+    return ds[ds["quan_ly"] == ma_ql].copy()
+
+
+def pham_vi(ma_ql: str, ds: pd.DataFrame) -> set[str]:
+    """Mọi mã quản lý nằm dưới (và gồm cả) một quản lý: trưởng phòng khối xem việc của các trưởng nhóm / điều hành dưới mình."""
+    kq, cho = {ma_ql}, [ma_ql]
+    while cho:
+        con = set(ds.loc[ds["quan_ly"].isin(cho) & ds["vai_tro"].isin(VAI_TRO_QUAN_LY), "ma"]) - kq
+        kq |= con
+        cho = list(con)
+    return kq
 
 
 def _nguoi_giao(r, ds: pd.DataFrame) -> list[tuple[str, str, str]]:
@@ -200,6 +240,8 @@ def danh_sach(now: datetime | None = None) -> pd.DataFrame:
         return d
     for c in ("tao_luc", "han_luc"):
         d[c] = pd.to_datetime(d[c])
+    ds = nguoi_nhan().fillna("")
+    d["quan_ly"] = d["nguoi"].map(lambda m: quan_ly_cua(m, ds))
     d["con_lai_gio"] = ((d["han_luc"] - pd.Timestamp(now)).dt.total_seconds() / 3600).round(1)
     d["dang_mo"] = d["trang_thai"].isin(MO)
     d["qua_han"] = d["dang_mo"] & (d["con_lai_gio"] < 0)
@@ -212,7 +254,7 @@ def danh_sach_day_du(now: datetime | None = None) -> pd.DataFrame:
     d = danh_sach(now)
     if d.empty:
         return d.assign(phan_hoi_luc=pd.NaT)
-    ph = pd.DataFrame([dict(r) for r in _cau("SELECT giao_id, MIN(luc) AS luc FROM nhat_ky WHERE hanh_dong IN ('da_nhan','da_xong','khong_lam_duoc') GROUP BY giao_id")],
+    ph = pd.DataFrame([dict(r) for r in _cau("SELECT giao_id, MIN(luc) AS luc FROM nhat_ky WHERE hanh_dong IN ('giao_cho','da_nhan','da_xong','khong_lam_duoc') GROUP BY giao_id")],
                       columns=["giao_id", "luc"])
     ph["luc"] = pd.to_datetime(ph["luc"])
     d = d.merge(ph.rename(columns={"giao_id": "id", "luc": "phan_hoi_luc"}), on="id", how="left")
@@ -226,7 +268,7 @@ def chen_lich_su(rows: list[dict]) -> int:
     if not nguon.la_demo():
         raise RuntimeError("Chỉ được nạp lịch sử mô phỏng ở chế độ minh hoạ.")
     cot = ("so_hd", "luat", "vai_tro", "nguoi", "ten_luat", "muc", "ly_do", "de_xuat", "trang_thai", "tao_luc", "han_luc", "da_gui_luc", "nhac_luc",
-           "bao_quan_ly_luc", "cap_nhat_luc", "cap_nhat_boi", "ghi_chu")
+           "bao_quan_ly_luc", "cap_nhat_luc", "cap_nhat_boi", "ghi_chu", "giao_cho", "giao_luc")
     with _KHOA, _kn() as c:
         for r in rows:
             gid = c.execute(f"INSERT OR IGNORE INTO giao ({', '.join(cot)}, mo_phong) VALUES ({', '.join('?' * len(cot))}, 1)", tuple(r.get(k) for k in cot)).lastrowid
@@ -276,6 +318,33 @@ def cap_nhat_nhieu(thay_doi: list[tuple]) -> int:
                 continue
             c.execute("UPDATE giao SET trang_thai=?, cap_nhat_luc=?, cap_nhat_boi=?, ghi_chu=? WHERE id=?", (tt, _s(luc), boi, ghi_chu or None, int(gid)))
             c.execute("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (int(gid), _s(luc), boi, tt, ghi_chu or ""))
+            n += 1
+    return n
+
+
+def giao_viec(ids: list[int], giao_cho: str, boi: str, now: datetime | None = None) -> int:
+    """Quản lý `boi` giao các phần việc cho nhân viên `giao_cho` (một lần cho nhiều việc). Việc mới giao chuyển sang "đã nhận"; việc đã xong hoặc đã đóng không đổi.
+    Trả về số phần việc được ghi nhận."""
+    now = now or bay_gio()
+    n = 0
+    with _KHOA, _kn() as c:
+        for gid in ids:
+            r = c.execute("SELECT trang_thai FROM giao WHERE id=?", (int(gid),)).fetchone()
+            if r is None or r["trang_thai"] not in MO:
+                continue
+            c.execute("UPDATE giao SET giao_cho=?, giao_luc=?, trang_thai='da_nhan', cap_nhat_luc=?, cap_nhat_boi=? WHERE id=?", (giao_cho, _s(now), _s(now), boi, int(gid)))
+            c.execute("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (int(gid), _s(now), boi, "giao_cho", giao_cho))
+            n += 1
+    return n
+
+
+def giao_nhieu(thay_doi: list[tuple]) -> int:
+    """Như nhiều lần `giao_viec` trong MỘT lần mở file (dùng cho mô phỏng): [(giao_id, giao_cho, người giao, giờ UTC)]."""
+    n = 0
+    with _KHOA, _kn() as c:
+        for gid, giao_cho, boi, luc in thay_doi:
+            c.execute("UPDATE giao SET giao_cho=?, giao_luc=?, trang_thai='da_nhan', cap_nhat_luc=?, cap_nhat_boi=? WHERE id=?", (giao_cho, _s(luc), _s(luc), boi, int(gid)))
+            c.execute("INSERT INTO nhat_ky (giao_id, luc, boi, hanh_dong, ghi_chu) VALUES (?,?,?,?,?)", (int(gid), _s(luc), boi, "giao_cho", giao_cho))
             n += 1
     return n
 

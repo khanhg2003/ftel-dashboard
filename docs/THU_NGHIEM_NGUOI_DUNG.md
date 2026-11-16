@@ -5,9 +5,9 @@ Mục đích: có bằng chứng "đã có người dùng thử" trước khi th
 ## Chọn ai
 | Người | Vì sao | Cho họ xem |
 |---|---|---|
-| 1 sale hoặc trưởng phòng Kinh doanh | Họ nhận việc "chờ online lâu" và "khách có ý rời" | Việc cần làm, tin Zalo giả lập, hồ sơ hợp đồng |
-| 1 nhân viên hoặc đội trưởng DVKH | Họ nhận việc "khách có ý rời", "sự cố lặp" | Phân loại khách hàng, hồ sơ hợp đồng |
-| 1 KTV hoặc đội trưởng Kỹ thuật | Họ là người bị giao việc và bị nhắc | Tồn và lịch hẹn, Chậm do ai, tin Zalo giả lập |
+| 1 trưởng phòng Kinh doanh của một team | Họ nhận tin tổng hợp việc của team và giao cho sale | Tin Zalo giả lập, chọn nhiều việc và giao, hồ sơ hợp đồng |
+| 1 trưởng nhóm hoặc trưởng phòng DVKH | Họ nhận việc "khách có ý rời", "sự cố lặp" và giao cho CSKH | Phân loại khách hàng, giao việc, hồ sơ hợp đồng |
+| 1 điều hành hoặc trưởng phòng Kỹ thuật | Họ nhận việc chờ lắp, sự cố lặp và giao cho KTV | Tồn và lịch hẹn, Chậm do ai, tin Zalo giả lập, giao việc |
 
 ## Cách làm (mỗi người)
 1. Mở máy: `python scripts/xem_demo_lien_khoi.py`, vào http://127.0.0.1:8060/lienkhoi (hoặc /kt cho người Kỹ thuật). Bấm **Chuẩn bị demo** ở tab Theo dõi & Zalo.
@@ -16,13 +16,13 @@ Mục đích: có bằng chứng "đã có người dùng thử" trước khi th
    - "Tìm 3 hợp đồng anh/chị phải xử lý đầu tiên hôm nay."
    - "Cho biết hợp đồng MHAAA0090 đang vướng ở đâu."
    - (Người Kỹ thuật) "Ca nào đang chờ khách, ca nào chờ mình?"
-4. Với người nhận việc: bấm **Gửi việc mới qua Zalo** rồi cho họ đọc tin của chính họ trong hộp thư giả lập, hỏi có hiểu việc gì, hạn nào không.
+4. Bấm **Gửi việc mới qua Zalo**, cho họ đọc tin tổng hợp của chính họ trong hộp thư giả lập, rồi nhờ họ vào tab Theo dõi, chọn tên mình ở ô **Tôi là**, chọn 3 việc và giao cho một nhân viên. Ghi thời gian và chỗ họ vấp.
 
 ## Hỏi sau khi thử (ghi nguyên văn câu trả lời)
 1. Có việc nào hệ thống đưa mà anh/chị đã biết từ trước? Có việc nào mới?
 2. Việc nào đưa sai người hoặc sai lý do?
 3. Tin nhắn Zalo có đủ để làm ngay không, thiếu gì?
-4. Anh/chị có chịu nhắn "xong / không làm được" mỗi lần không? Nếu không thì vì sao?
+4. Anh/chị có chịu vào app giao việc và cập nhật hằng ngày không? Cần bớt thao tác nào?
 5. Nếu được nhận việc kiểu này mỗi sáng, anh/chị thấy hữu ích hay phiền? Điểm 1 đến 5.
 6. Công cụ tra cứu khách hàng hiện có (CUS 360, bot Zalo công ty) đang làm được những việc này chưa?
 

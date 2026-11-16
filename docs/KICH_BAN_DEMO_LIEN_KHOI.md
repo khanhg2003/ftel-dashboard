@@ -25,16 +25,16 @@ Các con số ghi "khoảng" sẽ lệch nhẹ mỗi lần chạy vì đồng h�
 | 0:00 - 0:25 | Slide vấn đề | "Một hợp đồng đi qua Kinh doanh, Kỹ thuật, DVKH nhưng không ai cầm trọn. Việc rơi ở chỗ giao nhau." |
 | 0:25 - 1:00 | Tab **Việc cần làm**. Chọn luật **Sự cố lặp** ở ô Luật. | "Hệ thống tự đọc dữ liệu ba khối và tìm ra khoảng 186 việc theo 4 luật: chờ online lâu, lỗi sớm sau lắp, sự cố lặp, khách có ý rời. Mỗi việc nói rõ ai nhận và vì sao." |
 | 1:00 - 1:25 | Tab **Hồ sơ hợp đồng**, bấm hợp đồng **MHAAA0090**. | "Hợp đồng này dính hai luật. Ba khối cùng nói về một mã: Kỹ thuật ghi checklist lặp, DVKH có SR, Kinh doanh có gói và sale. Sale, CSKH, KTV phụ trách hiện ngay đầu trang." (Đây chỉ là chi tiết khi cần, không phải điểm nhấn.) |
-| 1:25 - 2:05 | Tab **Theo dõi & Zalo**: bấm **2. Gửi việc mới qua Zalo**. Kéo xuống Hộp thư. Ở ô Giả lập trả lời chọn **cskh_03**, gõ `xong`, bấm Gửi trả lời. | "Mỗi người nhận đúng việc của mình trong một tin: khoảng 71 người, 98 tin. Việc chưa có người phụ trách thì về đội trưởng. Người nhận chỉ cần nhắn 'xong' là hệ thống ghi nhận (ở đây là hợp đồng MHAAA0152)." |
-| 2:05 - 2:30 | Bấm **Lùi đồng hồ +25 giờ**, rồi **3. Chạy nhắc & báo quản lý**. Bấm **Lùi +25 giờ** lần nữa, rồi **3** lần nữa. | "Sau 24 giờ việc chưa xong bị nhắc: khoảng 130 phần việc. Sau 48 giờ báo thẳng quản lý: 4 tin gồm cả đội trưởng DVKH có 35 việc hàng chờ. Không ai phải ngồi rà thủ công." |
-| 2:30 - 3:00 | Tab **Hiệu quả**. | "Quản lý thấy ngay: xong đúng hạn khoảng 63%, xử lý trung vị khoảng 12 giờ, DVKH đang thấp nhất, ai đang nhiều việc quá hạn. Nhập mốc trước đây (40 giờ, 35%) là thấy mức cải thiện. Đây là điều bot tra cứu không làm." |
+| 1:25 - 2:05 | Tab **Theo dõi & Zalo**: bấm **2. Gửi việc mới qua Zalo**. Kéo xuống Hộp thư, mở tin của **Trưởng phòng KD team 6**. Rồi ở ô **Tôi là** chọn **Trưởng nhóm DVKH 1**, chọn 3 việc, ô **Giao cho** chọn **cskh_01**, bấm **Giao các việc đã chọn**. | "Mỗi sáng 11 quản lý (trưởng phòng KD từng team, trưởng nhóm DVKH, điều hành Kỹ thuật) nhận MỘT tin tổng hợp việc của team mình: bao nhiêu việc, loại nào, của ai, vài việc mức Cao nên giao trước. Quản lý không phải trả lời từng mã trên Zalo: vào app, chọn nhiều việc, giao cho nhân viên một lần. Việc chưa rõ người phụ trách về trưởng phòng khối." |
+| 2:05 - 2:30 | Bấm **Lùi đồng hồ +25 giờ**, rồi **3. Chạy nhắc & báo quản lý**. Bấm **Lùi +25 giờ** lần nữa, rồi **3** lần nữa. | "Sau 24 giờ việc chưa xong: nhắc quản lý, khoảng 137 phần việc. Sau 48 giờ: báo **giám đốc chi nhánh** MỘT tin tổng hợp theo từng team, khoảng 85 việc. Không ai phải ngồi rà thủ công." |
+| 2:30 - 3:00 | Tab **Hiệu quả**. | "Quản lý thấy ngay: xong đúng hạn khoảng 62%, xử lý trung vị khoảng 12 giờ, phản hồi của quản lý trong 4 giờ khoảng 54%, và **bảng theo team**: trưởng nhóm DVKH 1 đang thấp nhất. Nhập mốc trước đây (40 giờ, 35%) là thấy mức cải thiện. Đây là điều bot tra cứu không làm." |
 
 Gợi ý ở bước cuối: nhập **40** vào "Giờ xử lý trước đây", **35** vào "% xong đúng hạn trước đây", bấm **Lưu mốc**.
 
 ## Phải nói rõ khi trình bày (đừng để ban giám khảo tự phát hiện)
 - Dữ liệu là **minh hoạ đã ghép mã**: ba khối đang lấy từ ba chi nhánh khác nhau nên mã hợp đồng được đặt lại cho trùng nhau. Mã, tên người, ngày tháng là giả định. Phần Kỹ thuật dựng từ file báo cáo Kỹ thuật thật nhưng đã đổi hết mã và tên.
 - **14 ngày lịch sử là mô phỏng**, và người nhận "làm việc" cũng là mô phỏng (có người nhanh, người chậm). Số đo thật chỉ có sau khi dùng thật.
-- **Zalo giả lập**: tin chỉ ghi vào hộp thư trên màn hình. Phần gửi thật và nhận trả lời thật đã viết và có test, cần bot Zalo riêng để bật.
+- **Zalo giả lập**: tin chỉ ghi vào hộp thư trên màn hình. Tin gửi cho QUẢN LÝ, không gửi từng nhân viên; việc cập nhật làm trên app. Phần gửi thật và nhận trả lời thật đã viết và có test, cần bot Zalo riêng để bật.
 - Chạy hoàn toàn trên máy, **không đụng hệ thống đang chạy**.
 
 ## Câu hỏi khó và gợi ý trả lời
@@ -45,7 +45,8 @@ Gợi ý ở bước cuối: nhập **40** vào "Giờ xử lý trước đây",
 | Thông tin khách có bị lộ không? | "Không có tên khách, địa chỉ, số điện thoại trong bất kỳ bảng hay tin nhắn nào. Có test tự động chặn dữ liệu thật lọt vào bộ minh hoạ." |
 | Triển khai thật cần gì? | "Mã hợp đồng dùng chung giữa ba khối, danh sách người nhận việc (ai thuộc khối nào, quản lý là ai, mã chat Zalo), một bot Zalo riêng. Phần còn lại đã có." |
 | Đo hiệu quả bằng gì? | "Tỷ lệ xong đúng hạn, thời gian xử lý, tỷ lệ phản hồi trong 4 giờ, số việc quá hạn và báo quản lý. So với mốc đo được trước khi dùng." |
-| Nếu người nhận không dùng Zalo thì sao? | "Họ cũng có thể cập nhật trực tiếp trên trang Theo dõi. Hệ thống nhắc và báo quản lý theo thời gian, không phụ thuộc người nhận có trả lời hay không." |
+| Quản lý nhận tin mà không giao thì sao? | "Hệ thống nhắc sau 24 giờ, sau 48 giờ báo giám đốc chi nhánh theo từng team. Quản lý ghi 'giao cho ai' trên app nên vẫn đo được từng người, từng team." |
+| Vì sao gửi quản lý mà không gửi nhân viên? | "Giữ đúng cách điều hành hiện tại: quản lý phân việc cho cấp dưới. Cũng chỉ cần danh sách Zalo của khoảng 15 đến 25 quản lý thay vì cả trăm nhân viên, nên chạy thử thật dễ." |
 
 ## Nếu có sự cố khi demo
 | Triệu chứng | Cách xử lý |

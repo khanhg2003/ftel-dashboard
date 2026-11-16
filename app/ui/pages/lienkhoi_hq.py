@@ -86,7 +86,8 @@ def layout():
         html.Div([card([dcc.Graph(id="lk-hq-xh", config={"displayModeBar": False})], title="Việc giao và xong mỗi ngày", desc="Đường cam: tỷ lệ xong đúng hạn của các việc giao ngày đó."),
                   card([dcc.Graph(id="lk-hq-khoi", config={"displayModeBar": False})], title="Tỷ lệ xong đúng hạn theo khối")], style=an),
         card([bang("lk-hq-luat", COT_TH, cao=None)], title="Theo luật", desc="Luật nào việc hay bị trễ hoặc không làm được. Tỷ lệ thấp nhất xếp trước."),
-        card([bang("lk-hq-nguoi", COT_TH, cao=380)], title="Theo người", desc="Để đội trưởng biết ai cần hỗ trợ. Người dưới 4 việc đã tới hạn chưa có tỷ lệ."),
+        card([bang("lk-hq-ql", COT_TH, cao=380)], title="Theo team (quản lý nhận tin)", desc="Team nào xử lý đúng hạn, team nào cần hỗ trợ. Việc hàng chờ tính cho trưởng phòng khối. Team dưới 4 việc đã tới hạn chưa có tỷ lệ."),
+        card([bang("lk-hq-nguoi", COT_TH, cao=380)], title="Theo nhân viên", desc="Người được giao làm việc đó. Người dưới 4 việc đã tới hạn chưa có tỷ lệ."),
         card([html.Div([dcc.Input(id="lk-hq-moc-gio", type="number", min=0, className="inp", placeholder="Giờ xử lý trước đây", style={"width": "210px"}),
                         dcc.Input(id="lk-hq-moc-ty", type="number", min=0, max=100, className="inp", placeholder="% xong đúng hạn trước đây", style={"width": "230px"}),
                         html.Button("Lưu mốc", id="lk-hq-moc-luu", n_clicks=0, className="btn primary")], className="lk-badges"),
@@ -104,11 +105,19 @@ def _du_lieu(ky: str):
     return hq.chuan_bi(d, now) if len(d) else d
 
 
+def _theo_quan_ly(d: pd.DataFrame) -> list[dict]:
+    """Số đo theo team: gom theo quản lý nhận tin, hiện tên quản lý thay cho mã."""
+    t = hq.tong_hop(d, "quan_ly")
+    ten = {r["ma"]: r["ten"] for r in td.nguoi_nhan().fillna("").to_dict("records")}
+    t["nhom"] = t["nhom"].map(lambda m: ten.get(m, m or "(chưa có quản lý)"))
+    return t.to_dict("records")
+
+
 def register(app):
     cb = callback_can_quyen(app, QUYEN)
 
     @cb(Output("lk-hq-banner", "children"), Output("lk-hq-kpi", "children"), Output("lk-hq-nhan-dinh", "children"), Output("lk-hq-xh", "figure"),
-        Output("lk-hq-khoi", "figure"), Output("lk-hq-luat", "rowData"), Output("lk-hq-nguoi", "rowData"), Output("lk-hq-moc-kq", "children"),
+        Output("lk-hq-khoi", "figure"), Output("lk-hq-luat", "rowData"), Output("lk-hq-ql", "rowData"), Output("lk-hq-nguoi", "rowData"), Output("lk-hq-moc-kq", "children"),
         Input("lk-tab", "value"), Input("lk-hq-ky", "value"), Input("lk-td-tick", "data"), Input("lk-hq-tick", "data"))
     def _ve(tab, ky, _t1, _t2):
         if tab != "hq":
@@ -117,18 +126,18 @@ def register(app):
         s = hq.so_do(d)
         if not s["giao"]:
             vua = alert("Chưa có phần việc nào trong kỳ này. Ở tab Theo dõi & Zalo bấm \"Chuẩn bị demo\" (nạp 14 ngày mô phỏng) hoặc giao việc rồi quay lại.", "info")
-            return vua, [], "", hinh_xu_huong(pd.DataFrame()), hinh_theo_khoi(pd.DataFrame()), [], [], ""
+            return vua, [], "", hinh_xu_huong(pd.DataFrame()), hinh_theo_khoi(pd.DataFrame()), [], [], [], ""
         banner = alert(f"{s['mo_phong']} trên {s['giao']} phần việc trong kỳ là MÔ PHỎNG (14 ngày dựng sẵn để minh hoạ). Số thật sẽ có khi dùng thật.", "warn") if s["mo_phong"] else ""
         ks = [kpi("Xong đúng hạn", "–" if s["ty_le"] is None else f"{_so(s['ty_le'], 0)}%", f"{s['dung_han']} trên {s['den_han']} việc đã tới hạn"),
               kpi("Thời gian xử lý", f"{_so(s['gio_xu_ly'])} giờ", f"Trung vị · trung bình {_so(s['gio_xu_ly_tb'])} giờ"),
               kpi(f"Phản hồi trong {hq.PHAN_HOI_GIO} giờ", "–" if s["phan_hoi_nhanh"] is None else f"{_so(s['phan_hoi_nhanh'], 0)}%", f"Trung vị {_so(s['phan_hoi'])} giờ"),
               kpi("Quá hạn đang mở", s["qua_han_mo"], f"{s['chua_phan_hoi']} việc chưa ai phản hồi", trang_thai="bad" if s["qua_han_mo"] else ""),
-              kpi("Đã báo quản lý", s["da_bao_ql"], "Quá 48 giờ chưa xong"), kpi("Không làm được", s["khong"], "Người nhận có ghi lý do")]
+              kpi("Đã báo GĐCN", s["da_bao_ql"], "Quá 48 giờ chưa xong"), kpi("Không làm được", s["khong"], "Người nhận có ghi lý do")]
         nd = html.Ul([html.Li(c) for c in hq.nhan_dinh(d)], className="lk-nhan-dinh")
         moc = hq.so_voi_moc(s, td.doc_moc())
         moc_kq = html.Ul([html.Li(c) for c in moc]) if moc else html.Div("Chưa nhập mốc.", className="lk-ghi-chu")
         return (banner, ks, nd, hinh_xu_huong(hq.xu_huong(d)), hinh_theo_khoi(hq.tong_hop(d, "vai_tro")),
-                hq.tong_hop(d, "ten_luat").to_dict("records"), hq.tong_hop(d, "nguoi").to_dict("records"), moc_kq)
+                hq.tong_hop(d, "ten_luat").to_dict("records"), _theo_quan_ly(d), hq.tong_hop(d, "nguoi").to_dict("records"), moc_kq)
 
     @cb(Output("lk-hq-moc-gio", "value"), Output("lk-hq-moc-ty", "value"), Input("lk-tab", "value"))
     def _nap_moc(tab):

@@ -229,17 +229,25 @@ def _dich_vu(ma: dict, db: sqlite3.Connection, rng: random.Random) -> pd.DataFra
 
 
 def _nguoi_nhan(ra: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """Danh sách người nhận việc của bộ minh hoạ: mọi tài khoản đã đổi tên có trong dữ liệu, cộng đội trưởng / trưởng phòng / giám đốc giả. Mã chat là chữ "demo:..."."""
-    cap = {"KD": ("sale", "Sale", "tp_kd_01"), "DVKH": ("cskh", "CSKH", "dt_dvkh_01"), "KT": ("ktv", "KTV", "dt_kt_01")}
+    """Danh sách người nhận việc của bộ minh hoạ, ĐỦ CẤP QUẢN LÝ (tin Zalo gửi quản lý, quản lý giao cho cấp dưới):
+    Kinh doanh: nhân viên -> trưởng phòng KD của team (6 team) -> giám đốc chi nhánh;
+    DVKH: nhân viên -> trưởng nhóm (2 nhóm) -> trưởng phòng DVKH -> giám đốc chi nhánh;
+    Kỹ thuật: KTV -> điều hành Kỹ thuật (2 khu vực) -> trưởng phòng Kỹ thuật -> giám đốc chi nhánh.
+    Mã chat là chữ "demo:..." (không phải mã Zalo thật). Nhân viên chia đều vào các team theo thứ tự mã."""
+    cau_truc = {"KD": ("sale", "Sale", "tpkd", 6, "truong_phong", "Trưởng phòng KD team", "gd_01"),
+                "DVKH": ("cskh", "CSKH", "tn_dvkh", 2, "truong_nhom", "Trưởng nhóm DVKH", "tp_dvkh_01"),
+                "KT": ("ktv", "KTV", "dh_kt", 2, "dieu_hanh", "Điều hành Kỹ thuật khu vực", "tp_kt_01")}
     nguon_ma = {"KD": ra["kd"]["sale"], "DVKH": pd.concat([ra["sr_bi_dong"]["nhan_su_au"], ra["sr_chu_dong"]["nhan_su_au"]]), "KT": ra["kt"]["nguoi"]}
     rows = []
-    for khoi, (tien_to, nhan, ql) in cap.items():
-        for m in sorted({x for x in nguon_ma[khoi] if x}):
-            rows.append(dict(ma=m, ten=f"{nhan} {m.split('_')[1]}", khoi=khoi, vai_tro="nhan_vien", quan_ly=ql, chat_id=f"demo:{m}"))
-    for m, ten, khoi, vt in (("tp_kd_01", "Trưởng phòng KD (minh hoạ)", "KD", "truong_phong"), ("dt_dvkh_01", "Đội trưởng DVKH (minh hoạ)", "DVKH", "doi_truong"),
-                             ("dt_kt_01", "Đội trưởng Kỹ thuật (minh hoạ)", "KT", "doi_truong")):
-        rows.append(dict(ma=m, ten=ten, khoi=khoi, vai_tro=vt, quan_ly="gd_01", chat_id=f"demo:{m}"))
-    rows.append(dict(ma="gd_01", ten="Giám đốc (minh hoạ)", khoi="BGD", vai_tro="giam_doc", quan_ly="", chat_id="demo:gd_01"))
+    for khoi, (_tien_to, nhan, ql, so_nhom, vt_ql, ten_ql, cap_tren) in cau_truc.items():
+        ds = sorted({x for x in nguon_ma[khoi] if x})
+        for k, m in enumerate(ds):
+            rows.append(dict(ma=m, ten=f"{nhan} {m.split('_')[1]}", khoi=khoi, vai_tro="nhan_vien", quan_ly=f"{ql}_{k * so_nhom // len(ds) + 1:02d}", chat_id=f"demo:{m}"))
+        for i in range(1, so_nhom + 1):
+            rows.append(dict(ma=f"{ql}_{i:02d}", ten=f"{ten_ql} {i} (minh hoạ)", khoi=khoi, vai_tro=vt_ql, quan_ly=cap_tren, chat_id=f"demo:{ql}_{i:02d}"))
+    for m, ten, khoi in (("tp_dvkh_01", "Trưởng phòng DVKH (minh hoạ)", "DVKH"), ("tp_kt_01", "Trưởng phòng Kỹ thuật (minh hoạ)", "KT")):
+        rows.append(dict(ma=m, ten=ten, khoi=khoi, vai_tro="tp_khoi", quan_ly="gd_01", chat_id=f"demo:{m}"))
+    rows.append(dict(ma="gd_01", ten="Giám đốc chi nhánh (minh hoạ)", khoi="BGD", vai_tro="giam_doc", quan_ly="", chat_id="demo:gd_01"))
     return pd.DataFrame(rows)
 
 

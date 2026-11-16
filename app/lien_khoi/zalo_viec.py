@@ -3,7 +3,11 @@
 Gửi đi đâu do `kenh()` quyết định, mặc định KHÔNG gửi gì ra ngoài:
 - chạy minh hoạ (`LIEN_KHOI_NGUON=demo`): chỉ ghi vào hộp thư giả lập (`theo_doi.hop_thu`), không có tin nào rời máy;
 - dữ liệu thật: chỉ gửi thật khi có đủ `LIEN_KHOI_ZALO_TOKEN` (bot RIÊNG, không dùng chung bot Bản tin / Tra giá) và `LIEN_KHOI_ZALO_GUI=1`; thiếu thì ghi "chưa cấu hình".
-Tin không có tên khách hàng (chỉ mã hợp đồng, luật, lý do, đề xuất). Người nhận trả lời bằng chữ: "nhận MÃ", "xong MÃ", "không được MÃ lý do".
+Tin không có tên khách hàng (chỉ mã hợp đồng, luật, lý do, đề xuất).
+
+Tin gửi cho AI (`tin_cho()`): mặc định "quan_ly" - mỗi quản lý (trưởng phòng KD của team, trưởng nhóm / trưởng phòng DVKH, trưởng phòng / điều hành Kỹ thuật) nhận MỘT tin tổng hợp
+việc của team mình, tự giao cho cấp dưới và cập nhật TRÊN APP (chọn nhiều việc, giao một lần; không phải trả lời từng mã hợp đồng trên Zalo). Quá hạn thì nhắc quản lý,
+quá mốc báo thì báo GIÁM ĐỐC CHI NHÁNH. "nhan_vien" giữ cách cũ: giao thẳng từng người, người nhận trả lời "nhận MÃ", "xong MÃ", "không được MÃ lý do".
 """
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ from datetime import datetime
 import pandas as pd
 
 from app import zalo_bot
+from app.config import rules_config
 from app.lien_khoi import nguon, theo_doi as td
 
 TOI_DA_KY_TU = 1700                                  # dưới giới hạn tin của Zalo (có chừa chỗ cho phần mở đầu / hướng dẫn)
@@ -26,6 +31,12 @@ LENH = [("khong_lam_duoc", re.compile(r"\b(khong lam duoc|khong duoc|chua duoc|k
         ("da_xong", re.compile(r"\b(da xong|xong|hoan tat|done)\b")),
         ("da_nhan", re.compile(r"\b(da nhan|nhan|ok)\b"))]
 TEN_TT = {"da_nhan": "Đã nhận", "da_xong": "Đã xong", "khong_lam_duoc": "Không làm được"}
+
+
+def tin_cho() -> str:
+    """"quan_ly" (mặc định) hoặc "nhan_vien". Đổi bằng biến môi trường `LIEN_KHOI_TIN_CHO` hoặc `rules.yml` → `lien_khoi.tin_cho`."""
+    v = (os.getenv("LIEN_KHOI_TIN_CHO") or str((rules_config().get("lien_khoi") or {}).get("tin_cho", "quan_ly"))).strip().lower()
+    return "nhan_vien" if v == "nhan_vien" else "quan_ly"
 
 
 def kenh() -> str:
@@ -95,9 +106,75 @@ def _chu_nguoi(ds: pd.DataFrame) -> dict:
     return {r["ma"]: r for r in ds.fillna("").to_dict("records")}
 
 
+GHI_CHU_APP = "Xem đủ danh sách và giao việc trên app: Điều hành liên khối > Theo dõi & Zalo (chọn tên anh/chị, chọn nhiều việc rồi giao một lần)."
+TOI_DA_VIEC_CAO = 5
+
+
+def _ngan(chu: str, n: int = 95) -> str:
+    chu = re.sub(r"\s+", " ", str(chu or "")).strip()
+    return chu if len(chu) <= n else chu[:n - 1].rstrip() + "…"
+
+
+def _ten(ds: dict, ma: str) -> str:
+    return (ds.get(ma, {}).get("ten") or ma) if ma else "(chưa rõ)"
+
+
+def soan_tong_hop(ten: str, rows: list, han_gio: int, ds: dict) -> list[str]:
+    """MỘT tin tổng hợp cho một quản lý: bao nhiêu việc, loại việc nào, của ai, vài việc mức Cao nên giao trước. Không dài hơn giới hạn của Zalo."""
+    cao = [r for r in rows if r["muc"] == "Cao"]
+    theo_luat: dict[str, int] = {}
+    theo_nguoi: dict[str, int] = {}
+    for r in rows:
+        theo_luat[r["ten_luat"]] = theo_luat.get(r["ten_luat"], 0) + 1
+        k = "Chưa có người phụ trách" if r["nguoi_goc"] else _ten(ds, r["nguoi"])
+        theo_nguoi[k] = theo_nguoi.get(k, 0) + 1
+    dau = f"Chào {ten}. Hôm nay team anh/chị có {len(rows)} việc cần xử lý trong {han_gio} giờ ({len(cao)} việc mức Cao)."
+    ds_luat = " · ".join(f"{t} ({n})" for t, n in sorted(theo_luat.items(), key=lambda x: -x[1]))
+    ds_nguoi = " · ".join(f"{t} ({n})" for t, n in sorted(theo_nguoi.items(), key=lambda x: -x[1])[:6]) + (" · ..." if len(theo_nguoi) > 6 else "")
+    khoi = [dau, "Theo loại việc: " + ds_luat, "Theo người: " + ds_nguoi]
+    if cao:
+        khoi.append("Việc mức Cao nên giao trước:")
+        for i, r in enumerate(cao[:TOI_DA_VIEC_CAO], 1):
+            khoi.append(f"{i}) {r['so_hd']} · {r['ten_luat']} ({td.VAI_TRO[r['vai_tro']]}): {_ngan(r['ly_do'])}")
+        if len(cao) > TOI_DA_VIEC_CAO:
+            khoi.append(f"... và {len(cao) - TOI_DA_VIEC_CAO} việc mức Cao nữa")
+    khoi.append(GHI_CHU_APP)
+    chu = "\n".join(khoi)
+    return [chu if len(chu) <= TOI_DA_KY_TU else chu[:TOI_DA_KY_TU - 1] + "…"]
+
+
+def _theo_quan_ly(d: pd.DataFrame, ds: dict) -> dict:
+    """Việc gom theo quản lý nhận tin. Nhân viên chưa có quản lý trong danh sách thì về giám đốc chi nhánh (không để việc rơi mất)."""
+    gd = td.giam_doc(pd.DataFrame(list(ds.values()), columns=td.COT_NGUOI)) if ds else ""
+    kq: dict[str, list] = {}
+    for r in d.to_dict("records"):
+        kq.setdefault(r.get("quan_ly") or gd or "", []).append(r)
+    return kq
+
+
+def _gui_tong_hop(now: datetime) -> dict:
+    d = td.danh_sach(now)
+    if d.empty:
+        return {"nguoi": 0, "viec": 0, "tin": 0}
+    han, _ = td.cau_hinh_gio()
+    ds = _chu_nguoi(td.nguoi_nhan())
+    d = d[d["dang_mo"] & d["da_gui_luc"].isna() & thuc(d)]
+    n_ql = n_viec = n_tin = 0
+    for ma, rows in _theo_quan_ly(d, ds).items():
+        p = ds.get(ma, {"ten": ma or "(chưa có quản lý)", "chat_id": ""})
+        kq = [_gui(ma or "(chưa có quản lý)", p.get("chat_id", ""), "giao", chu, now) for chu in soan_tong_hop(p.get("ten") or ma, rows, han, ds)]
+        n_tin += len(kq)
+        if all(_da_giao(x) for x in kq):
+            td.danh_dau([r["id"] for r in rows], "da_gui_luc", now)
+            n_ql, n_viec = n_ql + 1, n_viec + len(rows)
+    return {"nguoi": n_ql, "viec": n_viec, "tin": n_tin}
+
+
 def gui_viec_moi(now: datetime | None = None) -> dict:
-    """Gửi cho từng người các phần việc còn mở mà chưa gửi lần nào."""
+    """Gửi các phần việc còn mở mà chưa gửi lần nào: mặc định cho từng QUẢN LÝ một tin tổng hợp, hoặc giao thẳng từng người (`tin_cho()`)."""
     now = now or td.bay_gio()
+    if tin_cho() == "quan_ly":
+        return _gui_tong_hop(now)
     d = td.danh_sach(now)
     if d.empty:
         return {"nguoi": 0, "viec": 0, "tin": 0}
@@ -116,13 +193,51 @@ def gui_viec_moi(now: datetime | None = None) -> dict:
 
 
 def _tom_tat_viec(rows: list, toi_da: int = 8) -> str:
+    rows = list({(r["so_hd"], r["luat"]): r for r in rows}.values())
     dong = [f"- {r['so_hd']} · {r['ten_luat']} ({r['muc']}), giao {_ngay(r['tao_luc'])}" for r in rows[:toi_da]]
     return "\n".join(dong) + (f"\n- ... và {len(rows) - toi_da} việc nữa" if len(rows) > toi_da else "")
 
 
+def _chay_nhac_quan_ly(now: datetime) -> dict:
+    """Quá hạn thì nhắc QUẢN LÝ nhận tin (một lần); quá mốc báo thì gửi giám đốc chi nhánh MỘT tin tổng hợp theo từng quản lý (một lần)."""
+    han, ql = td.cau_hinh_gio()
+    d = td.danh_sach(now)
+    if d.empty:
+        return {"nhac": 0, "bao_quan_ly": 0}
+    ds = _chu_nguoi(td.nguoi_nhan())
+    gd = td.giam_doc(td.nguoi_nhan())
+    mo = d[d["dang_mo"] & thuc(d)]
+    a = mo[(mo["tao_luc"] + pd.Timedelta(hours=han) <= pd.Timestamp(now)) & mo["nhac_luc"].isna()]
+    for ma, rows in _theo_quan_ly(a, ds).items():
+        p = ds.get(ma, {"chat_id": ""})
+        chua_giao = sum(1 for r in rows if not r.get("giao_cho"))
+        chu = (f"Nhắc: team anh/chị còn {len(rows)} việc quá {han} giờ chưa xong ({chua_giao} việc chưa giao cho ai):\n{_tom_tat_viec(rows)}\n\n{GHI_CHU_APP}")
+        if _da_giao(_gui(ma or "(chưa có quản lý)", p.get("chat_id", ""), "nhac", chu, now)):
+            td.danh_dau([r["id"] for r in rows], "nhac_luc", now)
+    b = mo[(mo["tao_luc"] + pd.Timedelta(hours=ql) <= pd.Timestamp(now)) & mo["bao_quan_ly_luc"].isna()]
+    n_ql = 0
+    if len(b):
+        nhom = _theo_quan_ly(b, ds)
+        dong = []
+        for ma, v in nhom.items():
+            hd = list(dict.fromkeys(x["so_hd"] for x in v))
+            dong.append(f"* {_ten(ds, ma)}: {len(v)} việc ({', '.join(hd[:4])}{'...' if len(hd) > 4 else ''})")
+        chu = f"Báo giám đốc chi nhánh: có {len(b)} việc quá {ql} giờ chưa xong:\n" + "\n".join(dong) + f"\n\n{GHI_CHU_APP}"
+        p = ds.get(gd, {"chat_id": ""})
+        kq = _gui(gd, p.get("chat_id", ""), "quan_ly", chu, now) if gd else "khong_co_quan_ly"
+        if not gd:
+            td.ghi_hop_thu("(chưa có giám đốc)", "", "quan_ly", chu, kenh(), kq, now)
+        if _da_giao(kq) or kq == "khong_co_quan_ly":
+            td.danh_dau([int(i) for i in b["id"]], "bao_quan_ly_luc", now)
+            n_ql = 1
+    return {"nhac": len(a), "bao_quan_ly": n_ql, "viec_bao": len(b)}
+
+
 def chay_nhac(now: datetime | None = None) -> dict:
-    """Quá hạn thì nhắc người nhận (một lần), quá mốc báo quản lý thì báo quản lý của họ (một lần)."""
+    """Quá hạn thì nhắc người nhận (một lần), quá mốc báo quản lý thì báo quản lý của họ (một lần). Chế độ quản lý: nhắc quản lý, báo giám đốc chi nhánh."""
     now = now or td.bay_gio()
+    if tin_cho() == "quan_ly":
+        return _chay_nhac_quan_ly(now)
     han, ql = td.cau_hinh_gio()
     d = td.danh_sach(now)
     if d.empty:
@@ -225,7 +340,12 @@ def _ap_dung(ma: str, chu: str, now: datetime) -> str:
     if tt is None:
         return "Em chưa hiểu. " + HUONG_DAN
     d = td.danh_sach(now)
-    mo = d[(d["nguoi"] == ma) & d["dang_mo"] & thuc(d)] if len(d) else d
+    if len(d) and tin_cho() == "quan_ly":
+        ds = td.nguoi_nhan().fillna("")
+        pv = td.pham_vi(ma, ds)
+        mo = d[((d["nguoi"] == ma) | d["quan_ly"].isin(pv)) & d["dang_mo"] & thuc(d)]
+    else:
+        mo = d[(d["nguoi"] == ma) & d["dang_mo"] & thuc(d)] if len(d) else d
     if not codes:
         hd = list(dict.fromkeys(mo["so_hd"])) if len(mo) else []
         if len(hd) != 1:

@@ -133,7 +133,7 @@ def test_bo_minh_hoa_khong_chua_ma_hop_dong_ten_hay_tai_khoan_that():
     nn = d["nguoi_nhan"]
     nguoi = pd.concat([d["kd"]["sale"], d["kt"]["nguoi"], d["sr_bi_dong"]["nhan_su_au"], d["sr_chu_dong"]["nhan_su_au"], nn["ma"], nn["quan_ly"]])
     assert nn["chat_id"].str.startswith("demo:").all()                                                          # mã chat chỉ là chữ giả, không phải mã Zalo thật
-    assert nguoi[nguoi != ""].str.fullmatch(r"(sale|cskh|ktv|tp_kd|dt_dvkh|dt_kt|gd)_\d{2}").all()                                     # mọi tên người đã bị đổi
+    assert nguoi[nguoi != ""].str.fullmatch(r"(sale|cskh|ktv|tpkd|tn_dvkh|tp_dvkh|dh_kt|tp_kt|gd)_\d{2}").all()                                     # mọi tên người đã bị đổi
     toan_bo = " ".join(" ".join(b.astype(str).to_numpy().ravel()) for b in d.values())
     assert not re.search(r"\b(?!MH)[A-Z]{5}\d{4}\b", toan_bo)                                                   # không còn mã hợp đồng dạng thật
     assert not re.search(r"dng\.|tin\.|hni\.|ktm|kon tum|(?<![\d.])\d{9,}", toan_bo, re.I)                             # không còn tài khoản / địa danh / số điện thoại

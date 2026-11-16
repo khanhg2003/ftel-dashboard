@@ -15,7 +15,7 @@ không SR, không nợ, một lần triển khai đúng hẹn) và file `cuoc.cs
 | `no_cuoc.csv` | hợp đồng nằm trong danh sách nợ cước | chọn ngẫu nhiên có hạt giống cố định |
 | `dich_vu.csv` | FPT Play (có V.VIP) và Camera kèm hợp đồng | mượn tên gói và giá từ các dòng thật, gắn ngẫu nhiên |
 | `cuoc.csv` | lịch sử kỳ cước của hợp đồng đã online: kỳ từ / đến, số tiền, hạn thanh toán, ngày thanh toán (trống = chưa trả), hình thức | GIẢ ĐỊNH hoàn toàn, sinh từ ngày online, số tháng trả trước và cước tháng trong `kd.csv`; hợp đồng trong `no_cuoc.csv` có kỳ gần nhất chưa trả |
-| `nguoi_nhan.csv` | danh sách người nhận việc: mã, tên, khối, vai trò, quản lý, mã chat GIẢ (`demo:...`) | dựng từ các tài khoản đã đổi tên + đội trưởng / trưởng phòng / giám đốc giả |
+| `nguoi_nhan.csv` | danh sách người nhận việc ĐỦ CẤP QUẢN LÝ: 6 trưởng phòng KD team, 2 trưởng nhóm DVKH, trưởng phòng DVKH, 2 điều hành Kỹ thuật, trưởng phòng Kỹ thuật, giám đốc chi nhánh; mỗi nhân viên có quản lý trực tiếp; mã chat GIẢ (`demo:...`) | dựng từ các tài khoản đã đổi tên + đội trưởng / trưởng phòng / giám đốc giả |
 | `meta.json` | ngày "hôm nay" của bộ minh hoạ (14/11/2026) | |
 
 **Không có** tên khách hàng, địa chỉ, số điện thoại, mã hợp đồng thật hay tài khoản nhân sự thật. Script dựng (`scripts/dung_demo_lien_khoi.py`) tự kiểm và dừng nếu còn
