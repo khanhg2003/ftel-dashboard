@@ -193,7 +193,7 @@ class SessionUser(UserMixin):
         khoi = khoi_cua_duong_dan(path)
         if khoi is not None and khoi not in self.khoi_duoc_xem():
             return False
-        if path == "/phongonline":
+        if path in ("/phongonline", "/leads"):
             return self.duoc_xem_phong_online
         if path == "/lienkhoi":                # bản thử của nhánh thi-lien-khoi: chỉ Quản trị
             return self.duoc_cau_hinh
