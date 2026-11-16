@@ -53,7 +53,8 @@ def thang_tu_ten_file(name: str, hom_nay: datetime | None = None) -> str | None:
     """Tháng ghi trong tên file: 'NSLĐ T8.2026' / 'Tháng 7.2026' / '2026-05' -> 'YYYY-MM'.
 
     Chỉ ghi tháng ('T5.xlsx', 'NSLĐ tháng 5') thì lấy năm hiện tại; tháng lớn hơn tháng hiện tại
-    thì hiểu là năm trước (đầu năm nạp bù file tháng 12).
+    thì hiểu là năm trước (đầu năm nạp bù file tháng 12). Tên kiểu khoảng ngày '01.11-15.11.xlsx'
+    lấy tháng ở ngày cuối (11), cùng quy tắc năm.
     """
     ten = _bo_dau(Path(name).stem).lower()
     m = re.search(r"(?:^|[^a-z])(?:t|thang)\s*0?(\d{1,2})\s*[.\-_/ ]\s*(\d{4})", ten)
@@ -62,14 +63,20 @@ def thang_tu_ten_file(name: str, hom_nay: datetime | None = None) -> str | None:
     m = re.search(r"(\d{4})[-_.](\d{1,2})(?!\d)", ten)
     if m and 1 <= int(m.group(2)) <= 12:
         return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}"
+    thang = None
     m = re.search(r"(?:^|[^a-z])(?:t|thang)\s*0?(\d{1,2})(?!\d)", ten)
     if m and 1 <= int(m.group(1)) <= 12:
-        from app.thoi_gian import gio_viet_nam
-        nay = hom_nay or gio_viet_nam()
         thang = int(m.group(1))
-        nam = nay.year if thang <= nay.month else nay.year - 1
-        return f"{nam:04d}-{thang:02d}"
-    return None
+    else:
+        k = re.search(r"(?<!\d)(\d{1,2})[.](\d{1,2})\s*[-_]\s*(\d{1,2})[.](\d{1,2})(?!\d)", ten)
+        if k and 1 <= int(k.group(3)) <= 31 and 1 <= int(k.group(4)) <= 12:
+            thang = int(k.group(4))
+    if thang is None:
+        return None
+    from app.thoi_gian import gio_viet_nam
+    nay = hom_nay or gio_viet_nam()
+    nam = nay.year if thang <= nay.month else nay.year - 1
+    return f"{nam:04d}-{thang:02d}"
 
 
 def thang_nsld_tu_noi_dung(df: pd.DataFrame) -> tuple[str | None, float]:

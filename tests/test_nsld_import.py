@@ -324,6 +324,20 @@ def test_nhan_thang_tu_ten_file_nsld():
     assert thang_tu_ten_file("NSLĐ T8.2026.xlsx", nay) == "2026-08"
     assert thang_tu_ten_file("NSLĐ T12.xlsx", nay) == "2025-12"          # tháng sau hiện tại -> năm trước
     assert thang_tu_ten_file("Chi tiết báo cáo PTTB NET(47).xlsx", nay) is None
+    # tên kiểu khoảng ngày (file Phễu bán hàng 01.11-15.11 từng bị lưu nhầm vào tháng 6)
+    assert thang_tu_ten_file("01.11-15.11.xlsx", datetime(2026, 11, 16)) == "2026-11"
+    assert thang_tu_ten_file("1.11 - 15.11.xlsx", datetime(2026, 11, 16)) == "2026-11"
+    assert thang_tu_ten_file("20.10-31.10.xlsx", datetime(2026, 11, 16)) == "2026-10"
+    assert thang_tu_ten_file("01.12-15.12.xlsx", nay) == "2025-12"
+    assert thang_tu_ten_file("40.13-50.14.xlsx", nay) is None
+
+
+def test_phieu_mac_dinh_lay_thang_moi_nhat_khong_phai_thang_cu_nhat(monkeypatch):
+    from app.ui.pages import upload
+    monkeypatch.setattr(upload, "cac_thang_co_du_lieu", lambda: ["2026-11", "2026-10", "2026-06"])      # đúng thứ tự thật: mới đến cũ
+    assert upload.thang_pheu("ten-khong-co-thang.xlsx") == ("2026-11", "mặc định tháng mới nhất có dữ liệu (đổi được ở ô Tháng áp dụng)")
+    assert upload.thang_pheu("01.11-15.11.xlsx")[0].endswith("-11")                     # nhận từ tên file, không rơi xuống tháng mặc định
+    assert upload.thang_pheu("x.xlsx", "2026-09") == ("2026-09", "lấy theo ô Tháng bạn chọn")
 
 
 @pytest.mark.skipif(not (Path(__file__).resolve().parent.parent / "NSLĐ T8.2026.xlsx - DNG.csv").exists(),

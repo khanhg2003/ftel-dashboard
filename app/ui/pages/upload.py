@@ -228,9 +228,9 @@ def thang_pheu(ten_file: str, thang_chon: str | None = None) -> tuple[str, str]:
     theo_ten = thang_tu_ten_file(ten_file)
     if theo_ten:
         return theo_ten, "tự nhận theo tên file"
-    ds = cac_thang_co_du_lieu()
-    mac_dinh = ds[-1] if ds else f"{date.today():%Y-%m}"
-    return mac_dinh, "mặc định tháng hiện tại (đổi được ở ô Tháng áp dụng)"
+    ds = cac_thang_co_du_lieu()                 # danh sách sắp từ mới đến cũ: phải lấy tháng MỚI NHẤT (lấy phần tử cuối là tháng cũ nhất)
+    mac_dinh = max(ds) if ds else f"{date.today():%Y-%m}"
+    return mac_dinh, "mặc định tháng mới nhất có dữ liệu (đổi được ở ô Tháng áp dụng)"
 
 
 def _ten_thang(t: str) -> str:
