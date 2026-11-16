@@ -83,7 +83,7 @@ def test_moi_quan_ly_nhan_mot_tin_tong_hop_nhan_vien_khong_nhan_tin(ql):
     h = td.hop_thu()
     assert set(h["den_nguoi"]) == {"tpkd_01", "tpkd_02", "tn_dvkh_01", "dh_kt_01"} and set(h["loai"]) == {"giao"} and set(h["kenh"]) == {"gia_lap"}
     tin = h.set_index("den_nguoi")["noi_dung"]
-    assert tin["tpkd_01"].startswith("VIỆC CẦN XỬ LÝ HÔM NAY · TPKD team 1") and "2 việc" in tin["tn_dvkh_01"] and "MHAAA0001" in tin["tn_dvkh_01"] and "MHAAA0002" in tin["tn_dvkh_01"]
+    assert tin["tpkd_01"].startswith("VIỆC CẦN XỬ LÝ HÔM NAY\nTPKD team 1") and "2 việc" in tin["tn_dvkh_01"] and "MHAAA0001" in tin["tn_dvkh_01"] and "MHAAA0002" in tin["tn_dvkh_01"]
     assert "Sự cố lặp 2" in tin["tn_dvkh_01"] and "mức Cao" in tin["tn_dvkh_01"]
     assert tin["tn_dvkh_01"].rstrip().endswith(zv.lien_ket_app("tn_dvkh_01")) and zv.lien_ket_app("tn_dvkh_01").endswith("/lienkhoi?tab=td&ql=tn_dvkh_01")      # cuối tin là đường dẫn mở thẳng đúng quản lý
     assert all(len(t) < 700 for t in tin)                                                                  # tin ngắn, dễ đọc trên Zalo
@@ -126,7 +126,7 @@ def test_qua_24_gio_nhac_quan_ly_qua_48_gio_bao_giam_doc_mot_tin_mot_lan(ql):
     assert r == {"nhac": 0, "bao_quan_ly": 1, "viec_bao": 6}
     ql_tin = td.hop_thu()
     ql_tin = ql_tin[ql_tin["loai"] == "quan_ly"]
-    assert list(ql_tin["den_nguoi"]) == ["gd_01"] and ql_tin["noi_dung"].iloc[0].startswith("Báo giám đốc chi nhánh: có 6 việc quá 48 giờ")
+    assert list(ql_tin["den_nguoi"]) == ["gd_01"] and ql_tin["noi_dung"].iloc[0].startswith("BÁO GIÁM ĐỐC CHI NHÁNH") and "6 việc quá 48 giờ chưa xong" in ql_tin["noi_dung"].iloc[0]
     assert all(t in ql_tin["noi_dung"].iloc[0] for t in ("TPKD team 1", "TPKD team 2", "Trưởng nhóm DVKH 1", "Điều hành KT 1"))
     assert zv.chay_nhac(T0 + timedelta(hours=60))["bao_quan_ly"] == 0
 
@@ -262,7 +262,7 @@ def test_thu_zalo_gui_that_chi_cho_dai_dien_con_quan_ly_khac_chi_ghi_hop_thu(thu
     assert td.danh_sach(T0)["da_gui_luc"].notna().all()                                      # tin giả lập cũng tính là đã gửi: không gửi lại
     gui.clear()
     zv.chay_nhac(T0 + timedelta(hours=49))
-    assert [c for c, _, _ in gui if c == "chat-bgd"] and "Báo giám đốc chi nhánh" in [n for c, n, _ in gui if c == "chat-bgd"][0]
+    assert [c for c, _, _ in gui if c == "chat-bgd"] and "BÁO GIÁM ĐỐC CHI NHÁNH" in [n for c, n, _ in gui if c == "chat-bgd"][0]
 
 
 def test_thu_zalo_chua_dang_ky_khoi_nao_thi_khoi_do_chi_ghi_hop_thu_va_loi_gui_thi_gui_lai(thu_zalo, monkeypatch):
@@ -351,3 +351,36 @@ def test_duong_dan_trong_tin_mo_thang_tab_theo_doi_va_chon_san_quan_ly(monkeypat
     assert '"value": "all", "clearable": false' in json.dumps(lienkhoi_td.layout("khong_co").to_plotly_json(), default=lambda o: o.to_plotly_json(), ensure_ascii=False)       # mã lạ thì về "Tất cả"
     assert '"value": "all", "clearable": false' not in chu
     assert lienkhoi.TAB[0][0] == "tongquan" and "td" in {k for k, _ in lienkhoi.TAB}
+
+
+# ------------------------------------------------------------------ kiểu chữ (đậm, màu, cỡ) và gửi lại chữ trơn khi Zalo từ chối kiểu
+def test_tin_tong_hop_co_kieu_chu_dung_vi_tri_va_khong_qua_tran_kieu(ql):
+    from app.ban_tin import KIEU_TOI_DA, _u16
+    td.dong_bo(_viec(*[dict(so_hd=f"MHAAA{i:04d}") for i in range(1, 9)]), T0)
+    d = td.danh_sach(T0)
+    ds = zv._chu_nguoi(td.nguoi_nhan())
+    tin = zv.soan_tong_hop("TPKD team 1", d[d["quan_ly"] == "tpkd_01"].to_dict("records"), 24, ds, "tpkd_01")[0]
+    assert tin.kieu and len(tin.kieu) <= KIEU_TOI_DA
+    toan = _u16(str(tin))
+    assert all(0 <= k["start"] and k["start"] + k["len"] <= toan for k in tin.kieu)                      # mọi kiểu nằm trong tin
+    cat = {tuple(k["st"]): str(tin).encode("utf-16-le")[2 * k["start"]:2 * (k["start"] + k["len"])].decode("utf-16-le") for k in tin.kieu}
+    assert cat[("b", "f_18", "c_0072bc")] == "VIỆC CẦN XỬ LÝ HÔM NAY"                                       # tiêu đề lớn, đậm, xanh
+    assert cat[("b", "f_18", "c_db342e")] == "8 mức Cao"                                                    # số mức Cao đỏ, đậm, lớn
+    assert any(st == ("c_0072bc",) and v.strip().startswith("http") for st, v in cat.items())                     # đường dẫn tô xanh
+
+
+def test_gui_that_giu_kieu_chu_va_zalo_tu_choi_kieu_thi_gui_lai_chu_tron(ql, monkeypatch):
+    td.dong_bo(_viec(dict(so_hd="MHAAA0001", giao_dvkh="", giao_kt="")), T0)
+    nhan = []
+
+    def gui(chat_id, noi_dung, *a, **k):
+        nhan.append((noi_dung, k.get("text_styles")))
+        if k.get("text_styles"):
+            raise zalo_bot.LoiZalo("Zalo từ chối kiểu chữ (thử)")
+    monkeypatch.setattr(zalo_bot, "gui_tin", gui)
+    monkeypatch.setenv("LIEN_KHOI_ZALO_TOKEN", "tok-gia")
+    monkeypatch.setattr(zv, "kenh", lambda: "zalo")
+    r = zv.gui_viec_moi(T0)
+    assert r["nguoi"] == 1
+    assert len(nhan) == 2 and nhan[0][1] and nhan[1][1] is None and str(nhan[0][0]) == str(nhan[1][0])     # lần 1 có kiểu bị từ chối, lần 2 cùng chữ nhưng không kiểu
+    assert td.danh_sach(T0)["da_gui_luc"].notna().all()                                                    # vẫn tính là đã gửi
