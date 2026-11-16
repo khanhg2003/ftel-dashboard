@@ -8,20 +8,26 @@ Tin không có tên khách hàng (chỉ mã hợp đồng, luật, lý do, đề
 Tin gửi cho AI (`tin_cho()`): mặc định "quan_ly" - mỗi quản lý (trưởng phòng KD của team, trưởng nhóm / trưởng phòng DVKH, trưởng phòng / điều hành Kỹ thuật) nhận MỘT tin tổng hợp
 việc của team mình, tự giao cho cấp dưới và cập nhật TRÊN APP (chọn nhiều việc, giao một lần; không phải trả lời từng mã hợp đồng trên Zalo). Quá hạn thì nhắc quản lý,
 quá mốc báo thì báo GIÁM ĐỐC CHI NHÁNH. "nhan_vien" giữ cách cũ: giao thẳng từng người, người nhận trả lời "nhận MÃ", "xong MÃ", "không được MÃ lý do".
+
+Chế độ THỬ ZALO (`kenh()` = "zalo_thu"): dữ liệu vẫn là bộ MINH HOẠ nhưng tin được gửi THẬT tới vài người đại diện (Kinh doanh, DVKH, Kỹ thuật, Ban giám đốc) để cảm nhận tin thật.
+Chỉ bật khi đủ cả ba: `LIEN_KHOI_ZALO_TOKEN`, `LIEN_KHOI_ZALO_GUI=1` và file `data/zalo_thu.json` (mã chat của người thử, do `scripts/lien_khoi_zalo_thu.py` ghi).
+Chỉ gửi tới mã chat có trong file đó; tin của các quản lý khác chỉ ghi vào hộp thư giả lập; mọi tin ghi rõ là thử nghiệm, không có tên khách hàng thật.
 """
 from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import re
 import unicodedata
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 
 from app import zalo_bot
-from app.config import rules_config
+from app.config import BASE_DIR, rules_config
 from app.lien_khoi import nguon, theo_doi as td
 
 TOI_DA_KY_TU = 1700                                  # dưới giới hạn tin của Zalo (có chừa chỗ cho phần mở đầu / hướng dẫn)
@@ -39,16 +45,35 @@ def tin_cho() -> str:
     return "nhan_vien" if v == "nhan_vien" else "quan_ly"
 
 
+KHOI_THU = ("KD", "DVKH", "KT", "BGD")
+MA_DAI_DIEN_THU = {"KD": "tpkd_01", "DVKH": "tn_dvkh_01", "KT": "dh_kt_01", "BGD": "gd_01"}     # quản lý của bộ minh hoạ mà người thử đóng vai, mỗi khối một người
+
+
+def duong_dan_thu() -> Path:
+    return Path(os.getenv("LIEN_KHOI_ZALO_THU") or Path(BASE_DIR) / "data" / "zalo_thu.json")
+
+
+def dai_dien_thu() -> dict[str, str]:
+    """{khối: mã chat Zalo} của người thử (KD, DVKH, KT, BGD). File thiếu, hỏng hoặc rỗng thì {}."""
+    try:
+        d = json.loads(duong_dan_thu().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: str(v).strip() for k, v in d.items() if k in KHOI_THU and isinstance(v, (str, int)) and str(v).strip()} if isinstance(d, dict) else {}
+
+
 def kenh() -> str:
-    """"gia_lap" (minh hoạ), "zalo" (gửi thật) hoặc "chua_cau_hinh"."""
+    """"gia_lap" (minh hoạ), "zalo_thu" (minh hoạ nhưng gửi thật tới người thử), "zalo" (dữ liệu thật, gửi thật) hoặc "chua_cau_hinh"."""
     if nguon.la_demo():
-        return "gia_lap"
+        return "zalo_thu" if os.getenv("LIEN_KHOI_ZALO_TOKEN") and os.getenv("LIEN_KHOI_ZALO_GUI") == "1" and dai_dien_thu() else "gia_lap"
     return "zalo" if os.getenv("LIEN_KHOI_ZALO_TOKEN") and os.getenv("LIEN_KHOI_ZALO_GUI") == "1" else "chua_cau_hinh"
 
 
 def _gui(ma: str, chat_id: str, loai: str, chu: str, now: datetime) -> str:
     """Gửi (hoặc giả lập) MỘT tin và ghi hộp thư. Trả về kết quả: ok | gia_lap | chua_cau_hinh | thieu_chat_id | loi: ..."""
     k = kenh()
+    if k == "zalo_thu":
+        return _gui_thu(ma, loai, chu, now)
     if k == "zalo" and not chat_id:
         kq = "thieu_chat_id"
     elif k == "zalo":
@@ -60,6 +85,30 @@ def _gui(ma: str, chat_id: str, loai: str, chu: str, now: datetime) -> str:
     else:
         kq = k
     td.ghi_hop_thu(ma, chat_id, loai, chu, k, kq, now)
+    return kq
+
+
+def _gui_thu(ma: str, loai: str, chu: str, now: datetime) -> str:
+    """Chế độ thử: chỉ quản lý được người thử đóng vai (`MA_DAI_DIEN_THU`) mới được gửi THẬT, tới mã chat của người đó; các quản lý khác chỉ ghi hộp thư giả lập."""
+    khoi = next((k for k, m in MA_DAI_DIEN_THU.items() if m == ma), "")
+    cid = dai_dien_thu().get(khoi, "") if khoi else ""
+    if not khoi or not cid:
+        kq = "gia_lap"
+        td.ghi_hop_thu(ma, "", loai, chu, "gia_lap", kq, now)
+        return kq
+    ten = ma
+    try:
+        x = td.nguoi_nhan().fillna("")
+        ten = str(x.loc[x["ma"] == ma, "ten"].iloc[0]) if (x["ma"] == ma).any() else ma
+    except Exception:
+        pass
+    noi = f"[THỬ NGHIỆM · dữ liệu minh hoạ, không phải khách thật] Tin gửi thay cho {ten}.\n\n{chu}"
+    try:
+        zalo_bot.gui_tin(cid, noi, token=os.environ["LIEN_KHOI_ZALO_TOKEN"])
+        kq = "ok"
+    except zalo_bot.LoiZalo as e:
+        kq = f"loi: {e}"
+    td.ghi_hop_thu(ma, cid, loai, noi, "zalo_thu", kq, now)
     return kq
 
 

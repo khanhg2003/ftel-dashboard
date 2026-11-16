@@ -82,8 +82,8 @@ def layout():
 
 
 def _the_tong(t: dict, s: dict) -> list:
-    the = lambda ten, so, phu, lop: html.Div([html.Div(ten, className="tq-kpi-label"), html.Div(so, className="tq-kpi-value"), html.Div(phu, className="tq-kpi-hint")],
-                                              className=f"tq-kpi {lop}")
+    the = lambda ten, so, phu, lop: html.Div([html.Div(ten, className="lktq-kpi-label"), html.Div(so, className="lktq-kpi-value"), html.Div(phu, className="lktq-kpi-hint")],
+                                              className=f"lktq-kpi {lop}")
     return [the("CẦN CHĂM SÓC CHỦ ĐỘNG", _so(s["rm"]), f"{s['rm_cao']} mức Cao · trên {t['hoat_dong']} hợp đồng đang hoạt động", "red"),
             the("CẦN NHẮC CƯỚC", _so(s["cuoc"]), f"{s['cuoc_theo_nhom'][pl.NHOM_CUOC[0]]} quá hạn · {s['cuoc_theo_nhom'][pl.NHOM_CUOC[1]]} đến hạn trong 7 ngày", "amber"),
             the("CÓ THỂ BÁN THÊM", _so(s["ban"]), f"{s['ban_cao']} ưu tiên Cao · khách đang ổn định", "green")]

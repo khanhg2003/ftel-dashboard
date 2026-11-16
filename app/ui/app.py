@@ -391,6 +391,9 @@ def _ky_tu_duong_dan(_path, search, store):
 
 @app.callback(Output("thanh-du-lieu", "children"), Input("url", "pathname"))
 def _thanh_du_lieu(path):
+    if path == "/lienkhoi":
+        from app.ui.pages.lienkhoi import thanh_du_lieu as lk_thanh
+        return lk_thanh()
     duoc = current_user.khoi_duoc_xem()
     k = kh.khoi_cua_duong_dan(path or "/")
     if (k if k in duoc else duoc[0]) == kh.DVKH:

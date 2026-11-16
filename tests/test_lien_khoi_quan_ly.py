@@ -212,3 +212,83 @@ def test_mo_phong_quan_ly_giao_viec_va_so_do_theo_team(tmp_path, monkeypatch):
     mp.tien_thoi_gian()
     assert zv.chay_nhac()["bao_quan_ly"] == 1 and list(td.hop_thu(1)["den_nguoi"]) == ["gd_01"]
     xoa()
+
+
+# ------------------------------------------------------------------ chế độ THỬ ZALO: dữ liệu minh hoạ, gửi thật chỉ tới người thử đã đăng ký
+@pytest.fixture
+def thu_zalo(ql, tmp_path, monkeypatch):
+    f = tmp_path / "zalo_thu.json"
+    monkeypatch.setenv("LIEN_KHOI_ZALO_THU", str(f))
+    gui = []
+    monkeypatch.setattr(zalo_bot, "gui_tin", lambda chat_id, noi_dung, *a, **k: gui.append((chat_id, noi_dung, k.get("token"))))
+    return f, gui
+
+
+def _dat(monkeypatch, token="tok-gia", gui="1"):
+    monkeypatch.setenv("LIEN_KHOI_ZALO_TOKEN", token) if token else monkeypatch.delenv("LIEN_KHOI_ZALO_TOKEN", raising=False)
+    monkeypatch.setenv("LIEN_KHOI_ZALO_GUI", gui) if gui else monkeypatch.delenv("LIEN_KHOI_ZALO_GUI", raising=False)
+
+
+def test_thu_zalo_chi_bat_khi_du_ba_dieu_kien(thu_zalo, monkeypatch):
+    f, _ = thu_zalo
+    _dat(monkeypatch)
+    assert zv.kenh() == "gia_lap"                                          # chưa có file đăng ký
+    f.write_text('{"KD": "chat-kd", "KHAC": "x", "DVKH": ""}', encoding="utf-8")
+    assert zv.dai_dien_thu() == {"KD": "chat-kd"}                          # bỏ khoá lạ và giá trị rỗng
+    assert zv.kenh() == "zalo_thu"
+    _dat(monkeypatch, token=None)
+    assert zv.kenh() == "gia_lap"                                          # thiếu token
+    _dat(monkeypatch, gui=None)
+    assert zv.kenh() == "gia_lap"                                          # thiếu LIEN_KHOI_ZALO_GUI=1
+    _dat(monkeypatch)
+    f.write_text("không phải json", encoding="utf-8")
+    assert zv.dai_dien_thu() == {} and zv.kenh() == "gia_lap"              # file hỏng thì coi như chưa đăng ký
+
+
+def test_thu_zalo_gui_that_chi_cho_dai_dien_con_quan_ly_khac_chi_ghi_hop_thu(thu_zalo, monkeypatch):
+    f, gui = thu_zalo
+    _dat(monkeypatch)
+    f.write_text('{"KD": "chat-kd", "DVKH": "chat-dvkh", "KT": "chat-kt", "BGD": "chat-bgd"}', encoding="utf-8")
+    td.dong_bo(_viec(dict(so_hd="MHAAA0001"), dict(so_hd="MHAAA0002", giao_sale="sale_02")), T0)
+    zv.gui_viec_moi(T0)
+    assert {c for c, _, _ in gui} == {"chat-kd", "chat-dvkh", "chat-kt"}                    # chỉ tpkd_01, tn_dvkh_01, dh_kt_01; tpkd_02 không được gửi thật
+    assert len(gui) == 3 and all(t == "tok-gia" for _, _, t in gui)
+    assert all(n.startswith("[THỬ NGHIỆM · dữ liệu minh hoạ") and "Tin gửi thay cho" in n for _, n, _ in gui)
+    h = td.hop_thu().set_index("den_nguoi")
+    assert h.loc["tpkd_01", "kenh"] == "zalo_thu" and h.loc["tpkd_01", "ket_qua"] == "ok" and h.loc["tpkd_01", "chat_id"] == "chat-kd"
+    assert h.loc["tpkd_02", "kenh"] == "gia_lap" and h.loc["tpkd_02", "chat_id"] == ""
+    assert td.danh_sach(T0)["da_gui_luc"].notna().all()                                      # tin giả lập cũng tính là đã gửi: không gửi lại
+    gui.clear()
+    zv.chay_nhac(T0 + timedelta(hours=49))
+    assert [c for c, _, _ in gui if c == "chat-bgd"] and "Báo giám đốc chi nhánh" in [n for c, n, _ in gui if c == "chat-bgd"][0]
+
+
+def test_thu_zalo_chua_dang_ky_khoi_nao_thi_khoi_do_chi_ghi_hop_thu_va_loi_gui_thi_gui_lai(thu_zalo, monkeypatch):
+    f, gui = thu_zalo
+    _dat(monkeypatch)
+    f.write_text('{"KD": "chat-kd"}', encoding="utf-8")
+    td.dong_bo(_viec(dict(so_hd="MHAAA0001")), T0)
+    zv.gui_viec_moi(T0)
+    assert [c for c, _, _ in gui] == ["chat-kd"]                                              # DVKH, KT chưa đăng ký: không gửi thật cho ai
+
+    def loi(*a, **k):
+        raise zalo_bot.LoiZalo("Zalo từ chối (thử)")
+    monkeypatch.setattr(zalo_bot, "gui_tin", loi)
+    td.dong_bo(_viec(dict(so_hd="MHAAA0002", giao_dvkh="", giao_kt="")), T0)
+    r = zv.gui_viec_moi(T0)
+    assert r["nguoi"] == 0                                                                    # gửi lỗi: không đánh dấu đã gửi để lượt sau gửi lại
+    assert td.danh_sach(T0).set_index("so_hd").loc["MHAAA0002", "da_gui_luc"] is pd.NaT or pd.isna(td.danh_sach(T0).set_index("so_hd").loc["MHAAA0002", "da_gui_luc"])
+    assert "loi" in " ".join(td.hop_thu()["ket_qua"])
+
+
+def test_script_dang_ky_thu_zalo_doc_chu_khoi_khong_dau_va_ghi_file(thu_zalo, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("lk_zalo_thu", Path(__file__).resolve().parents[1] / "scripts" / "lien_khoi_zalo_thu.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    assert [m._vai_tu_tin(x) for x in ("KD", " dvkh ", "kt", "BGĐ", "bgd xin chào", "hello", "")] == ["KD", "DVKH", "KT", "BGD", "BGD", "", ""]
+    assert m._che("abcdefghij") == "abc…hij" and m._che("abc") == "abc"
+    f, _ = thu_zalo
+    m._ghi({"KD": "x1"})
+    assert zv.dai_dien_thu() == {"KD": "x1"} and m.main("go") == 0 and not f.exists()

@@ -13,7 +13,8 @@ from app.ui.components import alert, callback_can_quyen, card, kpi
 from app.ui.luoi import bang
 
 QUYEN = "duoc_cau_hinh"
-NHAN_KENH = {"gia_lap": "GIẢ LẬP: tin chỉ ghi vào hộp thư bên dưới, không gửi ra ngoài.", "zalo": "ĐANG GỬI THẬT qua bot Zalo riêng của hướng liên khối.",
+NHAN_KENH = {"gia_lap": "GIẢ LẬP: tin chỉ ghi vào hộp thư bên dưới, không gửi ra ngoài.",
+             "zalo_thu": "THỬ ZALO: dữ liệu MINH HOẠ nhưng tin của 4 quản lý đại diện (KD, DVKH, Kỹ thuật, Ban giám đốc) được gửi THẬT tới người thử đã đăng ký; tin của các quản lý khác chỉ ghi vào hộp thư.", "zalo": "ĐANG GỬI THẬT qua bot Zalo riêng của hướng liên khối.",
              "chua_cau_hinh": "Chưa cấu hình bot Zalo (LIEN_KHOI_ZALO_TOKEN và LIEN_KHOI_ZALO_GUI=1): tin chỉ được ghi vào hộp thư, chưa gửi."}
 MAU_TT = {"styleConditions": [{"condition": "params.value == 'Đã xong'", "style": {"color": "#0a5b31", "fontWeight": 600}},
                               {"condition": "params.value == 'Không làm được'", "style": {"color": "#b42318", "fontWeight": 600}},

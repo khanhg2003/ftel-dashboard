@@ -15,6 +15,7 @@ from flask_login import current_user
 from app.lien_khoi import ho_so as hs
 from app.lien_khoi import luat, nguon, su_kien as sk
 from app.ui.components import alert, callback_can_quyen, card, ghi_chu, kpi, seg_control
+from app.ui.icons import icon
 from app.ui.luoi import bang
 from app.ui.pages import lienkhoi_hq, lienkhoi_hs, lienkhoi_td, lienkhoi_tq, phanloai
 
@@ -43,6 +44,15 @@ GHI_CHU_DEMO = ("Dữ liệu MINH HOẠ đã ghép mã: mã hợp đồng, tên 
 
 def _duoc_xem() -> bool:
     return bool(getattr(current_user, "is_authenticated", False)) and bool(getattr(current_user, QUYEN, False))
+
+
+def thanh_du_lieu() -> list:
+    """Dòng tình trạng dữ liệu trên thanh tiêu đề của trang liên khối (không dùng dòng của khối Kinh doanh: dữ liệu minh hoạ không nằm trong database)."""
+    if nguon.la_demo():
+        ngay = nguon.ngay_tham_chieu()
+        return [html.Span([icon("database", 13), html.Span(f"Minh hoạ · tới {ngay:%d/%m}" if ngay is not None else "Minh hoạ")], className="badge muted thanh-dl",
+                          title="Bộ dữ liệu minh hoạ đã ghép mã: mã hợp đồng, tên người và ngày tháng là giả định")]
+    return [html.Span([icon("database", 13), html.Span("Dữ liệu thật · chỉ đọc")], className="badge muted thanh-dl")]
 
 
 def topbar():
