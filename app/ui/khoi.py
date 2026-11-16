@@ -41,7 +41,8 @@ NAV_DVKH = [
 ]
 NAV_KT = [
     ("Điều hành", [("/kt", "Tổng quan Kỹ thuật", "dashboard", None), ("/kt/nhan-su", "Hiệu suất KTV", "users", None)]),
-    ("Chỉ số", [("/kt/ton", "Tồn và lịch hẹn", "inbox", None), ("/kt/trien-khai", "Triển khai đúng hẹn", "check", None),
+    ("Chỉ số", [("/kt/ton", "Tồn và lịch hẹn", "inbox", None), ("/kt/phau", "Phễu triển khai", "trend", None), ("/kt/cham-do-ai", "Chậm do ai", "alert", None),
+                ("/kt/trien-khai", "Triển khai đúng hẹn", "check", None),
                 ("/kt/su-co", "Sự cố và checklist", "tool", None)]),
     ("Liên khối", [("/lienkhoi", "Điều hành liên khối", "trend", "settings")]),
     ("Hệ thống", [("/quantri", "Quản trị", "settings", "settings"), ("/phanhoi", "Phản hồi", "phan_hoi", "settings")]),

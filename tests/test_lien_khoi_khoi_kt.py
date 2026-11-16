@@ -159,7 +159,8 @@ def test_menu_kt_va_khoi_san_sang():
     duong_dan = {m[0] for _, ds in khoi.NAV_KT for m in ds}
     assert {"/kt", "/kt/ton", "/kt/trien-khai", "/kt/su-co", "/kt/nhan-su"} <= duong_dan
     from app.ui.pages import kt as trang_kt
-    assert {"/kt", "/kt/ton", "/kt/trien-khai", "/kt/su-co", "/kt/nhan-su"} == set(trang_kt.TRANG)
+    assert {"/kt", "/kt/ton", "/kt/trien-khai", "/kt/su-co", "/kt/nhan-su", "/kt/phau", "/kt/cham-do-ai"} == set(trang_kt.TRANG)
+    assert {"/kt/phau", "/kt/cham-do-ai"} <= duong_dan
     assert all(khoi.khoi_cua_duong_dan(p) == khoi.KT for p in trang_kt.TRANG)
 
 
@@ -169,3 +170,99 @@ def test_loc_trang_ton(cach, mong_doi):
     ev = _ev(dict(so_hd="A", thuoc_tinh=_tt(hen_xanh="2026-11-13 10:00", hen_do="2026-11-13 12:00")), dict(so_hd="B", thuoc_tinh=_tt(hen_xanh="2026-11-14 08:00")),
              dict(so_hd="C", thoi_diem=T("2026-11-01 10:00")))
     assert set(kt_ton.loc(sl.ton(ev, NOW), cach)["so_hd"]) == mong_doi
+
+
+# ------------------------------------------------------------------ Phễu triển khai và Chậm do ai
+@pytest.mark.parametrize("ghi_chu, mong_doi", [
+    ("nhà khách chưa có điện. hẹn tuần sau(KTMPN.A 09/11/2026 09:05:03 AM)", "khach"),
+    ("kh đi hái cà hẹn lại", "khach"),
+    ("khu vực nhà kh ko có trụ đảm bảo, đang chờ sale care kh trồng trụ", "ha_tang"),          # nguyên nhân gốc là hạ tầng, đứng trước chữ "chờ sale"
+    ("kh vưc vươt cáp. sale đanng xin td", "ha_tang"),
+    ("trời mưa ktv k xử lý kịp đã liên hệ hẹn lại kh", "ky_thuat"),                              # kỹ thuật đứng trước "hẹn lại" (hệ quả)
+    ("đã tk cho khách..đang chờ xuất hoá đơn để khách báo lên cấp trên", "kinh_doanh"),
+    ("hệ thống lỗi trùng sđt fpl", "he_thong"),
+    ("Phân tuyến trên Inside KTMPN.A>>(KTMPN.A 09/11/2026 09:05:03 AM)", "chua_ghi"),             # chỉ có dòng phân tuyến: chưa có lý do
+    ("Phân tuyến trên Inside KTMPN.A>>(x)\nkh nhà xây chưa xong", "khach"),                       # bỏ dòng phân tuyến, lấy dòng có nghĩa
+    ("Micro-PTC-NOT-OK(A) - 10/11/2026 09:27:59;  -> ; Chuyển thi công-b-SaleClub: KH nhà xây;", "khach"),
+    ("", "chua_ghi"), (None, "chua_ghi"), ("14.0123456, 108.0123456 - vị trí", "chua_ghi"),
+])
+def test_phan_loai_ghi_chu_theo_nguyen_nhan_goc(ghi_chu, mong_doi):
+    assert doc_kt.phan_loai_ghi_chu(ghi_chu) == mong_doi
+
+
+def test_moc_ghi_chu_doc_ca_gio_12_va_24():
+    assert doc_kt._moc_ghi_chu("a(X 09/11/2026 09:05:03 AM)\nb(X 10/11/2026 11:47:25 PM)") == "2026-11-10 23:47"
+    assert doc_kt._moc_ghi_chu("Chuyển thi công-x-13/11/2026 08:03:22-SaleClub") == "2026-11-13 08:03"
+    assert doc_kt._moc_ghi_chu("12/11/2026 12:05:00 AM") == "2026-11-12 00:05" and doc_kt._moc_ghi_chu("không có giờ") == ""
+
+
+def test_file_ton_chi_giu_nhan_khong_giu_nguyen_van_ghi_chu():
+    d = pd.DataFrame([{"Số HĐ": "KTAAA0001", "TG tạo PTC": "07-11-2026 10:13:51", "Nhân sự": "K1", "Gói dịch vụ": "Giga", "Sale HĐ": "S1", "Tình trạng": "Đã nhận ca",
+                       "Loại triển khai": "Triển khai mới", "TG Hẹn xanh": "16-11-2026 10:00:00", "TG Hẹn đỏ": " ",
+                       "Ghi chú triển khai TIN/PNC": "kh hẹn lại, gọi 0912345678 không nghe máy(K1 09/11/2026 09:05:03 AM)\nPhân tuyến trên Inside K1>>(K1 08/11/2026 08:00:00 AM)"}])
+    e = doc_kt.su_kien_tu_bang(d)
+    tt = json.loads(e["thuoc_tinh"].iloc[0])
+    assert tt["ly_do"] == "khach" and tt["ghi_chu_luc"] == "2026-11-09 09:05" and tt["so_lan_phan_tuyen"] == 1
+    assert "0912345678" not in e["thuoc_tinh"].iloc[0] and "nghe máy" not in e["thuoc_tinh"].iloc[0]
+
+
+def test_ton_gan_nhan_ly_do_va_do_im_lang():
+    ev = _ev(dict(so_hd="A", thuoc_tinh=_tt(ly_do="khach", ghi_chu_luc="2026-11-14 08:00")),             # vừa ghi 4 giờ trước: không im lặng
+             dict(so_hd="B", thuoc_tinh=_tt(ly_do="ha_tang", ghi_chu_luc="2026-11-12 12:00")),            # 48 giờ: im lặng
+             dict(so_hd="C", thoi_diem=T("2026-11-14 06:00"), thuoc_tinh=_tt()),                          # chưa ghi, mới tồn 6 giờ: chưa tính
+             dict(so_hd="D", thoi_diem=T("2026-11-10 06:00"), thuoc_tinh=_tt(so_lan_phan_tuyen=3)))       # chưa từng ghi, tồn 4 ngày: im lặng
+    t = sl.ton(ev, NOW).set_index("so_hd")
+    assert t.loc["A", "ly_do"] == "Khách hàng" and t.loc["C", "ly_do_ma"] == "chua_ghi" and t.loc["D", "phan_tuyen"] == 3 and t.loc["B", "gio_im_lang"] == 48.0
+    il = sl.im_lang(sl.ton(ev, NOW))
+    assert list(il["so_hd"]) == ["D", "B"] and il.set_index("so_hd").loc["D", "gio_im_lang"] > 48
+
+
+def test_cham_do_ai_va_theo_giai_doan():
+    ev = _ev(dict(so_hd="A", thuoc_tinh=_tt(tinh_trang="Đã phân công", ly_do="khach")), dict(so_hd="B", thuoc_tinh=_tt(tinh_trang="Đã nhận ca", ly_do="khach")),
+             dict(so_hd="C", thuoc_tinh=_tt(tinh_trang="Đã nhận ca")), dict(so_hd="D", thuoc_tinh=_tt(tinh_trang="Đang xử lý", ly_do="kinh_doanh")))
+    t = sl.ton(ev, NOW)
+    cd = sl.cham_do_ai(t).set_index("ma")
+    assert (cd.loc["khach", "so"], cd.loc["khach", "ty_le"], cd.loc["chua_ghi", "so"], cd.loc["kinh_doanh", "so"]) == (2, 50.0, 1, 1) and cd["so"].sum() == 4
+    g = sl.theo_giai_doan(t).set_index("giai_doan")
+    assert (g.loc["Đã phân công", "so"], g.loc["Đã nhận ca", "so"], g.loc["Đang xử lý", "so"], g.loc["Đã xử lý đang theo dõi", "so"]) == (1, 2, 1, 0)
+    assert sl.cham_do_ai(sl.ton(_ev(), NOW)).empty
+
+
+def test_khau_trien_khai_tinh_gio_tung_khau_va_bo_moc_dao_nguoc():
+    mo = dict(tao_hd="2026-11-01 08:00", tao_ptc="2026-11-01 09:00", phan_cong="2026-11-01 10:00", checkin="2026-11-02 10:00", hoan_tat="2026-11-02 12:00", online="2026-11-02 11:00")
+    ev = _ev(dict(so_hd="A", loai="trien_khai", so_lan=1, thuoc_tinh=_tt(**mo)), dict(so_hd="B", loai="trien_khai", so_lan=3, thuoc_tinh=_tt(**{**mo, "hoan_tat": "2026-11-02 08:00"})))
+    ct, tom = sl.khau_trien_khai(ev)
+    tom = tom.set_index("khau")
+    assert tom.loc["Sale chuyển phiếu thi công", "trung_vi"] == 1.0 and tom.loc["Chờ KTV tới nhà khách", "trung_vi"] == 24.0
+    t = tom.loc["Thi công tại nhà khách"]
+    assert t["so_mau"] == 1 and t["trung_vi"] == 2.0                                   # hợp đồng B: hoàn tất trước check-in là mốc đảo ngược, bị bỏ khỏi khâu này
+    assert tom.loc["Tổng: từ tạo hợp đồng tới online", "so_mau"] == 2
+    assert sl.khau_trien_khai(_ev(dict(loai="ton_kt")))[1].empty
+
+
+def test_ly_do_hen_lai_chi_tinh_hop_dong_tu_hai_lan_hen():
+    ev = _ev(dict(so_hd="A", loai="trien_khai", so_lan=1, thuoc_tinh=_tt()), dict(so_hd="B", loai="trien_khai", so_lan=2, thuoc_tinh=_tt(nguyen_nhan_l2="Từ phía KH")),
+             dict(so_hd="C", loai="trien_khai", so_lan=4, thuoc_tinh=_tt()))
+    h = sl.ly_do_hen_lai(ev).set_index("nhom")["so"]
+    assert dict(h) == {"Từ phía KH": 1, "Chưa ghi nguyên nhân": 1}
+
+
+def test_nhan_dinh_cham_do_ai_khi_nhieu_ca_cho_khach_va_chua_ghi_ly_do():
+    ev = _ev(*[dict(so_hd=f"K{i}", thuoc_tinh=_tt(ly_do="khach", ghi_chu_luc="2026-11-14 08:00")) for i in range(4)],
+             *[dict(so_hd=f"X{i}", thuoc_tinh=_tt()) for i in range(8)])
+    nd = sl.nhan_dinh(ev, _kpi(), NOW)
+    tieu_de = " | ".join(x["tieu_de"] for x in nd)
+    assert "chưa ghi lý do" in tieu_de and "chờ phía khách hàng" in tieu_de
+
+
+def test_trang_phau_va_cham_do_ai_dung_duoc_tren_bo_minh_hoa(monkeypatch):
+    monkeypatch.setenv("LIEN_KHOI_NGUON", "demo")
+    from app.ui.pages import kt as trang_kt
+    from app.ui.pages import kt_cham
+    for duong_dan in ("/kt/phau", "/kt/cham-do-ai"):
+        noi_dung, thanh = trang_kt.trang(duong_dan)
+        assert noi_dung is not None and thanh
+    ev = sl.su_kien()
+    t = sl.ton(ev, sl.bay_gio(ev))
+    assert t["ly_do_ma"].nunique() >= 3 and len(sl.im_lang(t)) > 0 and kt_cham.LOC[0][0] == "all"
+    assert sl.cham_do_ai(t)["so"].sum() == len(t)

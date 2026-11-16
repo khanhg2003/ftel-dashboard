@@ -14,7 +14,7 @@ import json
 import pandas as pd
 
 from app.bo_nho import nho
-from app.lien_khoi import nguon
+from app.lien_khoi import doc_kt, nguon
 
 TON_LAU_NGAY = 7                  # tồn từ ngày này trở đi là "tồn lâu"
 DUNG_HEN_L1_THAP = 60.0           # % đúng hẹn lần 1 dưới mức này là cần chú ý
@@ -23,7 +23,16 @@ BAO_TRI_24H_CAO = 25.0            # % bảo trì quá 24 giờ trên mức này 
 TOI_THIEU_BLOCK = 15              # block dưới số lần hẹn này không đem ra so sánh
 TOI_THIEU_KTV_TON = 5
 NHOM_TUOI = [("Dưới 1 ngày", 0, 1), ("1 - 3 ngày", 1, 3), ("3 - 7 ngày", 3, 7), ("7 - 14 ngày", 7, 14), ("Trên 14 ngày", 14, 10**6)]
-COT_TON = ["so_hd", "nguoi", "tinh_trang", "loai_trien_khai", "tao_luc", "ngay_ton", "hen_xanh", "hen_do", "qua_xanh", "qua_do", "tuoi"]
+COT_TON = ["so_hd", "nguoi", "tinh_trang", "loai_trien_khai", "tao_luc", "ngay_ton", "hen_xanh", "hen_do", "qua_xanh", "qua_do", "tuoi",
+           "ly_do_ma", "ly_do", "ghi_chu_luc", "gio_im_lang", "phan_tuyen"]
+GIAI_DOAN_TON = ["Đã phân công", "Đã nhận ca", "Đang xử lý", "Đã xử lý đang theo dõi"]
+THU_TU_NHOM = ["khach", "ky_thuat", "ha_tang", "kinh_doanh", "he_thong", "chua_ghi"]
+GIO_IM_LANG = 24                  # ca tồn không có cập nhật ghi chú từ ngần này giờ là "im lặng"
+TOI_THIEU_KHAU = 5                # khâu có ít hợp đồng hơn mức này thì chỉ ghi "mẫu nhỏ", không kết luận
+# các khâu của một hợp đồng triển khai (khoá mốc trong thuộc tính của file "triển khai đúng hạn"): từ mốc đầu tới mốc sau
+KHAU = [("tao_hd", "tao_ptc", "Sale chuyển phiếu thi công"), ("tao_ptc", "phan_cong", "Phân công người làm"),
+        ("phan_cong", "checkin", "Chờ KTV tới nhà khách"), ("checkin", "hoan_tat", "Thi công tại nhà khách")
+]
 
 
 def _json(s) -> dict:
@@ -90,7 +99,79 @@ def ton(ev: pd.DataFrame, now: pd.Timestamp) -> pd.DataFrame:
     d["qua_do"] = d["hen_do"].notna() & (d["hen_do"] < now)
     d["tuoi"] = d["ngay_ton"].map(lambda x: next((t for t, a, b in NHOM_TUOI if a <= x < b), NHOM_TUOI[-1][0]))
     d["nguoi"] = d["nguoi"].fillna("").replace("", "Chưa phân công")
+    ma = _tt(d, "ly_do").replace("", "chua_ghi")
+    d["ly_do_ma"], d["ly_do"] = ma, ma.map(doc_kt.NHOM_GHI_CHU).fillna("Chưa ghi lý do")
+    d["ghi_chu_luc"] = pd.to_datetime(_tt(d, "ghi_chu_luc").replace("", None), errors="coerce")
+    d["gio_im_lang"] = ((now - d["ghi_chu_luc"]).dt.total_seconds() / 3600).clip(lower=0).round(1)
+    d["phan_tuyen"] = pd.to_numeric(_tt(d, "so_lan_phan_tuyen"), errors="coerce").fillna(0).astype(int)
     return d.sort_values("ngay_ton", ascending=False)[COT_TON].reset_index(drop=True)
+
+
+def im_lang(t: pd.DataFrame, gio: int = GIO_IM_LANG) -> pd.DataFrame:
+    """Ca tồn "im lặng": ghi chú cập nhật cuối đã quá `gio` giờ, hoặc chưa từng có ghi chú mà đã tồn trên 1 ngày. Im lặng lâu nhất trước."""
+    if t.empty:
+        return t
+    chua_ghi = t["ghi_chu_luc"].isna() & (t["ngay_ton"] >= 1)
+    d = t[(t["gio_im_lang"] >= gio) | chua_ghi].copy()
+    d["gio_im_lang"] = d["gio_im_lang"].fillna(d["ngay_ton"] * 24)             # chưa từng ghi: tính từ lúc tạo phiếu
+    return d.sort_values("gio_im_lang", ascending=False).reset_index(drop=True)
+
+
+def theo_giai_doan(t: pd.DataFrame) -> pd.DataFrame:
+    """Hợp đồng tồn đang nằm ở giai đoạn nào (phễu hiện tại): số ca, tuổi tồn trung bình, từ 7 ngày, quá mốc đỏ."""
+    rows = []
+    for g in GIAI_DOAN_TON + sorted(set(t["tinh_trang"]) - set(GIAI_DOAN_TON) if len(t) else []):
+        a = t[t["tinh_trang"] == g] if len(t) else t
+        rows.append({"giai_doan": g, "so": len(a), "tuoi_tb": round(float(a["ngay_ton"].mean()), 1) if len(a) else None,
+                     "tu_7_ngay": int((a["ngay_ton"] >= TON_LAU_NGAY).sum()) if len(a) else 0, "qua_do": int(a["qua_do"].sum()) if len(a) else 0})
+    return pd.DataFrame(rows)
+
+
+def cham_do_ai(t: pd.DataFrame) -> pd.DataFrame:
+    """Ca tồn đang chờ phía nào (nhãn từ ghi chú của KTV, luật từ khoá ở `doc_kt.phan_loai_ghi_chu`): số ca, tỷ lệ, tuổi tồn, im lặng."""
+    cot = ["ma", "nhom", "so", "ty_le", "tuoi_tb", "tu_7_ngay", "im_lang", "qua_do"]
+    if t.empty:
+        return pd.DataFrame(columns=cot)
+    il = set(im_lang(t)["so_hd"])
+    rows = []
+    for m in THU_TU_NHOM:
+        a = t[t["ly_do_ma"] == m]
+        rows.append({"ma": m, "nhom": doc_kt.NHOM_GHI_CHU[m], "so": len(a), "ty_le": round(100.0 * len(a) / len(t), 1), "tuoi_tb": round(float(a["ngay_ton"].mean()), 1) if len(a) else None,
+                     "tu_7_ngay": int((a["ngay_ton"] >= TON_LAU_NGAY).sum()), "im_lang": int(a["so_hd"].isin(il).sum()), "qua_do": int(a["qua_do"].sum())})
+    return pd.DataFrame(rows, columns=cot)
+
+
+def _mo(d: pd.DataFrame, khoa: str) -> pd.Series:
+    return pd.to_datetime(_tt(d, khoa).replace("", None), errors="coerce")
+
+
+def khau_trien_khai(ev: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Thời gian từng khâu (giờ) của các hợp đồng đã triển khai xong. Trả (từng hợp đồng, tóm tắt từng khâu).
+    Mốc đảo ngược (khâu sau xảy ra trước khâu trước, do file ghi lệch) không tính vào khâu đó."""
+    d = ev[ev["loai"] == "trien_khai"]
+    cot = ["khau", "so_mau", "trung_vi", "tb", "lon_nhat"]
+    if d.empty:
+        return pd.DataFrame(columns=["so_hd"]), pd.DataFrame(columns=cot)
+    ct = pd.DataFrame({"so_hd": d["so_hd"].values})
+    tom = []
+    for a, b, ten in KHAU + [("tao_hd", "online", "Tổng: từ tạo hợp đồng tới online")]:
+        gio = ((_mo(d, b).values - _mo(d, a).values) / pd.Timedelta(hours=1))
+        gio = pd.Series(gio, dtype="float64").where(lambda x: x >= 0)
+        ct[ten] = gio.values
+        g = gio.dropna()
+        tom.append({"khau": ten, "so_mau": len(g), "trung_vi": round(float(g.median()), 1) if len(g) else None, "tb": round(float(g.mean()), 1) if len(g) else None,
+                    "lon_nhat": round(float(g.max()), 1) if len(g) else None})
+    return ct, pd.DataFrame(tom, columns=cot)
+
+
+def ly_do_hen_lai(ev: pd.DataFrame) -> pd.DataFrame:
+    """Hợp đồng đã triển khai phải hẹn nhiều lần: lần hẹn lại sau cùng do phía nào (cột "Nguyên nhân tích L2" của file; trống là chưa ghi)."""
+    d = ev[ev["loai"] == "trien_khai"]
+    d = d[pd.to_numeric(d["so_lan"], errors="coerce") >= 2]
+    if d.empty:
+        return pd.DataFrame(columns=["nhom", "so"])
+    v = _tt(d, "nguyen_nhan_l2").replace({"": "Chưa ghi nguyên nhân"}).value_counts()
+    return pd.DataFrame({"nhom": v.index, "so": v.values})
 
 
 def ton_theo_tuoi(t: pd.DataFrame) -> pd.DataFrame:
@@ -106,7 +187,7 @@ def _ty_le(tu, mau):
 def theo_block(kpi: pd.DataFrame) -> pd.DataFrame:
     """Mỗi block một dòng (cộng các lô), tỷ lệ tự tính lại từ số đếm. Thấp nhất về đúng hẹn lần 1 trước."""
     if kpi.empty:
-        return pd.DataFrame(columns=["block", "tong", "dung_hen_pct", "dung_hen_l1_pct", "qua_hen", "bao_tri_pct", "tgxl_tb", "tin_pnc_pct"])
+        return pd.DataFrame(columns=["block", "tong", "tong_l1", "dung_hen_l1_pct", "dung_hen_pct", "qua_hen", "bao_tri_pct", "tgxl_tb", "tin_pnc_pct"])
     g = kpi.groupby("block", sort=False)[["dung_hen_l1", "dung_hen", "qua_hen", "tich_tin_pnc", "bao_tri_24h", "tong_l1", "tong", "tong_tgxl"]].sum().reset_index()
     return pd.DataFrame({"block": g["block"], "tong": g["tong"].astype(int), "tong_l1": g["tong_l1"].astype(int),
                          "dung_hen_l1_pct": [_ty_le(a, b) for a, b in zip(g["dung_hen_l1"], g["tong_l1"])],
@@ -236,6 +317,30 @@ def nhan_dinh(ev: pd.DataFrame, kpi: pd.DataFrame, now: pd.Timestamp) -> list[di
                           f"Chiếm {_n(100 * x['ton'] / s['so_ton'])}% số hợp đồng tồn của cả đội; {x['qua_do']} hợp đồng quá mốc đỏ.", "Cân nhắc chia lại việc."))
     if s["dung_hen_pct"] is not None and s["dung_hen_pct"] >= DUNG_HEN_THAP and not s["qua_do"]:
         kq.append(_nd("Tốt", "Triển khai đúng hẹn", f"Đúng hẹn {_n(s['dung_hen_pct'], 1)}% và không có hợp đồng nào quá mốc đỏ", "Giữ nhịp hiện tại."))
+    t = ton(ev, now)
+    cd = cham_do_ai(t)
+    if len(t) >= 10 and len(cd):
+        co_ly_do = cd[cd["ma"] != "chua_ghi"]
+        khach = cd.loc[cd["ma"] == "khach", "so"].iloc[0]
+        if khach >= 0.25 * len(t):
+            kq.append(_nd("Thông tin", "Chậm do ai", f"{int(khach)} ca tồn ({_n(100 * khach / len(t))}%) đang chờ phía khách hàng",
+                          "Khách hẹn lại, nhà chưa xây xong, chưa có điện hoặc không nghe máy. Đây chưa phải lỗi của Kỹ thuật.",
+                          "Đừng chấm các ca này là Kỹ thuật chậm; nhờ Kinh doanh gọi khách chốt lịch cụ thể."))
+        chua = cd.loc[cd["ma"] == "chua_ghi", "so"].iloc[0]
+        if chua >= 0.4 * len(t):
+            kq.append(_nd("Cần chú ý", "Chậm do ai", f"{int(chua)} ca tồn ({_n(100 * chua / len(t))}%) chưa ghi lý do",
+                          "Không có ghi chú, hoặc chỉ có dòng phân tuyến, nên không biết ca đang chờ ai.", "Yêu cầu KTV ghi lý do mỗi lần liên hệ khách, kể cả khi chưa lắp được."))
+        if len(co_ly_do) and (co_ly_do["ma"] == "kinh_doanh").any() and co_ly_do.loc[co_ly_do["ma"] == "kinh_doanh", "so"].iloc[0]:
+            n_kd = int(co_ly_do.loc[co_ly_do["ma"] == "kinh_doanh", "so"].iloc[0])
+            kq.append(_nd("Cần chú ý", "Chậm do ai", f"{n_kd} ca tồn đang chờ Kinh doanh", "Chờ sale xử lý hoá đơn, thanh toán hoặc liên hệ khách.", "Chuyển danh sách này cho trưởng phòng Kinh doanh."))
+    n_im = len(im_lang(t))
+    if n_im >= 5:
+        kq.append(_nd("Cần chú ý", "Chậm do ai", f"{n_im} ca tồn không có cập nhật quá {GIO_IM_LANG} giờ", "Ghi chú cuối đã cũ hoặc chưa từng có.", "Đội trưởng nhắc KTV cập nhật tình trạng từng ca."))
+    _ct, kh = khau_trien_khai(ev)
+    kh = kh[(kh["so_mau"] >= TOI_THIEU_KHAU) & ~kh["khau"].str.startswith("Tổng")].dropna(subset=["trung_vi"])
+    if len(kh):
+        x = kh.sort_values("trung_vi", ascending=False).iloc[0]
+        kq.append(_nd("Thông tin", "Phễu triển khai", f"Khâu chậm nhất: {x['khau']} (trung vị {_n(x['trung_vi'], 1)} giờ)", f"Tính trên {int(x['so_mau'])} hợp đồng đã triển khai xong."))
     thu_tu = {"Nghiêm trọng": 0, "Cần chú ý": 1, "Thông tin": 2, "Tốt": 3}
     return sorted(kq, key=lambda x: thu_tu[x["muc"]])
 

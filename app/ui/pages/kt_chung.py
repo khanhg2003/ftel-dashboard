@@ -39,6 +39,8 @@ def cach_hieu() -> html.Div:
         ("Mốc hẹn xanh / đỏ", "Hai mốc giờ hẹn ghi trong file. “Quá mốc” nghĩa là mốc đã qua so với ngày dữ liệu mà hợp đồng vẫn còn tồn."),
         ("Đúng hẹn lần 1 / đúng hẹn", "Lấy từ file KPI theo block: số lần hẹn đúng chia tổng số lần hẹn. Lần 1 là lần hẹn đầu tiên, đúng hẹn chung tính cả hẹn lại."),
         ("Bảo trì quá 24 giờ", "Hợp đồng phải bảo trì sau hơn 24 giờ kể từ lúc lắp xong, trên tổng số lần hẹn."),
+        ("Chậm do ai", "Nhãn lấy từ ghi chú của KTV bằng luật từ khoá (khách hẹn lại, nhà chưa xây, thiếu trụ, chờ sale...). Chỉ là gợi ý để trao đổi, không phải kết luận trách nhiệm; ca không ghi chú thì ghi \"Chưa ghi lý do\"."),
+        ("Ca im lặng", "Ca tồn mà ghi chú cuối đã quá 24 giờ, hoặc chưa từng có ghi chú dù đã tồn trên 1 ngày."),
         ("Checklist lặp", "Hợp đồng bị lập checklist sự cố từ 2 lần trở lên trong 30 ngày. Số lần lặp lấy từ file, app không tự đếm lại."),
     ])
 

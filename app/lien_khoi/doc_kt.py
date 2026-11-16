@@ -101,6 +101,69 @@ def _thuoc_tinh(d: pd.DataFrame, anh_xa: dict[str, str], ngay: tuple = ()) -> pd
     return pd.Series([json.dumps({k: v for k, v in ((k, cot[k].iloc[i]) for k in cot) if v}, ensure_ascii=False) for i in range(len(d))])
 
 
+# Ghi chú tình trạng của hợp đồng tồn: chỉ rút ra NHÃN "đang chờ ai" bằng luật từ khoá, KHÔNG lưu nguyên văn (ghi chú có số điện thoại, tên khách).
+# Thứ tự ưu tiên khi một câu khớp nhiều nhóm: hạ tầng > kỹ thuật > kinh doanh > khách hàng (nguyên nhân gốc đứng trước, "hẹn lại" chỉ là hệ quả).
+NHOM_GHI_CHU = {"ha_tang": "Hạ tầng", "ky_thuat": "Kỹ thuật", "kinh_doanh": "Kinh doanh", "khach": "Khách hàng", "he_thong": "Hệ thống", "chua_ghi": "Chưa ghi lý do"}
+TU_KHOA_GHI_CHU = [
+    ("ha_tang", ("tru ", "vuot cap", "tuyen cap", "gan 400m", "cay coi", "chua co tuyen", "het cong", "qua tai", "vat tu", "thieu cap", "xin td", "keo cap", "ha tang", "tru dam bao")),
+    ("ky_thuat", ("troi mua", "xu ly kip", "xl kip", "ktv k", "chua kip", "up kenh", "cho hoan tat", "chua len duoc", "khong kip")),
+    ("he_thong", ("he thong loi", "loi he thong", "trung sdt", "chua active", "active fpl", "loi tool", "treo he thong")),
+    ("kinh_doanh", ("cho sale", "sale care", "sale dang", "bao lai sale", "bao sale", "sale mail", "doi sale", "xuat hoa don", "chua thanh toan", "cho thanh toan", "cho kinh doanh")),
+    ("khach", ("kh hen", "khach hen", "hen lai", "hen mai", "hen sang", "hen chieu", "hen cuoi tuan", "hen tuan", "hen t7", "hen 1 tuan", "hen 3", "kh ban", "bat gap", "nha xay", "chua xay", "dang xay", "tu sua",
+               "chua co dien", "dien rieng", "chua lap dien", "nghe may", "knm", "khong co ai", "k co ai", "khg co ai", "di cong tac", "di lam", "dam cuoi", "hai ca", "chua chuyen do", "chua ve",
+               "kh bao", "lien he kh", "lh kh", "lhe", "lh khg", "khg hen", "chua co thoi gian", "bi om", "chua tien hanh")),
+]
+BO_QUA_DONG = ("phan tuyen tren inside", "micro-ptc-not-ok")
+
+
+def _bo_dau_thuong(s: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize("NFD", str(s))
+    return "".join(c for c in s if not unicodedata.combining(c)).replace("đ", "d").replace("Đ", "D").lower()
+
+
+def phan_loai_ghi_chu(text) -> str:
+    """Nhóm "đang chờ ai" của ghi chú một hợp đồng tồn (ghi chú mới nhất đứng đầu). Không có chữ nào có nghĩa thì "chua_ghi"."""
+    dong = [d.strip() for d in str(text or "").split("\n") if d.strip()]
+    for d in dong:                                                   # lấy dòng có ý nghĩa MỚI NHẤT; dòng chỉ ghi lần phân tuyến / phiếu lỗi thì bỏ qua
+        k = _bo_dau_thuong(d)
+        if k.startswith(BO_QUA_DONG) and "saleclub" not in k:
+            continue
+        k = " " + k
+        for nhom, tu in TU_KHOA_GHI_CHU:
+            if any(t in k for t in tu):
+                return nhom
+    return "chua_ghi"
+
+
+_MOC_GIO = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)?", re.I)
+
+
+def _moc_ghi_chu(text) -> str:
+    """Lần cập nhật ghi chú gần nhất (ngày giờ nằm trong ngoặc cuối mỗi dòng, có file ghi 12 giờ AM / PM)."""
+    ds = []
+    for g in _MOC_GIO.finditer(str(text or "")):
+        d, m, y, h, mi, s, ap = g.groups()
+        h = int(h)
+        if ap:
+            h = h % 12 + (12 if ap.upper() == "PM" else 0)
+        try:
+            ds.append(pd.Timestamp(int(y), int(m), int(d), h, int(mi), int(s)))
+        except ValueError:
+            continue
+    return max(ds).strftime("%Y-%m-%d %H:%M") if ds else ""
+
+
+def _gop_thuoc_tinh(co: pd.Series, them: pd.Series) -> pd.Series:
+    """Gộp thêm các khoá (dict mỗi dòng) vào chuỗi JSON thuộc tính đã có, chỉ giữ giá trị khác rỗng."""
+    kq = []
+    for a, b in zip(co.tolist(), them.tolist()):
+        d = json.loads(a) if a else {}
+        d.update({k: v for k, v in b.items() if v not in ("", None, 0)})
+        kq.append(json.dumps(d, ensure_ascii=False))
+    return pd.Series(kq)
+
+
 def _khung(**cot) -> pd.DataFrame:
     n = max((len(v) for v in cot.values() if not isinstance(v, str)), default=0)           # chữ đơn (loai) áp cho mọi dòng
     d = pd.DataFrame({k: pd.Series([v] * n) if isinstance(v, str) else pd.Series(v).reset_index(drop=True) for k, v in cot.items()})
@@ -115,11 +178,15 @@ def su_kien_tu_bang(d: pd.DataFrame) -> pd.DataFrame:
     """Một bảng đã đọc -> sự kiện chuẩn `KT_COT`. Không nhận ra loại file thì trả bảng rỗng."""
     k = loai_file(d.columns)
     if k == "ton":
+        cot_gc = next((c for c in d.columns if c.startswith("Ghi chú triển khai")), None)
+        gc = d[cot_gc].fillna("").astype(str).reset_index(drop=True) if cot_gc else pd.Series([""] * len(d))
+        them = pd.Series([{"ly_do": phan_loai_ghi_chu(t), "ghi_chu_luc": _moc_ghi_chu(t), "so_lan_phan_tuyen": t.lower().count("phân tuyến trên inside"),
+                           "so_lan_ptc_loi": t.count("Micro-PTC-NOT-OK")} for t in gc])
+        co = _thuoc_tinh(d, {"tinh_trang": "Tình trạng", "loai_trien_khai": "Loại triển khai", "hen_xanh": "TG Hẹn xanh", "hen_do": "TG Hẹn đỏ"}, ngay=("hen_xanh", "hen_do"))
         return _khung(so_hd=d["Số HĐ"], loai="ton_kt", thoi_diem=_t(d["TG tạo PTC"]), nguoi=_chu(d["Nhân sự"]), goi=_chu(d["Gói dịch vụ"]),
                       sale=_chu(d["Sale HĐ"]),
                       chi_tiet="Tồn Kỹ thuật: " + _chu(d["Tình trạng"]) + " - " + _chu(d["Loại triển khai"]),
-                      thuoc_tinh=_thuoc_tinh(d, {"tinh_trang": "Tình trạng", "loai_trien_khai": "Loại triển khai", "hen_xanh": "TG Hẹn xanh", "hen_do": "TG Hẹn đỏ"},
-                                             ngay=("hen_xanh", "hen_do")))
+                      thuoc_tinh=_gop_thuoc_tinh(co, them))
     if k == "trien_khai":
         hoan_tat = _t(d["Ngày hoàn tất PTC"]).fillna(_t(d["Ngày online"]))
         dung = _chu(d["Đúng hẹn"]).eq("1")
@@ -128,7 +195,10 @@ def su_kien_tu_bang(d: pd.DataFrame) -> pd.DataFrame:
                       chi_tiet="Triển khai: hẹn " + _chu(d["Số lần hẹn"]) + " lần, " + dung.map({True: "đúng hẹn", False: "không đúng hẹn"}),
                       thuoc_tinh=_thuoc_tinh(d.assign(**{"TGXL-72H": _so(d["TGXL-72H"]).round(1).map(lambda x: "" if pd.isna(x) else f"{x:g}")}),
                                              {"so_lan_hen": "Số lần hẹn", "loai_dich_vu": "Loại dịch vụ", "loai_giao_dich": "Loại giao dịch", "tgxl_72h": "TGXL-72H",
-                                                 "cap_indoor": "Indoor(m)", "cap_outdoor": "Outdoor(m)"}))
+                                                 "cap_indoor": "Indoor(m)", "cap_outdoor": "Outdoor(m)", "nguyen_nhan_l2": "Nguyên nhân tích L2", "don_vi_hen_l1": "Đơn vị hẹn L1",
+                                                 "tao_hd": "Ngày tạo hợp đồng", "tao_ptc": "TG tạo PTC", "phan_cong": "Tg phân công đầu", "nhan_tuyen": "Tg nhận tuyến đầu",
+                                                 "checkin": "Tg checkin cuối", "hoan_tat": "Ngày hoàn tất PTC", "online": "Ngày online"},
+                                             ngay=("tao_hd", "tao_ptc", "phan_cong", "nhan_tuyen", "checkin", "hoan_tat", "online")))
     if k == "checklist":
         return _khung(so_hd=d["Số HĐ"], loai="checklist", thoi_diem=_t(d["Tg tạo CL"]), nguoi=_chu(d["Nhân viên"]), so_lan=_so(d["Số lần lặp"]),
                       tg_online=_t(d["Tg online"]), chi_tiet="Checklist lặp lần thứ " + _chu(d["Số lần lặp"]) + " trong 30 ngày",
