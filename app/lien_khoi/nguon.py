@@ -26,6 +26,7 @@ COT_KD = ["so_hd", "ngay_tao", "ngay_online", "ngay_huy", "sale", "phong", "goi"
 COT_KT = ["so_hd", "loai", "thoi_diem", "chi_tiet", "nguoi", "so_lan", "thuoc_tinh"]
 COT_KD_THEM = ["cuoc_thang", "hinh_thuc_tt", "so_thang_tra_truoc", "so_tien_tra_truoc", "tien_hoa_mang", "chinh_sach", "doi_tuong", "nguon_ban", "cn_quan_ly"]
 COT_DICH_VU = ["so_hd", "nhom", "ten", "so_luong", "don_gia", "vvip"]
+COT_CUOC = ["so_hd", "ky_tu", "ky_den", "so_tien", "han_tt", "ngay_tt", "hinh_thuc"]
 
 
 def che_do() -> str:
@@ -132,6 +133,26 @@ def dich_vu_kem() -> pd.DataFrame:
     d = _csv("dich_vu")
     d["don_gia"] = pd.to_numeric(d["don_gia"], errors="coerce")
     return d[COT_DICH_VU]
+
+
+def cuoc() -> pd.DataFrame:
+    """Lịch sử kỳ cước của DVKH: mỗi dòng một kỳ của một hợp đồng (kỳ từ - đến, số tiền, hạn thanh toán, ngày đã thanh toán; trống = chưa thanh toán).
+    Minh hoạ: demo/lien_khoi/cuoc.csv. Dữ liệu thật: chưa có nguồn nên rỗng, các báo cáo cước tự ghi là chưa có nguồn."""
+    ngay = ["ky_tu", "ky_den", "han_tt", "ngay_tt"]
+    d = pd.DataFrame(columns=COT_CUOC)
+    if la_demo():
+        try:
+            d = _csv("cuoc", ngay)
+        except FileNotFoundError:
+            pass
+    for c in COT_CUOC:
+        if c not in d.columns:
+            d[c] = pd.NA
+    for c in ngay:
+        d[c] = pd.to_datetime(d[c], errors="coerce")
+    d["so_tien"] = pd.to_numeric(d["so_tien"], errors="coerce")
+    d["so_hd"] = _chuan(d["so_hd"])
+    return d[COT_CUOC]
 
 
 def nguoi_nhan() -> pd.DataFrame:

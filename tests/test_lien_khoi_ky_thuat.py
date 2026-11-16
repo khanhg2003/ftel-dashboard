@@ -126,7 +126,7 @@ def _doc_demo() -> dict[str, pd.DataFrame]:
 
 def test_bo_minh_hoa_khong_chua_ma_hop_dong_ten_hay_tai_khoan_that():
     d = _doc_demo()
-    assert set(d) == {"kd", "kt", "kt_block", "sr_bi_dong", "sr_chu_dong", "no_cuoc", "dich_vu", "nguoi_nhan"}
+    assert set(d) == {"kd", "kt", "kt_block", "sr_bi_dong", "sr_chu_dong", "no_cuoc", "dich_vu", "nguoi_nhan", "cuoc"}
     for ten, bang in d.items():
         assert not any(re.search(r"ten_kh|ten_khach|khach|dia_chi|sdt|phone|email", c, re.I) for c in bang.columns), ten      # không có cột nhạy cảm
         assert "so_hd" not in bang.columns or bang["so_hd"].str.fullmatch(r"MHAAA\d{4}").all(), ten                                          # mọi mã đều là mã giả

@@ -16,14 +16,14 @@ from app.lien_khoi import ho_so as hs
 from app.lien_khoi import luat, nguon, su_kien as sk
 from app.ui.components import alert, callback_can_quyen, card, ghi_chu, kpi, seg_control
 from app.ui.luoi import bang
-from app.ui.pages import lienkhoi_hq, lienkhoi_hs, lienkhoi_td
+from app.ui.pages import lienkhoi_hq, lienkhoi_hs, lienkhoi_td, lienkhoi_tq, phanloai
 
 QUYEN = "duoc_cau_hinh"
-TAB = [("viec", "Việc cần làm"), ("td", "Theo dõi & Zalo"), ("hq", "Hiệu quả"), ("hd", "Hồ sơ hợp đồng"), ("nguon", "Nguồn dữ liệu")]
+TAB = [("tongquan", "Dashboard"), ("pl", "Phân loại khách hàng"), ("viec", "Việc cần làm"), ("td", "Theo dõi & Zalo"), ("hq", "Hiệu quả"), ("hd", "Hồ sơ hợp đồng"), ("nguon", "Nguồn dữ liệu")]
 MUC_MAU = {"styleConditions": [{"condition": "params.value == 'Cao'", "style": {"color": "#b42318", "fontWeight": 600}},
                                {"condition": "params.value == 'Trung bình'", "style": {"color": "#b54708", "fontWeight": 600}}]}
 COT_VIEC = [
-    {"headerName": "Mã HĐ", "field": "so_hd", "width": 120, "pinned": "left"},
+    {"headerName": "Mã HĐ", "field": "so_hd", "width": 120, "pinned": "left", "cellClass": "o-bam"},
     {"headerName": "Luật", "field": "ten_luat", "width": 150},
     {"headerName": "Mức", "field": "muc", "width": 100, "cellStyle": MUC_MAU},
     {"headerName": "Giao sale", "field": "giao_sale", "width": 180},
@@ -60,7 +60,9 @@ def layout():
     an = {"display": "none"}
     return html.Div([
         alert(" ".join(GHI_CHU_DEMO), "warn") if nguon.la_demo() else ghi_chu(" ".join(GHI_CHU_THU), "Bản thử"),
-        html.Div(seg_control("lk-tab", TAB, "viec"), style={"margin": "10px 0 14px"}),
+        html.Div(seg_control("lk-tab", TAB, "tongquan"), style={"margin": "10px 0 14px"}),
+        html.Div(lienkhoi_tq.layout(), id="lk-tongquan"),
+        html.Div(phanloai.layout(), id="lk-pl", style=an),
         html.Div([
             html.Div(id="lk-kpi", className="kpi-row kpi-6"),
             card([
@@ -69,7 +71,7 @@ def layout():
                          style={"display": "flex", "alignItems": "center", "marginBottom": "10px"}),
                 bang("lk-luoi-viec", COT_VIEC, cao=560),
             ], title="Việc cần làm", desc="Mỗi dòng là một việc: ai nhận, vì sao. Người nhận chưa biết thì ghi tên hàng chờ. Mức Cao xếp trước."),
-        ], id="lk-viec"),
+        ], id="lk-viec", style=an),
         html.Div(lienkhoi_td.layout(), id="lk-td", style=an),
         html.Div(lienkhoi_hq.layout(), id="lk-hq", style=an),
         html.Div([
@@ -118,11 +120,19 @@ def register(app):
     cb = callback_can_quyen(app, QUYEN)
     lienkhoi_td.register(app)
     lienkhoi_hq.register(app)
+    lienkhoi_tq.register(app)
+    phanloai.register(app)
 
-    @cb(Output("lk-viec", "style"), Output("lk-td", "style"), Output("lk-hq", "style"), Output("lk-hd", "style"), Output("lk-nguon", "style"), Input("lk-tab", "value"))
+    @cb(Output("lk-tab", "value"), Output("lk-hd-ma", "value", allow_duplicate=True), Input("lk-luoi-viec", "cellClicked"), prevent_initial_call=True)
+    def _mo_ho_so(cell):
+        if not cell or cell.get("colId") != "so_hd":
+            raise PreventUpdate
+        return "hd", cell["value"]
+
+    @cb(Output("lk-tongquan", "style"), Output("lk-pl", "style"), Output("lk-viec", "style"), Output("lk-td", "style"), Output("lk-hq", "style"), Output("lk-hd", "style"), Output("lk-nguon", "style"), Input("lk-tab", "value"))
     def _hien(tab):
         an, hien = {"display": "none"}, {"display": "block"}
-        return tuple(hien if tab == k else an for k in ("viec", "td", "hq", "hd", "nguon"))
+        return tuple(hien if tab == k else an for k in ("tongquan", "pl", "viec", "td", "hq", "hd", "nguon"))
 
     @cb(Output("lk-kpi", "children"), Output("lk-luoi-viec", "rowData"), Input("lk-tab", "value"), Input("lk-luat", "value"))
     def _viec(tab, ma_luat):

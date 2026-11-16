@@ -75,6 +75,7 @@ def ho_so(so_hd: str) -> dict | None:
     ds = sk.danh_sach_dvkh()
     online, tao = kd.get("ngay_online"), kd.get("ngay_tao")
     ngay_tc = nguon.ngay_tham_chieu() or pd.Timestamp.today().normalize()
+    from app.lien_khoi import phan_loai
     co = {"da_online": bool(pd.notna(online)) if online is not None else None,
           "no_cuoc": bool(len(ds) and ((chuan_hd(ds["so_hd"]) == ma) & (ds["loai"] == "no_cuoc")).any()),
           "co_y_roi": bool((viec["luat"] == "co_y_roi").any()) if len(viec) else False,
@@ -83,7 +84,8 @@ def ho_so(so_hd: str) -> dict | None:
     muc = "Cao" if (len(viec) and (viec["muc"] == luat.CAO).any()) else ("Trung bình" if len(viec) else "Ổn")
     return {"ma": ma, "kd": kd, "kt": kt, "sr_bd": bd.sort_values("tg_yc", ascending=False).reset_index(drop=True) if len(bd) else bd,
             "sr_cd": cd.sort_values("tg_do", ascending=False).reset_index(drop=True) if len(cd) else cd, "viec": viec,
-            "nguoi": _nguoi(ma, kd, bd, cd, kt), "co": co, "muc": muc, "dong_thoi_gian": sk.dong_thoi_gian(ma)}
+            "nguoi": _nguoi(ma, kd, bd, cd, kt), "co": co, "muc": muc, "dong_thoi_gian": sk.dong_thoi_gian(ma),
+            "pl": phan_loai.cua_hop_dong(ma)}
 
 
 def hop_dong_goi_y(n: int = 8) -> list[str]:

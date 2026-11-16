@@ -151,9 +151,51 @@ def _the_thoi_gian(h: dict):
     return _the("Dòng thời gian (mới nhất ở trên)", muc or _trong("Chưa có sự kiện."), len(ev) or None)
 
 
+def _the_phan_loai(h: dict):
+    """Hợp đồng này thuộc nhóm khách hàng nào (chăm sóc chủ động / nhắc cước / bán thêm), vì sao và nên làm gì."""
+    nhom = (h.get("pl") or {}).get("nhom") or []
+    if not nhom:
+        return _the("Phân loại khách hàng", _trong("Hợp đồng này chưa thuộc nhóm nào cần hành động."))
+    lop = {"roi_mang": "bad", "nhac_cuoc": "warn", "ban_them": "ok"}
+    dong = [html.Div([html.Div([_badge(n["ten"], lop.get(n["ma"], "muted")), html.B(f"  {n['muc']}" if n.get("muc") else "")]),
+                      html.Div(n.get("goi_y") or n.get("ly_do") or ""), html.Div(f"Nên làm: {n['de_xuat']}", className="lk-ghi-chu")], className="lk-sk") for n in nhom]
+    return _the("Phân loại khách hàng", dong, len(nhom))
+
+
+def _the_cuoc(h: dict):
+    """Lịch sử kỳ cước và thanh toán (mới nhất ở trên)."""
+    p = h.get("pl") or {}
+    ky, tt, hom_nay = p.get("ky"), p.get("tom_tat") or {}, p.get("hom_nay")
+    if ky is None or not len(ky):
+        return _the("Lịch sử thanh toán cước", _trong("Chưa có kỳ cước nào cho hợp đồng này." if p.get("co_nguon_cuoc") else "Chưa nạp nguồn Lịch sử kỳ cước."))
+    dau = _kv([("Số kỳ đang xem", f"{tt['so_ky']} kỳ (12 tháng gần nhất)"), ("Chưa thanh toán", f"{tt['chua_tt']} kỳ · {_tien(tt['tien_chua_tt'])}" if tt["chua_tt"] else "Không"),
+               ("Đang quá hạn", f"{tt['qua_han']} kỳ" if tt["qua_han"] else ""), ("Đã trả trễ", f"{tt['tre']} kỳ" if tt["tre"] else "Chưa lần nào")])
+    def trang_thai(r):
+        if r["qua_han"]:
+            return _badge(f"Quá hạn {(hom_nay - r['han_tt']).days} ngày" if hom_nay is not None else "Quá hạn", "bad")
+        if r["chua_tt"]:
+            return _badge("Chưa tới hạn", "warn")
+        tre = (r["ngay_tt"].normalize() - r["han_tt"]).days
+        return _badge(f"Trả trễ {tre} ngày", "warn") if tre > 0 else _badge("Đúng hạn", "ok")
+    dong = [html.Div([html.Div([html.B(f"Kỳ {_ngay(r['ky_tu'])} – {_ngay(r['ky_den'])}"), html.Span(f" · {_tien(r['so_tien'])}", className="lk-ghi-chu"), trang_thai(r)], className="lk-badges"),
+                      html.Div(f"Hạn {_ngay(r['han_tt'])}" + (f" · thanh toán {_ngay(r['ngay_tt'])}" + (f" · {_chu(r['hinh_thuc'])}" if _chu(r["hinh_thuc"]) else "") if not r["chua_tt"] else ""),
+                               className="lk-ghi-chu")], className="lk-sk") for _, r in ky.iterrows()]
+    return _the("Lịch sử thanh toán cước", [dau, *dong], len(ky))
+
+
+def _the_thoi_gian(h: dict):
+    ev = h["dong_thoi_gian"]
+    muc = [html.Div([html.Div(className=f"lk-cham {LOP_KHOI.get(r['nguon'], '')}"),
+                     html.Div([html.Div([html.B(sk.TEN_LOAI.get(r["loai"], r["loai"])), html.Span(f" · {sk.TEN_KHOI.get(r['nguon'], '')} · {_ngay(r['thoi_diem'], True)}", className="lk-ghi-chu")]),
+                               html.Div(_chu(r["chi_tiet"]), className="lk-ghi-chu"), html.Div(_chu(r["nguoi"]), className="lk-ghi-chu")])], className="lk-moc")
+           for _, r in ev.iloc[::-1].iterrows()]
+    return _the("Dòng thời gian (mới nhất ở trên)", muc or _trong("Chưa có sự kiện."), len(ev) or None)
+
+
 def noi_dung(h: dict):
     """Toàn bộ hồ sơ một hợp đồng."""
-    return html.Div([_dau(h), _o_chi_so(h), _the_viec(h), html.Div([_the_kd(h), _the_kt(h), _the_dvkh(h)], className="lk-luoi"), _the_thoi_gian(h)])
+    return html.Div([_dau(h), _o_chi_so(h), html.Div([_the_phan_loai(h), _the_viec(h)], className="lk-luoi lk-luoi-2"), html.Div([_the_kd(h), _the_kt(h), _the_dvkh(h)], className="lk-luoi"),
+                     _the_cuoc(h), _the_thoi_gian(h)])
 
 
 __all__ = ["noi_dung", "_dong"]
