@@ -213,3 +213,24 @@ def test_zalo_bot_khong_gui_that_o_che_do_minh_hoa_khi_tra_loi(ql, monkeypatch):
     zl.xu_ly("tpkd_01", "viec", T0)
     h = td.hop_thu().to_dict("records")
     assert any(r["loai"] == "phan_hoi" and r["kenh"] == "gia_lap" for r in h) and any(r["loai"] == "nhan_tu_nguoi" for r in h)
+
+
+# ------------------------------------------------------------------ điều khiển demo từ Zalo
+def test_lenh_demo_chi_chay_khi_thu_zalo_gui_nhac_lui_va_moi(thu_zalo, monkeypatch):
+    f, gui = thu_zalo
+    f.write_text(json.dumps({"KD": "chat-a", "DVKH": "chat-a", "KT": "chat-a", "BGD": "chat-a"}), encoding="utf-8")
+    _dat(monkeypatch)
+    assert "Nhắn demo gui" in zl.xu_ly("chat-a", "demo moi", T0)
+    assert "ĐIỀU KHIỂN DEMO" in zl.xu_ly("chat-a", "menu", T0)
+    n = len(gui)
+    r = zl.xu_ly("chat-a", "demo gui", T0)
+    assert "Đã gửi" in r and len(gui) > n                                        # tin tổng hợp thật tới chat đã đăng ký
+    assert "Đã lùi đồng hồ" in zl.xu_ly("chat-a", "demo lui 25", T0)
+    assert td.gio_gia_lap() >= 25
+    assert "Đã nhắc quản lý" in zl.xu_ly("chat-a", "demo nhac", T0)
+    assert "Lệnh demo:" in zl.xu_ly("chat-a", "demo", T0)
+
+
+def test_lenh_demo_bi_tu_choi_khi_khong_phai_che_do_thu_zalo(ql):
+    assert "chỉ dùng khi chạy thử Zalo" in zl.xu_ly("tpkd_01", "demo gui", T0)
+    assert "ĐIỀU KHIỂN DEMO" not in zl.xu_ly("tpkd_01", "menu", T0)

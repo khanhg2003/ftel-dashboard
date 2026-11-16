@@ -255,7 +255,8 @@ def danh_sach(now: datetime | None = None) -> pd.DataFrame:
     for c in ("tao_luc", "han_luc"):
         d[c] = pd.to_datetime(d[c])
     ds = nguoi_nhan().fillna("")
-    d["quan_ly"] = d["nguoi"].map(lambda m: quan_ly_cua(m, ds))
+    ql = {r.ma: (str(r.quan_ly or "") if r.vai_tro == "nhan_vien" else str(r.ma)) for r in ds.itertuples()}      # như `quan_ly_cua` nhưng tính một lần (map từng dòng làm trang chậm hàng giây)
+    d["quan_ly"] = d["nguoi"].map(ql).fillna("")
     d["con_lai_gio"] = ((d["han_luc"] - pd.Timestamp(now)).dt.total_seconds() / 3600).round(1)
     d["dang_mo"] = d["trang_thai"].isin(MO)
     d["qua_han"] = d["dang_mo"] & (d["con_lai_gio"] < 0)

@@ -12,7 +12,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from app.lien_khoi import dieu_phoi as dp, nguon, theo_doi as td, zalo_viec as zv
+from app.lien_khoi import dieu_phoi as dp, luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
 
 TOI_DA_VIEC_XEM = 6
 TEN_VAI = {"KD": "Kinh doanh", "DVKH": "Dịch vụ khách hàng", "KT": "Kỹ thuật", "BGD": "Ban giám đốc"}
@@ -71,6 +71,10 @@ def menu(ma: str, vai_thu: list[str], hien: str = "") -> str:
     s.them("\n\nLÀM", "b", NHO, XAM)
     for lenh, mo_ta in (("giao MÃ MÃ cho TÊN", "giao việc"), ("chia deu", "chia đều việc hàng chờ cho nhân viên"), ("xong MÃ", "báo đã xong"), ("khong duoc MÃ lý do", "báo không làm được")):
         s.them("\n• ").them(lenh, "b").them(f" – {mo_ta}")
+    if vai_thu:
+        s.them("\n\nĐIỀU KHIỂN DEMO", "b", NHO, XAM)
+        for lenh, mo_ta in (("demo gui", "gửi tin giao việc cho các quản lý"), ("demo lui 25", "lùi đồng hồ 25 giờ"), ("demo nhac", "chạy nhắc và báo giám đốc"), ("demo moi", "làm lại từ đầu")):
+            s.them("\n• ").them(lenh, "b").them(f" – {mo_ta}")
     s.them("\n\nViệc nhiều thì làm trên app (chọn nhiều dòng, xuất Excel):", NHO, XAM).them(f"\n{zv.lien_ket_app(ma)}", XANH)
     return zv._cat_tin(s.xong())
 
@@ -165,6 +169,30 @@ def chia_deu(ma: str, now: datetime | None = None) -> str:
     return "\n".join(dong)
 
 
+def demo(chu_goc: str, vai_thu: list[str]) -> str:
+    """Điều khiển kịch bản demo ngay từ Zalo (CHỈ khi chạy thử Zalo, tức bộ minh hoạ + người thử đã đăng ký): `demo gui` (lấy việc mới và gửi tin tổng hợp cho các quản lý),
+    `demo nhac` (nhắc quá hạn và báo giám đốc), `demo lui [giờ]` (lùi đồng hồ minh hoạ, mặc định 25 giờ), `demo moi` (làm lại từ đầu, nạp 14 ngày mô phỏng)."""
+    if not vai_thu or zv.kenh() != "zalo_thu":
+        return "Lệnh demo chỉ dùng khi chạy thử Zalo với dữ liệu minh hoạ."
+    g = dp.bo_dau(chu_goc)
+    if re.search(r"\bmoi\b|\blam lai\b|\breset\b", g):
+        r = mp.chuan_bi_demo()
+        return f"Đã làm lại demo từ đầu: {r['mo_phong']} phần việc lịch sử và {r['moi']} việc mới hôm nay (chưa gửi). Nhắn demo gui để gửi tin cho các quản lý."
+    if re.search(r"\bgui\b", g):
+        td.dong_bo(luat.danh_sach_viec())
+        r = zv.gui_viec_moi()
+        return f"Đã gửi {r['tin']} tin tổng hợp cho {r['nguoi']} quản lý ({r['viec']} phần việc). Tin của 4 vai đại diện về chat này, mỗi tin ghi rõ gửi thay cho ai."
+    if re.search(r"\bnhac\b", g):
+        r = zv.chay_nhac()
+        return f"Đã nhắc quản lý {r['nhac']} phần việc quá hạn và báo giám đốc chi nhánh {r.get('viec_bao', 0)} việc quá {td.cau_hinh_gio()[1]} giờ chưa xong."
+    if re.search(r"\blui\b", g):
+        n = re.search(r"\d+", g)
+        gio = td.them_gio_gia_lap(float(n.group()) if n else 25.0)
+        r = mp.tien_thoi_gian()
+        return f"Đã lùi đồng hồ minh hoạ, tổng cộng {gio:.0f} giờ. Người nhận mô phỏng đã làm xong {r['xong']} phần việc, không làm được {r['khong_lam_duoc']}, mới nhận {r['da_nhan']}. Nhắn demo nhac để chạy nhắc."
+    return "Lệnh demo: demo gui · demo nhac · demo lui 25 · demo moi."
+
+
 def doi_vai(nguoi: str, vai_thu: list[str], chu: str) -> str:
     if not vai_thu:
         return "Lệnh vai chỉ dùng khi thử nghiệm một người đóng nhiều vai."
@@ -204,6 +232,8 @@ def _tra_loi(ma: str, nguoi: str, vai_thu: list[str], chu: str, now: datetime):
         return menu(ma, vai_thu, hien)
     if re.match(r"^vai\b", g):
         return doi_vai(nguoi, vai_thu, chu)
+    if re.match(r"^demo\b", g):
+        return demo(chu, vai_thu)
     if re.search(r"\b(excel|xlsx|tai file|xuat file|xuat)\b", g):
         return f"File Excel việc đang mở của anh/chị (mở bằng tài khoản Quản trị trên app, có sheet riêng từng nhân viên để gửi thẳng):\n{zv.lien_ket_excel(ma)}"
     if re.search(r"\b(tong ket|bao cao|tong quan|tom tat|so lieu)\b", g):

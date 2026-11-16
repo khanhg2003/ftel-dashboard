@@ -114,6 +114,9 @@ def _cap_nhat_nhan_su_ibb6() -> None:
     - Thu Vân (DNG.VanNTT107): chuyển trạng thái 'Nghỉ tạm thời' -> 'Bình thường'.
     - ThuNA54 (DNG.ThuNA54): thêm vào staff_map (phòng IBB6) và hr_monthly (thâm niên 2 tháng, 'Bình thường').
     """
+    import os
+    if os.getenv("LIEN_KHOI_NGUON") == "demo":          # bản demo công khai: không chèn nhân sự thật vào database minh hoạ
+        return
     from sqlalchemy import inspect, text
     try:
         insp = inspect(engine)
