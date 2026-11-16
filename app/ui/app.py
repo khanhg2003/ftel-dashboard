@@ -100,10 +100,12 @@ def healthz():
 from app.api_ads import bp as _api_ads  # noqa: E402
 from app.api_ban_tin import bp as _api_ban_tin  # noqa: E402
 from app.api_zalo_gia import bp as _api_zalo_gia  # noqa: E402
+from app.api_lead import bp as _api_lead  # noqa: E402
 
 server.register_blueprint(_api_ads)
 server.register_blueprint(_api_ban_tin)
 server.register_blueprint(_api_zalo_gia)
+server.register_blueprint(_api_lead)
 
 
 @server.before_request
@@ -116,6 +118,8 @@ def _bat_buoc_dang_nhap():
     if path.startswith("/api/ban-tin/"):      # n8n làm đồng hồ Bản tin 8h: xác thực bằng khoá (app/api_ban_tin.py)
         return None
     if path.startswith("/api/zalo-gia/"):     # bot Zalo Tra cứu giá: xác thực bằng khoá webhook (app/api_zalo_gia.py)
+        return None
+    if path.startswith("/api/lead/"):         # cron cảnh báo SLA lead + webhook Messenger: tự xác thực (app/api_lead.py)
         return None
     if not current_user.is_authenticated:
         if path.startswith("/_dash"):
@@ -153,6 +157,7 @@ NAV = [
     ("Phòng & nhân sự", [
         ("/phong", "Báo cáo phòng", "table", "nhansu"),
         ("/phongonline", "Phòng Online", "table", None),
+        ("/leads", "Lead Online", "phone", None),
         ("/hr", "Nhân sự & NSLĐ", "users", "nhansu"),
     ]),
     ("Phân tích", [
@@ -472,6 +477,9 @@ def _router(path, search=None, store=None):
     if path == "/phongonline":
         from app.ui.pages import phongonline
         return phongonline.layout(ky), phongonline.topbar()
+    if path == "/leads":
+        from app.ui.pages import leads as leads_page
+        return leads_page.layout(), leads_page.topbar()
     if path == "/phantich":
         return phantich.layout(ky), phantich.topbar()
     if path in ("/tracking", "/sosanh"):
@@ -528,7 +536,8 @@ def _register_pages():
     from app.ui.pages import baocaongay, danhba, giafpt, nhapton, quantri_ban_tin, soanmail
     from app.ui.pages import dvkh as dvkh_page
     from app.ui.pages import phongonline
-    for mod in (dvkh_page, tongquan, phong, phongonline, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
+    from app.ui.pages import leads as leads_page
+    for mod in (dvkh_page, tongquan, phong, phongonline, leads_page, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
                 danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin):
         mod.register(app)
