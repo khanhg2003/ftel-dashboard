@@ -287,8 +287,49 @@ def test_script_dang_ky_thu_zalo_doc_chu_khoi_khong_dau_va_ghi_file(thu_zalo, mo
     spec = importlib.util.spec_from_file_location("lk_zalo_thu", Path(__file__).resolve().parents[1] / "scripts" / "lien_khoi_zalo_thu.py")
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
-    assert [m._vai_tu_tin(x) for x in ("KD", " dvkh ", "kt", "BGĐ", "bgd xin chào", "hello", "")] == ["KD", "DVKH", "KT", "BGD", "BGD", "", ""]
+    assert [m._cac_vai(x) for x in ("KD", " dvkh ", "kt", "BGĐ", "hello", "")] == [["KD"], ["DVKH"], ["KT"], ["BGD"], [], []]
+    assert m._cac_vai("KD\nDVKH\nKT\nBGD") == ["KD", "DVKH", "KT", "BGD"] and m._cac_vai("kd, kt; kd") == ["KD", "KT"]       # nhiều chữ trong một tin, bỏ trùng
+    assert m._cac_vai("ALL") == ["KD", "DVKH", "KT", "BGD"] and m._cac_vai("tất cả") == ["KD", "DVKH", "KT", "BGD"] and m._cac_vai("Tat Ca") == ["KD", "DVKH", "KT", "BGD"]
     assert m._che("abcdefghij") == "abc…hij" and m._che("abc") == "abc"
     f, _ = thu_zalo
     m._ghi({"KD": "x1"})
     assert zv.dai_dien_thu() == {"KD": "x1"} and m.main("go") == 0 and not f.exists()
+
+
+# ------------------------------------------------------------------ bot tự chủ động (script chạy tự động)
+def _nap_script_tu_dong():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("lk_chay_tu_dong", Path(__file__).resolve().parents[1] / "scripts" / "lien_khoi_chay_tu_dong.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_chay_tu_dong_bot_tu_gui_nhac_va_bao_giam_doc_khong_gui_trung(tmp_path, monkeypatch):
+    from app.bo_nho import xoa
+    monkeypatch.setenv("LIEN_KHOI_NGUON", "demo")
+    monkeypatch.setenv("LIEN_KHOI_DB", str(tmp_path / "td.db"))
+    monkeypatch.delenv("LIEN_KHOI_TIN_CHO", raising=False)
+    monkeypatch.delenv("LIEN_KHOI_ZALO_TOKEN", raising=False)
+    monkeypatch.delenv("LIEN_KHOI_ZALO_GUI", raising=False)
+    monkeypatch.setattr(zalo_bot, "gui_tin", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Chạy minh hoạ không được gửi thật")))
+    xoa()
+    m = _nap_script_tu_dong()
+    assert m.main(["--chuan-bi", "--so-vong", "3", "--moi", "0", "--gio-moi-vong", "25"]) == 0
+    h = td.hop_thu(500)
+    dem = h["loai"].value_counts().to_dict()
+    assert dem["giao"] == 11                                                   # vòng 1: mỗi quản lý một tin tổng hợp, các vòng sau không gửi lại
+    assert dem["nhac"] > 0 and dem["quan_ly"] == 1                             # vòng 2 nhắc quản lý, vòng 3 báo giám đốc chi nhánh một tin
+    assert set(h[h["loai"] == "quan_ly"]["den_nguoi"]) == {"gd_01"} and set(h["kenh"]) == {"gia_lap"}
+    xoa()
+
+
+def test_chay_tu_dong_gio_moi_vong_va_chuan_bi_chi_dung_duoc_o_che_do_minh_hoa(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("LIEN_KHOI_NGUON", "that")
+    monkeypatch.setenv("LIEN_KHOI_DB", str(tmp_path / "td.db"))
+    m = _nap_script_tu_dong()
+    assert m.main(["--chuan-bi", "--so-vong", "1"]) == 1
+    with pytest.raises(RuntimeError):
+        m.mot_vong(24)
+    assert "chỉ dùng được ở chế độ minh hoạ" in capsys.readouterr().out

@@ -1,0 +1,86 @@
+"""Chạy TỰ ĐỘNG hướng điều hành liên khối: bot tự lấy việc từ các luật, gửi tin tổng hợp cho quản lý, nhắc quá hạn và báo giám đốc chi nhánh (không phải bấm nút).
+
+    python scripts/lien_khoi_chay_tu_dong.py [--moi PHUT] [--gio-moi-vong GIO] [--so-vong N] [--chuan-bi]
+
+- Mỗi vòng làm đủ ba bước như bấm tay ở tab Theo dõi & Zalo: lấy việc từ các luật -> gửi việc mới -> nhắc quá hạn và báo giám đốc chi nhánh.
+  Việc đã gửi / đã nhắc / đã báo thì KHÔNG gửi lại, nên chạy lặp an toàn.
+- `--moi PHUT`: nghỉ bao nhiêu phút giữa hai vòng (mặc định 15).
+- `--so-vong N`: dừng sau N vòng (mặc định 0 = chạy mãi, dừng bằng Ctrl+C).
+- CHỈ minh hoạ: `--chuan-bi` làm lại từ đầu (xoá trạng thái cũ, nạp 14 ngày mô phỏng và việc hôm nay) trước vòng đầu;
+  `--gio-moi-vong GIO` cho đồng hồ minh hoạ chạy tới GIO giờ trước mỗi vòng (người nhận mô phỏng làm việc theo đó). Ví dụ `--moi 1 --gio-moi-vong 24`: mỗi PHÚT thật là một NGÀY của
+  bản minh hoạ, nên bot tự gửi tin giao việc (vòng 1), nhắc (vòng 2) và báo giám đốc chi nhánh (vòng 3) mà anh chỉ ngồi xem.
+- Kênh gửi theo cấu hình như trên app (`zalo_viec.kenh()`): minh hoạ mặc định chỉ ghi hộp thư; chế độ THỬ ZALO gửi thật tới người đã đăng ký.
+Dùng chung file trạng thái với trang web, nên có thể mở trang cùng lúc để xem kết quả.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
+GOC = Path(__file__).resolve().parent.parent
+os.chdir(GOC)
+sys.path.insert(0, str(GOC))
+os.environ.setdefault("LIEN_KHOI_NGUON", "demo")                      # mặc định CHẠY MINH HOẠ; muốn dùng dữ liệu thật phải đặt LIEN_KHOI_NGUON=that rõ ràng
+if os.environ["LIEN_KHOI_NGUON"].strip().lower() == "demo":
+    (GOC / "data").mkdir(exist_ok=True)
+    os.environ.setdefault("DATABASE_URL", "sqlite:///" + (GOC / "data" / "demo_lien_khoi.db").as_posix())      # không chạm database của app
+
+
+def mot_vong(gio_moi_vong: float = 0.0) -> str:
+    """Một vòng tự động; trả về dòng tóm tắt. `gio_moi_vong` > 0 chỉ dùng được ở chế độ minh hoạ."""
+    from app.lien_khoi import luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
+    if gio_moi_vong > 0:
+        if not nguon.la_demo():
+            raise RuntimeError("--gio-moi-vong chỉ dùng được ở chế độ minh hoạ (LIEN_KHOI_NGUON=demo).")
+        td.them_gio_gia_lap(gio_moi_vong)
+        mp.tien_thoi_gian()
+    dong_bo = td.dong_bo(luat.danh_sach_viec())
+    gui = zv.gui_viec_moi()
+    nhac = zv.chay_nhac()
+    return (f"giờ hệ thống {td.bay_gio():%d/%m %H:%M} · kênh {zv.kenh()} · việc mới {dong_bo['moi']} · đã gửi {gui['tin']} tin cho {gui['nguoi']} quản lý ({gui['viec']} việc) · "
+            f"nhắc {nhac['nhac']} việc quá hạn · báo giám đốc {nhac.get('viec_bao', nhac['bao_quan_ly'])} việc")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Chạy tự động điều hành liên khối")
+    ap.add_argument("--moi", type=float, default=15, help="nghỉ bao nhiêu phút giữa hai vòng")
+    ap.add_argument("--so-vong", type=int, default=0, help="dừng sau N vòng (0 = chạy mãi)")
+    ap.add_argument("--gio-moi-vong", type=float, default=0, help="CHỈ minh hoạ: cho đồng hồ chạy tới thêm GIO giờ trước mỗi vòng")
+    ap.add_argument("--chuan-bi", action="store_true", help="CHỈ minh hoạ: làm lại từ đầu trước vòng đầu")
+    a = ap.parse_args(argv)
+    if a.chuan_bi:
+        from app.lien_khoi import mo_phong as mp, nguon
+        if not nguon.la_demo():
+            print("--chuan-bi chỉ dùng được ở chế độ minh hoạ (LIEN_KHOI_NGUON=demo).")
+            return 1
+        r = mp.chuan_bi_demo()
+        print(f"Đã chuẩn bị: {r['mo_phong']} phần việc mô phỏng của 14 ngày qua và {r['moi']} phần việc mới hôm nay.")
+    vong = 0
+    try:
+        while True:
+            vong += 1
+            gio = a.gio_moi_vong if vong > 1 else 0.0                          # vòng đầu chạy ngay ở "hôm nay"; các vòng sau mới cho đồng hồ chạy tới
+            try:
+                print(f"[{datetime.now():%H:%M:%S}] Vòng {vong}: {mot_vong(gio)}", flush=True)
+            except RuntimeError as e:
+                print(str(e))
+                return 1
+            if a.so_vong and vong >= a.so_vong:
+                break
+            time.sleep(max(a.moi, 0) * 60)
+    except KeyboardInterrupt:
+        print("\nĐã dừng.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

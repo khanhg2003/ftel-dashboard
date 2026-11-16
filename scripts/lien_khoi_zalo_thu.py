@@ -2,7 +2,7 @@
 
 Chạy:  python scripts/lien_khoi_zalo_thu.py dang-ky | xem | thu | go
 
-- dang-ky: chờ tin nhắn gửi cho bot. Người thử nhắn đúng một chữ: KD, DVKH, KT hoặc BGD. Script ghi mã chat của họ vào `data/zalo_thu.json` (cùng cách `getUpdates`, không cần địa chỉ https).
+- dang-ky: chờ tin nhắn gửi cho bot. Người thử nhắn các chữ KD, DVKH, KT, BGD (có thể nhiều chữ trong một tin, hoặc ALL cho cả bốn vai). Script ghi mã chat của họ vào `data/zalo_thu.json` (cùng cách `getUpdates`, không cần địa chỉ https).
 - xem: in danh sách đã đăng ký (che bớt mã chat).
 - thu: gửi một tin thử cho từng người đã đăng ký.
 - go: xoá file đăng ký (tắt chế độ thử).
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import unicodedata
@@ -57,9 +58,14 @@ def _cac_su_kien(kq: dict) -> list[dict]:
     return [r] if isinstance(r, dict) and r else []
 
 
-def _vai_tu_tin(chu: str) -> str:
-    t = _bo_dau(chu).strip().replace("đ", "d")
-    return {"kd": "KD", "dvkh": "DVKH", "kt": "KT", "bgd": "BGD"}.get(t.split()[0] if t.split() else "", "")
+def _cac_vai(chu: str) -> list[str]:
+    """Các vai trong một tin: mỗi chữ KD / DVKH / KT / BGD (không phân biệt hoa thường, dấu, xuống dòng hay dấu phẩy); "ALL" hoặc "tất cả" là cả bốn vai."""
+    goc = _bo_dau(chu).strip()
+    chu_ = [t for t in re.split(r"[\s,;.]+", goc) if t]
+    if "tat ca" in goc or any(t in ("all", "tatca") for t in chu_):
+        return list(TEN_VAI)
+    anh_xa = {"kd": "KD", "dvkh": "DVKH", "kt": "KT", "bgd": "BGD"}
+    return list(dict.fromkeys(anh_xa[t] for t in chu_ if t in anh_xa))
 
 
 def dang_ky(token: str) -> int:
@@ -68,34 +74,43 @@ def dang_ky(token: str) -> int:
     try:
         url = zalo_bot.thong_tin_webhook(token).get("url")
     except zalo_bot.LoiZalo as e:
-        print(f"Không kiểm tra được bot: {e}")
-        return 1
+        if "404" not in str(e):                                       # Zalo trả 404 khi bot chưa đặt webhook: đó là trường hợp bình thường
+            print(f"Không kiểm tra được bot: {e}")
+            return 1
+        url = None
     if url:
         print("Bot đang gắn webhook nên không đọc tin bằng getUpdates được. Chạy trước: python scripts/lien_khoi_webhook.py go")
         return 1
     d = _doc()
-    print("Chờ người thử nhắn cho bot đúng một chữ: KD, DVKH, KT hoặc BGD (nhấn Ctrl+C để dừng).")
+    print("Chờ người thử nhắn cho bot: KD, DVKH, KT, BGD (nhiều chữ trong một tin được, hoặc ALL cho cả bốn vai). Nhấn Ctrl+C để dừng.")
     print("Đã có:", ", ".join(f"{k}={_che(v)}" for k, v in d.items()) or "(chưa ai)")
     try:
         while set(d) < set(TEN_VAI):
             try:
                 kq = zalo_bot._goi_api("getUpdates", {"timeout": "30"}, han=45, token=token)
             except zalo_bot.LoiZalo as e:
+                if "408" in str(e):                                       # hết thời gian chờ mà chưa có tin mới: bình thường với long polling, hỏi tiếp ngay
+                    continue
                 print(f"Zalo báo: {e}. Thử lại sau 5 giây.")
                 time.sleep(5)
                 continue
             for sk in _cac_su_kien(kq):
                 t = doc_tin(sk)
-                if not t or t["la_bot"] or t["loai_chat"] not in ("", "PRIVATE"):
+                if not t:
+                    print(f"Nhận một sự kiện nhưng không đọc được nội dung tin chữ: {str(sk.get('event_name') or '(không rõ loại)')[:60]}")
                     continue
-                vai = _vai_tu_tin(t["text"])
-                if not vai:
-                    zalo_bot.gui_tin(t["chat_id"], "Bạn nhắn giúp đúng một chữ để đăng ký vai thử nghiệm: KD (Kinh doanh), DVKH, KT (Kỹ thuật) hoặc BGD (Ban giám đốc).", token=token)
+                print(f"Nhận tin từ {_che(t['chat_id'])} ({t['loai_chat'] or 'không rõ loại chat'}): {t['text'][:40]!r}")
+                if t["la_bot"] or t["loai_chat"] not in ("", "PRIVATE"):
                     continue
-                d[vai] = t["chat_id"]
+                vais = _cac_vai(t["text"])
+                if not vais:
+                    zalo_bot.gui_tin(t["chat_id"], "Bạn nhắn giúp các chữ để đăng ký vai thử nghiệm: KD (Kinh doanh), DVKH, KT (Kỹ thuật), BGD (Ban giám đốc), hoặc ALL để nhận cả bốn vai.", token=token)
+                    continue
+                for vai in vais:
+                    d[vai] = t["chat_id"]
                 _ghi(d)
-                zalo_bot.gui_tin(t["chat_id"], f"Đã ghi nhận bạn là đại diện {TEN_VAI[vai]} trong lần thử hệ thống Điều hành liên khối. Dữ liệu là dữ liệu minh hoạ, không có khách hàng thật.", token=token)
-                print(f"Đã ghi {vai} = {_che(t['chat_id'])}. Còn thiếu: {', '.join(sorted(set(TEN_VAI) - set(d))) or '(đủ)'}")
+                zalo_bot.gui_tin(t["chat_id"], "Đã ghi nhận bạn là đại diện: " + ", ".join(TEN_VAI[v] for v in vais) + ". Dữ liệu trong lần thử hệ thống Điều hành liên khối là dữ liệu minh hoạ, không có khách hàng thật.", token=token)
+                print(f"Đã ghi {', '.join(vais)} = {_che(t['chat_id'])}. Còn thiếu: {', '.join(sorted(set(TEN_VAI) - set(d))) or '(đủ)'}")
     except KeyboardInterrupt:
         print("\nĐã dừng.")
     print("Đã đăng ký:", ", ".join(f"{k}={_che(v)}" for k, v in d.items()) or "(chưa ai)")
