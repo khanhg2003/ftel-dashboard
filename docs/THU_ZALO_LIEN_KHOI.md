@@ -66,10 +66,40 @@ Trang web dùng chung file trạng thái, mở tab **Theo dõi & Zalo** hoặc *
 
 Dùng dữ liệu thật về sau (không phải bản thử): đặt `LIEN_KHOI_NGUON=that`, nạp danh sách người nhận thật, bot Zalo riêng, rồi chạy `python scripts/lien_khoi_chay_tu_dong.py --moi 15` (hoặc đặt thành dịch vụ). `--gio-moi-vong` và `--chuan-bi` chỉ dùng được ở bản minh hoạ.
 
+## Bot hai chiều: quản lý nhắn lệnh, bot trả lời
+Mở thêm MỘT cửa sổ PowerShell (cùng biến môi trường token như Bước 2) rồi chạy:
+
+```powershell
+python scripts/lien_khoi_zalo_nghe.py
+```
+
+Bot đang chạy thì quản lý nhắn cho bot (không phân biệt hoa thường và dấu). Một người đóng cả 4 vai thì mặc định đang ở vai Ban giám đốc (thấy hết), nhắn `vai KD` / `vai DVKH` / `vai KT` / `vai BGD` để đổi.
+
+| Nhắn | Bot trả lời |
+|---|---|
+| `menu` | các lệnh |
+| `viec` | số việc đang mở, 6 việc nên xử lý trước, link mở app |
+| `qua han` · `chua giao` | việc quá hạn · việc chưa giao ai |
+| `MHAAA0001` (hoặc `chi tiet MHAAA0001`) | chi tiết hợp đồng: từng phần việc, người phụ trách, lý do, đề xuất |
+| `giao MHAAA0001 MHAAA0002 cho Sale 01` | giao việc (chỉ phần việc đúng khối của người nhận; tên trùng thì hỏi lại) |
+| `chia deu` | chia đều các việc HÀNG CHỜ cho nhân viên đúng khối, ai đang ít việc nhất nhận trước |
+| `xong MHAAA0001` · `khong duoc MHAAA0001 lý do` | cập nhật trạng thái |
+| `tong ket` | số liệu hôm nay: đang mở, quá hạn, chưa giao, xong 24 giờ qua, theo từng team |
+| `excel` | link tải file Excel |
+
+Số lượng việc lớn thì làm trên app (chọn nhiều dòng, nút **Chia đều việc hàng chờ**, nút **Xuất Excel**): bot chỉ lo xem nhanh và giao gọn.
+
+## Xuất Excel để gửi cho nhân sự
+Trang **Theo dõi & Zalo** có nút **Xuất Excel** (link trong tin bot cũng mở đúng trang này). File theo đúng quản lý ở ô *Tôi là* và bộ lọc *Xem*: sheet **Tất cả việc**, sheet **Theo nhân viên** (tổng hợp), rồi mỗi nhân viên một sheet riêng để gửi thẳng cho họ. Không có tên khách hàng. Cần đăng nhập app bằng tài khoản Quản trị.
+
+## Bot chủ động thêm
+- Việc phát sinh thêm sau tin đầu tiên của ngày được gửi thành tin riêng "VIỆC MỚI PHÁT SINH".
+- `python scripts/lien_khoi_chay_tu_dong.py ... --tong-ket` gửi thêm tin TỔNG KẾT cho từng quản lý còn việc (mỗi người một tin mỗi ngày).
+
 ## Câu hỏi nên hỏi người nhận tin
 Xem `docs/THU_NGHIEM_NGUOI_DUNG.md`.
 
 ## Cách hoạt động (cho người sửa code)
 `zalo_viec.kenh()` trả "zalo_thu" khi chạy minh hoạ VÀ có `LIEN_KHOI_ZALO_TOKEN`, `LIEN_KHOI_ZALO_GUI=1` và file `data/zalo_thu.json` (`{"KD": "<mã chat>", ...}`).
 Chỉ các quản lý trong `MA_DAI_DIEN_THU` (tpkd_01, tn_dvkh_01, dh_kt_01, gd_01) được gửi thật. Có test chặn gửi nhầm (`tests/test_lien_khoi_quan_ly.py`).
-Đăng ký dùng `getUpdates` (long polling, không cần địa chỉ https); bot đang gắn webhook thì chạy `python scripts/lien_khoi_webhook.py go` trước.
+Đăng ký và bot nghe lệnh đều dùng `getUpdates` (long polling, không cần địa chỉ https); bot đang gắn webhook thì chạy `python scripts/lien_khoi_webhook.py go` trước. Lệnh nhắn của quản lý xử lý ở `app/lien_khoi/zalo_lenh.py`, việc giao / chia đều / tổng kết ở `dieu_phoi.py` (dùng chung với nút trên app), Excel ở `xuat.py`.

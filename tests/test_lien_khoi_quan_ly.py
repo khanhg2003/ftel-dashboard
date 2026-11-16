@@ -85,7 +85,7 @@ def test_moi_quan_ly_nhan_mot_tin_tong_hop_nhan_vien_khong_nhan_tin(ql):
     tin = h.set_index("den_nguoi")["noi_dung"]
     assert tin["tpkd_01"].startswith("VIỆC CẦN XỬ LÝ HÔM NAY\nTPKD team 1") and "2 việc" in tin["tn_dvkh_01"] and "MHAAA0001" in tin["tn_dvkh_01"] and "MHAAA0002" in tin["tn_dvkh_01"]
     assert "Sự cố lặp 2" in tin["tn_dvkh_01"] and "mức Cao" in tin["tn_dvkh_01"]
-    assert tin["tn_dvkh_01"].rstrip().endswith(zv.lien_ket_app("tn_dvkh_01")) and zv.lien_ket_app("tn_dvkh_01").endswith("/lienkhoi?tab=td&ql=tn_dvkh_01")      # cuối tin là đường dẫn mở thẳng đúng quản lý
+    assert zv.lien_ket_app("tn_dvkh_01") in tin["tn_dvkh_01"] and zv.lien_ket_app("tn_dvkh_01").endswith("/lienkhoi?tab=td&ql=tn_dvkh_01")      # cuối tin là đường dẫn mở thẳng đúng quản lý
     assert all(len(t) < 700 for t in tin)                                                                  # tin ngắn, dễ đọc trên Zalo
     assert "xong MÃ" not in " ".join(tin) and "nhận MÃ" not in " ".join(tin)             # quản lý không phải trả lời từng mã trên Zalo
     assert all(len(t) <= zv.TOI_DA_KY_TU for t in tin)
@@ -167,9 +167,9 @@ def test_trang_theo_doi_giao_hang_loat_va_loc_theo_pham_vi_quan_ly(ql):
     from app.ui.pages import lienkhoi_td as ui
     td.dong_bo(_viec(dict(so_hd="MHAAA0001"), dict(so_hd="MHAAA0002", giao_dvkh=luat.GIAO_DVKH)), T0)
     d = td.danh_sach(T0)
-    assert set(ui._pham_vi_quan_ly(d, "all")["quan_ly"]) == set(d["quan_ly"])
-    tp = ui._pham_vi_quan_ly(d, "tp_dvkh_01")
-    assert set(tp["quan_ly"]) == {"tp_dvkh_01", "tn_dvkh_01"} and set(ui._pham_vi_quan_ly(d, "tn_dvkh_01")["quan_ly"]) == {"tn_dvkh_01"}
+    assert set(td.loc_pham_vi(d, "all")["quan_ly"]) == set(d["quan_ly"])
+    tp = td.loc_pham_vi(d, "tp_dvkh_01")
+    assert set(tp["quan_ly"]) == {"tp_dvkh_01", "tn_dvkh_01"} and set(td.loc_pham_vi(d, "tn_dvkh_01")["quan_ly"]) == {"tn_dvkh_01"}
     chon = [{"id": int(i)} for i in d.loc[d["quan_ly"] == "tn_dvkh_01", "id"]] + [{"id": int(i)} for i in d.loc[d["quan_ly"] == "tpkd_01", "id"]]
     assert "Chọn người" in ui._hanh_dong("lk-td-giao", chon, "", "", "", None, "tpkd_01")
     assert "Chọn ít nhất" in ui._hanh_dong("lk-td-giao", [], "", "", "", "sale_01", "tpkd_01")

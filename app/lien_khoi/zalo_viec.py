@@ -117,6 +117,21 @@ def _gui_thu(ma: str, loai: str, chu: str, now: datetime) -> str:
     return kq
 
 
+def tra_loi_chat(ma: str, chat_id: str, noi, now: datetime) -> str:
+    """Bot trả lời ĐÚNG chat vừa nhắn (không đi qua cơ chế "gửi thay" của chế độ thử), kèm ghi hộp thư. Chạy minh hoạ không có token thì chỉ ghi hộp thư."""
+    k = kenh()
+    if k in ("zalo_thu", "zalo") and chat_id:
+        try:
+            zalo_bot.gui_tin_du_phong(chat_id, noi, token=os.environ["LIEN_KHOI_ZALO_TOKEN"])
+            kq = "ok"
+        except zalo_bot.LoiZalo as e:
+            kq = f"loi: {e}"
+    else:
+        kq = "thieu_chat_id" if k == "zalo" else k
+    td.ghi_hop_thu(ma or chat_id, chat_id, "phan_hoi", str(noi), k, kq, now)
+    return kq
+
+
 def _da_giao(kq: str) -> bool:
     """Tin coi là đã tới tay (hoặc đã giả lập) thì mới đánh dấu "đã gửi"; chưa cấu hình / lỗi thì lượt sau gửi lại."""
     return kq in ("ok", "gia_lap")
@@ -163,11 +178,19 @@ def _chu_nguoi(ds: pd.DataFrame) -> dict:
 TOI_DA_VIEC_CAO = 3
 
 
+def goc_app() -> str:
+    """Gốc địa chỉ app: `LIEN_KHOI_APP_URL`, hoặc `APP_URL`, mặc định bản xem thử trên máy (http://127.0.0.1:8060, chỉ mở được trên chính máy đang chạy)."""
+    return (os.getenv("LIEN_KHOI_APP_URL") or os.getenv("APP_URL") or "http://127.0.0.1:8060").strip().rstrip("/")
+
+
 def lien_ket_app(ma_ql: str = "") -> str:
-    """Đường dẫn mở thẳng trang Theo dõi của app với đúng quản lý đã chọn sẵn (`ma_ql` rỗng hoặc "all": xem mọi team). Gốc địa chỉ: `LIEN_KHOI_APP_URL`, hoặc `APP_URL`,
-    mặc định bản xem thử trên máy (http://127.0.0.1:8060, chỉ mở được trên chính máy đang chạy)."""
-    goc = (os.getenv("LIEN_KHOI_APP_URL") or os.getenv("APP_URL") or "http://127.0.0.1:8060").strip().rstrip("/")
-    return f"{goc}/lienkhoi?tab=td&ql={ma_ql or 'all'}"
+    """Đường dẫn mở thẳng trang Theo dõi của app với đúng quản lý đã chọn sẵn (`ma_ql` rỗng hoặc "all": xem mọi team)."""
+    return f"{goc_app()}/lienkhoi?tab=td&ql={ma_ql or 'all'}"
+
+
+def lien_ket_excel(ma_ql: str = "", loc: str = "mo") -> str:
+    """Đường dẫn tải Excel của đúng quản lý (cần đăng nhập app bằng tài khoản Quản trị)."""
+    return f"{goc_app()}/lien-khoi/xuat.xlsx?ql={ma_ql or 'all'}&loc={loc}"
 
 
 def _ngan(chu: str, n: int = 70) -> str:
@@ -201,7 +224,7 @@ def _cat_tin(tin, n: int = TOI_DA_KY_TU):
     return _cat(tin, n)
 
 
-def soan_tong_hop(ten: str, rows: list, han_gio: int, ds: dict, ma_ql: str = "") -> list[str]:
+def soan_tong_hop(ten: str, rows: list, han_gio: int, ds: dict, ma_ql: str = "", them: bool = False) -> list[str]:
     """MỘT tin tổng hợp cho một quản lý, ngắn và có phân cấp để đọc nhanh trên Zalo: tiêu đề lớn, số việc đậm (mức Cao màu đỏ), nhãn nhỏ,
     loại việc và người nhiều việc nhất, 3 việc mức Cao nên giao trước, cuối tin là ĐƯỜNG DẪN mở thẳng danh sách đầy đủ của quản lý đó trên app."""
     cao = [r for r in rows if r["muc"] == "Cao"]
@@ -211,7 +234,7 @@ def soan_tong_hop(ten: str, rows: list, han_gio: int, ds: dict, ma_ql: str = "")
         theo_luat[r["ten_luat"]] = theo_luat.get(r["ten_luat"], 0) + 1
         k = "Chưa có người phụ trách" if r["nguoi_goc"] else _ten(ds, r["nguoi"])
         theo_nguoi[k] = theo_nguoi.get(k, 0) + 1
-    s = _soan().them("VIỆC CẦN XỬ LÝ HÔM NAY", "b", CO_LON, XANH_DUONG).them(f"\n{ten}", "b")
+    s = _soan().them("VIỆC MỚI PHÁT SINH" if them else "VIỆC CẦN XỬ LÝ HÔM NAY", "b", CO_LON, XANH_DUONG).them(f"\n{ten}", "b")
     s.them(f"\n\n{len(rows)} việc", "b", CO_LON).them("  ·  ").them(f"{len(cao)} mức Cao", "b", CO_LON, DO)
     s.them(f"\ncần có kết quả trong {han_gio} giờ", CO_NHO, XAM)
     s.them("\n\nNHIỀU NHẤT", "b", CO_NHO, XAM).them("\n")
@@ -227,6 +250,9 @@ def soan_tong_hop(ten: str, rows: list, han_gio: int, ds: dict, ma_ql: str = "")
         if len(cao) > TOI_DA_VIEC_CAO:
             s.them(f"\n(còn {len(cao) - TOI_DA_VIEC_CAO} việc mức Cao khác)", CO_NHO, XAM)
     s.them(f"\n\n👉 Xem đủ {len(rows)} việc và giao việc:", "b").them(f"\n{lien_ket_app(ma_ql)}", XANH_DUONG)
+    s.them("\n\nHoặc nhắn lại bot: ", CO_NHO, XAM)
+    for i, lenh in enumerate(("viec", "chia deu", "excel", "menu")):
+        s.them(" · " if i else "", CO_NHO, XAM).them(lenh, "b", CO_NHO)
     return [_cat_tin(s.xong())]
 
 
@@ -245,11 +271,12 @@ def _gui_tong_hop(now: datetime) -> dict:
         return {"nguoi": 0, "viec": 0, "tin": 0}
     han, _ = td.cau_hinh_gio()
     ds = _chu_nguoi(td.nguoi_nhan())
+    da_co = set(d.loc[d["dang_mo"] & d["da_gui_luc"].notna() & thuc(d), "quan_ly"])      # quản lý đã nhận tin tổng hợp trước đó: lần này là đợt việc mới phát sinh
     d = d[d["dang_mo"] & d["da_gui_luc"].isna() & thuc(d)]
     n_ql = n_viec = n_tin = 0
     for ma, rows in _theo_quan_ly(d, ds).items():
         p = ds.get(ma, {"ten": ma or "(chưa có quản lý)", "chat_id": ""})
-        kq = [_gui(ma or "(chưa có quản lý)", p.get("chat_id", ""), "giao", chu, now) for chu in soan_tong_hop(p.get("ten") or ma, rows, han, ds, ma)]
+        kq = [_gui(ma or "(chưa có quản lý)", p.get("chat_id", ""), "giao", chu, now) for chu in soan_tong_hop(p.get("ten") or ma, rows, han, ds, ma, ma in da_co)]
         n_tin += len(kq)
         if all(_da_giao(x) for x in kq):
             td.danh_dau([r["id"] for r in rows], "da_gui_luc", now)
@@ -390,6 +417,9 @@ def doc_lenh(chu: str) -> tuple[str | None, list[str], str]:
 def xu_ly_tra_loi(nguoi: str, chu: str, now: datetime | None = None) -> str:
     """Người nhận (mã hoặc mã chat Zalo) trả lời bằng chữ; cập nhật trạng thái và trả về câu phản hồi (cũng được gửi / ghi hộp thư)."""
     now = now or td.bay_gio()
+    if tin_cho() == "quan_ly":                                                  # quản lý nhắn lệnh cho bot (xem việc, giao, chia đều, tổng kết, excel...)
+        from app.lien_khoi import zalo_lenh
+        return zalo_lenh.xu_ly(nguoi, chu, now)
     ds = td.nguoi_nhan().fillna("")
     kt = ds[(ds["ma"] == nguoi) | ((ds["chat_id"] == nguoi) & (ds["chat_id"] != ""))]
     ma = str(kt["ma"].iloc[0]) if len(kt) else ""

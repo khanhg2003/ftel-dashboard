@@ -5,6 +5,7 @@
 - Mỗi vòng làm đủ ba bước như bấm tay ở tab Theo dõi & Zalo: lấy việc từ các luật -> gửi việc mới -> nhắc quá hạn và báo giám đốc chi nhánh.
   Việc đã gửi / đã nhắc / đã báo thì KHÔNG gửi lại, nên chạy lặp an toàn.
 - `--moi PHUT`: nghỉ bao nhiêu phút giữa hai vòng (mặc định 15).
+- `--tong-ket`: gửi thêm tin tổng kết cho từng quản lý còn việc (mỗi người một tin mỗi ngày).
 - `--so-vong N`: dừng sau N vòng (mặc định 0 = chạy mãi, dừng bằng Ctrl+C).
 - CHỈ minh hoạ: `--chuan-bi` làm lại từ đầu (xoá trạng thái cũ, nạp 14 ngày mô phỏng và việc hôm nay) trước vòng đầu;
   `--gio-moi-vong GIO` cho đồng hồ minh hoạ chạy tới GIO giờ trước mỗi vòng (người nhận mô phỏng làm việc theo đó). Ví dụ `--moi 1 --gio-moi-vong 24`: mỗi PHÚT thật là một NGÀY của
@@ -35,9 +36,9 @@ if os.environ["LIEN_KHOI_NGUON"].strip().lower() == "demo":
     os.environ.setdefault("DATABASE_URL", "sqlite:///" + (GOC / "data" / "demo_lien_khoi.db").as_posix())      # không chạm database của app
 
 
-def mot_vong(gio_moi_vong: float = 0.0) -> str:
+def mot_vong(gio_moi_vong: float = 0.0, tong_ket: bool = False) -> str:
     """Một vòng tự động; trả về dòng tóm tắt. `gio_moi_vong` > 0 chỉ dùng được ở chế độ minh hoạ."""
-    from app.lien_khoi import luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
+    from app.lien_khoi import luat, mo_phong as mp, nguon, theo_doi as td, zalo_lenh, zalo_viec as zv
     if gio_moi_vong > 0:
         if not nguon.la_demo():
             raise RuntimeError("--gio-moi-vong chỉ dùng được ở chế độ minh hoạ (LIEN_KHOI_NGUON=demo).")
@@ -46,8 +47,9 @@ def mot_vong(gio_moi_vong: float = 0.0) -> str:
     dong_bo = td.dong_bo(luat.danh_sach_viec())
     gui = zv.gui_viec_moi()
     nhac = zv.chay_nhac()
+    tk = f" · tổng kết {zalo_lenh.gui_tong_ket()['tin']} tin" if tong_ket else ""
     return (f"giờ hệ thống {td.bay_gio():%d/%m %H:%M} · kênh {zv.kenh()} · việc mới {dong_bo['moi']} · đã gửi {gui['tin']} tin cho {gui['nguoi']} quản lý ({gui['viec']} việc) · "
-            f"nhắc {nhac['nhac']} việc quá hạn · báo giám đốc {nhac.get('viec_bao', nhac['bao_quan_ly'])} việc")
+            f"nhắc {nhac['nhac']} việc quá hạn · báo giám đốc {nhac.get('viec_bao', nhac['bao_quan_ly'])} việc{tk}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -55,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--moi", type=float, default=15, help="nghỉ bao nhiêu phút giữa hai vòng")
     ap.add_argument("--so-vong", type=int, default=0, help="dừng sau N vòng (0 = chạy mãi)")
     ap.add_argument("--gio-moi-vong", type=float, default=0, help="CHỈ minh hoạ: cho đồng hồ chạy tới thêm GIO giờ trước mỗi vòng")
+    ap.add_argument("--tong-ket", action="store_true", help="mỗi vòng gửi thêm tin TỔNG KẾT cho từng quản lý (mỗi người một tin mỗi ngày)")
     ap.add_argument("--chuan-bi", action="store_true", help="CHỈ minh hoạ: làm lại từ đầu trước vòng đầu")
     a = ap.parse_args(argv)
     if a.chuan_bi:
@@ -70,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
             vong += 1
             gio = a.gio_moi_vong if vong > 1 else 0.0                          # vòng đầu chạy ngay ở "hôm nay"; các vòng sau mới cho đồng hồ chạy tới
             try:
-                print(f"[{datetime.now():%H:%M:%S}] Vòng {vong}: {mot_vong(gio)}", flush=True)
+                print(f"[{datetime.now():%H:%M:%S}] Vòng {vong}: {mot_vong(gio, a.tong_ket)}", flush=True)
             except RuntimeError as e:
                 print(str(e))
                 return 1

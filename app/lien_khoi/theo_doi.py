@@ -178,6 +178,20 @@ def pham_vi(ma_ql: str, ds: pd.DataFrame) -> set[str]:
     return kq
 
 
+def loc_pham_vi(d: pd.DataFrame, ma_ql: str | None) -> pd.DataFrame:
+    """Việc thuộc phạm vi một quản lý: team của họ và team của các quản lý cấp dưới. Rỗng hoặc "all" = giám đốc chi nhánh, thấy hết."""
+    if d.empty or not ma_ql or ma_ql == "all":
+        return d
+    return d[d["quan_ly"].isin(pham_vi(ma_ql, nguoi_nhan().fillna("")))]
+
+
+def loc_trang_thai(d: pd.DataFrame, loc: str | None) -> pd.DataFrame:
+    """Lọc theo ô "Xem": mo (đang mở) | qua_han | một trạng thái | all."""
+    if d.empty or loc in (None, "", "all"):
+        return d
+    return d[d["qua_han"]] if loc == "qua_han" else (d[d["dang_mo"]] if loc == "mo" else d[d["trang_thai"] == loc])
+
+
 def _nguoi_giao(r, ds: pd.DataFrame) -> list[tuple[str, str, str]]:
     """Việc này giao cho ai: [(vai_tro, mã người, nguồn gốc)]. Hàng chờ -> đội trưởng khối đó; "không có trong file bán hàng" thì không có người nhận."""
     out = []
@@ -288,6 +302,15 @@ def ghi_moc(gio_xu_ly: float | None, ty_le_dung_han: float | None) -> None:
             _ghi("DELETE FROM cai_dat WHERE khoa=?", (k,))
         else:
             _ghi("INSERT INTO cai_dat (khoa, gia_tri) VALUES (?, ?) ON CONFLICT(khoa) DO UPDATE SET gia_tri=excluded.gia_tri", (k, str(float(v))))
+
+
+def doc_cai_dat(khoa: str, mac_dinh: str = "") -> str:
+    r = _cau("SELECT gia_tri FROM cai_dat WHERE khoa=?", (khoa,))
+    return str(r[0]["gia_tri"]) if r and r[0]["gia_tri"] is not None else mac_dinh
+
+
+def ghi_cai_dat(khoa: str, gia_tri: str) -> None:
+    _ghi("INSERT INTO cai_dat (khoa, gia_tri) VALUES (?, ?) ON CONFLICT(khoa) DO UPDATE SET gia_tri=excluded.gia_tri", (khoa, str(gia_tri)))
 
 
 def tom_tat(d: pd.DataFrame) -> dict:

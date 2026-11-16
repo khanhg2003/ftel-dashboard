@@ -8,7 +8,7 @@ import pandas as pd
 from dash import Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
 
-from app.lien_khoi import luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
+from app.lien_khoi import dieu_phoi as dp, luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
 from app.ui.components import alert, callback_can_quyen, card, kpi
 from app.ui.luoi import bang
 
@@ -44,7 +44,7 @@ COT_THU = [
     {"headerName": "Loại", "field": "loai_ten", "width": 140}, {"headerName": "Kết quả", "field": "ket_qua", "width": 120},
     {"headerName": "Nội dung tin", "field": "noi_dung", "minWidth": 420, "flex": 1, "wrapText": True, "autoHeight": True},
 ]
-TEN_LOAI_TIN = {"giao": "Giao việc", "nhac": "Nhắc quá hạn", "quan_ly": "Báo quản lý", "phan_hoi": "Phản hồi của bot", "nhan_tu_nguoi": "Người trả lời"}
+TEN_LOAI_TIN = {"giao": "Giao việc", "nhac": "Nhắc quá hạn", "quan_ly": "Báo quản lý", "phan_hoi": "Phản hồi của bot", "nhan_tu_nguoi": "Người trả lời", "tong_ket": "Tổng kết"}
 TEN_HANH_DONG = {"giao": "Hệ thống tạo việc", "giao_cho": "Quản lý giao cho nhân viên", "mo_lai": "Dấu hiệu quay lại", "tu_het": "Hết dấu hiệu"}
 LOC = [("mo", "Đang mở"), ("qua_han", "Quá hạn"), ("da_xong", "Đã xong"), ("khong_lam_duoc", "Không làm được"), ("tu_het", "Hết dấu hiệu"), ("all", "Tất cả")]
 
@@ -75,19 +75,6 @@ def _dong(d: pd.DataFrame) -> list[dict]:
     return out.drop(columns=["han_luc", "da_gui_luc", "nhac_luc", "bao_quan_ly_luc"]).to_dict("records")
 
 
-def _loc(d: pd.DataFrame, ma: str) -> pd.DataFrame:
-    if d.empty or ma == "all":
-        return d
-    return d[d["qua_han"]] if ma == "qua_han" else (d[d["dang_mo"]] if ma == "mo" else d[d["trang_thai"] == ma])
-
-
-def _pham_vi_quan_ly(d: pd.DataFrame, ma_ql: str) -> pd.DataFrame:
-    """Việc thuộc phạm vi một quản lý: team của họ và team của các quản lý cấp dưới. "all" = giám đốc chi nhánh, thấy hết."""
-    if d.empty or not ma_ql or ma_ql == "all":
-        return d
-    return d[d["quan_ly"].isin(td.pham_vi(ma_ql, td.nguoi_nhan().fillna("")))]
-
-
 def _ds_quan_ly() -> list[dict]:
     ds = td.nguoi_nhan().fillna("")
     ql = ds[ds["vai_tro"].isin(td.VAI_TRO_QUAN_LY) & (ds["vai_tro"] != "giam_doc")]
@@ -116,12 +103,15 @@ def layout(ql: str | None = None):
                                                                                          clearable=False, style={"width": "200px"})],
                      style={"display": "flex", "alignItems": "center", "marginBottom": "10px"}),
             bang("lk-td-luoi", COT_TD, cao=420, tuy_chon={"rowSelection": {"mode": "multiRow", "checkboxes": False, "headerCheckbox": False, "enableClickSelection": True}}),
-            html.Div([dcc.Dropdown(id="lk-td-giao-cho", placeholder="Giao cho (chọn người của team)", style={"width": "300px"}), nut("lk-td-giao", "Giao các việc đã chọn", "btn primary"),
+            html.Div([html.A("Xuất Excel", id="lk-td-xlsx", href="/lien-khoi/xuat.xlsx", className="btn primary", style={"textDecoration": "none"}),
+                      html.Span("Cả danh sách đang xem (theo ô Tôi là và ô Xem), gồm một sheet riêng cho từng nhân viên để gửi thẳng cho họ.", className="lk-ghi-chu")],
+                     className="lk-badges", style={"marginBottom": "10px"}),
+            html.Div([dcc.Dropdown(id="lk-td-giao-cho", placeholder="Giao cho (chọn người của team)", style={"width": "300px"}), nut("lk-td-giao", "Giao các việc đã chọn", "btn primary"), nut("lk-td-chia-deu", "Chia đều việc hàng chờ"),
                       nut("lk-td-xong", "Đã xong"), nut("lk-td-khong", "Không làm được"),
                       dcc.Input(id="lk-td-lydo", type="text", className="inp", placeholder="Lý do (bắt buộc khi không làm được)", style={"width": "280px"})],
                      className="lk-badges", style={"marginTop": "10px"}),
             html.Div(id="lk-td-chon", className="lk-ghi-chu", style={"marginTop": "6px"}),
-            html.Div("Chọn nhiều dòng (giữ Ctrl hoặc Shift, hoặc bấm từng dòng), chọn người rồi bấm Giao một lần. Quản lý làm việc này trên app, không phải trả lời từng mã trên Zalo.",
+            html.Div("Chọn nhiều dòng (giữ Ctrl hoặc Shift, hoặc bấm từng dòng), chọn người rồi bấm Giao một lần. Quản lý làm việc này trên app, không phải trả lời từng mã trên Zalo. Nút Chia đều việc hàng chờ tự giao các việc chưa có người phụ trách cho nhân viên đúng khối, ai đang ít việc nhất nhận trước.",
                      className="lk-ghi-chu", style={"marginTop": "6px"}),
             html.Div(id="lk-td-nhat-ky", style={"marginTop": "10px"}),
         ], title="Trạng thái từng phần việc", desc="Mỗi dòng là phần việc của MỘT nhân viên (sale, DVKH hoặc Kỹ thuật) với một hợp đồng, do quản lý team đó nhận tin và giao. Quá hạn xếp trước. Chọn tên quản lý ở ô Tôi là để xem đúng phần việc của team."),
@@ -171,6 +161,13 @@ def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str, giao_cho: str | 
         r = mp.chuan_bi_demo()
         return (f"Đã chuẩn bị demo: nạp {r['mo_phong']} phần việc MÔ PHỎNG của 14 ngày qua và {r['moi']} phần việc mới hôm nay (chưa gửi). "
                 "Sang tab Hiệu quả để xem số đo; ở đây bấm \"2. Gửi việc mới qua Zalo\" để chạy kịch bản.")
+    if ma == "lk-td-chia-deu":
+        boi = ql if ql and ql != "all" else td.giam_doc(td.nguoi_nhan().fillna(""))
+        r = dp.chia_deu(boi)
+        if not r["giao"] and not r["thieu_nguoi"]:
+            return "Không còn việc hàng chờ nào chưa giao trong phạm vi này."
+        return (f"Đã chia đều {r['giao']} phần việc hàng chờ: " + ", ".join(f"{t} {n}" for t, n in r["theo_nguoi"].items())
+                + (f". {r['thieu_nguoi']} việc chưa chia được vì team không có nhân viên đúng khối." if r["thieu_nguoi"] else "."))
     if ma == "lk-td-tl-gui":
         if not nguoi or not (chu or "").strip():
             return "Chọn người nhận và gõ câu trả lời."
@@ -192,7 +189,7 @@ def _hanh_dong(ma: str, chon, ly_do: str, nguoi: str, chu: str, giao_cho: str | 
 
 def register(app):
     cb = callback_can_quyen(app, QUYEN)
-    nut = ["lk-td-dongbo", "lk-td-gui", "lk-td-nhac", "lk-td-lui1", "lk-td-lui2", "lk-td-reset", "lk-td-chuan-bi", "lk-td-giao", "lk-td-xong", "lk-td-khong", "lk-td-tl-gui"]
+    nut = ["lk-td-dongbo", "lk-td-gui", "lk-td-nhac", "lk-td-lui1", "lk-td-lui2", "lk-td-reset", "lk-td-chuan-bi", "lk-td-giao", "lk-td-chia-deu", "lk-td-xong", "lk-td-khong", "lk-td-tl-gui"]
 
     @cb(Output("lk-td-thongbao", "children"), Output("lk-td-tick", "data"), *[Input(i, "n_clicks") for i in nut],
         State("lk-td-luoi", "selectedRows"), State("lk-td-lydo", "value"), State("lk-td-tl-nguoi", "value"), State("lk-td-tl-chu", "value"),
@@ -214,7 +211,7 @@ def register(app):
     def _ve(tab, _tick, loc, ql):
         if tab != "td":
             raise PreventUpdate
-        d = _pham_vi_quan_ly(td.danh_sach(), ql)
+        d = td.loc_pham_vi(td.danh_sach(), ql)
         if len(d):                                                                  # việc THẬT hôm nay lên trước lịch sử mô phỏng (giữ nguyên thứ tự quá hạn / mức Cao bên trong mỗi nhóm)
             d = d.assign(_mp=d["mo_phong"].fillna(0)).sort_values("_mp", kind="stable").drop(columns="_mp")
         thu = td.hop_thu()
@@ -224,7 +221,11 @@ def register(app):
         dong_ho = f"Giờ hệ thống: {_vn(td.bay_gio())}" + (f" (đã lùi {gio:.0f} giờ để xem nhắc / báo quản lý)" if gio else "")
         nguoi = [{"label": f"{r['ten']} ({r['ma']})", "value": r["ma"]} for r in td.nguoi_nhan().fillna("").to_dict("records")]
         kenh = alert(NHAN_KENH[zv.kenh()], "warn" if zv.kenh() != "zalo" else "ok")
-        return kenh, _kpi_hang(d), _dong(_loc(d, loc)) if len(d) else [], thu.to_dict("records"), dong_ho, nguoi
+        return kenh, _kpi_hang(d), _dong(td.loc_trang_thai(d, loc)) if len(d) else [], thu.to_dict("records"), dong_ho, nguoi
+
+    @cb(Output("lk-td-xlsx", "href"), Input("lk-td-ql", "value"), Input("lk-td-loc", "value"))
+    def _duong_xuat(ql, loc):
+        return f"/lien-khoi/xuat.xlsx?ql={ql or 'all'}&loc={loc or 'mo'}"
 
     @cb(Output("lk-td-giao-cho", "options"), Output("lk-td-giao-cho", "value"), Input("lk-td-ql", "value"))
     def _giao_cho(ql):
