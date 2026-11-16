@@ -94,7 +94,7 @@ def _ds_quan_ly() -> list[dict]:
     return [{"label": "Tất cả (giám đốc chi nhánh xem)", "value": "all"}] + [{"label": f"{r['ten']} ({r['ma']})", "value": r["ma"]} for r in ql.to_dict("records")]
 
 
-def layout():
+def layout(ql: str | None = None):
     nut = lambda id_, chu, lop="btn": html.Button(chu, id=id_, n_clicks=0, className=lop)
     gia_lap = nguon.la_demo()
     return html.Div([
@@ -111,7 +111,7 @@ def layout():
         ], title="Giao việc", desc="Bước 1 đưa việc từ các luật vào bảng theo dõi (việc cũ giữ nguyên trạng thái). Bước 2 gửi cho từng QUẢN LÝ một tin tổng hợp việc của team (nhân viên không nhận tin). Bước 3 nhắc việc quá 24 giờ và báo quản lý khi quá 48 giờ."),
         html.Div(id="lk-td-kpi", className="kpi-row kpi-6"),
         card([
-            html.Div([html.Label("Tôi là", style={"marginRight": "8px"}), dcc.Dropdown(id="lk-td-ql", options=_ds_quan_ly(), value="all", clearable=False, style={"width": "340px"}),
+            html.Div([html.Label("Tôi là", style={"marginRight": "8px"}), dcc.Dropdown(id="lk-td-ql", options=_ds_quan_ly(), value=ql if ql in {o["value"] for o in _ds_quan_ly()} else "all", clearable=False, style={"width": "340px"}),
                       html.Label("Xem", style={"margin": "0 8px 0 18px"}), dcc.Dropdown(id="lk-td-loc", options=[{"label": t, "value": k} for k, t in LOC], value="mo",
                                                                                          clearable=False, style={"width": "200px"})],
                      style={"display": "flex", "alignItems": "center", "marginBottom": "10px"}),

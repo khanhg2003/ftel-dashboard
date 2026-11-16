@@ -83,8 +83,10 @@ def test_moi_quan_ly_nhan_mot_tin_tong_hop_nhan_vien_khong_nhan_tin(ql):
     h = td.hop_thu()
     assert set(h["den_nguoi"]) == {"tpkd_01", "tpkd_02", "tn_dvkh_01", "dh_kt_01"} and set(h["loai"]) == {"giao"} and set(h["kenh"]) == {"gia_lap"}
     tin = h.set_index("den_nguoi")["noi_dung"]
-    assert "Chào TPKD team 1" in tin["tpkd_01"] and "2 việc" in tin["tn_dvkh_01"] and "MHAAA0001" in tin["tn_dvkh_01"] and "MHAAA0002" in tin["tn_dvkh_01"]
-    assert "Sự cố lặp (2)" in tin["tn_dvkh_01"] and "mức Cao" in tin["tn_dvkh_01"] and zv.GHI_CHU_APP in tin["tn_dvkh_01"]
+    assert tin["tpkd_01"].startswith("VIỆC CẦN XỬ LÝ HÔM NAY · TPKD team 1") and "2 việc" in tin["tn_dvkh_01"] and "MHAAA0001" in tin["tn_dvkh_01"] and "MHAAA0002" in tin["tn_dvkh_01"]
+    assert "Sự cố lặp 2" in tin["tn_dvkh_01"] and "mức Cao" in tin["tn_dvkh_01"]
+    assert tin["tn_dvkh_01"].rstrip().endswith(zv.lien_ket_app("tn_dvkh_01")) and zv.lien_ket_app("tn_dvkh_01").endswith("/lienkhoi?tab=td&ql=tn_dvkh_01")      # cuối tin là đường dẫn mở thẳng đúng quản lý
+    assert all(len(t) < 700 for t in tin)                                                                  # tin ngắn, dễ đọc trên Zalo
     assert "xong MÃ" not in " ".join(tin) and "nhận MÃ" not in " ".join(tin)             # quản lý không phải trả lời từng mã trên Zalo
     assert all(len(t) <= zv.TOI_DA_KY_TU for t in tin)
     assert zv.gui_viec_moi(T0) == {"nguoi": 0, "viec": 0, "tin": 0}                      # đã gửi thì không gửi lại
@@ -96,7 +98,7 @@ def test_tin_tong_hop_ghi_viec_hang_cho_la_chua_co_nguoi_phu_trach_va_gioi_han_v
     td.dong_bo(_viec(*dong, dict(so_hd="MHAAA0099")), T0)
     zv.gui_viec_moi(T0)
     tin = td.hop_thu().set_index("den_nguoi").loc["tp_dvkh_01", "noi_dung"]
-    assert "Chưa có người phụ trách (8)" in tin and "... và 3 việc mức Cao nữa" in tin and tin.count("MHAAA") == zv.TOI_DA_VIEC_CAO
+    assert "Chưa có người phụ trách (8)" in tin and "(còn 5 việc mức Cao khác)" in tin and tin.count("MHAAA") == zv.TOI_DA_VIEC_CAO
     assert "8 việc" in tin and "nan" not in tin and "None" not in tin
 
 
@@ -333,3 +335,19 @@ def test_chay_tu_dong_gio_moi_vong_va_chuan_bi_chi_dung_duoc_o_che_do_minh_hoa(t
     with pytest.raises(RuntimeError):
         m.mot_vong(24)
     assert "chỉ dùng được ở chế độ minh hoạ" in capsys.readouterr().out
+
+
+def test_duong_dan_trong_tin_mo_thang_tab_theo_doi_va_chon_san_quan_ly(monkeypatch):
+    import json
+    from app.ui.pages import lienkhoi, lienkhoi_td
+    monkeypatch.delenv("LIEN_KHOI_APP_URL", raising=False)
+    monkeypatch.delenv("APP_URL", raising=False)
+    assert zv.lien_ket_app("tpkd_01") == "http://127.0.0.1:8060/lienkhoi?tab=td&ql=tpkd_01" and zv.lien_ket_app("").endswith("ql=all")
+    monkeypatch.setenv("LIEN_KHOI_APP_URL", "https://app.example.vn/")
+    assert zv.lien_ket_app("gd_01") == "https://app.example.vn/lienkhoi?tab=td&ql=gd_01"
+    monkeypatch.setenv("LIEN_KHOI_NGUON", "demo")
+    chu = json.dumps(lienkhoi_td.layout("tn_dvkh_01").to_plotly_json(), default=lambda o: o.to_plotly_json(), ensure_ascii=False)
+    assert '"id": "lk-td-ql"' in chu and '"value": "tn_dvkh_01"' in chu                                 # mở ra là đã chọn sẵn quản lý trong đường dẫn
+    assert '"value": "all", "clearable": false' in json.dumps(lienkhoi_td.layout("khong_co").to_plotly_json(), default=lambda o: o.to_plotly_json(), ensure_ascii=False)       # mã lạ thì về "Tất cả"
+    assert '"value": "all", "clearable": false' not in chu
+    assert lienkhoi.TAB[0][0] == "tongquan" and "td" in {k for k, _ in lienkhoi.TAB}

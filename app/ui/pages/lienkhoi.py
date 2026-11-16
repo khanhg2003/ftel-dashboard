@@ -63,14 +63,15 @@ def _ngay(t, gio: bool = False) -> str:
     return "" if pd.isna(t) else pd.Timestamp(t).strftime("%d/%m/%Y %H:%M" if gio else "%d/%m/%Y")
 
 
-def layout():
+def layout(tab: str | None = None, ql: str | None = None):
+    """`tab` và `ql` lấy từ đường dẫn (?tab=td&ql=tpkd_01): mở thẳng tab và chọn sẵn quản lý (đường dẫn trong tin Zalo)."""
     if not _duoc_xem():
         return alert("Chỉ tài khoản Quản trị xem được trang này.", "bad")
     luat_opt = [{"label": "Tất cả luật", "value": "all"}] + [{"label": v, "value": k} for k, v in luat.TEN_LUAT.items()]
     an = {"display": "none"}
     return html.Div([
         alert(" ".join(GHI_CHU_DEMO), "warn") if nguon.la_demo() else ghi_chu(" ".join(GHI_CHU_THU), "Bản thử"),
-        html.Div(seg_control("lk-tab", TAB, "tongquan"), style={"margin": "10px 0 14px"}),
+        html.Div(seg_control("lk-tab", TAB, tab if tab in {k for k, _ in TAB} else "tongquan"), style={"margin": "10px 0 14px"}),
         html.Div(lienkhoi_tq.layout(), id="lk-tongquan"),
         html.Div(phanloai.layout(), id="lk-pl", style=an),
         html.Div([
@@ -82,7 +83,7 @@ def layout():
                 bang("lk-luoi-viec", COT_VIEC, cao=560),
             ], title="Việc cần làm", desc="Mỗi dòng là một việc: ai nhận, vì sao. Người nhận chưa biết thì ghi tên hàng chờ. Mức Cao xếp trước."),
         ], id="lk-viec", style=an),
-        html.Div(lienkhoi_td.layout(), id="lk-td", style=an),
+        html.Div(lienkhoi_td.layout(ql), id="lk-td", style=an),
         html.Div(lienkhoi_hq.layout(), id="lk-hq", style=an),
         html.Div([
             html.Div([dcc.Input(id="lk-hd-ma", type="text", debounce=True, className="inp", style={"width": "260px"}, placeholder="Gõ mã hợp đồng rồi Enter")],

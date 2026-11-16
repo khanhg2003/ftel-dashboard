@@ -446,7 +446,8 @@ def _router(path, search=None, store=None):
                 _topbar_simple("Không có quyền"))
     if path == "/lienkhoi":
         from app.ui.pages import lienkhoi
-        return lienkhoi.layout(), lienkhoi.topbar()
+        ql = (parse_qs((search or "").lstrip("?")).get("ql") or [None])[0]               # đường dẫn trong tin Zalo: ?tab=td&ql=<mã quản lý>
+        return lienkhoi.layout(tab, ql), lienkhoi.topbar()
     if kh.khoi_cua_duong_dan(path) == kh.DVKH:
         from app.ui.pages import dvkh as dvkh_page
         return dvkh_page.trang(path, tab)
