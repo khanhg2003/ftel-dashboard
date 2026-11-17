@@ -68,7 +68,8 @@ def login():
                              request.form.get("password", ""))
         if user:
             login_user(user)
-            return redirect(trang_mo_dau(user))
+            nxt = request.args.get("next") or ""                      # link mở từ Zalo: sau đăng nhập về đúng trang đó (chỉ đường dẫn nội bộ)
+            return redirect(nxt if nxt.startswith("/") and not nxt.startswith(("//", "/\\")) and not nxt.startswith("/login") else trang_mo_dau(user))
     return render_template_string(LOGIN_PAGE, err=err)
 
 
@@ -124,6 +125,9 @@ def _bat_buoc_dang_nhap():
     if not current_user.is_authenticated:
         if path.startswith("/_dash"):
             return "Phiên đăng nhập đã hết hạn. Tải lại trang.", 401
+        if request.method == "GET" and path != "/":
+            from urllib.parse import quote
+            return redirect("/login?next=" + quote(request.full_path.rstrip("?"), safe="/"))
         return redirect("/login")
     if path == "/" and not current_user.vao_duoc("/"):      # Nhân viên KD mở địa chỉ app -> vào trang đầu của họ
         return redirect(trang_mo_dau(current_user))
