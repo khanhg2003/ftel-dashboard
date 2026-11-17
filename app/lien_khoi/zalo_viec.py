@@ -82,9 +82,11 @@ def quan_tri_thu() -> set[str]:
     return set(_ds_chat(_doc_file_thu().get("QUAN_TRI", [])))
 
 
-def ghi_dang_ky_thu(ds: dict[str, list[str]]) -> None:
+def ghi_dang_ky_thu(ds: dict[str, list[str]], quan_tri: set[str] | None = None) -> None:
     """Ghi lại danh sách đăng ký (giữ nguyên khoá QUAN_TRI)."""
     d = {**_doc_file_thu(), **{k: ds.get(k, []) for k in KHOI_THU}}
+    if quan_tri is not None:
+        d["QUAN_TRI"] = sorted(quan_tri)
     p = duong_dan_thu()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")

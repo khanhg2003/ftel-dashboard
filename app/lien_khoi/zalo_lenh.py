@@ -170,11 +170,14 @@ def chia_deu(ma: str, now: datetime | None = None) -> str:
     return "\n".join(dong)
 
 
-def demo(chu_goc: str, vai_thu: list[str]) -> str:
+def demo(chu_goc: str, vai_thu: list[str], nguoi: str = "") -> str:
     """Điều khiển kịch bản demo ngay từ Zalo (CHỈ khi chạy thử Zalo, tức bộ minh hoạ + người thử đã đăng ký): `demo gui` (lấy việc mới và gửi tin tổng hợp cho các quản lý),
     `demo nhac` (nhắc quá hạn và báo giám đốc), `demo lui [giờ]` (lùi đồng hồ minh hoạ, mặc định 25 giờ), `demo moi` (làm lại từ đầu, nạp 14 ngày mô phỏng)."""
     if not vai_thu or zv.kenh() != "zalo_thu":
         return "Lệnh demo chỉ dùng khi chạy thử Zalo với dữ liệu minh hoạ."
+    qt = zv.quan_tri_thu()
+    if qt and nguoi not in qt:
+        return "Lệnh demo chỉ dành cho người điều khiển buổi demo."
     g = dp.bo_dau(chu_goc)
     if re.search(r"\bmoi\b|\blam lai\b|\breset\b", g):
         r = mp.chuan_bi_demo()
@@ -200,6 +203,9 @@ def doi_vai(nguoi: str, vai_thu: list[str], chu: str) -> str:
     muon = next((v for v in TEN_VAI if re.search(rf"\b{v.lower()}\b", dp.bo_dau(chu))), "")
     if not muon:
         return "Nhắn: vai KD, vai DVKH, vai KT hoặc vai BGD."
+    if len(vai_thu) == 1 and nguoi not in zv.quan_tri_thu() and muon != vai_thu[0]:         # người thử thường: đổi sang vai khác
+        chuyen_vai_ca_nhan(nguoi, muon)
+        return f"Đã chuyển sang vai {muon} ({_ten(zv.MA_DAI_DIEN_THU[muon])}). Từ giờ bạn nhận tin của vai này. Nhắn viec để xem việc."
     if muon not in vai_thu:
         return f"Chat này chưa đăng ký vai {muon}. Các vai đang có: {', '.join(vai_thu)}."
     td.ghi_cai_dat(f"vai_zalo:{nguoi}", muon)
@@ -214,8 +220,27 @@ def tu_dang_ky_nhom(chat_id: str) -> bool:
     ds = zv.danh_sach_thu()
     if len({c for v in ds.values() for c in v}) >= TOI_DA_CHAT_THU:
         return False
-    zv.ghi_dang_ky_thu({k: list(dict.fromkeys([*ds.get(k, []), chat_id])) for k in zv.KHOI_THU})
+    qt = zv.quan_tri_thu()
+    zv.ghi_dang_ky_thu({k: list(dict.fromkeys([*ds.get(k, []), chat_id])) for k in zv.KHOI_THU}, (qt | {chat_id}) if qt else None)       # nhóm demo cùng điều khiển được
     return True
+
+
+def tu_dang_ky_ca_nhan(chat_id: str) -> str:
+    """Người lạ nhắn bot (chat riêng) lần đầu: tự gán MỘT vai theo vòng (vai đang có ít người nhất, hoà thì theo thứ tự KD, DVKH, KT, BGD) để nhận tin ngay. Trả về vai; rỗng nếu không đăng ký được."""
+    if not nguon.la_demo() or zv.kenh() != "zalo_thu" or not chat_id:
+        return ""
+    ds = zv.danh_sach_thu()
+    if len({c for v in ds.values() for c in v}) >= TOI_DA_CHAT_THU:
+        return ""
+    vai = min(zv.KHOI_THU, key=lambda k: (len(ds.get(k, [])), zv.KHOI_THU.index(k)))
+    zv.ghi_dang_ky_thu({**ds, vai: [*ds.get(vai, []), chat_id]})
+    return vai
+
+
+def chuyen_vai_ca_nhan(chat_id: str, muon: str) -> None:
+    """Người đang đóng đúng một vai đổi sang vai khác (rút khỏi vai cũ)."""
+    ds = zv.danh_sach_thu()
+    zv.ghi_dang_ky_thu({k: [c for c in ds.get(k, []) if c != chat_id] + ([chat_id] if k == muon else []) for k in zv.KHOI_THU})
 
 
 def xu_ly(nguoi: str, chu: str, now: datetime | None = None, la_nhom: bool = False) -> str:
@@ -225,6 +250,12 @@ def xu_ly(nguoi: str, chu: str, now: datetime | None = None, la_nhom: bool = Fal
     if not ma and la_nhom and tu_dang_ky_nhom(nguoi):                           # nhóm mới nhắc bot: đăng ký rồi chào
         zv.tra_loi_chat("", nguoi, "Đã kết nối nhóm này với bot Điều hành liên khối (dữ liệu minh hoạ). Tin của cả bốn vai Kinh doanh, DVKH, Kỹ thuật và Ban giám đốc sẽ gửi vào nhóm. Nhắn menu để xem lệnh.", now)
         ma, chat_id, vai_thu = nhan_dien(nguoi)
+    moi_vao = ""
+    if not ma and not la_nhom:
+        moi_vao = tu_dang_ky_ca_nhan(nguoi)
+        if moi_vao:
+            ma, chat_id, vai_thu = nhan_dien(nguoi)
+            zv.tra_loi_chat("", nguoi, f"Chào bạn! Bạn đang tham gia demo Điều hành liên khối với vai {TEN_VAI[moi_vao]} (dữ liệu minh hoạ). Bạn sẽ nhận tin việc cần xử lý của vai này. Đổi vai bằng cách nhắn KD, DVKH, KT hoặc BGD.", now)
     td.ghi_hop_thu(ma or nguoi, chat_id, "nhan_tu_nguoi", chu or "", zv.kenh(), "da_nhan", now)
     noi = _tra_loi(ma, nguoi, vai_thu, chu or "", now)
     zv.tra_loi_chat(ma, chat_id, noi, now)
@@ -245,10 +276,10 @@ def _tra_loi(ma: str, nguoi: str, vai_thu: list[str], chu: str, now: datetime):
     hien = next((k for k, m in zv.MA_DAI_DIEN_THU.items() if m == ma), "")
     if g in ("", "menu", "help", "huong dan", "hi", "hello", "xin chao", "bat dau", "/start", "?", "lenh") and not codes:
         return menu(ma, vai_thu, hien)
-    if re.match(r"^vai\b", g):
+    if re.match(r"^vai\b", g) or g in ("kd", "dvkh", "kt", "bgd"):
         return doi_vai(nguoi, vai_thu, chu)
     if re.match(r"^demo\b", g):
-        return demo(chu, vai_thu)
+        return demo(chu, vai_thu, nguoi)
     if re.search(r"\b(excel|xlsx|tai file|xuat file|xuat)\b", g):
         return f"File Excel việc đang mở của anh/chị (mở bằng tài khoản Quản trị trên app, có sheet riêng từng nhân viên để gửi thẳng):\n{zv.lien_ket_excel(ma)}"
     if re.search(r"\b(tong ket|bao cao|tong quan|tom tat|so lieu)\b", g):

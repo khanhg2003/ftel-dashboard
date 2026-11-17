@@ -123,14 +123,14 @@ def test_chat_dang_ky_thu_nhan_vai_doi_vai_va_tra_loi_dung_chat_khong_kem_gui_th
     assert "Lệnh vai chỉ dùng" in zl.xu_ly("tpkd_01", "vai KD", T0)
 
 
-def test_chat_chua_dang_ky_khong_duoc_xem_gi(thu_zalo, monkeypatch):
+def test_chat_chua_dang_ky_o_che_do_thu_zalo_duoc_chao_va_gan_vai(thu_zalo, monkeypatch):
     f, gui = thu_zalo
-    f.write_text(json.dumps({"KD": "chat-a"}), encoding="utf-8")
+    f.write_text(json.dumps({"KD": ["chat-a"]}), encoding="utf-8")
     _dat(monkeypatch)
     _tai(dict(so_hd="MHAAA0001"))
-    assert "chưa biết anh/chị là ai" in zl.xu_ly("chat-la", "viec", T0)
-    assert "MHAAA0001" not in " ".join(str(g[1]) for g in gui if g[0] == "chat-la")
-
+    zl.xu_ly("chat-la", "viec", T0)
+    assert any(g[0] == "chat-la" and "Chào bạn" in str(g[1]) for g in gui)
+    assert any("chat-la" in ids for ids in zv.danh_sach_thu().values())
 
 def test_tin_tong_hop_dot_bo_sung_ghi_viec_moi_phat_sinh_va_co_dong_nhac_lenh(ql):
     _tai(dict(so_hd="MHAAA0001"))
@@ -247,7 +247,7 @@ def test_nhom_zalo_bo_mention_tu_dang_ky_nhan_tin_ca_bon_vai_va_nhan_lenh(thu_za
     sk = lambda text, cid="nhom-1": {"event_name": "message.text.received", "message": {"chat": {"id": cid, "chat_type": "GROUP"}, "from": {"id": "u1", "is_bot": False}, "text": text, "message_id": "m"}}
     assert "nhóm" in ng.xu_ly_mot(sk("@Bot Điều Hành Liên Khối"))                  # chỉ nhắc bot: đăng ký nhóm và hiện menu
     assert "nhom-1" in zv.danh_sach_thu()["KD"] and "nhom-1" in zv.danh_sach_thu()["BGD"]
-    assert json.loads(f.read_text(encoding="utf-8"))["QUAN_TRI"] == ["chat-a"]          # giữ nguyên khoá quản trị
+    assert "chat-a" in json.loads(f.read_text(encoding="utf-8"))["QUAN_TRI"]          # giữ khoá quản trị (nhóm demo được thêm vào)
     gui.clear()
     ng.xu_ly_mot(sk("@Bot Điều Hành Liên Khối viec"))
     assert gui and gui[-1][0] == "nhom-1" and "MHAAA0001" in str(gui[-1][1])
@@ -256,11 +256,20 @@ def test_nhom_zalo_bo_mention_tu_dang_ky_nhan_tin_ca_bon_vai_va_nhan_lenh(thu_za
     assert {g[0] for g in gui} == {"chat-a", "nhom-1"}
 
 
-def test_chat_rieng_la_khong_tu_dang_ky_chi_nhom_moi_duoc(thu_zalo, monkeypatch):
-    f, _ = thu_zalo
-    f.write_text(json.dumps({"KD": ["chat-a"]}), encoding="utf-8")
+def test_chat_rieng_la_tu_dang_ky_theo_vong_nhan_tin_va_tu_doi_vai_nhom_moi_cung_duoc(thu_zalo, monkeypatch):
+    f, gui = thu_zalo
+    f.write_text(json.dumps({"KD": ["chat-a"], "DVKH": ["chat-a"], "KT": ["chat-a"], "BGD": ["chat-a"], "QUAN_TRI": ["chat-a"]}), encoding="utf-8")
     _dat(monkeypatch)
-    assert "chưa biết anh/chị là ai" in zl.xu_ly("nguoi-la", "menu", T0)
-    assert "nguoi-la" not in zv.danh_sach_thu()["KD"]
+    _tai(dict(so_hd="MHAAA0001"))
+    zl.xu_ly("nguoi-1", "xin chao", T0)                                          # nhắn gì cũng được kích hoạt
+    zl.xu_ly("nguoi-2", "hi", T0)
+    ds = zv.danh_sach_thu()
+    assert "nguoi-1" in ds["KD"] and "nguoi-2" in ds["DVKH"] and "nguoi-1" not in ds["DVKH"]    # mỗi người một vai, chia vòng
+    assert any(g[0] == "nguoi-1" and "Chào bạn" in str(g[1]) for g in gui)
+    assert "Đã chuyển sang vai KT" in zl.xu_ly("nguoi-1", "KT", T0)                # chỉ cần nhắn tên vai
+    ds = zv.danh_sach_thu()
+    assert "nguoi-1" in ds["KT"] and "nguoi-1" not in ds["KD"]
+    assert "chỉ dành cho người điều khiển" in zl.xu_ly("nguoi-1", "demo gui", T0)   # người thử thường không điều khiển demo
+    assert "Đã gửi" in zl.xu_ly("chat-a", "demo gui", T0)
     zl.xu_ly("nhom-2", "menu", T0, la_nhom=True)
-    assert "nhom-2" in zv.danh_sach_thu()["KD"]
+    assert "nhom-2" in zv.danh_sach_thu()["KD"] and "nhom-2" in zv.quan_tri_thu()
