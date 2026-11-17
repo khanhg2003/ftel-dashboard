@@ -1,4 +1,4 @@
-"""Chạy bản DEMO liên khối CÔNG KHAI (nhánh thi-lien-khoi) trên một máy chủ: ai mở link cũng xem được, tự vào quyền Quản trị. Dữ liệu toàn là MINH HOẠ.
+"""Chạy bản DEMO liên khối CÔNG KHAI (nhánh thi-lien-khoi) trên một máy chủ: phải ĐĂNG NHẬP bằng tài khoản demo (`DEMO_USER` / `DEMO_MAT_KHAU` đặt trong .env của máy chủ). Dữ liệu toàn là MINH HOẠ.
 
     python scripts/chay_demo_cong_khai.py [--host 0.0.0.0] [--port 8060]
 
@@ -11,11 +11,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -29,6 +27,24 @@ os.environ["LIEN_KHOI_NGUON"] = "demo"
 os.environ["DATABASE_URL"] = "sqlite:///" + Path(os.environ.get("DEMO_DB") or GOC / "data" / "demo_lien_khoi.db").resolve().as_posix()      # DEMO_DB: đổi file database (vd để thử trên bản sao)
 
 
+def tao_tai_khoan_demo(user: str, mat_khau: str) -> None:
+    """Tài khoản duy nhất của bản công khai (quyền Quản trị trong database demo, không phải của app thật); mỗi lần chạy đặt lại mật khẩu theo biến môi trường.
+    Đăng nhập bằng form của app: sai 5 lần thì khoá 15 phút."""
+    from argon2 import PasswordHasher
+    from sqlalchemy import select
+
+    from app.db import session_scope
+    from app.models import User
+
+    with session_scope() as s:
+        row = s.execute(select(User).where(User.username == user)).scalars().first()
+        if row is None:
+            row = User(username=user, ho_ten="Demo (dữ liệu minh hoạ)", role="admin", scope="[]", active=True, password_hash="")
+            s.add(row)
+        row.password_hash = PasswordHasher().hash(mat_khau)
+        row.active, row.failed_logins, row.locked_until = True, 0, None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="0.0.0.0")
@@ -36,13 +52,15 @@ def main() -> int:
     ap.add_argument("--threads", type=int, default=6)
     ap.add_argument("--nap-lai-so-lieu-mau", action="store_true", help="xoá số liệu mẫu của khối Kinh doanh / DVKH rồi nạp lại (mặc định chỉ nạp khi còn trống)")
     a = ap.parse_args()
+    user, mat_khau = os.environ.get("DEMO_USER", "").strip(), os.environ.get("DEMO_MAT_KHAU", "")
+    if not user or not mat_khau:
+        print("Từ chối chạy: bản công khai phải có tài khoản đăng nhập. Đặt DEMO_USER và DEMO_MAT_KHAU (trong file .env của máy chủ, không đưa vào git).")
+        return 1
     if os.environ.get("LIEN_KHOI_ZALO_TOKEN") or os.environ.get("LIEN_KHOI_ZALO_GUI"):
         print("Từ chối chạy: bản công khai không được có LIEN_KHOI_ZALO_TOKEN / LIEN_KHOI_ZALO_GUI (ai bấm cũng gửi được tin Zalo thật).")
         return 1
-    from flask import session
     from waitress import serve
 
-    from app.auth import SessionUser, login_manager
     from app.db import init_db
     from app.lien_khoi import mo_phong as mp, theo_doi as td
     from app.ui.app import server
@@ -54,14 +72,7 @@ def main() -> int:
         print("Nạp số liệu mẫu Kinh doanh / DVKH:", {k: v for k, v in kq.items() if k != "ngay_tc"})
     if td.danh_sach().empty:
         print("Nạp dữ liệu minh hoạ lần đầu:", mp.chuan_bi_demo())
-    nguoi = SessionUser(SimpleNamespace(id=1, username="demo", ho_ten="Demo (dữ liệu minh hoạ)", role="admin", ma_nv=None, session_version=0, scope=json.dumps([])))
-    login_manager.user_loader(lambda uid: nguoi)
-
-    def _vao():
-        session["_user_id"] = "1"
-        session["_fresh"] = True
-
-    server.before_request_funcs.setdefault(None, []).insert(0, _vao)
+    tao_tai_khoan_demo(user, mat_khau)
     print(f"Demo công khai: http://{a.host}:{a.port}/lienkhoi")
     serve(server, host=a.host, port=a.port, threads=a.threads)
     return 0
