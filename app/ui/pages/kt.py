@@ -5,7 +5,7 @@ import importlib
 
 from dash import html
 
-TRANG = {"/kt": "kt_tq", "/kt/ton": "kt_ton", "/kt/trien-khai": "kt_tk", "/kt/su-co": "kt_su_co", "/kt/nhan-su": "kt_nhan_su", "/kt/phau": "kt_phau", "/kt/cham-do-ai": "kt_cham"}
+TRANG = {"/kt": "kt_tq", "/kt/ton": "kt_ton", "/kt/trien-khai": "kt_tk", "/kt/su-co": "kt_su_co", "/kt/nhan-su": "kt_nhan_su", "/kt/phau": "kt_phau", "/kt/cham-do-ai": "kt_cham", "/kt/bao-cao-ton": "kt_bao_cao_ton", "/kt/kpi": "kt_kpi"}
 
 
 def _module(ten: str):

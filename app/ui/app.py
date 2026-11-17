@@ -405,7 +405,7 @@ def _thanh_du_lieu(path):
         return dvkh_thanh()
     if (k if k in duoc else duoc[0]) == kh.KT:
         from app.ui.pages.kt_chung import thanh_du_lieu as kt_thanh
-        return kt_thanh()
+        return kt_thanh(path)
     from app.ui.lien_ket import thanh_du_lieu
     return thanh_du_lieu()
 

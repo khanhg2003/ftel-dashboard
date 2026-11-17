@@ -2158,3 +2158,25 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .pl-hinh .card h3{margin:0 0 6px;font-size:14px}.pl-trang .o-bam{color:var(--fpt-blue);font-weight:600;cursor:pointer;text-decoration:underline}
 .lk-luoi.lk-luoi-2{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:900px){.pl-tong,.pl-hinh,.lk-luoi.lk-luoi-2{grid-template-columns:minmax(0,1fr)}}
+
+/* ==== Trang Báo cáo tồn khối KT (/kt/bao-cao-ton): màu giống web NKN Huế gốc, chỉ áp trong .kt-bct ==== */
+.kt-bct .ton-sec{margin:14px 0 6px;font-size:13px;font-weight:700;color:#004B87}
+.kt-bct .ton-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0 16px}
+.kt-bct .ton-card{position:relative;display:flex;flex-direction:column;gap:2px;padding:9px 12px 10px;border-radius:12px;background:#fff;border:1px solid #d5e0ee;border-top:4px solid #1f86d6;box-shadow:0 3px 10px rgba(0,60,120,.08)}
+.kt-bct .ton-card .l{font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.2px}
+.kt-bct .ton-card .n{font-size:28px;font-weight:800;line-height:1.1;color:#004B87;font-variant-numeric:tabular-nums}
+.kt-bct .ton-card .s{font-size:11.5px;color:#64748b}
+.kt-bct .ton-card.red{border-top-color:#ea1001}.kt-bct .ton-card.red.hot .n{color:#d0021b}
+.kt-bct .ton-card.amber{border-top-color:#e2b93b}.kt-bct .ton-card.amber .n{color:#6a1b9a}
+.kt-bct .ton-card.blue{border-top-color:#1f3fa8}
+.kt-bct .ton-card.k-ton{background:#fdecea;border-color:#f4c4be;border-top-color:#ea1001}.kt-bct .ton-card.k-ton .n{color:#b71c1c}
+.kt-bct .ton-card.k-done{background:#e3f5e8;border-color:#b9e2c5;border-top-color:#2fa84f}.kt-bct .ton-card.k-done .n{color:#1b6b35}
+.kt-bct .ton-card.k-lap{background:#b71c1c;border-color:#8e1010;border-top-color:#6d0b0b}.kt-bct .ton-card.k-lap .l{color:#ffd9d5}.kt-bct .ton-card.k-lap .n{color:#fff}
+.kt-bct .ton-card.k-hen{background:#e3f0fc;border-color:#b4d2f0;border-top-color:#1f86d6}.kt-bct .ton-card.k-hen .n{color:#0b4f8a}
+.kt-bct .ag-header{background:linear-gradient(180deg,#1c78c6,#004B87 60%,#003a70)!important;border-bottom:0}
+.kt-bct .ag-header-cell,.kt-bct .ag-header-cell-text,.kt-bct .ag-header-cell-label{color:#fff!important;font-weight:600}
+.kt-bct .ag-header-cell:hover{background:rgba(255,255,255,.08)!important}
+.kt-bct .ag-header-icon,.kt-bct .ag-icon{color:#fff}
+.kt-bct .ag-cell{border-right:1px solid #d5e0ee!important}
+.kt-bct .ag-row{border-bottom-color:#d5e0ee}
+.kt-bct .card h3{color:#004B87}

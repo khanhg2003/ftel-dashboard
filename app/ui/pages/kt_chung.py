@@ -14,8 +14,14 @@ STYLE_CANH_BAO = {"styleConditions": [{"condition": "params.value == 'Quá mốc
                                       {"condition": "params.value == 'Quá mốc xanh'", "style": {"color": "#B54708", "fontWeight": 600}}]}
 
 
-def thanh_du_lieu() -> list:
-    """Dòng tình trạng dữ liệu trên thanh tiêu đề khi đang ở khối Kỹ thuật."""
+def thanh_du_lieu(path: str | None = None) -> list:
+    """Dòng tình trạng dữ liệu trên thanh tiêu đề khi đang ở khối Kỹ thuật (trang Báo cáo tồn là bản chốt số thật)."""
+    if (path or "").rstrip("/") == "/kt/bao-cao-ton":
+        from app.ui.pages.kt_bao_cao_ton import du_lieu
+        return [html.Span([icon("database", 13), html.Span(f"Số liệu thật · chốt {du_lieu().get('chot_luc', '')}")], className="badge ok thanh-dl")]
+    if (path or "").rstrip("/") == "/kt/kpi":
+        from app.ui.pages.kt_kpi import meta
+        return [html.Span([icon("database", 13), html.Span(f"Số liệu thật · KPI lúc {meta().get('chot_luc', '')}")], className="badge ok thanh-dl")]
     if not sl.co_du_lieu():
         return [html.Span("Chưa có dữ liệu Kỹ thuật", className="badge warn thanh-dl")]
     ten = "Minh hoạ" if nguon.la_demo() else "Dữ liệu thật"

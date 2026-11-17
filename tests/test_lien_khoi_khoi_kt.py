@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pandas as pd
 import pytest
@@ -157,10 +158,11 @@ def test_menu_kt_va_khoi_san_sang():
     from app.ui import khoi
     assert khoi.KHOI[khoi.KT]["san_sang"]
     duong_dan = {m[0] for _, ds in khoi.NAV_KT for m in ds}
-    assert {"/kt", "/kt/ton", "/kt/trien-khai", "/kt/su-co", "/kt/nhan-su"} <= duong_dan
+    assert {"/kt", "/kt/su-co", "/kt/nhan-su"} <= duong_dan
+    assert not {"/kt/ton", "/kt/phau", "/kt/trien-khai"} & duong_dan          # ẩn khỏi menu (trùng Báo cáo tồn / KPI), trang vẫn còn
     from app.ui.pages import kt as trang_kt
-    assert {"/kt", "/kt/ton", "/kt/trien-khai", "/kt/su-co", "/kt/nhan-su", "/kt/phau", "/kt/cham-do-ai"} == set(trang_kt.TRANG)
-    assert {"/kt/phau", "/kt/cham-do-ai"} <= duong_dan
+    assert {"/kt", "/kt/ton", "/kt/trien-khai", "/kt/su-co", "/kt/nhan-su", "/kt/phau", "/kt/cham-do-ai", "/kt/bao-cao-ton", "/kt/kpi"} == set(trang_kt.TRANG)
+    assert {"/kt/cham-do-ai", "/kt/bao-cao-ton", "/kt/kpi"} <= duong_dan
     assert all(khoi.khoi_cua_duong_dan(p) == khoi.KT for p in trang_kt.TRANG)
 
 
@@ -266,3 +268,48 @@ def test_trang_phau_va_cham_do_ai_dung_duoc_tren_bo_minh_hoa(monkeypatch):
     t = sl.ton(ev, sl.bay_gio(ev))
     assert t["ly_do_ma"].nunique() >= 3 and len(sl.im_lang(t)) > 0 and kt_cham.LOC[0][0] == "all"
     assert sl.cham_do_ai(t)["so"].sum() == len(t)
+
+
+def test_trang_bao_cao_ton_doc_ban_chot_va_dung_duoc_moi_bang():
+    from app.ui.pages import kt_bao_cao_ton as bct
+    d = bct.du_lieu()
+    assert d["chot_luc"] and {"tong", "block", "staff", "mt"} <= set(d["muc"])
+    tq = d["muc"]["tong"]
+    assert len(tq["the"]) == 7 and tq["bang"] and tq["nhan_dinh"]
+    assert bct.layout() is not None
+    for ma, m in d["muc"].items():
+        assert (bct._ve_tong(m) if ma == "tong" else bct._ve_muc(ma, m)) is not None          # mục nào cũng vẽ được
+        for b in m["bang"]:
+            assert all(len(dong) == len(b["cot"]) for dong in b["dong"])
+            assert not any(re.search(r"ghi ch|ttscb", c, re.I) for c in b["cot"])              # không giữ cột ghi chú tự do
+    assert [t["nhom"] for t in d["muc"]["block"]["the"]][:1] == ["⏱ Quá giờ"]
+    assert bct._so("796.000", tien=True) == 796000 and bct._so("10.20", tien=False) == 10.2 and bct._so("chưa có", tien=False) is None
+
+
+def test_ban_chot_bao_cao_ton_da_an_danh():
+    """File số liệu Báo cáo tồn nằm trong git nên tên NV, Điều hành, mã hợp đồng, mã thiết bị phải là mã giả."""
+    from app.ui.pages import kt_bao_cao_ton as bct
+    s = bct.FILE.read_text(encoding="utf-8")
+    assert not re.search(r"\b(?!MH)[A-Z]{5}\d{4}\b|\bHU(EP|D\d|FD)", s)                                  # không còn mã HĐ / OLT thật
+    ma = set(re.findall(r"(?<![A-Za-z0-9])(?=[A-Za-z0-9]*[A-Z]{2})[A-Za-z][A-Za-z0-9]{2,}(?![A-Za-z0-9])", s))
+    viet_tat = {"KTV", "OLT", "TIN", "CSAT", "CSATBT", "CSATTK", "HIFPT", "HTBT", "NEW", "NSLD", "SWAP", "TKM", "WIFI", "RPT"}      # chữ viết tắt nghiệp vụ
+    assert all(re.fullmatch(r"KTV\d{2}|MHAAA\d{4}|MHHDC\d{4}|OLT\d{2}", x) or x.upper() in viet_tat for x in ma), ma        # mọi chữ dạng mã đều là mã giả
+    assert bct.du_lieu()["muc"]["tong"]["bieu_do"]["dh"]["labels"][0].startswith("Đội ")
+    assert "HUETI" not in s.upper() and not re.search(r"\d{9,}", s)                                  # không còn mã hoá đơn / số dài thật
+
+
+def test_trang_kpi_du_9_muc_va_da_an_danh():
+    """Phần KPIs (web TAIHD) nằm trong git nên: đủ 9 mục, không còn cột thông tin khách, tên NV / mã HĐ / số điện thoại thật."""
+    from app.ui.pages import kt_kpi
+    import sys
+    sys.path.insert(0, str(kt_kpi.THU_MUC.parents[2] / "scripts"))
+    import trich_kpi as tk
+    assert kt_kpi.meta()["chot_luc"] and kt_kpi.layout() is not None
+    for ma, _ in kt_kpi.MUC:
+        h = (kt_kpi.THU_MUC / f"{ma}.html").read_text(encoding="utf-8")
+        assert kt_kpi.trang_html(ma).startswith("<!doctype html>")
+        chu = tk.chu_hien(h)
+        assert not re.search(r"(?i)hueti\.|\bHU(EP|[A-Z]{1,3}\d{4})|(?<!\d)\d{9,}|t[aà]i\s*hd", chu), ma
+        tieu_de = " | ".join(re.sub(r"<[^>]+>", " ", x) for x in re.findall(r"<th[^>]*>(.*?)</th>", h, re.S))
+        assert not re.search(r"(?i)khách hàng|địa chỉ|\bMAC\b|ghi chú|ghi nhận", tieu_de), ma          # cột thông tin khách đã bỏ
+        assert "<script" not in h.lower() and "<button" not in h.lower()
