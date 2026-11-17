@@ -47,6 +47,7 @@ Environment=LIEN_KHOI_ZALO_GUI=1
 Environment=LIEN_KHOI_ZALO_THU=$GOC/data/zalo_thu.json
 Environment=LIEN_KHOI_APP_URL=http://43.240.117.117:8060
 Environment=PYTHONUNBUFFERED=1
+Environment=LIEN_KHOI_GHI_SU_KIEN=1
 ExecStart=/opt/ftel/venv/bin/python scripts/lien_khoi_zalo_nghe.py
 Restart=always
 RestartSec=5
