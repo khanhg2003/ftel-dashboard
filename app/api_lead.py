@@ -59,12 +59,3 @@ def fb_webhook():
     from app import leads_messenger
     leads_messenger.xu_ly_su_kien(request.get_json(silent=True) or {})
     return jsonify({"ok": True}), 200
-
-
-@bp.post("/api/lead/zalo-dich-nhom")
-def zalo_dich_nhom():
-    """TẠM THỜI (chốt 17/11/2026): ghi log thô sự kiện bot Zalo mới để tìm chat_id của 1 nhóm - xoá đường này
-    và webhook phía Zalo sau khi lấy được chat_id, không dùng lâu dài."""
-    from app.auth import ghi_log
-    ghi_log("lead_zalo_dich_nhom", request.get_data(as_text=True)[:2000])
-    return jsonify({"ok": True}), 200

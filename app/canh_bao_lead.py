@@ -1,14 +1,16 @@
-"""Cảnh báo SLA lead quá 24h chưa được care, báo qua Zalo Bot đang chạy (bot Bản tin, `zalo_bot.ZALO_BOT_TOKEN`)
-để nhờ người khác trong nhóm Phòng Online nhận chéo - không dựng bot Telegram riêng, dùng lại hạ tầng Zalo sẵn có
-(chốt với người dùng 16/11/2026).
+"""Cảnh báo SLA lead quá 24h chưa được care, báo qua Zalo. Dùng BOT RIÊNG cho Lead Online (`ZALO_LEAD_TOKEN`,
+chốt với người dùng 17/11/2026 - ban đầu định dùng lại bot Bản tin nhưng người dùng muốn gửi thẳng vào 1 nhóm
+Zalo chung, nên tạo bot mới: một bot chỉ gắn được một webhook, bot Bản tin đang dùng webhook của nó).
 
 Người nhận một lần cảnh báo: sale đang phụ trách + người được đề xuất nhận chéo (ít lead đang xử lý nhất trong
-nhóm, xem `app/leads.py` `de_xuat_nhan_cheo`) + mọi người vai trò "leader" đang bật (`LeadNguoiNhanCanhBao`).
+nhóm, xem `app/leads.py` `de_xuat_nhan_cheo`) + mọi người vai trò "leader" đang bật (`LeadNguoiNhanCanhBao` -
+thường là chat_id của MỘT nhóm Zalo chung, khai vai trò `leader`, không phải từng người riêng).
 Không nhắc lại cho cùng 1 lead trước `CHU_KY_NHAC_LAI_GIO` giờ kể từ lần cảnh báo trước (`Lead.canh_bao_luc`).
 Gọi `quet_va_canh_bao()` từ `app/api_lead.py` (cron bên ngoài gọi mỗi 15-30 phút).
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from sqlalchemy import select
@@ -20,6 +22,10 @@ from app.models import AuditLog, CrmPage, Lead, LeadNguoiNhanCanhBao
 CHU_KY_NHAC_LAI_GIO = 12
 BANG = (LeadNguoiNhanCanhBao,)
 _da_tao = False
+
+
+def _token() -> str | None:
+    return os.environ.get("ZALO_LEAD_TOKEN")
 
 
 def dam_bao_bang() -> None:
@@ -130,7 +136,7 @@ def quet_va_canh_bao() -> dict:
             da_gui = False
             for chat_id in nhan:
                 try:
-                    zalo_bot.gui_tin_du_phong(chat_id, noi_dung)
+                    zalo_bot.gui_tin_du_phong(chat_id, noi_dung, token=_token())
                     da_gui = True
                 except zalo_bot.LoiZalo as e:
                     kq["loi"].append(f"Lead #{r.id} -> {chat_id}: {e}")
