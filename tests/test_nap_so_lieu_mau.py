@@ -23,6 +23,20 @@ print(int(tong.online), int(tong.ck_online), int(tong.mt_internet), trang_thai_n
 """
 
 
+KIEM_TRA_NHAP = """
+from datetime import date
+from app import ads, bao_cao_ngay as bc, danh_ba, nhap_ton as nt, online_ca_phan_tich as hq, phong_online as po
+b = bc.bang(["IBB7"], date(2026, 11, 14))
+ton = nt.danh_sach(["IBB7"])
+on = po.bang_nhan_su("2026-11", 14)
+kh = po.khtn_theo_ngay("2026-11", 14)
+pg = ads.theo_page(date(2026, 11, 1), date(2026, 11, 14))
+h = hq.hieu_qua(["IBB7"], date(2026, 11, 8), date(2026, 11, 14), now=18 * 60)
+print(len(b), int(b.pttb_thang.sum()), int(b.khtn.sum()), len(ton), int((ton.ghi_chu != "").sum()), len(on[on.loai_dong == "data"]), len(kh), int(kh.so_ngay_nhap.min()),
+      len(pg), h["tong"]["ca"] > 20, len(danh_ba.tat_ca()), danh_ba.chi_nhanh_mac_dinh())
+"""
+
+
 def _chay(*lenh: str, db: Path, **env) -> subprocess.CompletedProcess:
     e = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "DATABASE_URL": f"sqlite:///{db.as_posix()}", **env}
     return subprocess.run([sys.executable, *lenh], cwd=str(GOC), env=e, capture_output=True, text=True, encoding="utf-8", timeout=600)
@@ -44,7 +58,8 @@ def _dem(db: Path, bang: str, dieu_kien: str = "1=1") -> int:
 def test_moi_bang_co_dong(db_mau):
     db, kq = db_mau
     for bang in ("dim_phong", "staff_map", "dim_employee", "hr_monthly", "target_monthly", "fact_pheu_ban_hang", "fact_internet", "fact_fptplay", "fact_camera", "upload_batch",
-                 "dv_nap", "dv_sr_bi_dong", "dv_sr_chu_dong", "dv_sr_bd_them", "dv_au_kh", "dv_roi_mang", "dv_cong_no", "dv_cong_no_chot", "dv_danh_sach"):
+                 "dv_nap", "dv_sr_bi_dong", "dv_sr_chu_dong", "dv_sr_bd_them", "dv_au_kh", "dv_roi_mang", "dv_cong_no", "dv_cong_no_chot", "dv_danh_sach",
+                 "bao_cao_ngay", "bao_cao_ngay_chu", "ton_theo_doi", "online_ca", "danh_ba", "ads_page", "ads_sale", "ads_pic", "ads_ngay", "ads_lead", "ads_thang", "phan_hoi_he_thong"):
         assert _dem(db, bang) > 0, bang
     assert kq["kinh_doanh"]["internet"] == _dem(db, "fact_internet") >= 500
     assert kq["dvkh"]["sr_bd"] == _dem(db, "dv_sr_bi_dong") >= 1000
@@ -60,10 +75,16 @@ def test_co_hai_thang_va_tinh_den_ngay_tham_chieu(db_mau):
     assert _dem(db, "target_monthly", "thang = '2026-11'") > 0
 
 
+def _acc_online() -> list[str]:
+    import yaml
+    return [str(a).lower() for a in yaml.safe_load((GOC / "config" / "rules.yml").read_text(encoding="utf-8"))["phong_online"]["acc"]]
+
+
 def test_nhan_su_va_ma_hop_dong_deu_la_bia(db_mau):
     db, _ = db_mau
-    assert _dem(db, "staff_map", "acc NOT LIKE '%.demo%'") == 0
-    assert _dem(db, "fact_internet", "acc_nhan_vien NOT LIKE '%demo%' AND acc_nhan_vien NOT LIKE 'HNI.%'") == 0
+    online = ", ".join(f"'{a}'" for a in _acc_online())
+    assert _dem(db, "staff_map", f"acc NOT LIKE '%.demo%' AND lower(acc) NOT IN ({online})") == 0       # trừ 5 acc Phòng Online khai ở rules.yml (tên người vẫn bịa)
+    assert _dem(db, "fact_internet", f"acc_nhan_vien NOT LIKE '%demo%' AND acc_nhan_vien NOT LIKE 'HNI.%' AND lower(acc_nhan_vien) NOT IN ({online})") == 0
     assert _dem(db, "fact_internet", "hop_dong NOT LIKE 'MHKD%'") == 0
     assert _dem(db, "dv_sr_bi_dong", "so_hd NOT LIKE 'MHDV%'") == 0
     assert _dem(db, "dv_sr_bi_dong", "nguoi_xu_ly IS NOT NULL AND nguoi_xu_ly NOT LIKE 'cskh_%' AND nguoi_xu_ly NOT LIKE 'ktv_%'") == 0
@@ -82,13 +103,49 @@ def test_cac_trang_doc_ra_so(db_mau):
     assert int(bd) > 1000 and int(cd) > 1000 and int(rm) == 3 and int(cn) == 3 and int(nd) >= 5
 
 
+def test_phong_online_co_du_nam_nguoi_va_so(db_mau):
+    db, _ = db_mau
+    for a in _acc_online():
+        assert _dem(db, "staff_map", f"lower(acc) = '{a}' AND phong_code = 'IBB2'") == 1, a
+        assert _dem(db, "fact_internet", f"lower(acc_nhan_vien) = '{a}' AND ngay_online >= '2026-11-01'") > 0, a
+        assert _dem(db, "bao_cao_ngay", f"acc_norm = '{a}' AND phong_code = 'ONLINE' AND khtn > 0") >= 10, a      # bảng KHTN từng bạn có số nhiều ngày
+    assert _dem(db, "online_ca", "phong_code = 'ONLINE'") > 0
+
+
+def test_nhap_lieu_ibb7_bao_cao_ngay_nhap_ton_ads_danh_ba(db_mau):
+    db, kq = db_mau
+    assert _dem(db, "bao_cao_ngay", "phong_code = 'IBB7' AND ngay = '2026-11-14' AND khtn > 0") == 10      # mọi dòng của bảng Báo cáo ngày đều có báo cáo ở ngày tham chiếu
+    assert _dem(db, "bao_cao_ngay", "phong_code = 'IBB7' AND ngay >= '2026-10-25' AND ngay <= '2026-11-14'") > 150
+    assert _dem(db, "bao_cao_ngay_chu", "phong_code = 'IBB7'") >= 4
+    assert _dem(db, "target_monthly", "doi_tuong = 'NHAN_VIEN' AND thang = '2026-11'") >= 14
+    assert kq["nhap_lieu"]["nhap_ton"] >= 10 and _dem(db, "ton_theo_doi", "ngay_moc IS NOT NULL AND phuong_an IS NOT NULL AND ghi_chu IS NOT NULL") >= 10
+    assert _dem(db, "online_ca", "phong_code = 'IBB7' AND trang_thai = 'da_online' AND online_luc IS NOT NULL") > 20
+    assert _dem(db, "ads_page") == 10 and _dem(db, "ads_ngay", "ngay >= '2026-11-01'") > 100 and _dem(db, "ads_lead", "pttb > 0") > 50
+    assert _dem(db, "ads_pic", "den_ngay IS NOT NULL") > 0                                           # cần một phân công đã kết thúc, xem `nap_ads`
+    assert _dem(db, "danh_ba", "nguon = 'PNC'") > 50 and _dem(db, "danh_ba", "nguon = 'TIN'") > 10 and _dem(db, "danh_ba", "nguon = 'TAY'") == 2
+    assert _dem(db, "danh_ba", "email NOT LIKE '%@example.com'") == 0                                  # email giả, không có email thật
+    assert _dem(db, "hr_monthly", "thang = '2026-01'") > 50 and _dem(db, "hr_monthly", "nhom_tham_nien = 'MOI' AND thang = '2026-11'") > 0   # đủ 11 tháng NSLĐ và có tân binh
+    assert _dem(db, "target_monthly", "chi_tieu = 'ngay' AND thang = '2026-11'") >= 20
+
+
+def test_cac_trang_nhap_lieu_doc_ra_so(db_mau):
+    db, _ = db_mau
+    kq = _chay("-c", KIEM_TRA_NHAP, db=db, LIEN_KHOI_NGUON="demo")
+    assert kq.returncode == 0, kq.stderr[-2000:]
+    ib7, pttb, khtn, ton, co_ghi_chu, online, kh, ngay_nhap, page, co_ca, ba, mac_dinh = kq.stdout.strip().splitlines()[-1].split(maxsplit=11)
+    assert int(ib7) == 10 and int(pttb) > 50 and int(khtn) > 50
+    assert int(ton) >= 10 and int(co_ghi_chu) >= 10
+    assert int(online) == 5 and int(kh) == 5 and int(ngay_nhap) >= 8                     # Phòng Online: đủ 5 người, mỗi người báo KHTN nhiều ngày
+    assert int(page) == 10 and co_ca == "True" and int(ba) > 100 and mac_dinh == "Đà Nẵng"
+
+
 def test_chay_lai_khong_nap_trung(db_mau):
     db, _ = db_mau
-    truoc = (_dem(db, "fact_internet"), _dem(db, "dv_sr_bi_dong"), _dem(db, "dv_nap"))
+    truoc = (_dem(db, "fact_internet"), _dem(db, "dv_sr_bi_dong"), _dem(db, "dv_nap"), _dem(db, "bao_cao_ngay"), _dem(db, "danh_ba"))
     kq = _chay("scripts/nap_so_lieu_mau.py", db=db)
     assert kq.returncode == 0, kq.stderr[-1000:]
     assert list(json.loads(kq.stdout)) == ["ngay_tc"]                               # không nạp gì thêm
-    assert (_dem(db, "fact_internet"), _dem(db, "dv_sr_bi_dong"), _dem(db, "dv_nap")) == truoc
+    assert (_dem(db, "fact_internet"), _dem(db, "dv_sr_bi_dong"), _dem(db, "dv_nap"), _dem(db, "bao_cao_ngay"), _dem(db, "danh_ba")) == truoc
 
 
 def test_tu_choi_database_khong_phai_sqlite(tmp_path):

@@ -40,6 +40,9 @@ CHUONG_TRINH = {
 }
 TU_VAN_CD = [("Thuê bao không liên lạc được", 0.30), ("Chưa bắt máy", 0.12), ("KH đồng ý sử dụng tiếp và không cần hỗ trợ", 0.28), ("KH đồng ý sử dụng tiếp và cần hỗ trợ", 0.10),
              ("KH không đồng ý, yêu cầu thanh lý", 0.12), (None, 0.08)]
+# chuỗi gốc của file thật có dạng "<loại đề xuất> - <trạng thái>" (`khai_thac.duyet_de_xuat` tách theo " - ")
+DUYET_DE_XUAT = ["Miễn giảm - Đã xử lý", "Miễn giảm - Đã xử lý", "Miễn giảm - Từ chối", "Miễn giảm - Đang chờ duyệt", "Đổi câu lệnh giá - Đã xử lý", "Đổi câu lệnh giá - Từ chối",
+                 "Khoá rời mạng - Đã xử lý", "Khoá rời mạng - Đang chờ duyệt", None, None]
 GOI_NET = [("Giga", 0.35), ("Sky", 0.30), ("Meta", 0.2), ("Sky F1", 0.08), ("Giga Plus", 0.07)]
 GOI_PAY = [("V.VIP", 0.35), ("MAXY", 0.08), ("Max", 0.07), ("VIP", 0.15), ("ZPlay", 0.05), (None, 0.30)]
 GOI_CAM = [("Cloud 7 ngày", 0.2), ("Cloud 30 ngày", 0.1), (None, 0.7)]
@@ -118,7 +121,7 @@ def sinh_sr_bi_dong(rng, tc: date) -> tuple[pd.DataFrame, pd.DataFrame]:
                 "phi": phi, "mien_giam_phi": mien, "so_lan_cap_nhat": rng.choice([1, 1, 2, 3]),
                 "qua_han": ("Quá hạn đang xử lý" if tuoi >= 2 else "Đang trong hạn") if mo else ("Hoàn tất quá hạn" if qua_han_xong else "Hoàn tất trong hạn")})
             them.append({"ma_sr": ma, "goi_net": _chon(rng, GOI_NET), "goi_pay": _chon(rng, GOI_PAY), "goi_cam": _chon(rng, GOI_CAM),
-                         "don_vi_tao": _chon(rng, DON_VI_TAO), "duyet_de_xuat": rng.choice(["Đã duyệt", "Đã duyệt", "Từ chối", None]),
+                         "don_vi_tao": _chon(rng, DON_VI_TAO), "duyet_de_xuat": rng.choice(DUYET_DE_XUAT),
                          "trung": rng.choice([0, 0, 0, 1, 2])})
     df = pd.DataFrame(rows)
     for c in ("tg_yc", "tg_cn_dau", "tg_cn_cuoi"):

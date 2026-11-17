@@ -55,19 +55,26 @@ def _tron(x: float) -> int:
 
 
 # ---------------------------------------------------------------- danh bạ nhân sự bịa
+def acc_phong_online() -> list[str]:
+    """5 acc của nhóm Phòng Online khai ở `config/rules.yml` (thuộc IBB2): trang /phongonline chỉ hiện đúng các acc này nên dữ liệu mẫu phải có chúng (tên người vẫn bịa)."""
+    from app.config import rules_config
+    return [str(a).strip() for a in ((rules_config().get("phong_online") or {}).get("acc") or [])]
+
+
 def dung_nhan_su(rng: random.Random) -> list[dict]:
-    """Mỗi phòng: 1 trưởng phòng (ghi chú "Trưởng phòng") + nhân viên; vài người nghỉ để bảng có đủ trạng thái."""
-    ds = []
+    """Mỗi phòng: 1 trưởng phòng (ghi chú "Truong phong" không dấu như danh mục thật: `canh_bao._tp_va_danh_muc` nhận diện trưởng phòng bằng chữ này) + nhân viên; vài người nghỉ để bảng có đủ trạng thái."""
+    ds, online = [], acc_phong_online()
     for code, n, cn_ban, he_so, tien_to, so in PHONG_BAN:
         for i in range(n + 1):
             tp = i == 0
             nghi = (not tp) and i == n and so in (2, 5, 9)
+            acc = online[i - 1] if code == "IBB2" and 1 <= i <= len(online) else f"{tien_to}.demo{so}{i:02d}"
             ds.append({"phong": code, "cn_ban": cn_ban, "tp": tp, "nghi": nghi, "so": so, "i": i,
-                       "acc": f"{tien_to}.demo{so}{i:02d}", "ma_nv": f"DM{so:02d}{i:02d}",
+                       "acc": acc, "ma_nv": f"DM{so:02d}{i:02d}",
                        "ho_ten": f"Trưởng phòng {code}" if tp else f"Nhân viên {code}-{i:02d}",
                        "nang_suat": (0.35 if tp else rng.lognormvariate(0, 0.38)) * he_so,
                        "p_vvip": rng.uniform(0.22, 0.78), "p_camera": rng.uniform(0.05, 0.42),
-                       "vao_lam": date(2025, 1, 1) + timedelta(days=rng.randint(0, 600))})
+                       "vao_lam": (date(2026, 8, 20) + timedelta(days=rng.randint(0, 70))) if (not tp and rng.random() < 0.12) else date(2025, 1, 1) + timedelta(days=rng.randint(0, 520))})
     return ds
 
 
@@ -188,7 +195,7 @@ def _ghi_danh_muc(s, nhan_su: list[dict]) -> None:
     sync_org_to_db(s)
     for ns in nhan_su:
         s.add(StaffMap(acc=ns["acc"], acc_norm=norm_acc(ns["acc"]), ma_nv=ns["ma_nv"], phong_code=ns["phong"], ten_hien_thi=ns["ho_ten"],
-                       ghi_chu="Trưởng phòng" if ns["tp"] else ("Nghỉ việc" if ns["nghi"] else None), nguon="demo"))
+                       ghi_chu="Truong phong" if ns["tp"] else ("Nghỉ việc" if ns["nghi"] else None), nguon="demo"))
         s.add(Employee(ma_nv=ns["ma_nv"], ho_ten=ns["ho_ten"], acc=ns["acc"], acc_norm=norm_acc(ns["acc"]), vi_tri="NVKD",
                        don_vi_ps="QNM" if ns["cn_ban"] == "QNM" else "DNG", phong_ps=ns["phong"], khu_vuc="Đà Nẵng",
                        ngay_tinh_luong=ns["vao_lam"], trang_thai="Nghỉ việc" if ns["nghi"] else "Đang làm việc"))
@@ -199,46 +206,54 @@ def _nhom_tham_nien(thang: int) -> str:
     return "MOI" if thang <= 3 else ("DANG_LEN" if thang <= 6 else ("ON_DINH" if thang <= 12 else "LAU_NAM"))
 
 
-def _ghi_nsld(s, nhan_su: list[dict], net: list[dict], fpl: list[dict]) -> int:
-    """NSLĐ hai tháng 10 và 11 của nhân viên (không gồm trưởng phòng): ITN = số online trong tháng, đạt khi từ 12 online."""
+THANG_NSLD = [f"2026-{m:02d}" for m in range(1, 12)]
+
+
+def _ghi_nsld(s, nhan_su: list[dict], net: list[dict], rng: random.Random) -> int:
+    """NSLĐ từ tháng 1 tới tháng 11 (đủ 11 file, trang Chất lượng dữ liệu không báo thiếu tháng). Tháng 10 và 11: ITN = số online thật trong tháng, đạt khi từ 12 (T10) / 6 (T11) online;
+    các tháng trước sinh theo năng suất từng người. Trưởng phòng có dòng NSLĐ nhưng không xét điểm."""
     from app.models import HrMonthly
     from app.ingest.normalize import norm_acc
     n = 0
-    for thang in (THANG_TRUOC, THANG_KY):
+    for thang in THANG_NSLD:
         itn: dict[str, int] = {}
         for h in net:
             if h["ngay_online"] and f"{h['ngay_online']:%Y-%m}" == thang:
                 itn[norm_acc(h["acc_nhan_vien"])] = itn.get(norm_acc(h["acc_nhan_vien"]), 0) + 1
+        co_that = thang in (THANG_TRUOC, THANG_KY)
         for ns in nhan_su:
-            if ns["tp"]:
-                continue
             vao = ns["vao_lam"]
+            if vao > date(int(thang[:4]), int(thang[5:]), 28):
+                continue                                     # chưa vào làm
             tn = max(1, (int(thang[:4]) - vao.year) * 12 + int(thang[5:]) - vao.month + 1)
-            diem = itn.get(norm_acc(ns["acc"]), 0)
-            s.add(HrMonthly(ma_nv=ns["ma_nv"], thang=thang, acc=ns["acc"], ho_ten=ns["ho_ten"], vi_tri="NVKD", phong_ps=f"DNGB{ns['so']}",
+            diem = itn.get(norm_acc(ns["acc"]), 0) if co_that else max(0, _tron(rng.gauss(12 * ns["nang_suat"] + 1, 3)))
+            s.add(HrMonthly(ma_nv=ns["ma_nv"], thang=thang, acc=ns["acc"], ho_ten=ns["ho_ten"], vi_tri="Trưởng phòng" if ns["tp"] else "NVKD", phong_ps=f"DNGB{ns['so']}",
                             tham_nien_bucket=str(min(tn, 24)), tham_nien_thang=tn, nhom_tham_nien=_nhom_tham_nien(tn),
-                            trang_thai="Nghỉ việc" if ns["nghi"] else "Bình thường", dieu_kien="Xét NSLĐ", diem_itn=float(diem),
-                            diem_fpt_play=0.0, diem_tong=float(diem), ket_luan="OK" if diem >= (12 if thang == THANG_TRUOC else 6) else "NOT OK"))
+                            trang_thai="Nghỉ việc" if ns["nghi"] else "Bình thường", dieu_kien="Không xét NSLĐ" if ns["tp"] else "Xét NSLĐ",
+                            diem_itn=float(diem), diem_fpt_play=0.0, diem_tong=float(diem),
+                            ket_luan="" if ns["tp"] else ("OK" if diem >= (12 if thang != THANG_KY else 6) else "NOT OK")))
             n += 1
     return n
 
 
-def _ghi_muc_tieu(s, net: list[dict], nhan_su: list[dict], rng: random.Random) -> int:
-    """Mục tiêu tháng từng phòng quanh số online thật của tháng 10 (tháng 11 đặt cao hơn một chút) để có tiến độ và dự báo."""
+def _ghi_muc_tieu(s, rng: random.Random) -> int:
+    """Mục tiêu tháng 10 và 11 cho MỌI phòng kinh doanh, kỹ thuật, CUS, ECOM (Internet, Camera, mục tiêu ngày), quanh số online thật của tháng 10 trong database;
+    tháng 11 đặt cao hơn một chút để có tiến độ và dự báo. Phòng gần như không có số (ECOM, KT, CUS) vẫn có mục tiêu nhỏ để không bị báo thiếu."""
+    from sqlalchemy import text
+
     from app.models import Target
-    phong_cua = {n["acc"]: n["phong"] for n in nhan_su}
-    onl: dict[str, int] = {}
-    for h in net:
-        p = phong_cua.get(h["acc_nhan_vien"])
-        if p and h["ngay_online"] and f"{h['ngay_online']:%Y-%m}" == THANG_TRUOC:
-            onl[p] = onl.get(p, 0) + 1
+    from app.org import phong_order
+    onl = {r[0]: int(r[1]) for r in s.execute(text("SELECT phong_code, COUNT(*) FROM fact_internet WHERE ngay_online >= '2026-10-01' AND ngay_online <= '2026-10-31' GROUP BY phong_code"))}
     n = 0
-    for p, so in onl.items():
+    for p in phong_order(THANG_KY):
+        if p.get("loai") not in ("IBB", "DIABAN", "KT", "CUS", "ECOM"):
+            continue
+        so = max(onl.get(p["code"], 0), 8)
         for thang, he in ((THANG_TRUOC, rng.uniform(0.92, 1.08)), (THANG_KY, rng.uniform(1.0, 1.2))):
             mt = _tron(so * he / 5) * 5
-            s.add(Target(thang=thang, doi_tuong="PHONG", ma_doi_tuong=p, chi_tieu="internet", gia_tri=float(mt)))
-            s.add(Target(thang=thang, doi_tuong="PHONG", ma_doi_tuong=p, chi_tieu="camera", gia_tri=float(max(5, _tron(mt * 0.22 / 5) * 5))))
-            n += 2
+            for chi_tieu, gia_tri in (("internet", mt), ("camera", max(5, _tron(mt * 0.22 / 5) * 5)), ("ngay", max(1, _tron(mt / 30)))):
+                s.add(Target(thang=thang, doi_tuong="PHONG", ma_doi_tuong=p["code"], chi_tieu=chi_tieu, gia_tri=float(gia_tri)))
+                n += 1
     return n
 
 
@@ -283,8 +298,8 @@ def nap_kinh_doanh(rng: random.Random, tc: date) -> dict:
             out[ten] = st.get("them_moi", 0)
         pheu = commit_result(s, kq("pheu_ban_hang", sinh_pheu(rng)), nguon_file="du_lieu_mau_pheu.csv", hash_file="demopheu", user="demo", thang=THANG_KY)
         out["pheu"] = pheu.get("them_moi", 0)
-        out["nsld"] = _ghi_nsld(s, nhan_su, net, fpl)
-        out["muc_tieu"] = _ghi_muc_tieu(s, net, nhan_su, rng)
+        out["nsld"] = _ghi_nsld(s, nhan_su, net, rng)
+        out["muc_tieu"] = _ghi_muc_tieu(s, rng)
         out["nhan_su"] = len(nhan_su)
         # giờ nạp cuối đặt cố định (sau ngày tham chiếu) để ngày tham chiếu hiện là số đã chốt, không phải "đang cập nhật"
         luc = datetime.combine(tc + timedelta(days=1), datetime.min.time()) + timedelta(hours=2, minutes=30)
@@ -311,7 +326,9 @@ def can_nap() -> dict[str, bool]:
     init_db()
     from app.dvkh import nap as dv_nap
     dv_nap.dam_bao_bang(them=True)
-    return {"kd": _dem("fact_internet") == 0, "dvkh": _dem("dv_nap") == 0}
+    from app import bao_cao_ngay as bc
+    bc.dam_bao_bang()
+    return {"kd": _dem("fact_internet") == 0, "dvkh": _dem("dv_nap") == 0, "nhap": _dem("bao_cao_ngay") == 0}
 
 
 def _xoa_so_lieu_mau() -> None:
@@ -322,7 +339,8 @@ def _xoa_so_lieu_mau() -> None:
     from app.db import engine
     from app.dvkh import nap as dv_nap
     bang = ["fact_internet", "fact_fptplay", "fact_camera", "staff_map", "dim_employee", "hr_monthly", "target_monthly", "fact_pheu_ban_hang",
-            "dv_nap", "dv_sr_bi_dong", "dv_sr_chu_dong", "dv_roi_mang", "dv_cong_no", "dv_cong_no_chot", "dv_danh_sach", "dv_sr_bd_them", "dv_au_kh"]
+            "dv_nap", "dv_sr_bi_dong", "dv_sr_chu_dong", "dv_roi_mang", "dv_cong_no", "dv_cong_no_chot", "dv_danh_sach", "dv_sr_bd_them", "dv_au_kh",
+            "bao_cao_ngay", "bao_cao_ngay_chu", "ton_theo_doi", "online_ca", "danh_ba", "ads_lead", "ads_ngay", "ads_pic", "ads_sale", "ads_page", "ads_thang", "phan_hoi_he_thong"]
     with engine.begin() as c:
         for b in bang:
             try:
@@ -351,6 +369,9 @@ def nap_mau(nap_lai: bool = False) -> dict:
     if can["dvkh"]:
         from scripts.nap_so_lieu_mau_dvkh import nap_dvkh_mau
         kq["dvkh"] = nap_dvkh_mau(random.Random(f"{HAT_GIONG}:dvkh"), tc)
+    if can["nhap"]:
+        from scripts.nap_so_lieu_mau_nhap import nap_nhap_lieu
+        kq["nhap_lieu"] = nap_nhap_lieu(random.Random(f"{HAT_GIONG}:nhap"), tc)
     return kq
 
 

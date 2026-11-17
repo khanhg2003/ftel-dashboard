@@ -4,7 +4,7 @@
 
 - Database riêng (SQLite `data/demo_lien_khoi.db`) và dữ liệu `demo/lien_khoi/*.csv`: không chạm database của app đang chạy thật.
 - Lần đầu (file trạng thái còn trống) tự nạp 14 ngày lịch sử mô phỏng và việc hôm nay, để mở ra là có số liệu.
-- Khối Kinh doanh / DVKH đọc thẳng database nên lần đầu cũng được nạp số liệu mẫu tổng hợp (`scripts/nap_so_lieu_mau.py`; `--nap-lai-so-lieu-mau` để nạp lại). Biến `DEMO_DB` đổi file database.
+- Khối Kinh doanh / DVKH đọc thẳng database nên lần đầu cũng được nạp số liệu mẫu tổng hợp (`scripts/nap_so_lieu_mau.py`; `--nap-lai-so-lieu-mau` để nạp lại). Biến `DEMO_DB` đổi file database. Muốn xem cả Báo cáo ngày / Nhập tồn / Ads IBB7 (Quản trị không vào được) thì đặt thêm `DEMO_USER_SALE` + `DEMO_MAT_KHAU_SALE` (tài khoản sale IBB7).
 - TỪ CHỐI chạy nếu có `LIEN_KHOI_ZALO_TOKEN`: bản công khai ai cũng bấm được nên tuyệt đối không được gửi tin Zalo thật (chỉ ghi hộp thư giả lập).
 - Chạy bằng waitress (như `serve.py`). KHÔNG đặt chung thư mục với app chạy thật, KHÔNG dùng file .env của app thật.
 """
@@ -27,9 +27,10 @@ os.environ["LIEN_KHOI_NGUON"] = "demo"
 os.environ["DATABASE_URL"] = "sqlite:///" + Path(os.environ.get("DEMO_DB") or GOC / "data" / "demo_lien_khoi.db").resolve().as_posix()      # DEMO_DB: đổi file database (vd để thử trên bản sao)
 
 
-def tao_tai_khoan_demo(user: str, mat_khau: str) -> None:
-    """Tài khoản duy nhất của bản công khai (quyền Quản trị trong database demo, không phải của app thật); mỗi lần chạy đặt lại mật khẩu theo biến môi trường.
-    Đăng nhập bằng form của app: sai 5 lần thì khoá 15 phút."""
+def tao_tai_khoan_demo(user: str, mat_khau: str, role: str = "admin", scope: str = "[]") -> None:
+    """Tài khoản của bản công khai (mặc định quyền Quản trị trong database demo, không phải của app thật); mỗi lần chạy đặt lại mật khẩu theo biến môi trường.
+    Đăng nhập bằng form của app: sai 5 lần thì khoá 15 phút. `role="nvkd"` + `scope='["IBB7"]'` là tài khoản sale IBB7: chỉ tài khoản loại này (hoặc admin kỹ thuật) mới vào được
+    Báo cáo ngày, Nhập tồn, Ads IBB7 - Quản trị (BGĐ) không vào những trang nhập liệu đó."""
     from argon2 import PasswordHasher
     from sqlalchemy import select
 
@@ -39,8 +40,9 @@ def tao_tai_khoan_demo(user: str, mat_khau: str) -> None:
     with session_scope() as s:
         row = s.execute(select(User).where(User.username == user)).scalars().first()
         if row is None:
-            row = User(username=user, ho_ten="Demo (dữ liệu minh hoạ)", role="admin", scope="[]", active=True, password_hash="")
+            row = User(username=user, ho_ten="Demo (dữ liệu minh hoạ)" if role == "admin" else "Demo sale IBB7 (dữ liệu minh hoạ)", role=role, scope=scope, active=True, password_hash="")
             s.add(row)
+        row.role, row.scope = role, scope
         row.password_hash = PasswordHasher().hash(mat_khau)
         row.active, row.failed_logins, row.locked_until = True, 0, None
 
@@ -73,6 +75,9 @@ def main() -> int:
     if td.danh_sach().empty:
         print("Nạp dữ liệu minh hoạ lần đầu:", mp.chuan_bi_demo())
     tao_tai_khoan_demo(user, mat_khau)
+    sale, mat_khau_sale = os.environ.get("DEMO_USER_SALE", "").strip(), os.environ.get("DEMO_MAT_KHAU_SALE", "")
+    if sale and mat_khau_sale and sale.lower() != user.lower():        # tuỳ chọn: tài khoản sale IBB7 để xem Báo cáo ngày / Nhập tồn / Ads IBB7
+        tao_tai_khoan_demo(sale, mat_khau_sale, "nvkd", '["IBB7"]')
     print(f"Demo công khai: http://{a.host}:{a.port}/lienkhoi")
     serve(server, host=a.host, port=a.port, threads=a.threads)
     return 0
