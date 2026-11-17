@@ -15,6 +15,7 @@ import pandas as pd
 from app.lien_khoi import dieu_phoi as dp, luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
 
 TOI_DA_VIEC_XEM = 6
+TOI_DA_CHAT_THU = 40
 TEN_VAI = {"KD": "Kinh doanh", "DVKH": "Dịch vụ khách hàng", "KT": "Kỹ thuật", "BGD": "Ban giám đốc"}
 XANH, DO, CAM, XAM, LON, NHO = zv.XANH_DUONG, zv.DO, zv.CAM, zv.XAM, zv.CO_LON, zv.CO_NHO
 LENH_XONG = re.compile(r"\b(da xong|xong|hoan tat|done|khong lam duoc|khong duoc|chua duoc|ket|da nhan|nhan|ok)\b")
@@ -28,7 +29,7 @@ def nhan_dien(nguoi: str) -> tuple[str, str, list[str]]:
     if len(kt):
         return str(kt["ma"].iloc[0]), str(kt["chat_id"].iloc[0]), []
     if nguon.la_demo():
-        vai = [k for k, c in zv.dai_dien_thu().items() if c == nguoi]
+        vai = [k for k, ids in zv.danh_sach_thu().items() if nguoi in ids]
         if vai:
             hien = td.doc_cai_dat(f"vai_zalo:{nguoi}", "BGD")
             hien = hien if hien in vai else ("BGD" if "BGD" in vai else vai[0])
@@ -206,10 +207,24 @@ def doi_vai(nguoi: str, vai_thu: list[str], chu: str) -> str:
 
 
 # ------------------------------------------------------------------ cửa vào
-def xu_ly(nguoi: str, chu: str, now: datetime | None = None) -> str:
+def tu_dang_ky_nhom(chat_id: str) -> bool:
+    """Nhóm Zalo (demo) lần đầu nhắc tới bot: đăng ký nhóm đó nhận tin của CẢ BỐN vai (mọi thành viên cùng thấy), tối đa `TOI_DA_CHAT_THU` chat. Chỉ ở chế độ thử Zalo."""
+    if not nguon.la_demo() or zv.kenh() != "zalo_thu" or not chat_id:
+        return False
+    ds = zv.danh_sach_thu()
+    if len({c for v in ds.values() for c in v}) >= TOI_DA_CHAT_THU:
+        return False
+    zv.ghi_dang_ky_thu({k: list(dict.fromkeys([*ds.get(k, []), chat_id])) for k in zv.KHOI_THU})
+    return True
+
+
+def xu_ly(nguoi: str, chu: str, now: datetime | None = None, la_nhom: bool = False) -> str:
     """Quản lý (mã người hoặc mã chat Zalo) nhắn một câu: nhận diện, chạy lệnh, trả lời đúng chat đó và ghi hộp thư. Trả về nội dung câu trả lời."""
     now = now or td.bay_gio()
     ma, chat_id, vai_thu = nhan_dien(nguoi)
+    if not ma and la_nhom and tu_dang_ky_nhom(nguoi):                           # nhóm mới nhắc bot: đăng ký rồi chào
+        zv.tra_loi_chat("", nguoi, "Đã kết nối nhóm này với bot Điều hành liên khối (dữ liệu minh hoạ). Tin của cả bốn vai Kinh doanh, DVKH, Kỹ thuật và Ban giám đốc sẽ gửi vào nhóm. Nhắn menu để xem lệnh.", now)
+        ma, chat_id, vai_thu = nhan_dien(nguoi)
     td.ghi_hop_thu(ma or nguoi, chat_id, "nhan_tu_nguoi", chu or "", zv.kenh(), "da_nhan", now)
     noi = _tra_loi(ma, nguoi, vai_thu, chu or "", now)
     zv.tra_loi_chat(ma, chat_id, noi, now)

@@ -12,7 +12,6 @@ chạy `python scripts/lien_khoi_webhook.py go` trước.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
@@ -45,10 +44,12 @@ def _doc() -> dict:
 
 
 def _ghi(d: dict) -> None:
+    """Ghi đăng ký: người vừa đăng ký đứng đầu danh sách của vai, những người khác (kể cả nhóm Zalo) và khoá QUAN_TRI được giữ nguyên."""
     from app.lien_khoi import zalo_viec
-    p = zalo_viec.duong_dan_thu()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    ds = zalo_viec.danh_sach_thu()
+    for k, cid in d.items():
+        ds[k] = [cid] + [x for x in ds.get(k, []) if x != cid]
+    zalo_viec.ghi_dang_ky_thu(ds)
 
 
 def _cac_su_kien(kq: dict) -> list[dict]:

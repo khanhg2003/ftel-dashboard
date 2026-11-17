@@ -53,13 +53,41 @@ def duong_dan_thu() -> Path:
     return Path(os.getenv("LIEN_KHOI_ZALO_THU") or Path(BASE_DIR) / "data" / "zalo_thu.json")
 
 
-def dai_dien_thu() -> dict[str, str]:
-    """{khối: mã chat Zalo} của người thử (KD, DVKH, KT, BGD). File thiếu, hỏng hoặc rỗng thì {}."""
+def _doc_file_thu() -> dict:
     try:
         d = json.loads(duong_dan_thu().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-    return {k: str(v).strip() for k, v in d.items() if k in KHOI_THU and isinstance(v, (str, int)) and str(v).strip()} if isinstance(d, dict) else {}
+    return d if isinstance(d, dict) else {}
+
+
+def _ds_chat(v) -> list[str]:
+    ds = v if isinstance(v, list) else [v]
+    return list(dict.fromkeys(str(x).strip() for x in ds if isinstance(x, (str, int)) and str(x).strip()))
+
+
+def danh_sach_thu() -> dict[str, list[str]]:
+    """{khối: [mã chat Zalo]} của người thử (KD, DVKH, KT, BGD): mỗi khối có thể có NHIỀU người (demo cho nhiều người cùng nhận tin). File thiếu hoặc hỏng thì {}."""
+    d = _doc_file_thu()
+    return {k: ds for k in KHOI_THU if (ds := _ds_chat(d.get(k, [])))}
+
+
+def dai_dien_thu() -> dict[str, str]:
+    """{khối: mã chat Zalo của người đăng ký đầu tiên}. File thiếu, hỏng hoặc rỗng thì {}."""
+    return {k: v[0] for k, v in danh_sach_thu().items()}
+
+
+def quan_tri_thu() -> set[str]:
+    """Mã chat được điều khiển demo (lệnh `demo ...`): khoá "QUAN_TRI" trong file đăng ký. Không có khoá này thì mọi người thử đều được."""
+    return set(_ds_chat(_doc_file_thu().get("QUAN_TRI", [])))
+
+
+def ghi_dang_ky_thu(ds: dict[str, list[str]]) -> None:
+    """Ghi lại danh sách đăng ký (giữ nguyên khoá QUAN_TRI)."""
+    d = {**_doc_file_thu(), **{k: ds.get(k, []) for k in KHOI_THU}}
+    p = duong_dan_thu()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def kenh() -> str:
@@ -91,8 +119,8 @@ def _gui(ma: str, chat_id: str, loai: str, chu: str, now: datetime) -> str:
 def _gui_thu(ma: str, loai: str, chu: str, now: datetime) -> str:
     """Chế độ thử: chỉ quản lý được người thử đóng vai (`MA_DAI_DIEN_THU`) mới được gửi THẬT, tới mã chat của người đó; các quản lý khác chỉ ghi hộp thư giả lập."""
     khoi = next((k for k, m in MA_DAI_DIEN_THU.items() if m == ma), "")
-    cid = dai_dien_thu().get(khoi, "") if khoi else ""
-    if not khoi or not cid:
+    cids = danh_sach_thu().get(khoi, []) if khoi else []
+    if not cids:
         kq = "gia_lap"
         td.ghi_hop_thu(ma, "", loai, chu, "gia_lap", kq, now)
         return kq
@@ -108,12 +136,15 @@ def _gui_thu(ma: str, loai: str, chu: str, now: datetime) -> str:
         noi = _voi_dau(dau, chu)
     else:
         noi = dau + chu
-    try:
-        zalo_bot.gui_tin_du_phong(cid, noi, token=os.environ["LIEN_KHOI_ZALO_TOKEN"])
-        kq = "ok"
-    except zalo_bot.LoiZalo as e:
-        kq = f"loi: {e}"
-    td.ghi_hop_thu(ma, cid, loai, noi, "zalo_thu", kq, now)
+    kq = "ok"
+    for cid in cids:                                                         # mọi người đang đóng vai này đều nhận tin
+        try:
+            zalo_bot.gui_tin_du_phong(cid, noi, token=os.environ["LIEN_KHOI_ZALO_TOKEN"])
+            r = "ok"
+        except zalo_bot.LoiZalo as e:
+            r = f"loi: {e}"
+        td.ghi_hop_thu(ma, cid, loai, noi, "zalo_thu", r, now)
+        kq = r if r != "ok" and kq == "ok" else kq
     return kq
 
 
@@ -414,12 +445,12 @@ def doc_lenh(chu: str) -> tuple[str | None, list[str], str]:
     return None, list(dict.fromkeys(ma)), ""
 
 
-def xu_ly_tra_loi(nguoi: str, chu: str, now: datetime | None = None) -> str:
+def xu_ly_tra_loi(nguoi: str, chu: str, now: datetime | None = None, la_nhom: bool = False) -> str:
     """Người nhận (mã hoặc mã chat Zalo) trả lời bằng chữ; cập nhật trạng thái và trả về câu phản hồi (cũng được gửi / ghi hộp thư)."""
     now = now or td.bay_gio()
     if tin_cho() == "quan_ly":                                                  # quản lý nhắn lệnh cho bot (xem việc, giao, chia đều, tổng kết, excel...)
         from app.lien_khoi import zalo_lenh
-        return zalo_lenh.xu_ly(nguoi, chu, now)
+        return zalo_lenh.xu_ly(nguoi, chu, now, la_nhom)
     ds = td.nguoi_nhan().fillna("")
     kt = ds[(ds["ma"] == nguoi) | ((ds["chat_id"] == nguoi) & (ds["chat_id"] != ""))]
     ma = str(kt["ma"].iloc[0]) if len(kt) else ""

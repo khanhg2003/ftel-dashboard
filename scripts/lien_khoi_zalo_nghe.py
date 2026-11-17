@@ -9,6 +9,7 @@ Lệnh quản lý nhắn: xem `app/lien_khoi/zalo_lenh.py` (menu, viec, qua han,
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -31,15 +32,24 @@ def _che(cid: str) -> str:
     return cid if len(cid) <= 6 else cid[:3] + "…" + cid[-3:]
 
 
+def bo_mention(chu: str) -> str:
+    """Trong nhóm Zalo người dùng gõ "@Tên bot lệnh": bỏ phần @tên bot (tên lấy từ `LIEN_KHOI_TEN_BOT`, mặc định tên bot demo) và mọi chữ @ đứng đầu."""
+    ten = os.environ.get("LIEN_KHOI_TEN_BOT", "Bot Điều Hành Liên Khối")
+    chu = re.sub(r"@?\s*" + re.escape(ten), " ", chu or "", flags=re.IGNORECASE)
+    return re.sub(r"^\s*(@\S+\s*)+", "", chu).strip()
+
+
 def xu_ly_mot(sk: dict) -> str | None:
-    """Một sự kiện Zalo -> trả lời nếu là tin chữ của người thật trong chat riêng. Trả về dòng nhật ký (hoặc None nếu bỏ qua)."""
+    """Một sự kiện Zalo -> trả lời nếu là tin chữ của người thật, trong chat riêng hoặc NHÓM (nhóm phải @ bot). Trả về dòng nhật ký (hoặc None nếu bỏ qua)."""
     from app.lien_khoi import zalo_viec as zv
     from app.zalo_gia import doc_tin
     t = doc_tin(sk)
-    if not t or t["la_bot"] or t["loai_chat"] not in ("", "PRIVATE"):
+    if not t or t["la_bot"]:
         return None
-    zv.xu_ly_tra_loi(t["chat_id"], t["text"])
-    return f"{_che(t['chat_id'])}: {t['text'][:50]!r}"
+    nhom = t["loai_chat"] not in ("", "PRIVATE")
+    chu = bo_mention(t["text"]) if nhom else t["text"]
+    zv.xu_ly_tra_loi(t["chat_id"], chu or "menu", la_nhom=nhom)
+    return f"{'nhóm ' if nhom else ''}{_che(t['chat_id'])}: {chu[:50]!r}"
 
 
 def main() -> int:
@@ -69,6 +79,8 @@ def main() -> int:
                     continue
                 if dong:
                     print("Đã trả lời", dong)
+                elif os.environ.get("LIEN_KHOI_GHI_SU_KIEN") == "1":                     # dò dạng tin của nhóm Zalo (Beta): ghi sự kiện không đọc được, đã cắt ngắn
+                    print("Sự kiện bỏ qua:", str(sk)[:300].replace(token, "***"))
     except KeyboardInterrupt:
         print("\nĐã dừng.")
     return 0
