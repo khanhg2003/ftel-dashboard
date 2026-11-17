@@ -1,5 +1,11 @@
-"""Tự bắt lead từ Messenger (Giai đoạn B, chốt 16/11/2026): nhận webhook (app/api_lead.py), tạo/cập nhật `Lead`
-theo (page, PSID); gọi Graph API để lấy tên khách và để đăng ký webhook cho từng page.
+"""Tự bắt lead từ Messenger (Giai đoạn B): nhận webhook (app/api_lead.py), tạo/cập nhật `Lead` theo (page, PSID);
+gọi Graph API để lấy tên khách và để đăng ký webhook cho từng page.
+
+**Chỉ tạo lead MỚI khi tin nhắn có số điện thoại** (chốt với người dùng 17/11/2026, `leads.tim_sdt`): khách nhắn
+mà chưa cho số thì chưa tạo gì cả, tới khi có tin nào của đúng khách đó chứa số mới tạo lead (các tin trước đó
+không có số bị bỏ qua, không lưu lại). Lead ĐÃ tồn tại (khách nhắn lại) thì mọi tin sau vẫn được nối vào, không
+lọc lại. "Quét số" từ trang cá nhân khách là việc sale tự làm bằng tay (Facebook không cho app đọc SĐT người lạ
+qua API) - gõ thẳng vào nút "+ Thêm lead" của trang /leads, không qua webhook này.
 
 Việc người dùng phải tự làm trên Meta (không thao tác thay được): tạo Meta App, bật Messenger, lấy App Secret
 (`FB_APP_SECRET`), khai báo URL callback + verify token (`FB_WEBHOOK_VERIFY_TOKEN`), lấy Page Access Token của
@@ -86,8 +92,11 @@ def _xu_ly_tin(fb_page_id: str, msg: dict) -> None:
     with session_scope() as s:
         r = s.execute(select(Lead).where(Lead.page_id == page_id, Lead.fb_psid == psid)).scalars().first()
         if r is None:
+            sdt = leads.tim_sdt(noi_dung)
+            if not sdt:
+                return      # chưa cho số -> chưa tạo lead, chờ tin sau có số
             s.add(Lead(page_id=page_id, ngay=date.today(), fb_psid=psid,
-                       ten_kh=ten_khach(psid, token) if token else None, sdt=leads.tim_sdt(noi_dung),
+                       ten_kh=ten_khach(psid, token) if token else None, sdt=sdt,
                        tinh_trang_xu_ly="Mới", nguon="messenger", tu_van_1=noi_dung or None,
                        tao_luc=now, tao_boi="messenger", cap_nhat_luc=now, cap_nhat_boi="messenger"))
         else:

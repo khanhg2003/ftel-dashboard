@@ -96,19 +96,37 @@ def test_fb_webhook_dung_chu_ky_tao_lead_moi(may):
     assert r0.sdt == "0912345678" and r0.nguon == "messenger" and r0.tinh_trang_xu_ly == "Mới"
 
 
-def test_fb_webhook_tin_nhan_tiep_theo_cap_nhat_cung_mot_lead(may):
+def _gui_tin(may, fb_page_id: str, psid: str, text: str):
+    payload = {"entry": [{"id": fb_page_id, "messaging": [
+        {"sender": {"id": psid}, "message": {"text": text}}]}]}
+    body = json.dumps(payload).encode()
+    return may.post("/api/lead/fb-webhook", data=body,
+                    headers={"X-Hub-Signature-256": _ky(body), "Content-Type": "application/json"})
+
+
+def test_fb_webhook_chua_co_sdt_thi_chua_tao_lead(may):
+    """Chốt 17/11/2026: khách nhắn mà chưa cho số thì chưa tạo gì, tránh lead rác từ tin spam/hỏi nhầm."""
     leads.them_page("Hải Phòng", None, NGUOI)
     pid = int(leads.ds_page().iloc[0].id)
     leads.luu_fb_cau_hinh(pid, "fb-page-1", "token-gia", NGUOI)
-    for text in ("chào shop", "em ở quận Hồng Bàng"):
-        payload = {"entry": [{"id": "fb-page-1", "messaging": [
-            {"sender": {"id": "psid-1"}, "message": {"text": text}}]}]}
-        body = json.dumps(payload).encode()
-        may.post("/api/lead/fb-webhook", data=body,
-                headers={"X-Hub-Signature-256": _ky(body), "Content-Type": "application/json"})
+    for text in ("chào shop", "em ở quận Hồng Bàng", "giá bao nhiêu vậy ạ"):
+        _gui_tin(may, "fb-page-1", "psid-1", text)
+    xoa_nho("leads")
+    assert leads.danh_sach().empty
+
+
+def test_fb_webhook_tin_sau_moi_co_sdt_thi_tao_lead_tu_luc_do(may):
+    leads.them_page("Hải Phòng", None, NGUOI)
+    pid = int(leads.ds_page().iloc[0].id)
+    leads.luu_fb_cau_hinh(pid, "fb-page-1", "token-gia", NGUOI)
+    _gui_tin(may, "fb-page-1", "psid-1", "chào shop")          # chưa có số -> bỏ qua
+    _gui_tin(may, "fb-page-1", "psid-1", "sđt em 0912345678")  # có số -> tạo lead
+    _gui_tin(may, "fb-page-1", "psid-1", "em ở quận Hồng Bàng")  # lead đã có -> nối thêm
     xoa_nho("leads")
     df = leads.danh_sach()
-    assert len(df) == 1 and "Hồng Bàng" in (df.iloc[0].tu_van_1 or "")
+    assert len(df) == 1
+    r0 = df.iloc[0]
+    assert r0.sdt == "0912345678" and "Hồng Bàng" in (r0.tu_van_1 or "") and "chào shop" not in (r0.tu_van_1 or "")
 
 
 def test_fb_webhook_page_chua_cau_hinh_bi_bo_qua_nhung_van_tra_200(may):
