@@ -2,9 +2,10 @@
 chốt với người dùng 17/11/2026 - ban đầu định dùng lại bot Bản tin nhưng người dùng muốn gửi thẳng vào 1 nhóm
 Zalo chung, nên tạo bot mới: một bot chỉ gắn được một webhook, bot Bản tin đang dùng webhook của nó).
 
-Người nhận một lần cảnh báo: sale đang phụ trách + người được đề xuất nhận chéo (ít lead đang xử lý nhất trong
-nhóm, xem `app/leads.py` `de_xuat_nhan_cheo`) + mọi người vai trò "leader" đang bật (`LeadNguoiNhanCanhBao` -
-thường là chat_id của MỘT nhóm Zalo chung, khai vai trò `leader`, không phải từng người riêng).
+Người nhận một lần cảnh báo: sale đang phụ trách (nếu có khai chat_id riêng) + mọi người vai trò "leader" đang
+bật (`LeadNguoiNhanCanhBao` - thường là chat_id của MỘT nhóm Zalo chung, khai vai trò `leader`, không phải từng
+người riêng). Không gợi ý người nhận chéo trong tin nữa (chốt với người dùng 17/11/2026: cả nhóm tự xoay,
+không cần app chỉ định sẵn).
 Không nhắc lại cho cùng 1 lead trước `CHU_KY_NHAC_LAI_GIO` giờ kể từ lần cảnh báo trước (`Lead.canh_bao_luc`).
 Gọi `quet_va_canh_bao()` từ `app/api_lead.py` (cron bên ngoài gọi mỗi 15-30 phút).
 """
@@ -87,15 +88,13 @@ def _chat_id_sale(acc_norm: str | None, nguoi_nhan: list[dict]) -> str | None:
                 if n["vai_tro"] == "sale" and n["acc_norm"] == acc_norm and n["bat"]), None)
 
 
-def _noi_dung(r: Lead, ten_tinh: str, ten_sale: str, ten_de_xuat: str | None) -> str:
+def _noi_dung(r: Lead, ten_tinh: str, ten_sale: str) -> str:
     gio = int((datetime.utcnow() - (r.cap_nhat_luc or r.tao_luc)).total_seconds() // 3600)
     dong = [f"⏰ LEAD QUÁ HẠN CARE ({gio} giờ chưa cập nhật)",
             f"Khách: {r.ten_kh or '(chưa có tên)'} · {ten_tinh}",
             f"SĐT: {r.sdt or '(chưa có)'}",
-            f"Sale phụ trách: {ten_sale}"]
-    if ten_de_xuat:
-        dong.append(f"Đề xuất nhận chéo: {ten_de_xuat}")
-    dong.append(f"Trạng thái hiện tại: {r.tinh_trang_xu_ly}")
+            f"Sale phụ trách: {ten_sale}",
+            f"Trạng thái hiện tại: {r.tinh_trang_xu_ly}"]
     return "\n".join(dong)
 
 
@@ -120,16 +119,13 @@ def quet_va_canh_bao() -> dict:
             kq["qua_han"] += 1
             if r.canh_bao_luc and (now - r.canh_bao_luc).total_seconds() < CHU_KY_NHAC_LAI_GIO * 3600:
                 continue
-            de_xuat = leads.de_xuat_nhan_cheo(r.sale_tu_van)
             trang = s.get(CrmPage, r.page_id)
             noi_dung = _noi_dung(r, trang.ten if trang else "",
-                                 ten_sale.get(r.sale_tu_van, r.sale_tu_van or "(chưa gán)"),
-                                 ten_sale.get(de_xuat) if de_xuat else None)
+                                 ten_sale.get(r.sale_tu_van, r.sale_tu_van or "(chưa gán)"))
             nhan: list[str] = []
-            for acc in (r.sale_tu_van, de_xuat):
-                cid = _chat_id_sale(acc, nguoi_nhan)
-                if cid and cid not in nhan:
-                    nhan.append(cid)
+            cid = _chat_id_sale(r.sale_tu_van, nguoi_nhan)
+            if cid:
+                nhan.append(cid)
             for n in nguoi_nhan:
                 if n["vai_tro"] == "leader" and n["bat"] and n["chat_id"] not in nhan:
                     nhan.append(n["chat_id"])
