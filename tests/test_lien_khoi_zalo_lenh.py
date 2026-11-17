@@ -273,3 +273,13 @@ def test_chat_rieng_la_tu_dang_ky_theo_vong_nhan_tin_va_tu_doi_vai_nhom_moi_cung
     assert "Đã gửi" in zl.xu_ly("chat-a", "demo gui", T0)
     zl.xu_ly("nhom-2", "menu", T0, la_nhom=True)
     assert "nhom-2" in zv.danh_sach_thu()["KD"] and "nhom-2" in zv.quan_tri_thu()
+
+
+def test_che_do_lich_chi_gui_trong_khung_gio_lam_viec_va_bo_chu_nhat():
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import lien_khoi_chay_tu_dong as cd
+    from datetime import datetime as dt
+    assert cd.trong_gio_lam_viec(dt(2026, 11, 17, 8, 0)) and cd.trong_gio_lam_viec(dt(2026, 11, 17, 17, 59))      # thứ Ba
+    assert not cd.trong_gio_lam_viec(dt(2026, 11, 17, 7, 59)) and not cd.trong_gio_lam_viec(dt(2026, 11, 17, 18, 0))
+    assert not cd.trong_gio_lam_viec(dt(2026, 11, 22, 10, 0))                                                     # Chủ nhật
+    assert cd.trong_gio_lam_viec(dt(2026, 11, 22, 10, 0), bo_chu_nhat=False)

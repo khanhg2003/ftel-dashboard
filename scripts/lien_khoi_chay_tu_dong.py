@@ -6,6 +6,7 @@
   Việc đã gửi / đã nhắc / đã báo thì KHÔNG gửi lại, nên chạy lặp an toàn.
 - `--moi PHUT`: nghỉ bao nhiêu phút giữa hai vòng (mặc định 15).
 - `--tong-ket`: gửi thêm tin tổng kết cho từng quản lý còn việc (mỗi người một tin mỗi ngày).
+- `--lich`: CHẾ ĐỘ LỊCH dùng thật, chỉ gửi trong khung giờ làm việc (xem `trong_gio_lam_viec`), từ 17:30 gửi thêm tổng kết. Ví dụ: `python scripts/lien_khoi_chay_tu_dong.py --lich --moi 15`.
 - `--so-vong N`: dừng sau N vòng (mặc định 0 = chạy mãi, dừng bằng Ctrl+C).
 - CHỈ minh hoạ: `--chuan-bi` làm lại từ đầu (xoá trạng thái cũ, nạp 14 ngày mô phỏng và việc hôm nay) trước vòng đầu;
   `--gio-moi-vong GIO` cho đồng hồ minh hoạ chạy tới GIO giờ trước mỗi vòng (người nhận mô phỏng làm việc theo đó). Ví dụ `--moi 1 --gio-moi-vong 24`: mỗi PHÚT thật là một NGÀY của
@@ -52,12 +53,22 @@ def mot_vong(gio_moi_vong: float = 0.0, tong_ket: bool = False) -> str:
             f"nhắc {nhac['nhac']} việc quá hạn · báo giám đốc {nhac.get('viec_bao', nhac['bao_quan_ly'])} việc{tk}")
 
 
+def trong_gio_lam_viec(luc: datetime, tu: str = "08:00", den: str = "18:00", bo_chu_nhat: bool = True) -> bool:
+    """`luc` là giờ Việt Nam. Chế độ lịch chỉ gửi trong khung giờ làm việc (mặc định 08:00 - 18:00, bỏ Chủ nhật)."""
+    if bo_chu_nhat and luc.weekday() == 6:
+        return False
+    return tu <= f"{luc:%H:%M}" < den
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Chạy tự động điều hành liên khối")
     ap.add_argument("--moi", type=float, default=15, help="nghỉ bao nhiêu phút giữa hai vòng")
     ap.add_argument("--so-vong", type=int, default=0, help="dừng sau N vòng (0 = chạy mãi)")
     ap.add_argument("--gio-moi-vong", type=float, default=0, help="CHỈ minh hoạ: cho đồng hồ chạy tới thêm GIO giờ trước mỗi vòng")
     ap.add_argument("--tong-ket", action="store_true", help="mỗi vòng gửi thêm tin TỔNG KẾT cho từng quản lý (mỗi người một tin mỗi ngày)")
+    ap.add_argument("--lich", action="store_true", help="CHẾ ĐỘ LỊCH (dùng thật): mỗi --moi phút trong khung giờ làm việc (--tu 08:00 --den 18:00, bỏ Chủ nhật) lấy việc từ các luật, gửi việc mới, nhắc 24 giờ, báo 48 giờ; từ 17:30 gửi thêm tổng kết (mỗi quản lý một tin mỗi ngày). Ngoài khung giờ thì chờ")
+    ap.add_argument("--tu", default="08:00", help="giờ bắt đầu của chế độ lịch (giờ Việt Nam)")
+    ap.add_argument("--den", default="18:00", help="giờ kết thúc của chế độ lịch (giờ Việt Nam)")
     ap.add_argument("--chuan-bi", action="store_true", help="CHỈ minh hoạ: làm lại từ đầu trước vòng đầu")
     a = ap.parse_args(argv)
     if a.chuan_bi:
@@ -71,6 +82,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         while True:
             vong += 1
+            if a.lich:
+                from datetime import timedelta, timezone
+                vn = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=7))).replace(tzinfo=None)
+                if not trong_gio_lam_viec(vn, a.tu, a.den):
+                    vong -= 1
+                    time.sleep(60)
+                    continue
+                a.tong_ket = f"{vn:%H:%M}" >= "17:30"
             gio = a.gio_moi_vong if vong > 1 else 0.0                          # vòng đầu chạy ngay ở "hôm nay"; các vòng sau mới cho đồng hồ chạy tới
             try:
                 print(f"[{datetime.now():%H:%M:%S}] Vòng {vong}: {mot_vong(gio, a.tong_ket)}", flush=True)
