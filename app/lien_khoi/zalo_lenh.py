@@ -1,7 +1,7 @@
 """Bot Zalo HAI CHIỀU cho quản lý (nhánh thi-lien-khoi): quản lý nhắn lệnh ngắn, bot trả lời đúng số liệu trong phạm vi của họ.
 
 Lệnh (không phân biệt hoa thường và dấu): menu · viec · qua han · chua giao · <MÃ HĐ> · giao MÃ [MÃ...] cho TÊN · chia deu · xong MÃ · khong duoc MÃ lý do ·
-tong ket · excel · vai KD|DVKH|KT|BGD (chỉ bản minh hoạ). Việc số lượng lớn thì làm trên app (chọn nhiều dòng, chia đều, Excel); bot lo phần xem nhanh và giao gọn.
+tong ket · excel · vai KD|DVKH|KT|BGD (chỉ bản minh hoạ) · quyet dinh · dong y SỐ [A|B|C] · sua SỐ ý kiến · bac SỐ lý do (đề xuất của TRỢ LÝ ĐIỀU HÀNH, xem `tro_ly_dieu_hanh.py`). Việc số lượng lớn thì làm trên app (chọn nhiều dòng, chia đều, Excel); bot lo phần xem nhanh và giao gọn.
 Quản lý được nhận ra bằng mã chat Zalo trong danh sách người nhận. Chế độ THỬ ZALO (một người đóng nhiều vai): chat đăng ký ở `data/zalo_thu.json`, vai đang dùng lưu ở
 `cai_dat` và đổi bằng lệnh "vai". Không có tên khách hàng trong bất kỳ câu trả lời nào.
 """
@@ -12,7 +12,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from app.lien_khoi import dieu_phoi as dp, luat, mo_phong as mp, nguon, theo_doi as td, zalo_viec as zv
+from app.lien_khoi import dieu_phoi as dp, luat, mo_phong as mp, nguon, quyet_dinh as qdh, theo_doi as td, tro_ly_dieu_hanh as tdh, zalo_viec as zv
 
 TOI_DA_VIEC_XEM = 6
 TOI_DA_CHAT_THU = 40
@@ -69,12 +69,16 @@ def menu(ma: str, vai_thu: list[str], hien: str = "") -> str:
     for lenh, mo_ta in (("viec", "việc đang mở, việc cần xử lý trước"), ("qua han", "việc quá hạn"), ("chua giao", "việc chưa giao cho ai"),
                         ("MÃ_HĐ", "chi tiết một hợp đồng"), ("tong ket", "số liệu hôm nay"), ("excel", "link tải file Excel")):
         s.them("\n• ").them(lenh, "b").them(f" – {mo_ta}")
+    s.them("\n\nQUYẾT ĐỊNH (trợ lý đề xuất)", "b", NHO, XAM)
+    for lenh, mo_ta in (("quyet dinh", "đề xuất đang chờ anh/chị quyết"), ("dong y SỐ A", "chọn phương án (bỏ chữ cái thì theo khuyến nghị)"),
+                        ("sua SỐ ý kiến", "quyết theo ý khác của anh/chị"), ("bac SỐ lý do", "không đồng ý đề xuất")):
+        s.them("\n• ").them(lenh, "b").them(f" – {mo_ta}")
     s.them("\n\nLÀM", "b", NHO, XAM)
     for lenh, mo_ta in (("giao MÃ MÃ cho TÊN", "giao việc"), ("chia deu", "chia đều việc hàng chờ cho nhân viên"), ("xong MÃ", "báo đã xong"), ("khong duoc MÃ lý do", "báo không làm được")):
         s.them("\n• ").them(lenh, "b").them(f" – {mo_ta}")
     if vai_thu:
         s.them("\n\nĐIỀU KHIỂN DEMO", "b", NHO, XAM)
-        for lenh, mo_ta in (("demo gui", "gửi tin giao việc cho các quản lý"), ("demo lui 25", "lùi đồng hồ 25 giờ"), ("demo nhac", "chạy nhắc và báo giám đốc"), ("demo moi", "làm lại từ đầu")):
+        for lenh, mo_ta in (("demo agent", "trợ lý điều hành chạy buổi sáng, gửi đề xuất"), ("demo kiem chung", "lùi đồng hồ, nhắc quyết và kiểm chứng kết quả"), ("demo gui", "gửi tin giao việc cho các quản lý"), ("demo lui 25", "lùi đồng hồ 25 giờ"), ("demo nhac", "chạy nhắc và báo giám đốc"), ("demo moi", "làm lại từ đầu")):
             s.them("\n• ").them(lenh, "b").them(f" – {mo_ta}")
     s.them("\n\nViệc nhiều thì làm trên app (chọn nhiều dòng, xuất Excel):", NHO, XAM).them(f"\n{zv.lien_ket_app(ma)}", XANH)
     return zv._cat_tin(s.xong())
@@ -179,6 +183,17 @@ def demo(chu_goc: str, vai_thu: list[str], nguoi: str = "") -> str:
     if qt and nguoi not in qt:
         return "Lệnh demo chỉ dành cho người điều khiển buổi demo."
     g = dp.bo_dau(chu_goc)
+    if re.search(r"\bagent\b|\btro ly\b", g):
+        td.dong_bo(luat.danh_sach_viec())
+        r = tdh.chay_buoi_sang()
+        return (f"Trợ lý điều hành đã đề xuất {r['moi']} vấn đề mới ({r['ai']} do AI viết, {r['luat']} bằng bản luật), gửi {r['gui']} tin tới người quyết. "
+                "Nhắn quyet dinh để xem, rồi dong y SỐ A. Sau đó nhắn demo kiem chung để xem trợ lý đo lại kết quả.")
+    if re.search(r"\bkiem chung\b", g):
+        td.them_gio_gia_lap(float(int(qdh.cau_hinh()["kiem_chung_gio"]) + 1))
+        mp.tien_thoi_gian()
+        n, k = tdh.nhac_quyet(), tdh.kiem_chung()
+        return (f"Đã lùi đồng hồ minh hoạ. Trợ lý nhắc {n['nhac']} đề xuất chưa quyết, báo cấp trên {n['bao_cap_tren']} đề xuất quá hạn, "
+                f"kiểm chứng {k['kiem_chung']} quyết định và báo kết quả {k['da_bao']} lần.")
     if re.search(r"\bmoi\b|\blam lai\b|\breset\b", g):
         r = mp.chuan_bi_demo()
         return f"Đã làm lại demo từ đầu: {r['mo_phong']} phần việc lịch sử và {r['moi']} việc mới hôm nay (chưa gửi). Nhắn demo gui để gửi tin cho các quản lý."
@@ -194,7 +209,69 @@ def demo(chu_goc: str, vai_thu: list[str], nguoi: str = "") -> str:
         gio = td.them_gio_gia_lap(float(n.group()) if n else 25.0)
         r = mp.tien_thoi_gian()
         return f"Đã lùi đồng hồ minh hoạ, tổng cộng {gio:.0f} giờ. Người nhận mô phỏng đã làm xong {r['xong']} phần việc, không làm được {r['khong_lam_duoc']}, mới nhận {r['da_nhan']}. Nhắn demo nhac để chạy nhắc."
-    return "Lệnh demo: demo gui · demo nhac · demo lui 25 · demo moi."
+    return "Lệnh demo: demo agent · demo kiem chung · demo gui · demo nhac · demo lui 25 · demo moi."
+
+
+def _lenh_quyet(chu: str) -> tuple[str, int | None, str, str]:
+    """(lệnh, số đề xuất, chữ cái phương án hoặc "", phần chữ còn lại). Lệnh: ds | dong_y | sua | bac."""
+    t = chu.split()
+    ten = [dp.bo_dau(x) for x in t]
+    if ten[0] in ("quyet", "cho", "de"):
+        return "ds", None, "", ""
+    lenh, dau = ("dong_y", 2) if ten[0] == "dong" else (ten[0], 1)
+    so = re.fullmatch(r"#?(\d+)", ten[dau]) if len(ten) > dau else None
+    if not so:
+        return lenh, None, "", ""
+    con = t[dau + 1:]
+    chon = con[0].upper() if lenh == "dong_y" and con and len(con[0]) == 1 and con[0].isalpha() else ""
+    return lenh, int(so.group(1)), chon, " ".join(con[1:] if chon else con)
+
+
+def _ds_quyet(ma: str, ds: pd.DataFrame) -> str:
+    cho = qdh.cho_quyet(ma, ds)
+    if not cho:
+        return "Không có đề xuất nào đang chờ anh/chị quyết."
+    s = _tin("ĐỀ XUẤT CHỜ QUYẾT").them(f"\n{_ten(ma)}", "b").them(f"\n\n{len(cho)} đề xuất", "b", LON)
+    for r in cho[:TOI_DA_VIEC_XEM]:
+        s.them(f"\n#{r['id']} ", "b").them(r["tieu_de"]).them(f"\n    khuyến nghị {r['khuyen_nghi']}, hạn {tdh._vn(r['han_quyet'])}", NHO, XAM)
+    s.them("\n\nTrả lời: ", NHO, XAM).them("dong y SỐ A", "b", NHO).them(" · ", NHO, XAM).them("sua SỐ ý kiến", "b", NHO).them(" · ", NHO, XAM).them("bac SỐ lý do", "b", NHO)
+    return zv._cat_tin(s.xong())
+
+
+def xu_ly_quyet_dinh(ma: str, chu: str, now: datetime) -> str:
+    """Lệnh quyết định đề xuất của trợ lý điều hành: chỉ người nhận quyết hoặc quản lý cấp trên của họ được quyết; mọi quyết định ghi nhật ký."""
+    lenh, so, chon, con = _lenh_quyet(chu)
+    ds = td.nguoi_nhan().fillna("")
+    if lenh not in ("dong_y", "sua", "bac"):
+        return _ds_quyet(ma, ds)
+    if so is None:
+        return {"dong_y": "Nhắn đủ số đề xuất, ví dụ: dong y 12 A (bỏ chữ cái thì theo khuyến nghị).", "sua": "Nhắn số đề xuất và ý kiến, ví dụ: sua 12 chia lại việc cho team 2.",
+                "bac": "Nhắn số đề xuất và lý do, ví dụ: bac 12 đã có người lo."}[lenh]
+    r = qdh.doc(so)
+    if r is None:
+        return f"Không thấy đề xuất số {so}. Nhắn quyet dinh để xem danh sách đang chờ."
+    if not qdh.duoc_quyet(ma, r, ds):
+        return f"Đề xuất #{so} thuộc về {_ten(r['nguoi_quyet'])}. Chỉ người đó hoặc quản lý cấp trên được quyết."
+    if r["trang_thai"] not in qdh.CHO:
+        return f"Đề xuất #{so} đã ở trạng thái {qdh.TRANG_THAI.get(r['trang_thai'], r['trang_thai'])}, không đổi được nữa."
+    pa = {p["ma"]: p for p in r["phuong_an"]}
+    if lenh == "dong_y":
+        chon = chon or r["khuyen_nghi"]
+        if chon not in pa:
+            return f"Đề xuất #{so} không có phương án {chon}. Các phương án: {', '.join(pa)}."
+        ok, ten_lc = qdh.quyet(so, ma, chon, con, now), f"phương án {chon} - {pa[chon]['tieu_de']}"
+    elif lenh == "sua":
+        if not con.strip():
+            return "Anh/chị ghi thêm ý kiến giúp em, ví dụ: sua 12 chia lại việc cho team 2."
+        ok, ten_lc = qdh.quyet(so, ma, qdh.LUA_CHON_SUA, con, now), "ý kiến của anh/chị: " + zv._ngan(con, 100)
+    else:
+        if not con.strip():
+            return "Anh/chị ghi thêm lý do giúp em, ví dụ: bac 12 đã có người lo."
+        return f"Đã ghi: bác đề xuất #{so} ({zv._ngan(con, 100)})." if qdh.bac(so, ma, con, now) else f"Đề xuất #{so} vừa được người khác quyết."
+    if not ok:
+        return f"Đề xuất #{so} vừa được người khác quyết."
+    return (f"Đã ghi quyết định #{so}: {ten_lc}. Trợ lý sẽ đo lại \"{r['chi_so_truoc'].get('nhan', 'chỉ số')}\" lúc {tdh._vn(qdh.doc(so)['han_kiem_chung'])} và báo kết quả. "
+            "Trợ lý không tự giao việc: anh/chị giao bằng lệnh chia deu hoặc giao MÃ cho TÊN.")
 
 
 def doi_vai(nguoi: str, vai_thu: list[str], chu: str) -> str:
@@ -280,6 +357,8 @@ def _tra_loi(ma: str, nguoi: str, vai_thu: list[str], chu: str, now: datetime):
         return doi_vai(nguoi, vai_thu, chu)
     if re.match(r"^demo\b", g):
         return demo(chu, vai_thu, nguoi)
+    if re.match(r"^(quyet dinh|de xuat|cho quyet|dong y|sua|bac)\b", dp.bo_dau(chu)):
+        return xu_ly_quyet_dinh(ma, chu, now)
     if re.search(r"\b(excel|xlsx|tai file|xuat file|xuat)\b", g):
         return f"File Excel việc đang mở của anh/chị (mở bằng tài khoản Quản trị trên app, có sheet riêng từng nhân viên để gửi thẳng):\n{zv.lien_ket_excel(ma)}"
     if re.search(r"\b(tong ket|bao cao|tong quan|tom tat|so lieu)\b", g):

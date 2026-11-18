@@ -44,7 +44,8 @@ COT_THU = [
     {"headerName": "Loại", "field": "loai_ten", "width": 140}, {"headerName": "Kết quả", "field": "ket_qua", "width": 120},
     {"headerName": "Nội dung tin", "field": "noi_dung", "minWidth": 420, "flex": 1, "wrapText": True, "autoHeight": True},
 ]
-TEN_LOAI_TIN = {"giao": "Giao việc", "nhac": "Nhắc quá hạn", "quan_ly": "Báo quản lý", "phan_hoi": "Phản hồi của bot", "nhan_tu_nguoi": "Người trả lời", "tong_ket": "Tổng kết"}
+TEN_LOAI_TIN = {"giao": "Giao việc", "nhac": "Nhắc quá hạn", "quan_ly": "Báo quản lý", "phan_hoi": "Phản hồi của bot", "nhan_tu_nguoi": "Người trả lời", "tong_ket": "Tổng kết",
+                 "quyet_dinh": "Đề xuất cần quyết", "nhac_quyet": "Nhắc quyết định", "leo_thang": "Báo cấp trên (quá hạn quyết)", "kiem_chung": "Kết quả sau quyết định"}
 TEN_HANH_DONG = {"giao": "Hệ thống tạo việc", "giao_cho": "Quản lý giao cho nhân viên", "mo_lai": "Dấu hiệu quay lại", "tu_het": "Hết dấu hiệu"}
 LOC = [("mo", "Đang mở"), ("qua_han", "Quá hạn"), ("da_xong", "Đã xong"), ("khong_lam_duoc", "Không làm được"), ("tu_het", "Hết dấu hiệu"), ("all", "Tất cả")]
 

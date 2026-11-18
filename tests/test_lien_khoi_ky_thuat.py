@@ -115,7 +115,7 @@ def test_mac_dinh_la_du_lieu_that_va_chi_dung_bo_minh_hoa_khi_dat_dung_bien(monk
 def test_module_lien_khoi_khong_ghi_database():
     """Hướng liên khối chỉ ĐỌC: không có lệnh ghi / commit nào trong các module của nó."""
     goc = Path(__file__).resolve().parents[1] / "app" / "lien_khoi"
-    ma = "\n".join(p.read_text(encoding="utf-8") for p in goc.glob("*.py") if p.name != "theo_doi.py")      # theo_doi.py chỉ ghi FILE SQLITE RIÊNG (xem test_lien_khoi_theo_doi.py)
+    ma = "\n".join(p.read_text(encoding="utf-8") for p in goc.glob("*.py") if p.name not in ("theo_doi.py", "quyet_dinh.py"))      # theo_doi.py và quyet_dinh.py (sổ quyết định của trợ lý điều hành) chỉ ghi FILE SQLITE RIÊNG của hướng liên khối, qua kết nối của theo_doi.py (xem test_lien_khoi_theo_doi.py)
     assert not re.search(r"\b(INSERT|UPDATE|DELETE)\b|\.commit\(|session_scope|\.add\(|to_sql", ma)
 
 

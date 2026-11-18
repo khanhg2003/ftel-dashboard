@@ -17,10 +17,10 @@ from app.lien_khoi import luat, nguon, su_kien as sk
 from app.ui.components import alert, callback_can_quyen, card, ghi_chu, kpi, seg_control
 from app.ui.icons import icon
 from app.ui.luoi import bang
-from app.ui.pages import lienkhoi_hq, lienkhoi_hs, lienkhoi_td, lienkhoi_tq, phanloai
+from app.ui.pages import lienkhoi_hq, lienkhoi_hs, lienkhoi_td, lienkhoi_tl, lienkhoi_tq, phanloai
 
 QUYEN = "duoc_cau_hinh"
-TAB = [("tongquan", "Dashboard"), ("pl", "Phân loại khách hàng"), ("viec", "Việc cần làm"), ("td", "Theo dõi & Zalo"), ("hq", "Hiệu quả"), ("hd", "Hồ sơ hợp đồng"), ("nguon", "Nguồn dữ liệu")]
+TAB = [("tongquan", "Dashboard"), ("pl", "Phân loại khách hàng"), ("viec", "Việc cần làm"), ("td", "Theo dõi & Zalo"), ("hq", "Hiệu quả"), ("tl", "Trợ lý điều hành"), ("hd", "Hồ sơ hợp đồng"), ("nguon", "Nguồn dữ liệu")]
 MUC_MAU = {"styleConditions": [{"condition": "params.value == 'Cao'", "style": {"color": "#b42318", "fontWeight": 600}},
                                {"condition": "params.value == 'Trung bình'", "style": {"color": "#b54708", "fontWeight": 600}}]}
 COT_VIEC = [
@@ -85,6 +85,7 @@ def layout(tab: str | None = None, ql: str | None = None):
         ], id="lk-viec", style=an),
         html.Div(lienkhoi_td.layout(ql), id="lk-td", style=an),
         html.Div(lienkhoi_hq.layout(), id="lk-hq", style=an),
+        html.Div(lienkhoi_tl.layout(), id="lk-tl", style=an),
         html.Div([
             html.Div([dcc.Input(id="lk-hd-ma", type="text", debounce=True, className="inp", style={"width": "260px"}, placeholder="Gõ mã hợp đồng rồi Enter")],
                      style={"marginBottom": "12px"}),
@@ -131,6 +132,7 @@ def register(app):
     cb = callback_can_quyen(app, QUYEN)
     lienkhoi_td.register(app)
     lienkhoi_hq.register(app)
+    lienkhoi_tl.register(app)
     lienkhoi_tq.register(app)
     phanloai.register(app)
 
@@ -140,10 +142,10 @@ def register(app):
             raise PreventUpdate
         return "hd", cell["value"]
 
-    @cb(Output("lk-tongquan", "style"), Output("lk-pl", "style"), Output("lk-viec", "style"), Output("lk-td", "style"), Output("lk-hq", "style"), Output("lk-hd", "style"), Output("lk-nguon", "style"), Input("lk-tab", "value"))
+    @cb(Output("lk-tongquan", "style"), Output("lk-pl", "style"), Output("lk-viec", "style"), Output("lk-td", "style"), Output("lk-hq", "style"), Output("lk-tl", "style"), Output("lk-hd", "style"), Output("lk-nguon", "style"), Input("lk-tab", "value"))
     def _hien(tab):
         an, hien = {"display": "none"}, {"display": "block"}
-        return tuple(hien if tab == k else an for k in ("tongquan", "pl", "viec", "td", "hq", "hd", "nguon"))
+        return tuple(hien if tab == k else an for k in ("tongquan", "pl", "viec", "td", "hq", "tl", "hd", "nguon"))
 
     @cb(Output("lk-kpi", "children"), Output("lk-luoi-viec", "rowData"), Input("lk-tab", "value"), Input("lk-luat", "value"))
     def _viec(tab, ma_luat):

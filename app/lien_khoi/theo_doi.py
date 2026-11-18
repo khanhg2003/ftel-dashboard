@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS nhat_ky (id INTEGER PRIMARY KEY AUTOINCREMENT, giao_i
 CREATE TABLE IF NOT EXISTS hop_thu (id INTEGER PRIMARY KEY AUTOINCREMENT, luc TEXT, den_nguoi TEXT, chat_id TEXT, loai TEXT, noi_dung TEXT, kenh TEXT, ket_qua TEXT);
 CREATE TABLE IF NOT EXISTS cai_dat (khoa TEXT PRIMARY KEY, gia_tri TEXT);
 CREATE TABLE IF NOT EXISTS nguoi_nhan (ma TEXT PRIMARY KEY, ten TEXT, khoi TEXT, vai_tro TEXT, quan_ly TEXT, chat_id TEXT);
+CREATE TABLE IF NOT EXISTS quyet_dinh (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_van_de TEXT NOT NULL UNIQUE, tieu_de TEXT, khoi TEXT, nguoi_quyet TEXT, su_that TEXT,
+  nhan_dinh TEXT, phuong_an TEXT, khuyen_nghi TEXT, trang_thai TEXT NOT NULL, lua_chon TEXT, ghi_chu TEXT, han_quyet TEXT, han_kiem_chung TEXT, chi_so_truoc TEXT,
+  chi_so_sau TEXT, ket_qua TEXT, nguon_noi_dung TEXT, tao_luc TEXT NOT NULL, cap_nhat_luc TEXT, da_gui_luc TEXT, nhac_luc TEXT, leo_thang_luc TEXT, bao_kiem_chung_luc TEXT,
+  quyet_boi TEXT, quyet_luc TEXT);
+CREATE TABLE IF NOT EXISTS quyet_dinh_nk (id INTEGER PRIMARY KEY AUTOINCREMENT, quyet_dinh_id INTEGER, luc TEXT, boi TEXT, hanh_dong TEXT, ghi_chu TEXT);
 """
 
 
@@ -400,5 +405,5 @@ def xoa_het_minh_hoa() -> None:
     if not nguon.la_demo():
         raise RuntimeError("Chỉ được xoá ở chế độ minh hoạ.")
     with _KHOA, _kn() as c:
-        for t in ("giao", "nhat_ky", "hop_thu", "cai_dat"):
+        for t in ("giao", "nhat_ky", "hop_thu", "cai_dat", "quyet_dinh", "quyet_dinh_nk"):
             c.execute(f"DELETE FROM {t}")
