@@ -27,6 +27,12 @@ from app.zalo_gia import bo_dau, bo_mention, doc_tin
 
 _da_tao = False
 _RE_MA = re.compile(r"#\s*(\d+)")
+DUONG_DAN = "/api/lead/zalo-webhook"
+
+
+def url_webhook() -> str | None:
+    goc = (os.environ.get("APP_URL") or "").strip().rstrip("/")
+    return f"{goc}{DUONG_DAN}" if goc else None
 
 
 def dam_bao_bang() -> None:
