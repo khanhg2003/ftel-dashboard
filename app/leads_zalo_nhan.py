@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
+import logging
 import os
 import re
 
@@ -89,15 +91,30 @@ def _tra_loi(chat_id: str, noi_dung: str) -> None:
         pass
 
 
+def _ghi_debug(nhan: str, payload) -> None:
+    """Ghi vắn tắt những lượt KHÔNG xử lý được (không đọc được sự kiện / không có mã) vào app.log, để dò khi
+    tính năng còn mới - vd xem Zalo có gửi kiểu sự kiện khác cho tin TRẢ LỜI (reply) hay không. Nội dung là
+    tin nội bộ của nhóm sale (không phải dữ liệu khách hàng), nhưng vẫn cắt ngắn cho gọn log."""
+    try:
+        chu = json.dumps(payload, ensure_ascii=False)
+    except TypeError:
+        chu = str(payload)
+    logging.getLogger(__name__).info("Lead Zalo (%s): %s", nhan, chu[:500])
+
+
 def _xu_ly(payload) -> None:
     tin = doc_tin(payload)
-    if not tin or tin["la_bot"]:
+    if not tin:
+        _ghi_debug("khong_doc_duoc", payload)
+        return
+    if tin["la_bot"]:
         return
     chat_id = tin["chat_id"]
     if chat_id not in _nhom_cho_phep():
         return
     ma = _RE_MA.search(tin["text"])
     if not ma:
+        _ghi_debug("khong_co_ma", payload)
         return                                      # không có mã lead -> không phải lệnh nhận, im lặng
     if _da_nhan(tin["ma_tin"], chat_id):
         return
