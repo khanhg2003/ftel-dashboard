@@ -1,12 +1,13 @@
 """Nhận lead bằng cách trả lời tin cảnh báo trong nhóm Zalo (chốt với người dùng 19/11/2026).
 
-Tin cảnh báo SLA (`app/canh_bao_lead.py`) có dòng "Mã: #<id>". Sale trả lời trong đúng nhóm đang cấu hình
-nhận cảnh báo, nêu cả MÃ LEAD lẫn TÊN MÌNH, ví dụ "Hiếu nhận #42" - bot gọi thẳng `leads.nhan_cheo` (hàm
-đã dùng cho nút "Nhận chéo" trong app) rồi trả lời xác nhận. **Bắt buộc có mã lead**: Zalo Bot ở app này
-chỉ gửi được chữ trơn, không có nút bấm / reply-threading đáng tin cậy (`app/zalo_bot.py` không trả về
-`message_id` của tin đã gửi), nên không biết "đang trả lời tin nào" nếu không có mã trong câu - nhóm có
-thể có nhiều lead quá hạn cùng lúc. Không có mã trong câu thì BỎ QUA HẲN (không trả lời) để khỏi làm ồn
-nhóm với những tin trò chuyện bình thường khác.
+Tin cảnh báo SLA (`app/canh_bao_lead.py`) có dòng "Mã: #<id>". Sale nhắn trong đúng nhóm đang cấu hình nhận
+cảnh báo, NÊU CẢ MÃ LEAD LẪN TÊN MÌNH trong câu, ví dụ "Hiếu nhận #42" - bot gọi thẳng `leads.nhan_cheo`
+(hàm đã dùng cho nút "Nhận chéo" trong app) rồi trả lời xác nhận. **Bắt buộc có mã lead trong CHỮ**: đã
+thử trên production 19/11/2026 - bấm trả lời/trích dẫn (quote) một tin trong Zalo KHÔNG hề kèm tham chiếu
+gì tới tin gốc trong payload webhook (`message` chỉ có `date/chat/message_id/from/text`, không có
+`reply_to_message` hay tương tự) - nên quote tin rồi chỉ gõ "Hiếu nhận" sẽ bị bỏ qua, không đủ để biết
+đang nói về lead nào (nhóm có thể có nhiều lead quá hạn cùng lúc). Không có mã trong câu thì BỎ QUA HẲN
+(không trả lời) để khỏi làm ồn nhóm với những tin trò chuyện bình thường khác.
 
 Khung copy từ `app/zalo_gia.py` (webhook nhận tin, so khớp theo quy tắc không AI, dedup theo message_id).
 """
@@ -92,9 +93,9 @@ def _tra_loi(chat_id: str, noi_dung: str) -> None:
 
 
 def _ghi_debug(nhan: str, payload) -> None:
-    """Ghi vắn tắt những lượt KHÔNG xử lý được (không đọc được sự kiện / không có mã) vào app.log, để dò khi
-    tính năng còn mới - vd xem Zalo có gửi kiểu sự kiện khác cho tin TRẢ LỜI (reply) hay không. Nội dung là
-    tin nội bộ của nhóm sale (không phải dữ liệu khách hàng), nhưng vẫn cắt ngắn cho gọn log."""
+    """Ghi vắn tắt những lượt KHÔNG xử lý được (không đọc được sự kiện / không có mã) vào app.log - để sau
+    này còn tra được vì sao một lượt "nhận lead" không ăn (vd sale quote tin thay vì gõ mã, xem docstring
+    đầu file). Nội dung là tin nội bộ của nhóm sale (không phải dữ liệu khách hàng), cắt ngắn cho gọn log."""
     try:
         chu = json.dumps(payload, ensure_ascii=False)
     except TypeError:

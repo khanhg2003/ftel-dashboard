@@ -96,7 +96,8 @@ def _noi_dung(r: Lead, ten_tinh: str, ten_sale: str) -> str:
             f"SĐT: {r.sdt or '(chưa có)'}",
             f"Sale phụ trách: {ten_sale}",
             f"Trạng thái hiện tại: {r.tinh_trang_xu_ly}",
-            "Trả lời tin này kèm tên + \"nhận\" (vd: \"Hiếu nhận #" + str(r.id) + "\") để tự nhận lead."]
+            "Muốn tự nhận thì NHẮN KÈM MÃ như \"Hiếu nhận #" + str(r.id) + "\" "
+            "(gõ đúng mã, bấm quote/trả lời tin không đủ để app biết lead nào)."]
     return "\n".join(dong)
 
 
