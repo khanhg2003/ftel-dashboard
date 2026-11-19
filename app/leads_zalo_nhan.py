@@ -148,4 +148,10 @@ def xu_ly_su_kien(payload) -> None:
     try:
         _xu_ly(payload)
     except Exception:
-        pass
+        logging.getLogger(__name__).exception("Lead Zalo: lỗi khi xử lý sự kiện")
+
+
+def ghi_debug_request(dung_khoa: bool) -> None:
+    """[TẠM, dò lượt nhận lead qua Zalo 19/11/2026] mọi lượt POST tới /api/lead/zalo-webhook, kể cả sai khoá -
+    để biết chắc Zalo có gọi webhook này hay không. Xoá khi đã rõ nguyên nhân tin trả lời/trích dẫn không nhận được."""
+    logging.getLogger(__name__).info("Lead Zalo: có lượt gọi webhook, khoá %s", "đúng" if dung_khoa else "SAI")

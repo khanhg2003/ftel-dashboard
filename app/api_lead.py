@@ -73,7 +73,11 @@ def fb_webhook():
 @bp.post("/api/lead/zalo-webhook")
 def zalo_webhook():
     from app import leads_zalo_nhan
-    if not leads_zalo_nhan.khoa_dung(request.headers.get("X-Bot-Api-Secret-Token")):
+    dung_khoa = leads_zalo_nhan.khoa_dung(request.headers.get("X-Bot-Api-Secret-Token"))
+    # [TẠM, dò lượt nhận lead qua Zalo 19/11/2026] log mọi lượt gọi tới đường này, kể cả sai khoá, để biết
+    # chắc Zalo CÓ gọi webhook hay không trước khi dò tiếp phần đọc sự kiện - xoá khi đã rõ nguyên nhân.
+    leads_zalo_nhan.ghi_debug_request(dung_khoa)
+    if not dung_khoa:
         return jsonify({"ok": False}), 403
     leads_zalo_nhan.xu_ly_su_kien(request.get_json(silent=True))
     return jsonify({"ok": True}), 200
