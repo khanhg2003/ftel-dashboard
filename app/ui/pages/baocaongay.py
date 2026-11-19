@@ -95,7 +95,7 @@ def _dau_khoi(c: dict) -> dict:
     return c
 
 
-def _cot(tu_ca_bat: bool = False) -> list[dict]:
+def _cot(tu_ca_bat: bool = False, khtn_tu_lead_bat: bool = False) -> list[dict]:
     # cellClass phải kèm "ag-right-aligned-cell": đặt cellClass cho cột numericColumn thì mất lớp
     # căn phải của kiểu cột, số trong ô sale nhập sẽ lệch hàng với các cột số còn lại
     sua = {"editable": {"function": SUA}, "cellClass": "ag-right-aligned-cell o-sale", "cellClassRules": THIEU,
@@ -106,11 +106,18 @@ def _cot(tu_ca_bat: bool = False) -> list[dict]:
     tu_ca = ("\nNgày mai trở đi: sale gõ dự kiến trước.\nHôm nay: app tự đếm từ mục Theo dõi Online bên dưới, "
              "xếp khung giờ và đổi tình trạng ở thẻ ca là số nhảy.") if tu_ca_bat else ""
 
+    khtn_col = ({"field": "khtn", "headerName": "KHTN", "headerClass": "vung-sale",
+                 "headerTooltip": "Khách đang theo, chưa lên hợp đồng.\n"
+                                  "Tự đếm số lead đang mở của người đó ở Lead Online, không gõ tay được.",
+                 "editable": False, "cellClass": "ag-right-aligned-cell o-tu-ca", "type": "numericColumn",
+                 "valueFormatter": SO, "width": 84, "minWidth": 74, "maxWidth": 104}
+                if khtn_tu_lead_bat else
+                {"field": "khtn", "headerName": "KHTN *", "headerTooltip": "Khách đang theo, chưa lên hợp đồng.",
+                 **sua})
     ban = [
         {"field": "muc_tieu", "headerName": "MT ngày *", "headerClass": "vung-sale",
          "headerTooltip": "Mục tiêu bán của riêng hôm nay.", **sua},
-        {"field": "khtn", "headerName": "KHTN *", "headerTooltip": "Khách đang theo, chưa lên hợp đồng.",
-         **sua},
+        khtn_col,
         # ô khai báo của sale, đối chiếu thẳng với ô "MT ngày" bên trái - không lấy gì từ file
         {"field": "da_ban", "headerName": "Thực hiện *", "headerClass": "vung-sale", **sua,
          "cellStyle": {"fontWeight": "700"},
@@ -216,7 +223,7 @@ def layout():
                       html.Span(id="bn-luu-tt", className="bn-luu-tt"),
                       html.Div(_chon_dang(), className="bn-chi-dt")],
                      className="the-thanh"),
-            html.Div(bang("bn-luoi", _cot(bc.onl_tu_ca_bat(ds)), cao=None if rieng_online else 560, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
+            html.Div(bang("bn-luoi", _cot(bc.onl_tu_ca_bat(ds), bc.khtn_tu_lead_bat(ds)), cao=None if rieng_online else 560, lop=f"ag-theme-quartz ag-theme-ftel luoi-ke {nn.lop('ten')}",
                           cot_mac_dinh={"resizable": True, "sortable": False, "suppressMovable": True,
                                         "wrapHeaderText": True, "autoHeaderHeight": True},
                           getRowId="params.data.id",
@@ -382,7 +389,9 @@ def _dong_luoi(df: pd.DataFrame) -> list[dict]:
     ds = df.to_dict("records")
     for r in ds:
         if not r.get("da_nhap"):
-            for k in ("muc_tieu", "khtn", "da_ban") + (() if r.get("tu_ca") else ("onl_sang", "onl_chieu")):   # số tự đếm từ ca luôn hiện, kể cả 0
+            cot = ("muc_tieu", "da_ban") + (() if r.get("khtn_tu_dong") else ("khtn",)) \
+                + (() if r.get("tu_ca") else ("onl_sang", "onl_chieu"))   # số tự đếm (ca / Lead Online) luôn hiện, kể cả 0
+            for k in cot:
                 r[k] = None
             if not r.get("tu_ca"):
                 r["thuc_hien"] = None
@@ -394,6 +403,8 @@ def _mo_ta(t: dict, d: date, df: pd.DataFrame, toi_la, phong: list[str] | None =
     để không ai tưởng số dự kiến "biến mất" khi sang ngày."""
     mo_ta = (f"{t['so_nguoi']} nhân sự · {t['chua_nhap']} người chưa nhập. "
              "Ô có dấu * là sale nhập, còn lại app tự lấy từ file Internet.")
+    if bc.khtn_tu_lead_bat(phong):
+        mo_ta += " KHTN tự đếm từ Lead Online (ô xám), không gõ tay."
     if d > bc.hom_nay():
         mo_ta = f"Ngày {d:%d/%m} chưa tới nên các cột app tự lấy từ file vẫn đang là số của hôm nay. " + mo_ta
     elif bc.che_do_onl(d, phong) and not df.empty:
@@ -595,24 +606,28 @@ def register(app):
                   Output("bn-f-chieu", "value"),
                   Output("bn-f-onl", "value"), Output("bn-f-ghi-chu", "value"), Output("bn-md-msg", "children"),
                   Output("bn-f-sang", "disabled"), Output("bn-f-chieu", "disabled"), Output("bn-f-onl", "disabled"),
+                  Output("bn-f-khtn", "disabled"),
                   Input({"type": "bn-the", "acc": ALL}, "n_clicks"), Input("bn-md-dong", "n_clicks"),
                   Input("bn-md-huy", "n_clicks"), Input("bn-da-luu", "data"), State("bn-phong", "value"),
                   State("bn-ngay", "date"), prevent_initial_call=True)
     def _mo_form(bam, _d, _h, _l, code, ngay):
         if not isinstance(ctx.triggered_id, dict):
-            return ("modal",) + (no_update,) * 14
+            return ("modal",) + (no_update,) * 15
         if not any(bam or []):
             raise PreventUpdate
         d = _ngay_hop_le(ngay)
-        df = bc.bang(_phong_hop_le(code), d)
+        phong = _phong_hop_le(code)
+        df = bc.bang(phong, d)
         r = df[df.acc_norm == ctx.triggered_id["acc"]]
         if r.empty:
             raise PreventUpdate
         r = r.iloc[0]
         dau = f"{r.acc} · PTTB tháng {int(r.pttb_thang)}/{int(r.mt_thang)} · V.VIP {int(r.vvip_thang)}"
         khoa = bool(r.tu_ca)                       # ba ô này tự đếm từ ca: hiện số, không cho sửa
+        khoa_khtn = bool(r.khtn_tu_dong)            # KHTN tự đếm từ Lead Online: hiện số, không cho sửa
         return ("modal mo", f"{r.ho_ten} · {d:%d/%m}", r.acc_norm, dau, int(r.muc_tieu), int(r.khtn),
-                int(r.da_ban), int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), r.ghi_chu, "", khoa, khoa, khoa)
+                int(r.da_ban), int(r.onl_sang), int(r.onl_chieu), int(r.thuc_hien), r.ghi_chu, "",
+                khoa, khoa, khoa, khoa_khtn)
 
     @app.callback(Output("bn-md-msg", "children", allow_duplicate=True),
                   Output("bn-da-luu", "data", allow_duplicate=True),
@@ -629,6 +644,8 @@ def register(app):
             truong = {"muc_tieu": mt, "khtn": khtn, "da_ban": ban, "onl_sang": sang, "onl_chieu": chieu, "da_online": onl, "ghi_chu": gc}
             if bc.khoa_onl(acc, phong, d):         # ba ô tự đếm từ ca: form chỉ hiện để xem
                 truong = {k: v for k, v in truong.items() if k not in bc.O_TU_CA}
+            if bc.khtn_tu_lead_bat(phong):         # KHTN tự đếm từ Lead Online: form chỉ hiện để xem
+                truong.pop("khtn", None)
             bc.luu(acc, truong, phong, current_user.username, d, ghi_ten=nt_ten(toi_la) if _dung_chung() else None)
         except bc.LoiBaoCao as e:
             return alert(str(e), "bad"), no_update

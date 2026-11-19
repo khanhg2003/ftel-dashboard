@@ -1,6 +1,7 @@
 """Đường cho cron gọi cảnh báo SLA lead, và webhook Messenger tự bắt lead - không đăng nhập, tự xác thực.
 
 - POST /api/lead/canh-bao : header `X-Lead-Khoa: <LEAD_CANH_BAO_KHOA>`, gọi mỗi 15-30 phút (n8n / Render Cron Job).
+  Cùng lượt còn đồng bộ KHTN của Phòng Online từ Lead Online (`bao_cao_ngay.dong_bo_khtn`, chốt 19/11/2026).
 - GET  /api/lead/fb-webhook : Meta xác thực lần đầu khi khai báo webhook (so khớp `FB_WEBHOOK_VERIFY_TOKEN`).
 - POST /api/lead/fb-webhook : Meta gọi khi page nhận tin nhắn Messenger - LUÔN trả 200 khi chữ ký đúng (kể cả sự
   kiện không dùng được, để Meta khỏi gửi lại), xác minh `X-Hub-Signature-256` bằng HMAC-SHA256 với `FB_APP_SECRET`
@@ -31,6 +32,11 @@ def canh_bao():
         kq = canh_bao_lead.quet_va_canh_bao()
     except Exception as e:                      # chỉ trả tên lỗi: thông báo gốc có thể chứa chuỗi kết nối
         return jsonify({"ok": False, "loi": f"Lỗi khi quét cảnh báo lead ({type(e).__name__})."}), 500
+    from app import bao_cao_ngay
+    try:                                         # đồng bộ KHTN của Phòng Online - lỗi ở đây không chặn kết quả cảnh báo SLA
+        kq["khtn_dong_bo"] = bao_cao_ngay.dong_bo_khtn()
+    except Exception:
+        kq["khtn_dong_bo"] = None
     return jsonify({"ok": True, **kq}), 200
 
 

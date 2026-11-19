@@ -97,6 +97,15 @@ def che_do_onl(ngay: date, phong: list[str] | None = None) -> str:
     return "" if ngay > h else "het" if ngay == h else "co_ca"
 
 
+def khtn_tu_lead_bat(phong: list[str] | None = None) -> bool:
+    """KHTN của Phòng Online tự đếm từ Lead Online (chốt 19/11/2026, `rules.yml` → `phong_online.khtn_tu_lead`)
+    thay vì sale gõ tay - ô bị khoá khi công tắc này bật. Chỉ áp cho mã ảo ONLINE, không áp IBB7."""
+    if not phong or PHONG_ONLINE not in phong:
+        return False
+    from app import phong_online as po
+    return po.khtn_tu_lead()
+
+
 def khoa_onl(acc_norm: str, phong: list[str], ngay: date) -> bool:
     """True nếu ba ô tự đếm của người này trong ngày KHÔNG được gõ tay."""
     m = che_do_onl(ngay, phong)
@@ -343,9 +352,10 @@ def bang(phong: list[str], ngay: date | None = None) -> pd.DataFrame:
     df["con_phai_onl"] = df.dk_onl - df.thuc_hien
     df["da_nhap"] = df.acc_norm.isin(set(nhap.acc_norm))       # đã có bản ghi hôm nay hay chưa
     df["id"] = df.acc_norm
+    df["khtn_tu_dong"] = khtn_tu_lead_bat(phong)                # KHTN tự đếm từ Lead Online, ô khoá (xem `luu`)
     cot = ["id", "acc_norm", "acc", "ho_ten", "phong_code", "muc_tieu", "khtn", "da_ban", "onl_sang",
            "onl_chieu", "dk_onl", "thuc_hien", "con_phai_onl", "pttb_thang", "mt_thang", "vvip_thang",
-           "ghi_chu", "da_nhap", "tu_ca", "dk_toi_qua", "chua_xep"]
+           "ghi_chu", "da_nhap", "tu_ca", "dk_toi_qua", "chua_xep", "khtn_tu_dong"]
     return df[cot].sort_values(["pttb_thang", "ho_ten"], ascending=[False, True]).reset_index(drop=True)
 
 
@@ -413,6 +423,8 @@ def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | 
         raise LoiBaoCao("ONL sáng / ONL chiều / Đã online của ngày này tự đếm từ ca ở mục Theo dõi Online bên dưới. "
                         "Xếp khung giờ và đổi tình trạng ở thẻ ca là số tự nhảy." if ngay == hom_nay() else
                         "Người này đã có ca ở mục Theo dõi Online nên ONL sáng / ONL chiều / Đã online tự đếm từ ca, không gõ tay được.")
+    if "khtn" in d and khtn_tu_lead_bat(phong):
+        raise LoiBaoCao("KHTN giờ tự đếm từ Lead Online (số lead đang mở), không gõ tay được nữa.")
     code = _phong_cua(acc_norm, phong)
     for lan in (1, 2):
         try:
@@ -431,6 +443,40 @@ def luu(acc_norm: str, truong: dict, phong: list[str], nguoi: str, ngay: date | 
             # ràng buộc duy nhất chặn lần thứ hai nên ô đó MẤT. Đọc lại và cập nhật vào dòng đã có.
             if lan == 2:
                 raise
+
+
+def dong_bo_khtn() -> int:
+    """Ghi KHTN hôm nay của Phòng Online = số lead đang mở của từng người trong Lead Online (chốt 19/11/2026).
+
+    Cron gọi hàm này mỗi 15 phút (qua `POST /api/lead/canh-bao`, cùng lượt quét SLA lead) thay vì sale gõ
+    tay: số của ngày hôm nay cứ thế được ghi đè liên tục, qua nửa đêm thì số cuối cùng trở thành lịch sử
+    của ngày đó - bảng xu hướng `phong_online.khtn_theo_ngay` không cần sửa gì, vẫn đọc đúng cột `khtn`
+    này. Không chạy gì khi công tắc `phong_online.khtn_tu_lead` đang tắt."""
+    from app import phong_online as po
+    if not po.khtn_tu_lead():
+        return 0
+    dam_bao_bang()
+    from app import leads
+    ngay = hom_nay()
+    dem = leads.tai_dang_xu_ly()
+    n = 0
+    for acc_norm, so in dem.items():
+        for lan in (1, 2):
+            try:
+                with session_scope() as s:
+                    r = s.execute(select(BaoCaoNgay).where(BaoCaoNgay.ngay == ngay,
+                                                           BaoCaoNgay.acc_norm == acc_norm)).scalars().first()
+                    if r is None:
+                        r = BaoCaoNgay(ngay=ngay, acc_norm=acc_norm, phong_code=PHONG_ONLINE)
+                        s.add(r)
+                    r.khtn = int(so)
+                    r.cap_nhat_luc, r.cap_nhat_boi = utc_bay_gio(), "he_thong"
+                n += 1
+                break
+            except IntegrityError:
+                if lan == 2:
+                    raise
+    return n
 
 
 def _phong_cua(acc_norm: str, phong: list[str]) -> str:

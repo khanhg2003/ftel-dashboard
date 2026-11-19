@@ -4,6 +4,11 @@ Bảng sửa ngay trong ô như Google Sheet (cùng kiểu với Nhập tồn - 
 Đổi ô "Sale tư vấn" của một lead đang quá hạn = chính là thao tác "nhận chéo". Quyền xem/sửa lead: tài khoản
 vai trò "online" (5 bạn trong nhóm) và admin (`current_user.duoc_xem_phong_online`, giống trang Phòng Online).
 Mục Cấu hình (danh mục page, người nhận cảnh báo Zalo, kết nối Messenger) chỉ admin (`duoc_cau_hinh`).
+
+Hộp "Thêm lead mới" (rút gọn 19/11/2026, chủ app thấy nhiều ô quá): chỉ còn 4 ô chính (Tỉnh/Page, Sale tư
+vấn, Tên KH, SĐT) + Tư vấn; phần ít dùng ngay lúc thêm (Ngày, Trạng thái, Địa chỉ, Nhu cầu, KH dùng mạng,
+Mô hình) gập trong "Thêm chi tiết", điền được ngay nếu cần hoặc sửa sau trực tiếp trong bảng. KHTN của
+Báo cáo ngày (`app/bao_cao_ngay.dong_bo_khtn`) đếm thẳng theo "Sale tư vấn" nên nên gán ngay lúc thêm.
 """
 from __future__ import annotations
 
@@ -17,7 +22,7 @@ from app import canh_bao_lead as cb
 from app import leads
 from app.auth import ghi_log
 from app.thoi_gian import gio_viet_nam
-from app.ui.components import alert, field, modal
+from app.ui.components import alert, field, gap, modal
 from app.ui.icons import icon
 from app.ui.luoi import SO, bang
 
@@ -96,20 +101,26 @@ def layout():
                      "chính là thao tác nhận chéo.", className="goi-y-bam"),
         ], className="card"),
         modal("ld-md", "Thêm lead mới", [
+            # Chỉ 4 ô cần ngay lúc khách vừa nhắn (chốt 19/11/2026, rút gọn từ 10 ô): phần còn lại
+            # (ngày, trạng thái, địa chỉ, nhu cầu, KH dùng mạng, mô hình) gập trong "Thêm chi tiết" -
+            # vẫn điền được ngay lúc thêm nếu cần, hoặc sửa sau trực tiếp trong bảng.
             html.Div([
                 field("Tỉnh / Page *", dcc.Dropdown(id="ld-f-page", options=opt_page, placeholder="Chọn page")),
-                field("Ngày", dcc.Input(id="ld-f-ngay", type="date", className="inp", value=date.today().isoformat())),
+                field("Sale tư vấn", dcc.Dropdown(id="ld-f-sale", options=opt_sale, placeholder="Chưa gán")),
                 field("Tên KH", dcc.Input(id="ld-f-ten", className="inp")),
                 field("SĐT", dcc.Input(id="ld-f-sdt", className="inp")),
-                field("Địa chỉ", dcc.Input(id="ld-f-diachi", className="inp")),
-                field("Nhu cầu", dcc.Input(id="ld-f-nhucau", className="inp")),
+            ], className="form-grid"),
+            field("Tư vấn", dcc.Textarea(id="ld-f-tuvan", className="inp", style={"width": "100%", "minHeight": "70px"},
+                                         placeholder="Khách nhắn gì, cần gì...")),
+            gap("Thêm chi tiết (không bắt buộc)", html.Div([
+                field("Ngày", dcc.Input(id="ld-f-ngay", type="date", className="inp", value=date.today().isoformat())),
                 field("Trạng thái", dcc.Dropdown(id="ld-f-tt", options=leads.TRANG_THAI, value="Mới",
                                                  clearable=False)),
-                field("Sale tư vấn", dcc.Dropdown(id="ld-f-sale", options=opt_sale, placeholder="Chưa gán")),
+                field("Địa chỉ", dcc.Input(id="ld-f-diachi", className="inp")),
+                field("Nhu cầu", dcc.Input(id="ld-f-nhucau", className="inp")),
                 field("KH dùng mạng", dcc.Input(id="ld-f-mang", className="inp")),
                 field("Mô hình", dcc.Input(id="ld-f-mohinh", className="inp")),
-            ], className="form-grid"),
-            field("Tư vấn", dcc.Textarea(id="ld-f-tuvan", className="inp", style={"width": "100%", "minHeight": "70px"})),
+            ], className="form-grid")),
             html.Div(id="ld-md-msg"),
         ], nut_chinh="Thêm"),
         # Luôn render (ẩn bằng CSS, không bỏ khỏi cây) để callback của mục Cấu hình không lỗi

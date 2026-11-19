@@ -39,6 +39,11 @@ def onl_tu_ca() -> bool:
     return bool(_cfg().get("onl_tu_ca"))
 
 
+def khtn_tu_lead() -> bool:
+    """KHTN của Báo cáo ngày nhóm tự đếm từ Lead Online thay vì sale gõ tay (`rules.yml` → `phong_online.khtn_tu_lead`)."""
+    return bool(_cfg().get("khtn_tu_lead"))
+
+
 def la_nguoi_online(acc_norm: str | None) -> bool:
     return (acc_norm or "").strip().lower() in set(acc_nhom())
 
