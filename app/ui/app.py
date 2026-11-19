@@ -119,7 +119,7 @@ def _bat_buoc_dang_nhap():
         return None
     if path.startswith("/api/zalo-gia/"):     # bot Zalo Tra cứu giá: xác thực bằng khoá webhook (app/api_zalo_gia.py)
         return None
-    if path.startswith("/api/lead/"):         # cron cảnh báo SLA lead + webhook Messenger: tự xác thực (app/api_lead.py)
+    if path.startswith("/api/lead/"):         # cron cảnh báo SLA lead + webhook Messenger/Zalo nhận lead: tự xác thực (app/api_lead.py)
         return None
     if not current_user.is_authenticated:
         if path.startswith("/_dash"):

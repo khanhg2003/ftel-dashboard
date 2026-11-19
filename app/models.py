@@ -613,4 +613,14 @@ class LeadNguoiNhanCanhBao(Base):
     tao_luc: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class LeadZaloTin(Base):
+    """Mỗi tin Zalo webhook "nhận lead" (app/leads_zalo_nhan.py) đã xử lý: message_id duy nhất để KHÔNG
+    nhận đúp một lead khi Zalo gửi lại sự kiện (như ZaloGiaTin). KHÔNG lưu nội dung tin."""
+    __tablename__ = "crm_lead_zalo_tin"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ma_tin: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    chat_id: Mapped[str] = mapped_column(String(80), index=True)
+    luc: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)

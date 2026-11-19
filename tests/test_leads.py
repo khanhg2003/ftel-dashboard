@@ -117,6 +117,10 @@ def test_nhan_cheo_doi_sale_va_ghi_nguoi_da_nhan():
     df = leads.danh_sach()
     r = df[df.id == lid].iloc[0]
     assert r.sale_tu_van == b and r.care_cheo_boi == b
+    ten_b = {a["acc_norm"]: a["ten"] for a in nguoi}[b]
+    assert r.care_cheo_tooltip == f"Đã nhận chéo bởi {ten_b}"
+    lid2 = leads.tao_lead({"page_id": pid, "sale_tu_van": a}, NGUOI)       # lead chưa từng nhận chéo: không có tooltip
+    assert leads.danh_sach()[leads.danh_sach().id == lid2].iloc[0].care_cheo_tooltip == ""
 
 
 def test_luu_fb_cau_hinh_can_du_fb_page_id_va_token():

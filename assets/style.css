@@ -2103,3 +2103,6 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .kpi-row.kpi-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (min-width: 1280px) { .kpi-row.kpi-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 767px) { .kpi-row.kpi-5 { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- Lead Online: dấu nhỏ cho lead từng bị "dội" (đã nhận chéo), rê chuột xem ai đã nhận ---------- */
+#ld-luoi .ag-cell.o-cheo .ag-cell-value::after { content: "↺"; margin-left: 6px; color: #8A5A00; font-weight: 700; }

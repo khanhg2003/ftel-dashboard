@@ -91,10 +91,12 @@ def _chat_id_sale(acc_norm: str | None, nguoi_nhan: list[dict]) -> str | None:
 def _noi_dung(r: Lead, ten_tinh: str, ten_sale: str) -> str:
     gio = int((datetime.utcnow() - (r.cap_nhat_luc or r.tao_luc)).total_seconds() // 3600)
     dong = [f"⏰ LEAD QUÁ HẠN CARE ({gio} giờ chưa cập nhật)",
+            f"Mã: #{r.id}",
             f"Khách: {r.ten_kh or '(chưa có tên)'} · {ten_tinh}",
             f"SĐT: {r.sdt or '(chưa có)'}",
             f"Sale phụ trách: {ten_sale}",
-            f"Trạng thái hiện tại: {r.tinh_trang_xu_ly}"]
+            f"Trạng thái hiện tại: {r.tinh_trang_xu_ly}",
+            "Trả lời tin này kèm tên + \"nhận\" (vd: \"Hiếu nhận #" + str(r.id) + "\") để tự nhận lead."]
     return "\n".join(dong)
 
 

@@ -22,8 +22,11 @@ from app.models import AuditLog, CrmPage, Employee, Lead, StaffMap
 BANG = (CrmPage, Lead)
 _da_tao = False
 
-TRANG_THAI = ["Mới", "Đang tư vấn", "Hẹn gọi lại", "Đồng ý", "Đã chốt", "Không nhu cầu", "Huỷ"]
-TRANG_THAI_DONG = {"Đã chốt", "Không nhu cầu", "Huỷ"}        # không tính SLA / không đếm vào tải việc đang xử lý
+TRANG_THAI = ["Mới", "Đang tư vấn", "Hẹn gọi lại", "Đồng ý", "Đã chốt", "Đã lên online", "Không nhu cầu", "Huỷ"]
+# "Đã lên online" (thêm 19/11/2026): dịch vụ đã kích hoạt xong, khác "Đã chốt" (mới là khách đồng ý/tạo HĐ) -
+# để phân biệt "chốt nhưng chưa lắp" với "đã lắp xong" khi xem lại. Không tính SLA / không đếm vào tải việc
+# đang xử lý, giống các trạng thái đóng khác.
+TRANG_THAI_DONG = {"Đã chốt", "Đã lên online", "Không nhu cầu", "Huỷ"}
 HAN_SLA_GIO = 24
 _RE_SDT = re.compile(r"(0\d{9,10})")
 
@@ -243,6 +246,11 @@ def danh_sach(page_id: int | None = None, sale: str | None = None, tinh_trang: s
         df[c] = pd.to_datetime(df[c])
     ten = {a["acc_norm"]: a["ten"] for a in nguoi_online()}
     df["sale_ten"] = df.sale_tu_van.map(ten).fillna(df.sale_tu_van)
+    # "Đã nhận chéo bởi <tên>" - chỉ để hiện tooltip khi lead này từng bị dội (kiểm soát tiếp sau khi nhận,
+    # chốt với người dùng 19/11/2026), không đổi giá trị hiển thị của ô (tránh lệch với danh sách editor).
+    care_ten = df.care_cheo_boi.map(ten).fillna(df.care_cheo_boi)
+    df["care_cheo_tooltip"] = ["Đã nhận chéo bởi " + t if pd.notna(b) else ""
+                               for b, t in zip(df.care_cheo_boi, care_ten)]
     moc = df.cap_nhat_luc.fillna(df.tao_luc)
     gio_tre = (pd.Timestamp(datetime.utcnow()) - moc).dt.total_seconds() / 3600
     df["gio_tre"] = gio_tre.round(1)

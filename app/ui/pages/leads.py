@@ -5,8 +5,8 @@ Bảng sửa ngay trong ô như Google Sheet (cùng kiểu với Nhập tồn - 
 vai trò "online" (5 bạn trong nhóm) và admin (`current_user.duoc_xem_phong_online`, giống trang Phòng Online).
 Mục Cấu hình (danh mục page, người nhận cảnh báo Zalo, kết nối Messenger) chỉ admin (`duoc_cau_hinh`).
 
-Hộp "Thêm lead mới" (rút gọn 19/11/2026, chủ app thấy nhiều ô quá): chỉ còn 4 ô chính (Tỉnh/Page, Sale tư
-vấn, Tên KH, SĐT) + Tư vấn; phần ít dùng ngay lúc thêm (Ngày, Trạng thái, Địa chỉ, Nhu cầu, KH dùng mạng,
+Hộp "Thêm lead mới" (rút gọn 19/11/2026, chủ app thấy nhiều ô quá): chỉ còn 5 ô chính (Tỉnh/Page, Ngày,
+Sale tư vấn, Tên KH, SĐT) + Tư vấn; phần ít dùng ngay lúc thêm (Trạng thái, Địa chỉ, Nhu cầu, KH dùng mạng,
 Mô hình) gập trong "Thêm chi tiết", điền được ngay nếu cần hoặc sửa sau trực tiếp trong bảng. KHTN của
 Báo cáo ngày (`app/bao_cao_ngay.dong_bo_khtn`) đếm thẳng theo "Sale tư vấn" nên nên gán ngay lúc thêm.
 """
@@ -55,8 +55,9 @@ def _cot() -> list[dict]:
         {"field": "tinh_trang_xu_ly", "headerName": "Tình trạng xử lý", "minWidth": 130, "width": 140,
          "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": leads.TRANG_THAI}, **sua},
         {"field": "sale_ten", "headerName": "Sale tư vấn", "minWidth": 110, "width": 120,
-         "cellEditor": "agSelectCellEditor",
-         "cellEditorParams": {"values": [a["ten"] for a in leads.nguoi_online()]}, **sua},
+         "cellEditor": "agSelectCellEditor", "tooltipField": "care_cheo_tooltip",
+         "cellEditorParams": {"values": [a["ten"] for a in leads.nguoi_online()]},
+         "cellClassRules": {"o-cheo": "params.data.care_cheo_boi"}, **sua},
         {"field": "kh_dung_mang", "headerName": "KH dùng mạng", "minWidth": 100, "width": 120, **sua},
         {"field": "sale_len", "headerName": "Sale lên", "minWidth": 100, "width": 110, **sua},
         {"field": "mo_hinh", "headerName": "Mô hình", "minWidth": 100, "width": 120, **sua},
@@ -101,11 +102,12 @@ def layout():
                      "chính là thao tác nhận chéo.", className="goi-y-bam"),
         ], className="card"),
         modal("ld-md", "Thêm lead mới", [
-            # Chỉ 4 ô cần ngay lúc khách vừa nhắn (chốt 19/11/2026, rút gọn từ 10 ô): phần còn lại
-            # (ngày, trạng thái, địa chỉ, nhu cầu, KH dùng mạng, mô hình) gập trong "Thêm chi tiết" -
-            # vẫn điền được ngay lúc thêm nếu cần, hoặc sửa sau trực tiếp trong bảng.
+            # Chỉ 5 ô cần ngay lúc khách vừa nhắn (chốt 19/11/2026, rút gọn từ 10 ô; Ngày đẩy lên bắt
+            # buộc): phần còn lại (trạng thái, địa chỉ, nhu cầu, KH dùng mạng, mô hình) gập trong
+            # "Thêm chi tiết" - vẫn điền được ngay lúc thêm nếu cần, hoặc sửa sau trực tiếp trong bảng.
             html.Div([
                 field("Tỉnh / Page *", dcc.Dropdown(id="ld-f-page", options=opt_page, placeholder="Chọn page")),
+                field("Ngày *", dcc.Input(id="ld-f-ngay", type="date", className="inp", value=date.today().isoformat())),
                 field("Sale tư vấn", dcc.Dropdown(id="ld-f-sale", options=opt_sale, placeholder="Chưa gán")),
                 field("Tên KH", dcc.Input(id="ld-f-ten", className="inp")),
                 field("SĐT", dcc.Input(id="ld-f-sdt", className="inp")),
@@ -113,7 +115,6 @@ def layout():
             field("Tư vấn", dcc.Textarea(id="ld-f-tuvan", className="inp", style={"width": "100%", "minHeight": "70px"},
                                          placeholder="Khách nhắn gì, cần gì...")),
             gap("Thêm chi tiết (không bắt buộc)", html.Div([
-                field("Ngày", dcc.Input(id="ld-f-ngay", type="date", className="inp", value=date.today().isoformat())),
                 field("Trạng thái", dcc.Dropdown(id="ld-f-tt", options=leads.TRANG_THAI, value="Mới",
                                                  clearable=False)),
                 field("Địa chỉ", dcc.Input(id="ld-f-diachi", className="inp")),
@@ -243,6 +244,8 @@ def register(app):
     def _them(_n, page_id, ngay, ten, sdt, diachi, nhucau, tt, sale, mang, mohinh, tuvan):
         if not _duoc_xem():
             raise PreventUpdate
+        if not ngay:
+            return alert("Chưa chọn ngày.", "warn"), no_update, no_update
         try:
             leads.tao_lead({"page_id": page_id, "ngay": ngay, "ten_kh": ten, "sdt": sdt, "dia_chi": diachi,
                             "nhu_cau": nhucau, "tinh_trang_xu_ly": tt, "sale_tu_van": sale,

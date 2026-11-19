@@ -6,6 +6,9 @@
 - POST /api/lead/fb-webhook : Meta gọi khi page nhận tin nhắn Messenger - LUÔN trả 200 khi chữ ký đúng (kể cả sự
   kiện không dùng được, để Meta khỏi gửi lại), xác minh `X-Hub-Signature-256` bằng HMAC-SHA256 với `FB_APP_SECRET`
   trước khi xử lý - đường này public, không đăng nhập, phải tự bảo vệ bằng chữ ký của Meta.
+- POST /api/lead/zalo-webhook : Zalo gọi khi nhóm cảnh báo SLA có tin mới (`app/leads_zalo_nhan.py`, "nhận
+  lead" bằng cách trả lời kèm mã). Header `X-Bot-Api-Secret-Token` so khớp khoá dẫn xuất từ `APP_SECRET_KEY`
+  (đúng kiểu webhook bot Tra giá / Bản tin), LUÔN trả 200 để Zalo khỏi gửi lại.
 """
 from __future__ import annotations
 
@@ -64,4 +67,13 @@ def fb_webhook():
         return jsonify({"ok": False}), 403
     from app import leads_messenger
     leads_messenger.xu_ly_su_kien(request.get_json(silent=True) or {})
+    return jsonify({"ok": True}), 200
+
+
+@bp.post("/api/lead/zalo-webhook")
+def zalo_webhook():
+    from app import leads_zalo_nhan
+    if not leads_zalo_nhan.khoa_dung(request.headers.get("X-Bot-Api-Secret-Token")):
+        return jsonify({"ok": False}), 403
+    leads_zalo_nhan.xu_ly_su_kien(request.get_json(silent=True))
     return jsonify({"ok": True}), 200
