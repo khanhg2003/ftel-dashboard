@@ -87,7 +87,7 @@ def test_quet_bao_dung_sale_phu_trach(gui_gia):
         pytest.skip("Chưa cấu hình config/rules.yml phong_online.acc.")
     a = nguoi[0]["acc_norm"]
     pid = _page()
-    lid = leads.tao_lead({"page_id": pid, "ten_kh": "Khách trễ", "sale_tu_van": a}, NGUOI)
+    lid = leads.tao_lead({"page_id": pid, "ten_kh": "Khách trễ", "sale_1": a}, NGUOI)
     cb.luu_nguoi_nhan(None, "sale", "A", "chat:a", a, True, NGUOI)
     _qua_han(lid)
     kq = cb.quet_va_canh_bao()
@@ -102,7 +102,7 @@ def test_khong_nhac_lai_trong_chu_ky(gui_gia):
         pytest.skip("Chưa cấu hình config/rules.yml phong_online.acc.")
     a = nguoi[0]["acc_norm"]
     pid = _page()
-    lid = leads.tao_lead({"page_id": pid, "sale_tu_van": a}, NGUOI)
+    lid = leads.tao_lead({"page_id": pid, "sale_1": a}, NGUOI)
     cb.luu_nguoi_nhan(None, "sale", "A", "chat:a", a, True, NGUOI)
     _qua_han(lid)
     cb.quet_va_canh_bao()
@@ -119,7 +119,7 @@ def test_loi_gui_cho_mot_nguoi_khong_chan_nguoi_khac(gui_gia):
         pytest.skip("Chưa cấu hình config/rules.yml phong_online.acc.")
     a = nguoi[0]["acc_norm"]
     pid = _page()
-    lid = leads.tao_lead({"page_id": pid, "sale_tu_van": a}, NGUOI)
+    lid = leads.tao_lead({"page_id": pid, "sale_1": a}, NGUOI)
     cb.luu_nguoi_nhan(None, "sale", "A", "chat:a", a, True, NGUOI)
     cb.luu_nguoi_nhan(None, "leader", "Sếp", "chat:sep", None, True, NGUOI)
     hong.add("chat:a")

@@ -98,29 +98,59 @@ def test_de_xuat_nhan_cheo_chon_dung_nguoi_it_viec_nhat_khac_chinh_minh():
     pid = _page()
     a, b = nguoi[0]["acc_norm"], nguoi[1]["acc_norm"]
     for _ in range(3):
-        leads.tao_lead({"page_id": pid, "sale_tu_van": a}, NGUOI)
-    leads.tao_lead({"page_id": pid, "sale_tu_van": b}, NGUOI)
+        leads.tao_lead({"page_id": pid, "sale_1": a}, NGUOI)
+    leads.tao_lead({"page_id": pid, "sale_1": b}, NGUOI)
     de_xuat = leads.de_xuat_nhan_cheo(a)
     tai = leads.tai_dang_xu_ly()
     assert de_xuat != a
     assert tai[de_xuat] == min(v for k, v in tai.items() if k != a)
 
 
-def test_nhan_cheo_doi_sale_va_ghi_nguoi_da_nhan():
+def test_nhan_lead_dien_dung_o_trong_ke_tiep_sale_1_2_3():
+    """Chốt 20/11/2026: lead mới -> sale_1; dội lần 1 -> sale_2; dội lần 2 -> sale_3; dội quá 3 lần -> ghi
+    đè sale_3. Người ĐANG phụ trách (để lọc/tính SLA) luôn là ô cuối cùng đã điền."""
     nguoi = leads.nguoi_online()
-    if len(nguoi) < 2:
-        pytest.skip("Cần ít nhất 2 người ở config/rules.yml phong_online.acc để kiểm thử.")
+    if len(nguoi) < 3:
+        pytest.skip("Cần ít nhất 3 người ở config/rules.yml phong_online.acc để kiểm thử.")
     pid = _page()
-    a, b = nguoi[0]["acc_norm"], nguoi[1]["acc_norm"]
-    lid = leads.tao_lead({"page_id": pid, "sale_tu_van": a}, NGUOI)
-    leads.nhan_cheo(lid, b, NGUOI)
-    df = leads.danh_sach()
-    r = df[df.id == lid].iloc[0]
-    assert r.sale_tu_van == b and r.care_cheo_boi == b
-    ten_b = {a["acc_norm"]: a["ten"] for a in nguoi}[b]
-    assert r.care_cheo_tooltip == f"Đã nhận chéo bởi {ten_b}"
-    lid2 = leads.tao_lead({"page_id": pid, "sale_tu_van": a}, NGUOI)       # lead chưa từng nhận chéo: không có tooltip
-    assert leads.danh_sach()[leads.danh_sach().id == lid2].iloc[0].care_cheo_tooltip == ""
+    a, b, c, d = nguoi[0]["acc_norm"], nguoi[1]["acc_norm"], nguoi[2]["acc_norm"], nguoi[1]["acc_norm"]
+    lid = leads.tao_lead({"page_id": pid, "sale_1": a}, NGUOI)            # tạo lead: sale_1 = a
+    r = leads.danh_sach().set_index("id").loc[lid]
+    assert (r.sale_1, r.sale_2, r.sale_3, r.phu_trach) == (a, None, None, a)
+
+    leads.nhan_cheo(lid, b, NGUOI)                                        # dội lần 1 -> sale_2
+    r = leads.danh_sach().set_index("id").loc[lid]
+    assert (r.sale_1, r.sale_2, r.sale_3, r.phu_trach) == (a, b, None, b)
+    ten_b = {x["acc_norm"]: x["ten"] for x in nguoi}[b]
+    assert r.sale_2_ten == ten_b and r.sale_1_ten == {x["acc_norm"]: x["ten"] for x in nguoi}[a]
+
+    leads.nhan_cheo(lid, c, NGUOI)                                        # dội lần 2 -> sale_3
+    r = leads.danh_sach().set_index("id").loc[lid]
+    assert (r.sale_1, r.sale_2, r.sale_3, r.phu_trach) == (a, b, c, c)
+
+    leads.nhan_cheo(lid, d, NGUOI)                                        # dội lần 3 (quá 3 người) -> GHI ĐÈ sale_3
+    r = leads.danh_sach().set_index("id").loc[lid]
+    assert (r.sale_1, r.sale_2, r.sale_3, r.phu_trach) == (a, b, d, d)
+
+    # lọc theo "sale" của danh_sach() phải lọc theo NGƯỜI ĐANG PHỤ TRÁCH, không phải sale_1
+    assert lid in set(leads.danh_sach(sale=d).id) and lid not in set(leads.danh_sach(sale=a).id)
+
+
+def test_nhan_lead_nguoi_khong_hop_le_bi_tu_choi():
+    pid = _page()
+    lid = leads.tao_lead({"page_id": pid}, NGUOI)
+    with pytest.raises(leads.LoiLead):
+        leads.nhan_cheo(lid, "khong-phai-trong-nhom", NGUOI)
+
+
+def test_ghi_chu_gom_chung_mot_o_tu_do():
+    """Chốt 20/11/2026: Địa chỉ/Nhu cầu/KH dùng mạng/Mô hình/Tư vấn cũ gộp thành một ô `ghi_chu` tự do."""
+    pid = _page()
+    lid = leads.tao_lead({"page_id": pid, "ghi_chu": "123 Trần Phú, cần lắp gấp"}, NGUOI)
+    r = leads.danh_sach().set_index("id").loc[lid]
+    assert r.ghi_chu == "123 Trần Phú, cần lắp gấp"
+    leads.cap_nhat_lead(lid, {"ghi_chu": "Đã gọi, hẹn chiều mai"}, NGUOI)
+    assert leads.danh_sach().set_index("id").loc[lid].ghi_chu == "Đã gọi, hẹn chiều mai"
 
 
 def test_luu_fb_cau_hinh_can_du_fb_page_id_va_token():

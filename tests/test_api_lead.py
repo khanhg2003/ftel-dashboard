@@ -126,7 +126,7 @@ def test_fb_webhook_tin_sau_moi_co_sdt_thi_tao_lead_tu_luc_do(may):
     df = leads.danh_sach()
     assert len(df) == 1
     r0 = df.iloc[0]
-    assert r0.sdt == "0912345678" and "Hồng Bàng" in (r0.tu_van_1 or "") and "chào shop" not in (r0.tu_van_1 or "")
+    assert r0.sdt == "0912345678" and "Hồng Bàng" in (r0.ghi_chu or "") and "chào shop" not in (r0.ghi_chu or "")
 
 
 def test_fb_webhook_page_chua_cau_hinh_bi_bo_qua_nhung_van_tra_200(may):

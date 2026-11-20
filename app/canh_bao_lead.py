@@ -88,6 +88,16 @@ def _chat_id_sale(acc_norm: str | None, nguoi_nhan: list[dict]) -> str | None:
                 if n["vai_tro"] == "sale" and n["acc_norm"] == acc_norm and n["bat"]), None)
 
 
+def lan_quet_gan_nhat() -> dict | None:
+    """Lần cron quét SLA gần nhất (đọc AuditLog thật) - để trang /leads hiện dải "đang theo dõi" bằng số
+    thật, không phải số trang trí (chốt với người dùng 20/11/2026)."""
+    dam_bao_bang()
+    with session_scope() as s:
+        r = s.execute(select(AuditLog).where(AuditLog.action == "lead_canh_bao_sla")
+                     .order_by(AuditLog.ts.desc())).scalars().first()
+        return {"luc": r.ts, "chi_tiet": r.detail} if r else None
+
+
 def _noi_dung(r: Lead, ten_tinh: str, ten_sale: str) -> str:
     gio = int((datetime.utcnow() - (r.cap_nhat_luc or r.tao_luc)).total_seconds() // 3600)
     dong = [f"⏰ LEAD QUÁ HẠN CARE ({gio} giờ chưa cập nhật)",
@@ -123,10 +133,11 @@ def quet_va_canh_bao() -> dict:
             if r.canh_bao_luc and (now - r.canh_bao_luc).total_seconds() < CHU_KY_NHAC_LAI_GIO * 3600:
                 continue
             trang = s.get(CrmPage, r.page_id)
+            phu_trach = leads.nguoi_phu_trach(r.sale_1, r.sale_2, r.sale_3)
             noi_dung = _noi_dung(r, trang.ten if trang else "",
-                                 ten_sale.get(r.sale_tu_van, r.sale_tu_van or "(chưa gán)"))
+                                 ten_sale.get(phu_trach, phu_trach or "(chưa gán)"))
             nhan: list[str] = []
-            cid = _chat_id_sale(r.sale_tu_van, nguoi_nhan)
+            cid = _chat_id_sale(phu_trach, nguoi_nhan)
             if cid:
                 nhan.append(cid)
             for n in nguoi_nhan:

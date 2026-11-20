@@ -1,18 +1,25 @@
 """Trang Lead Online (chốt 16/11/2026): một kho lead duy nhất thay cho nhiều tab Google Sheet theo tỉnh.
 
 Bảng sửa ngay trong ô như Google Sheet (cùng kiểu với Nhập tồn - app/ui/pages/nhapton.py), tự lưu từng ô.
-Đổi ô "Sale tư vấn" của một lead đang quá hạn = chính là thao tác "nhận chéo". Quyền xem/sửa lead: tài khoản
-vai trò "online" (5 bạn trong nhóm) và admin (`current_user.duoc_xem_phong_online`, giống trang Phòng Online).
-Mục Cấu hình (danh mục page, người nhận cảnh báo Zalo, kết nối Messenger) chỉ admin (`duoc_cau_hinh`).
+Quyền xem/sửa lead: tài khoản vai trò "online" (5 bạn trong nhóm) và admin (`current_user.duoc_xem_phong_online`,
+giống trang Phòng Online). Mục Cấu hình (danh mục page, người nhận cảnh báo Zalo, kết nối Messenger) chỉ
+admin (`duoc_cau_hinh`).
 
-Hộp "Thêm lead mới" (rút gọn 19/11/2026, chủ app thấy nhiều ô quá): chỉ còn 5 ô chính (Tỉnh/Page, Ngày,
-Sale tư vấn, Tên KH, SĐT) + Tư vấn; phần ít dùng ngay lúc thêm (Trạng thái, Địa chỉ, Nhu cầu, KH dùng mạng,
-Mô hình) gập trong "Thêm chi tiết", điền được ngay nếu cần hoặc sửa sau trực tiếp trong bảng. KHTN của
-Báo cáo ngày (`app/bao_cao_ngay.dong_bo_khtn`) đếm thẳng theo "Sale tư vấn" nên nên gán ngay lúc thêm.
+**Sale 1/2/3** (chốt 20/11/2026, thay cột "Sale tư vấn" cũ - xem `app/leads.py`): ba cột hiện lịch sử ai đã
+từng nhận lead này. Mỗi ô chỉ sửa được khi nó là Ô TRỐNG KẾ TIẾP (sale_1 trống -> sửa sale_1; sale_1 có mà
+sale_2 trống -> sửa sale_2...), ô đã có người ở sale_1/sale_2 thì KHOÁ (chỉ xem) - riêng sale_3 luôn sửa
+được một khi sale_2 đã có người, vì lead bị dội quá 3 lần thì ghi đè sale_3. Sửa bất kỳ ô nào trong 3 ô này
+đều gọi `leads.nhan_cheo`, hàm tự tìm đúng ô cần điền.
+
+Hộp "Thêm lead mới" (rút gọn 19-20/11/2026, chủ app thấy nhiều ô quá): còn 6 ô (Tỉnh/Page, Ngày, Sale 1,
+Tên KH, SĐT, Trạng thái) + một ô "Ghi chú" tự do (gộp Địa chỉ/Nhu cầu/KH dùng mạng/Mô hình/Tư vấn cũ - sale
+ít khi điền đủ 5 ô riêng). KHTN của Báo cáo ngày (`app/bao_cao_ngay.dong_bo_khtn`) đếm theo người ĐANG phụ
+trách (`leads.nguoi_phu_trach`) nên gán Sale 1 ngay lúc thêm vẫn có ý nghĩa, dù chưa bắt buộc.
 """
 from __future__ import annotations
 
 from datetime import date
+from urllib.parse import quote
 
 from dash import Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
@@ -21,8 +28,8 @@ from flask_login import current_user
 from app import canh_bao_lead as cb
 from app import leads
 from app.auth import ghi_log
-from app.thoi_gian import gio_viet_nam
-from app.ui.components import alert, field, gap, modal
+from app.thoi_gian import chu_gio_vn, gio_viet_nam
+from app.ui.components import alert, field, modal
 from app.ui.icons import icon
 from app.ui.luoi import SO, bang
 
@@ -47,6 +54,20 @@ def _duoc_xem() -> bool:
     return bool(getattr(current_user, "is_authenticated", False)) and current_user.duoc_xem_phong_online
 
 
+#  Sale 1/2/3 (chốt 20/11/2026): mỗi ô chỉ sửa được khi nó là Ô TRỐNG KẾ TIẾP; sale_3 luôn sửa được một khi
+#  sale_2 đã có người (cho phép ghi đè khi lead bị dội quá 3 lần, xem app/leads.nhan_cheo).
+DK_SALE1 = "!params.data.sale_1"
+DK_SALE2 = "params.data.sale_1 && !params.data.sale_2"
+DK_SALE3 = "!!params.data.sale_2"
+
+
+def _cot_sale(field: str, ten: str, dieu_kien: str, opt_ten: list[str]) -> dict:
+    return {"field": field, "headerName": ten, "minWidth": 140, "width": 150,
+            "editable": {"function": dieu_kien}, "cellEditor": "agSelectCellEditor",
+            "cellEditorParams": {"values": opt_ten}, "tooltipValueGetter": {"function": "params.value || ''"},
+            "cellClassRules": {"o-sale": dieu_kien, "o-tu-ca": f"!({dieu_kien})"}}
+
+
 def _cot() -> list[dict]:
     # Rà soát 20/11/2026 (chủ app báo bảng khó nhìn vì chữ bị cắt): cột nào hay có chữ dài thì nới rộng
     # hẳn (minWidth, bỏ "width" chặn hẹp) thay vì để ag-grid cắt bớt bằng dấu "...", thêm tooltipField tự
@@ -54,24 +75,20 @@ def _cot() -> list[dict]:
     # nhiều hơn - chấp nhận đổi lấy không còn mất chữ, đúng tinh thần "còn ngắn hơn là cắt chữ" ở Nhập tồn.
     sua = {"editable": True, "cellClass": "o-sale"}
     tu_than = {"tooltipValueGetter": {"function": "params.value || ''"}}
+    opt_ten = [a["ten"] for a in leads.nguoi_online()]
     return [
         {"field": "id", "headerName": "#", "width": 56, "maxWidth": 64, "pinned": "left", "cellClass": "o-dam"},
         {"field": "ngay", "headerName": "Ngày", "width": 104, "maxWidth": 112, "valueFormatter": VN_NGAY},
         {"field": "tinh", "headerName": "Tỉnh / Page", "minWidth": 120, "flex": 1},
         {"field": "ten_kh", "headerName": "Tên KH", "minWidth": 170, "flex": 1.4, **tu_than, **sua},
         {"field": "sdt", "headerName": "SĐT", "minWidth": 110, "width": 120, **sua},
-        {"field": "dia_chi", "headerName": "Địa chỉ", "minWidth": 180, "flex": 1.6, **tu_than, **sua},
-        {"field": "nhu_cau", "headerName": "Nhu cầu", "minWidth": 150, "flex": 1, **tu_than, **sua},
         {"field": "tinh_trang_xu_ly", "headerName": "Tình trạng xử lý", "minWidth": 150, "width": 160,
          "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": leads.TRANG_THAI}, **sua},
-        {"field": "sale_ten", "headerName": "Sale tư vấn", "minWidth": 150, "width": 160,
-         "cellEditor": "agSelectCellEditor", "tooltipField": "care_cheo_tooltip",
-         "cellEditorParams": {"values": [a["ten"] for a in leads.nguoi_online()]},
-         "cellClassRules": {"o-cheo": "params.data.care_cheo_boi"}, **sua},
-        {"field": "kh_dung_mang", "headerName": "KH dùng mạng", "minWidth": 130, "width": 150, **tu_than, **sua},
+        _cot_sale("sale_1_ten", "Sale 1", DK_SALE1, opt_ten),
+        _cot_sale("sale_2_ten", "Sale 2", DK_SALE2, opt_ten),
+        _cot_sale("sale_3_ten", "Sale 3", DK_SALE3, opt_ten),
         {"field": "sale_len", "headerName": "Sale lên", "minWidth": 120, "width": 130, **tu_than, **sua},
-        {"field": "mo_hinh", "headerName": "Mô hình", "minWidth": 130, "width": 150, **tu_than, **sua},
-        {"field": "tu_van_1", "headerName": "Tư vấn", "minWidth": 180, "flex": 1.8, "wrapText": True,
+        {"field": "ghi_chu", "headerName": "Ghi chú", "minWidth": 200, "flex": 2, "wrapText": True,
          "autoHeight": True, "cellEditor": "agLargeTextCellEditor", "cellEditorPopup": True, **sua},
         {"field": "gio_tre", "headerName": "Trễ (giờ)", "width": 92, "maxWidth": 100, "type": "numericColumn",
          "valueFormatter": SO, "cellStyle": GIO_TRE_MAU,
@@ -92,6 +109,7 @@ def layout():
         dcc.Store(id="ld-da-luu"),
         html.Div(id="ld-msg"),
         html.Div(id="ld-kpi", className="kpi-row kpi-3"),
+        html.Div(id="ld-trang-thai"),
         html.Div([
             html.Div([
                 field("Tỉnh / Page", dcc.Dropdown(id="ld-loc-page", options=opt_page, placeholder=TAT_CA,
@@ -108,30 +126,23 @@ def layout():
                              getRowId="params.data.id",
                              tuy_chon={"singleClickEdit": True, "stopEditingWhenCellsLoseFocus": True,
                                        "rowClassRules": {"dong-do": QUA_HAN_LOP}})),
-            html.Div("Bấm vào ô để sửa, sửa xong tự lưu. Đổi ô \"Sale tư vấn\" của một lead đang trễ (đỏ) "
-                     "chính là thao tác nhận chéo.", className="goi-y-bam"),
+            html.Div("Bấm vào ô để sửa, sửa xong tự lưu. Sửa ô Sale 1/2/3 trống kế tiếp của một lead đang "
+                     "trễ (đỏ) chính là thao tác nhận lead.", className="goi-y-bam"),
         ], className="card"),
         modal("ld-md", "Thêm lead mới", [
-            # Chỉ 5 ô cần ngay lúc khách vừa nhắn (chốt 19/11/2026, rút gọn từ 10 ô; Ngày đẩy lên bắt
-            # buộc): phần còn lại (trạng thái, địa chỉ, nhu cầu, KH dùng mạng, mô hình) gập trong
-            # "Thêm chi tiết" - vẫn điền được ngay lúc thêm nếu cần, hoặc sửa sau trực tiếp trong bảng.
+            # Rút gọn 19-20/11/2026 (chủ app thấy nhiều ô quá): còn 6 ô + một ô Ghi chú tự do gộp 5 ô ít
+            # dùng cũ (địa chỉ, nhu cầu, KH dùng mạng, mô hình, tư vấn).
             html.Div([
                 field("Tỉnh / Page *", dcc.Dropdown(id="ld-f-page", options=opt_page, placeholder="Chọn page")),
                 field("Ngày *", dcc.Input(id="ld-f-ngay", type="date", className="inp", value=date.today().isoformat())),
-                field("Sale tư vấn", dcc.Dropdown(id="ld-f-sale", options=opt_sale, placeholder="Chưa gán")),
+                field("Sale 1", dcc.Dropdown(id="ld-f-sale", options=opt_sale, placeholder="Chưa gán")),
                 field("Tên KH", dcc.Input(id="ld-f-ten", className="inp")),
                 field("SĐT", dcc.Input(id="ld-f-sdt", className="inp")),
-            ], className="form-grid"),
-            field("Tư vấn", dcc.Textarea(id="ld-f-tuvan", className="inp", style={"width": "100%", "minHeight": "70px"},
-                                         placeholder="Khách nhắn gì, cần gì...")),
-            gap("Thêm chi tiết (không bắt buộc)", html.Div([
                 field("Trạng thái", dcc.Dropdown(id="ld-f-tt", options=leads.TRANG_THAI, value="Mới",
                                                  clearable=False)),
-                field("Địa chỉ", dcc.Input(id="ld-f-diachi", className="inp")),
-                field("Nhu cầu", dcc.Input(id="ld-f-nhucau", className="inp")),
-                field("KH dùng mạng", dcc.Input(id="ld-f-mang", className="inp")),
-                field("Mô hình", dcc.Input(id="ld-f-mohinh", className="inp")),
-            ], className="form-grid")),
+            ], className="form-grid"),
+            field("Ghi chú", dcc.Textarea(id="ld-f-ghichu", className="inp", style={"width": "100%", "minHeight": "70px"},
+                                          placeholder="Khách nhắn gì, cần gì, địa chỉ, nhu cầu...")),
             html.Div(id="ld-md-msg"),
         ], nut_chinh="Thêm"),
         # Luôn render (ẩn bằng CSS, không bỏ khỏi cây) để callback của mục Cấu hình không lỗi
@@ -208,6 +219,58 @@ def _cau_hinh():
     ], className="card")
 
 
+# Mascot AI nhỏ (chốt 20/11/2026, chủ app muốn nhìn "có con AI đang hoạt động" ở riêng chỗ này): tự vẽ
+# bằng SVG gốc (không chép ảnh mẫu chủ app đưa - ảnh đó có bản quyền của bên khác), có gradient + glow -
+# PHÁ LỆ chỉ riêng icon này, phần chữ còn lại của dải vẫn phẳng như cả app (`app/ui/icons.py` vẫn chỉ 1 màu
+# cho mọi icon khác, đừng thêm icon nhiều màu vào đó).
+_AI_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+           '<defs>'
+           '<linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">'
+           '<stop offset="0" stop-color="#8B5CF6"/><stop offset="1" stop-color="#2563EB"/>'
+           '</linearGradient>'
+           '<radialGradient id="g2" cx="0.5" cy="0.35" r="0.65">'
+           '<stop offset="0" stop-color="#A5F3FC"/><stop offset="1" stop-color="#0EA5E9"/>'
+           '</radialGradient>'
+           '</defs>'
+           '<circle cx="32" cy="32" r="30" fill="url(#g1)"/>'
+           '<circle cx="13" cy="31" r="4.2" fill="#C4B5FD"/>'
+           '<circle cx="51" cy="31" r="4.2" fill="#C4B5FD"/>'
+           '<rect x="17" y="19" width="30" height="25" rx="11" fill="#111827" opacity="0.92"/>'
+           '<circle cx="26" cy="31.5" r="4.4" fill="url(#g2)"/>'
+           '<circle cx="38" cy="31.5" r="4.4" fill="url(#g2)"/>'
+           '<path d="M24 40q8 5.5 16 0" stroke="#7DD3FC" stroke-width="2.2" fill="none" stroke-linecap="round"/>'
+           '<line x1="32" y1="11" x2="32" y2="17" stroke="#C4B5FD" stroke-width="2.4" stroke-linecap="round"/>'
+           '<circle cx="32" cy="9" r="3" fill="#7DD3FC"/>'
+           '</svg>')
+_AI_AVATAR_URI = f'url("data:image/svg+xml,{quote(_AI_SVG)}")'
+
+
+def _ai_avatar(cham: str) -> html.Div:
+    return html.Div(html.Span(className=f"ld-dot {cham}"), className="ld-ai-avatar",
+                     style={"backgroundImage": _AI_AVATAR_URI})
+
+
+def _dai_trang_thai(qua_han: int) -> html.Div:
+    """Dải "đang theo dõi" phía trên bảng (chủ app muốn 20/11/2026 cảm giác có AI điều phối lead, cảnh báo
+    lead bị bỏ sót). Số liệu THẬT: `qua_han` từ chính `_kpi` đang hiện, mốc quét lấy từ `AuditLog` của
+    `canh_bao_lead.quet_va_canh_bao` (cron 15-30 phút/lần) - không phải số dựng cho đẹp. Chấm góc dưới của
+    avatar mới là tín hiệu thật (xanh/đỏ theo `qua_han`), mascot chỉ để gợi cảm giác "đang hoạt động"."""
+    lan = cb.lan_quet_gan_nhat()
+    if qua_han:
+        dong1 = (f"{qua_han} lead đang quá {leads.HAN_SLA_GIO}h chưa chăm sóc - hệ thống tự nhắc qua Zalo "
+                 f"mỗi {cb.CHU_KY_NHAC_LAI_GIO}h cho người phụ trách")
+        cham = "canh-bao"
+    else:
+        dong1 = "Đang theo dõi, chưa có lead nào quá hạn care"
+        cham = "on"
+    dong2 = (f"Quét SLA lần gần nhất lúc {chu_gio_vn(lan['luc'])} · {lan['chi_tiet']}" if lan
+             else "Chưa có lượt quét SLA nào.")
+    return html.Div([
+        _ai_avatar(cham),
+        html.Div([html.Div(dong1, className="ld-dong-1"), html.Div(dong2, className="ld-dong-2")]),
+    ], className="ld-trang-thai")
+
+
 def _kpi(df) -> list:
     tong = len(df)
     mo = int((~df.tinh_trang_xu_ly.isin(leads.TRANG_THAI_DONG)).sum()) if tong else 0
@@ -218,17 +281,18 @@ def _kpi(df) -> list:
 
 
 def register(app):
-    @app.callback(Output("ld-kpi", "children"), Output("ld-luoi", "rowData"),
+    @app.callback(Output("ld-kpi", "children"), Output("ld-trang-thai", "children"), Output("ld-luoi", "rowData"),
                   Input("ld-loc-page", "value"), Input("ld-loc-sale", "value"), Input("ld-loc-tt", "value"),
                   Input("ld-da-luu", "data"))
     def _nap(page_id, sale, tt, _luu):
         if not _duoc_xem():
             raise PreventUpdate
         df = leads.danh_sach(page_id=page_id, sale=sale, tinh_trang=tt)
+        qua_han = int(df.qua_han.sum()) if len(df) else 0
         if df.empty:
-            return _kpi(df), []
+            return _kpi(df), _dai_trang_thai(qua_han), []
         out = df.assign(ngay=[str(x)[:10] for x in df.ngay])
-        return _kpi(df), out.to_dict("records")
+        return _kpi(df), _dai_trang_thai(qua_han), out.to_dict("records")
 
     @app.callback(Output("ld-luoi", "dashGridOptions"), Input("ld-tim", "value"), prevent_initial_call=True)
     def _tim(chu):
@@ -248,18 +312,16 @@ def register(app):
                   Output("ld-da-luu", "data", allow_duplicate=True), Output("ld-md", "className", allow_duplicate=True),
                   Input("ld-md-ok", "n_clicks"),
                   State("ld-f-page", "value"), State("ld-f-ngay", "value"), State("ld-f-ten", "value"),
-                  State("ld-f-sdt", "value"), State("ld-f-diachi", "value"), State("ld-f-nhucau", "value"),
-                  State("ld-f-tt", "value"), State("ld-f-sale", "value"), State("ld-f-mang", "value"),
-                  State("ld-f-mohinh", "value"), State("ld-f-tuvan", "value"), prevent_initial_call=True)
-    def _them(_n, page_id, ngay, ten, sdt, diachi, nhucau, tt, sale, mang, mohinh, tuvan):
+                  State("ld-f-sdt", "value"), State("ld-f-tt", "value"), State("ld-f-sale", "value"),
+                  State("ld-f-ghichu", "value"), prevent_initial_call=True)
+    def _them(_n, page_id, ngay, ten, sdt, tt, sale, ghichu):
         if not _duoc_xem():
             raise PreventUpdate
         if not ngay:
             return alert("Chưa chọn ngày.", "warn"), no_update, no_update
         try:
-            leads.tao_lead({"page_id": page_id, "ngay": ngay, "ten_kh": ten, "sdt": sdt, "dia_chi": diachi,
-                            "nhu_cau": nhucau, "tinh_trang_xu_ly": tt, "sale_tu_van": sale,
-                            "kh_dung_mang": mang, "mo_hinh": mohinh, "tu_van_1": tuvan}, current_user.username)
+            leads.tao_lead({"page_id": page_id, "ngay": ngay, "ten_kh": ten, "sdt": sdt,
+                            "tinh_trang_xu_ly": tt, "sale_1": sale, "ghi_chu": ghichu}, current_user.username)
         except leads.LoiLead as e:
             return alert(str(e), "bad"), no_update, no_update
         return "", gio_viet_nam().isoformat(), "modal"
@@ -278,12 +340,8 @@ def register(app):
             if not lead_id or not cot:
                 continue
             try:
-                if cot == "sale_ten":
-                    acc = ten_acc.get(moi)
-                    if r.get("qua_han"):
-                        leads.nhan_cheo(lead_id, acc, current_user.username)
-                    else:
-                        leads.cap_nhat_lead(lead_id, {"sale_tu_van": acc}, current_user.username)
+                if cot in ("sale_1_ten", "sale_2_ten", "sale_3_ten"):
+                    leads.nhan_cheo(lead_id, ten_acc.get(moi), current_user.username)
                 else:
                     leads.cap_nhat_lead(lead_id, {cot: moi}, current_user.username)
             except leads.LoiLead as e:

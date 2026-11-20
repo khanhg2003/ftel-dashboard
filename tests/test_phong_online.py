@@ -230,10 +230,10 @@ def test_dong_bo_khtn_ghi_dung_so_lead_dang_mo():
         leads.them_page("Hải Phòng", None, "kiemthu")
         pid = int(leads.ds_page().iloc[0].id)
         for _ in range(2):
-            leads.tao_lead({"page_id": pid, "sale_tu_van": acc[0]}, "kiemthu")
-        lid = leads.tao_lead({"page_id": pid, "sale_tu_van": acc[0]}, "kiemthu")
+            leads.tao_lead({"page_id": pid, "sale_1": acc[0]}, "kiemthu")
+        lid = leads.tao_lead({"page_id": pid, "sale_1": acc[0]}, "kiemthu")
         leads.cap_nhat_lead(lid, {"tinh_trang_xu_ly": "Đã chốt"}, "kiemthu")       # đã đóng: không tính vào KHTN
-        leads.tao_lead({"page_id": pid, "sale_tu_van": acc[1]}, "kiemthu")
+        leads.tao_lead({"page_id": pid, "sale_1": acc[1]}, "kiemthu")
         n = bc.dong_bo_khtn()
         assert n == len(acc)
         with session_scope() as sess:

@@ -574,7 +574,20 @@ class CrmPage(Base):
 
 class Lead(Base):
     """Một lead (khách nhắn tin / cho số) của Phòng Online, theo page/tỉnh (`crm_page`). Thay Google Sheet nhiều
-    tab: một kho duy nhất, có mốc giờ thật để tính SLA (chốt theo yêu cầu BGĐ 16/11/2026, xem app/canh_bao_lead.py)."""
+    tab: một kho duy nhất, có mốc giờ thật để tính SLA (chốt theo yêu cầu BGĐ 16/11/2026, xem app/canh_bao_lead.py).
+
+    **Sale 1/2/3** (chốt 20/11/2026, thay `sale_tu_van` + `care_cheo_boi` cũ): người đầu tiên nhận lead vào
+    `sale_1`, lead bị dội (quá hạn, người khác nhận) thì người tiếp theo vào `sale_2` rồi `sale_3` - thấy
+    ngay LỊCH SỬ đã dội mấy lần thay vì phải suy ra qua tooltip. Dội quá 3 lần thì `sale_3` bị GHI ĐÈ bằng
+    người mới nhất (chủ app chốt: không chặn quy trình vì giới hạn giao diện). "Người đang phụ trách" (để
+    tính SLA/KHTN/báo Zalo) luôn là ô CUỐI CÙNG đã điền: `sale_3` nếu có, không thì `sale_2`, không thì
+    `sale_1` (xem `app.leads.nguoi_phu_trach`). `sale_1` giữ nguyên tên cột vật lý "sale_tu_van" (đổi tên ở
+    tầng ORM thôi, không phải đổi tên cột database - khỏi phải chạy ALTER TABLE RENAME COLUMN trên dữ liệu
+    thật đang chạy).
+
+    **Ghi chú** (chốt 20/11/2026, gộp `dia_chi` + `nhu_cau` + `kh_dung_mang` + `mo_hinh` + `tu_van_1` cũ):
+    5 ô riêng ít dùng, sale ít khi điền đủ - gộp thành một ô ghi chú tự do cho gọn, đỡ phải nhớ ô nào ghi gì.
+    """
     __tablename__ = "crm_lead"
     __table_args__ = (UniqueConstraint("page_id", "fb_psid", name="uq_crm_lead_fb_psid"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -582,17 +595,14 @@ class Lead(Base):
     ngay: Mapped[date] = mapped_column(Date, index=True)
     ten_kh: Mapped[str | None] = mapped_column(String(160), nullable=True)
     sdt: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    dia_chi: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    nhu_cau: Mapped[str | None] = mapped_column(String(60), nullable=True)
     tinh_trang_xu_ly: Mapped[str] = mapped_column(String(40), default="Mới")
-    sale_tu_van: Mapped[str | None] = mapped_column(String(80), index=True, nullable=True)       # acc_norm
-    kh_dung_mang: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    sale_1: Mapped[str | None] = mapped_column(String(80), name="sale_tu_van", index=True, nullable=True)
+    sale_2: Mapped[str | None] = mapped_column(String(80), nullable=True)         # acc_norm - nhận lần 2 (dội 1 lần)
+    sale_3: Mapped[str | None] = mapped_column(String(80), nullable=True)         # acc_norm - nhận lần 3+ (ghi đè nếu dội thêm)
     sale_len: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    mo_hinh: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    tu_van_1: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
     nguon: Mapped[str] = mapped_column(String(20), default="tay")                                 # tay | messenger
     fb_psid: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    care_cheo_boi: Mapped[str | None] = mapped_column(String(80), nullable=True)                  # acc_norm
     tao_luc: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     tao_boi: Mapped[str | None] = mapped_column(String(60), nullable=True)
     cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

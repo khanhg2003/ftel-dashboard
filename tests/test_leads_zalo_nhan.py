@@ -46,7 +46,7 @@ def _page() -> int:
 
 
 def _lead(sale: str | None = None) -> int:
-    return leads.tao_lead({"page_id": _page(), "sale_tu_van": sale}, NGUOI)
+    return leads.tao_lead({"page_id": _page(), "sale_1": sale}, NGUOI)
 
 
 @pytest.fixture
@@ -78,15 +78,24 @@ def test_khoa_sai_hoac_thieu_thi_403(may, gui):
     assert not gui
 
 
-def test_nhan_dung_ma_dung_ten_thi_cap_nhat_sale_tu_van(may, gui):
+def test_nhan_dung_ma_dung_ten_thi_dien_sale_1(may, gui):
+    """Lead chưa gán (sale_1 trống) - "Hiếu nhận #id" điền thẳng vào sale_1 (chưa phải dội nên chưa qua sale_2)."""
     lid = _lead()
     r = _gui_webhook(may, _su_kien(f"Hiếu nhận #{lid}"))
     assert r.status_code == 200
     df = leads.danh_sach()
     row = df[df.id == lid].iloc[0]
-    assert row.sale_tu_van == HIEU and row.care_cheo_boi == HIEU
+    assert row.sale_1 == HIEU and row.sale_2 is None
     assert len(gui) == 1
     assert str(lid) in gui[0][1] and "Hiếu" in gui[0][1]
+
+
+def test_nhan_lead_da_co_sale_1_thi_dien_sale_2(may, gui):
+    """Lead đã gán cho Hào (sale_1 = Hào) - "Hiếu nhận #id" là dội lần 1, điền vào sale_2."""
+    lid = _lead(sale=HAO)
+    _gui_webhook(may, _su_kien(f"Hiếu nhận #{lid}"))
+    row = leads.danh_sach().set_index("id").loc[lid]
+    assert row.sale_1 == HAO and row.sale_2 == HIEU
 
 
 def test_khong_co_ma_thi_bo_qua_khong_tra_loi(may, gui):
@@ -99,7 +108,7 @@ def test_tu_nhom_khac_thi_bo_qua(may, gui):
     assert _gui_webhook(may, _su_kien(f"Hiếu nhận #{lid}", chat="nhom-la")).status_code == 200
     assert not gui
     df = leads.danh_sach()
-    assert df[df.id == lid].iloc[0].sale_tu_van is None
+    assert df[df.id == lid].iloc[0].sale_1 is None
 
 
 def test_lead_da_dong_thi_bao_da_xong_khong_gan_lai(may, gui):
@@ -108,7 +117,7 @@ def test_lead_da_dong_thi_bao_da_xong_khong_gan_lai(may, gui):
     _gui_webhook(may, _su_kien(f"Hiếu nhận #{lid}"))
     assert len(gui) == 1 and "đã xong" in gui[0][1]
     df = leads.danh_sach()
-    assert df[df.id == lid].iloc[0].sale_tu_van == HAO     # không bị đổi sang Hiếu
+    assert df[df.id == lid].iloc[0].sale_1 == HAO     # không bị đổi sang Hiếu
 
 
 def test_khong_ro_ten_thi_hoi_lai(may, gui):
@@ -116,7 +125,7 @@ def test_khong_ro_ten_thi_hoi_lai(may, gui):
     _gui_webhook(may, _su_kien(f"ai nhận hộ #{lid} với"))
     assert len(gui) == 1 and "tên" in gui[0][1].lower()
     df = leads.danh_sach()
-    assert df[df.id == lid].iloc[0].sale_tu_van is None
+    assert df[df.id == lid].iloc[0].sale_1 is None
 
 
 def test_lead_khong_ton_tai_thi_bao_khong_tim_thay(may, gui):

@@ -1,9 +1,17 @@
 """Lead Phòng Online: một kho duy nhất thay cho nhiều tab Google Sheet theo tỉnh (chốt 16/11/2026).
 
 Danh mục page/tỉnh (`CrmPage`) là CỦA RIÊNG Phòng Online - không liên quan `ads_page` (Ads IBB7, phòng khác).
-Mỗi lead gắn với một page và một người trong 5 bạn Phòng Online (`sale_tu_van`, acc_norm lấy từ
-`config/rules.yml` -> `phong_online.acc`). `cap_nhat_luc` là mốc "chăm sóc gần nhất" dùng để tính SLA
-(app/canh_bao_lead.py): đổi `tinh_trang_xu_ly`, `sale_tu_van` hoặc `tu_van_1` đều coi là một lần chăm sóc.
+`cap_nhat_luc` là mốc "chăm sóc gần nhất" dùng để tính SLA (app/canh_bao_lead.py): đổi `tinh_trang_xu_ly`,
+người phụ trách hoặc `ghi_chu` đều coi là một lần chăm sóc.
+
+**Sale 1/2/3** (chốt 20/11/2026, thay cơ chế "sửa ô Sale tư vấn = nhận chéo" cũ): lead gắn với MỘT người
+trong 5 bạn Phòng Online vào `sale_1` lúc tạo; quá hạn mà người khác nhận thì vào `sale_2`, dội tiếp thì
+`sale_3` (dội quá 3 lần thì ghi đè `sale_3`). `nguoi_phu_trach()` = ô CUỐI CÙNG đã điền - đây mới là người
+dùng để tính SLA / KHTN / báo Zalo, không phải `sale_1`. Thao tác "nhận" (`nhan_cheo`) tự tìm đúng ô trống
+kế tiếp để điền, không cần biết người gọi đang sửa ô nào.
+
+**Ghi chú** (chốt 20/11/2026): gộp 5 ô ít dùng trước đây (Địa chỉ, Nhu cầu, KH dùng mạng, Mô hình, Tư vấn)
+thành một ô ghi chú tự do `ghi_chu`.
 """
 from __future__ import annotations
 
@@ -21,6 +29,8 @@ from app.models import AuditLog, CrmPage, Employee, Lead, StaffMap
 
 BANG = (CrmPage, Lead)
 _da_tao = False
+# cột thêm sau 16/11/2026, phải tự vá vào database đang chạy (cùng cách bao_cao_ngay.COT_THEM)
+COT_THEM = {"sale_2": "VARCHAR(80)", "sale_3": "VARCHAR(80)", "ghi_chu": "TEXT"}
 
 TRANG_THAI = ["Mới", "Đang tư vấn", "Hẹn gọi lại", "Đồng ý", "Đã chốt", "Đã lên online", "Không nhu cầu", "Huỷ"]
 # "Đã lên online" (thêm 19/11/2026): dịch vụ đã kích hoạt xong, khác "Đã chốt" (mới là khách đồng ý/tạo HĐ) -
@@ -40,7 +50,19 @@ def dam_bao_bang() -> None:
     if not _da_tao:
         for b in BANG:
             b.__table__.create(engine, checkfirst=True)
+        from sqlalchemy import inspect
+        co = {c["name"] for c in inspect(engine).get_columns("crm_lead")}
+        for ten, kieu in COT_THEM.items():
+            if ten not in co:
+                with engine.begin() as c:
+                    c.execute(text(f"ALTER TABLE crm_lead ADD COLUMN {ten} {kieu}"))
         _da_tao = True
+
+
+def nguoi_phu_trach(sale_1, sale_2, sale_3) -> str | None:
+    """Người ĐANG phụ trách lead = ô cuối cùng đã điền trong sale_1 -> sale_2 -> sale_3. Đây là người dùng
+    để tính SLA / KHTN / báo Zalo, không phải `sale_1` (người nhận đầu tiên có thể đã bị dội từ lâu)."""
+    return sale_3 or sale_2 or sale_1
 
 
 def tim_sdt(chu: str | None) -> str | None:
@@ -145,9 +167,9 @@ def tao_lead(du_lieu: dict, nguoi: str) -> int:
     page_id = du_lieu.get("page_id")
     if not page_id:
         raise LoiLead("Chọn page / tỉnh.")
-    sale = (du_lieu.get("sale_tu_van") or "").strip() or None
+    sale = (du_lieu.get("sale_1") or "").strip() or None
     if not _acc_hop_le(sale):
-        raise LoiLead("Sale tư vấn không hợp lệ.")
+        raise LoiLead("Sale 1 không hợp lệ.")
     with session_scope() as s:
         if s.get(CrmPage, int(page_id)) is None:
             raise LoiLead("Không tìm thấy page này.")
@@ -157,12 +179,8 @@ def tao_lead(du_lieu: dict, nguoi: str) -> int:
         r = Lead(page_id=int(page_id), ngay=ngay,
                  ten_kh=(du_lieu.get("ten_kh") or "").strip()[:160] or None,
                  sdt=(du_lieu.get("sdt") or "").strip()[:20] or None,
-                 dia_chi=(du_lieu.get("dia_chi") or "").strip()[:200] or None,
-                 nhu_cau=(du_lieu.get("nhu_cau") or "").strip()[:60] or None,
                  tinh_trang_xu_ly=(du_lieu.get("tinh_trang_xu_ly") or "Mới").strip()[:40],
-                 sale_tu_van=sale, kh_dung_mang=(du_lieu.get("kh_dung_mang") or "").strip()[:60] or None,
-                 mo_hinh=(du_lieu.get("mo_hinh") or "").strip()[:80] or None,
-                 tu_van_1=(du_lieu.get("tu_van_1") or "").strip() or None,
+                 sale_1=sale, ghi_chu=(du_lieu.get("ghi_chu") or "").strip() or None,
                  nguon="tay", tao_luc=now, tao_boi=nguoi, cap_nhat_luc=now, cap_nhat_boi=nguoi)
         s.add(r)
         s.flush()
@@ -173,44 +191,46 @@ def tao_lead(du_lieu: dict, nguoi: str) -> int:
 
 @ghi("leads")
 def cap_nhat_lead(lead_id: int, du_lieu: dict, nguoi: str) -> None:
-    """Sửa 1 lead. Đổi tình trạng xử lý / sale tư vấn / ghi chú tư vấn đều coi là một lần chăm sóc: ghi lại mốc
-    `cap_nhat_luc` và xoá `canh_bao_luc` cũ để tính lại hạn SLA từ đầu."""
+    """Sửa 1 lead (KHÔNG gồm Sale 1/2/3 - dùng `nhan_cheo` để nhận lead). Đổi tình trạng xử lý hoặc ghi chú
+    đều coi là một lần chăm sóc: ghi lại mốc `cap_nhat_luc` và xoá `canh_bao_luc` cũ để tính lại hạn SLA."""
     dam_bao_bang()
     with session_scope() as s:
         r = s.get(Lead, int(lead_id))
         if r is None:
             raise LoiLead("Không tìm thấy lead này.")
-        truoc = (r.tinh_trang_xu_ly, r.sale_tu_van, r.tu_van_1)
-        for cot, gioi_han in (("ten_kh", 160), ("sdt", 20), ("dia_chi", 200), ("nhu_cau", 60),
-                              ("tinh_trang_xu_ly", 40), ("kh_dung_mang", 60), ("sale_len", 80), ("mo_hinh", 80)):
+        truoc = (r.tinh_trang_xu_ly, r.ghi_chu)
+        for cot, gioi_han in (("ten_kh", 160), ("sdt", 20), ("tinh_trang_xu_ly", 40), ("sale_len", 80)):
             if cot in du_lieu:
                 setattr(r, cot, str(du_lieu[cot] or "").strip()[:gioi_han] or None)
-        if "sale_tu_van" in du_lieu:
-            sale = (du_lieu["sale_tu_van"] or "").strip() or None
-            if not _acc_hop_le(sale):
-                raise LoiLead("Sale tư vấn không hợp lệ.")
-            r.sale_tu_van = sale
-        if "tu_van_1" in du_lieu:
-            r.tu_van_1 = str(du_lieu["tu_van_1"] or "").strip() or None
-        if (r.tinh_trang_xu_ly, r.sale_tu_van, r.tu_van_1) != truoc:
+        if "ghi_chu" in du_lieu:
+            r.ghi_chu = str(du_lieu["ghi_chu"] or "").strip() or None
+        if (r.tinh_trang_xu_ly, r.ghi_chu) != truoc:
             r.cap_nhat_luc, r.cap_nhat_boi, r.canh_bao_luc = datetime.utcnow(), nguoi, None
         s.add(AuditLog(username=nguoi, action="lead_sua", detail=f"#{r.id}"))
 
 
 @ghi("leads")
 def nhan_cheo(lead_id: int, acc_nhan: str, nguoi: str) -> str:
-    """Một bạn trong nhóm bấm "Nhận chéo": chuyển `sale_tu_van`, ghi người đã nhận, tính lại hạn SLA từ lúc này."""
+    """Nhận lead: điền vào Ô TRỐNG KẾ TIẾP trong sale_1 -> sale_2 -> sale_3 (chốt 20/11/2026, thay cơ chế
+    "sửa ô Sale tư vấn" cũ). sale_1 trống thì đây là lần gán đầu; sale_1 đã có thì đây là lần dội đầu tiên
+    (vào sale_2); sale_2 cũng đã có thì vào sale_3 - dội quá 3 lần thì GHI ĐÈ sale_3 (không chặn quy trình
+    vì giới hạn giao diện). Luôn tính lại hạn SLA từ lúc này vì người phụ trách vừa đổi."""
     if not acc_nhan or not _acc_hop_le(acc_nhan):
-        raise LoiLead("Người nhận chéo không hợp lệ.")
+        raise LoiLead("Người nhận không hợp lệ.")
     with session_scope() as s:
         r = s.get(Lead, int(lead_id))
         if r is None:
             raise LoiLead("Không tìm thấy lead này.")
-        cu = r.sale_tu_van
-        r.sale_tu_van, r.care_cheo_boi = acc_nhan, acc_nhan
+        cu = nguoi_phu_trach(r.sale_1, r.sale_2, r.sale_3)
+        if not r.sale_1:
+            r.sale_1 = acc_nhan
+        elif not r.sale_2:
+            r.sale_2 = acc_nhan
+        else:
+            r.sale_3 = acc_nhan
         r.cap_nhat_luc, r.cap_nhat_boi, r.canh_bao_luc = datetime.utcnow(), nguoi, None
         s.add(AuditLog(username=nguoi, action="lead_nhan_cheo", detail=f"#{r.id}: {cu} -> {acc_nhan}"))
-    return f"Đã chuyển lead #{lead_id} cho {acc_nhan}."
+    return f"Đã gán lead #{lead_id} cho {acc_nhan}."
 
 
 @ghi("leads")
@@ -234,10 +254,11 @@ def _q(sql: str, **p) -> pd.DataFrame:
 
 @nho("leads", 10)
 def danh_sach(page_id: int | None = None, sale: str | None = None, tinh_trang: str | None = None) -> pd.DataFrame:
-    """Mọi lead (mới nhất lên trước), kèm `gio_tre`/`qua_han` tính theo giờ hiện tại."""
-    df = _q("""SELECT l.id, l.page_id, p.ten AS tinh, l.ngay, l.ten_kh, l.sdt, l.dia_chi, l.nhu_cau,
-                      l.tinh_trang_xu_ly, l.sale_tu_van, l.kh_dung_mang, l.sale_len, l.mo_hinh, l.tu_van_1,
-                      l.nguon, l.care_cheo_boi, l.tao_luc, l.cap_nhat_luc, l.canh_bao_luc
+    """Mọi lead (mới nhất lên trước), kèm `gio_tre`/`qua_han` tính theo giờ hiện tại và `phu_trach` (người
+    đang phụ trách - ô cuối cùng trong sale_1/2/3 đã điền, xem `nguoi_phu_trach`)."""
+    df = _q("""SELECT l.id, l.page_id, p.ten AS tinh, l.ngay, l.ten_kh, l.sdt, l.ghi_chu,
+                      l.tinh_trang_xu_ly, l.sale_tu_van AS sale_1, l.sale_2, l.sale_3, l.sale_len,
+                      l.nguon, l.tao_luc, l.cap_nhat_luc, l.canh_bao_luc
                FROM crm_lead l JOIN crm_page p ON p.id = l.page_id
                ORDER BY COALESCE(l.cap_nhat_luc, l.tao_luc) DESC""")
     if df.empty:
@@ -245,12 +266,9 @@ def danh_sach(page_id: int | None = None, sale: str | None = None, tinh_trang: s
     for c in ("tao_luc", "cap_nhat_luc", "canh_bao_luc"):
         df[c] = pd.to_datetime(df[c])
     ten = {a["acc_norm"]: a["ten"] for a in nguoi_online()}
-    df["sale_ten"] = df.sale_tu_van.map(ten).fillna(df.sale_tu_van)
-    # "Đã nhận chéo bởi <tên>" - chỉ để hiện tooltip khi lead này từng bị dội (kiểm soát tiếp sau khi nhận,
-    # chốt với người dùng 19/11/2026), không đổi giá trị hiển thị của ô (tránh lệch với danh sách editor).
-    care_ten = df.care_cheo_boi.map(ten).fillna(df.care_cheo_boi)
-    df["care_cheo_tooltip"] = ["Đã nhận chéo bởi " + t if pd.notna(b) else ""
-                               for b, t in zip(df.care_cheo_boi, care_ten)]
+    for c in ("sale_1", "sale_2", "sale_3"):
+        df[f"{c}_ten"] = df[c].map(ten).fillna(df[c])
+    df["phu_trach"] = df.sale_3.fillna(df.sale_2).fillna(df.sale_1)
     moc = df.cap_nhat_luc.fillna(df.tao_luc)
     gio_tre = (pd.Timestamp(datetime.utcnow()) - moc).dt.total_seconds() / 3600
     df["gio_tre"] = gio_tre.round(1)
@@ -258,20 +276,22 @@ def danh_sach(page_id: int | None = None, sale: str | None = None, tinh_trang: s
     if page_id:
         df = df[df.page_id == int(page_id)]
     if sale:
-        df = df[df.sale_tu_van == sale]
+        df = df[df.phu_trach == sale]
     if tinh_trang:
         df = df[df.tinh_trang_xu_ly == tinh_trang]
     return df.reset_index(drop=True)
 
 
 def tai_dang_xu_ly() -> dict[str, int]:
-    """Số lead đang mở (chưa đóng) của từng acc_norm trong nhóm - dùng để gợi ý người nhận chéo (ít việc nhất)."""
+    """Số lead đang mở (chưa đóng) của từng acc_norm trong nhóm, tính theo NGƯỜI ĐANG PHỤ TRÁCH (sale_3 nếu
+    có, không thì sale_2, không thì sale_1) - dùng để gợi ý người nhận chéo (ít việc nhất)."""
     dam_bao_bang()
     placeholders = ", ".join(f":d{i}" for i in range(len(TRANG_THAI_DONG)))
     params = {f"d{i}": v for i, v in enumerate(TRANG_THAI_DONG)}
-    df = _q(f"SELECT sale_tu_van, COUNT(*) AS n FROM crm_lead WHERE sale_tu_van IS NOT NULL "
-            f"AND tinh_trang_xu_ly NOT IN ({placeholders}) GROUP BY sale_tu_van", **params)
-    dem = dict(zip(df.sale_tu_van, df.n)) if len(df) else {}
+    df = _q(f"""SELECT COALESCE(sale_3, sale_2, sale_tu_van) AS acc, COUNT(*) AS n FROM crm_lead
+                WHERE COALESCE(sale_3, sale_2, sale_tu_van) IS NOT NULL
+                  AND tinh_trang_xu_ly NOT IN ({placeholders}) GROUP BY acc""", **params)
+    dem = dict(zip(df.acc, df.n)) if len(df) else {}
     return {a["acc_norm"]: int(dem.get(a["acc_norm"], 0)) for a in nguoi_online()}
 
 

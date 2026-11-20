@@ -97,11 +97,11 @@ def _xu_ly_tin(fb_page_id: str, msg: dict) -> None:
                 return      # chưa cho số -> chưa tạo lead, chờ tin sau có số
             s.add(Lead(page_id=page_id, ngay=date.today(), fb_psid=psid,
                        ten_kh=ten_khach(psid, token) if token else None, sdt=sdt,
-                       tinh_trang_xu_ly="Mới", nguon="messenger", tu_van_1=noi_dung or None,
+                       tinh_trang_xu_ly="Mới", nguon="messenger", ghi_chu=noi_dung or None,
                        tao_luc=now, tao_boi="messenger", cap_nhat_luc=now, cap_nhat_boi="messenger"))
         else:
             if noi_dung:
-                r.tu_van_1 = f"{r.tu_van_1}\n{noi_dung}" if r.tu_van_1 else noi_dung
+                r.ghi_chu = f"{r.ghi_chu}\n{noi_dung}" if r.ghi_chu else noi_dung
             if not r.sdt:
                 r.sdt = leads.tim_sdt(noi_dung)
             r.cap_nhat_luc, r.cap_nhat_boi, r.canh_bao_luc = now, "messenger", None
