@@ -1,7 +1,7 @@
 """Phòng Online - thẻ "Bán / online theo tỉnh" (CEO yêu cầu 20/11/2026): khách của nhóm ở tỉnh nào, so cùng kỳ tháng trước, từng bạn bán ở tỉnh nào.
 
 Số liệu đúng như thẻ "Bán theo tỉnh" của Phân tích bán hàng (`phan_tich.hd_theo_tinh` / `bang_tinh` / `ma_tran_nv_tinh`, biểu đồ và cột dùng chung ở
-`phantich_tinh`), chỉ giữ 5 người của nhóm (`phong_online.hd_theo_tinh`). Luỹ kế từ ngày 01 tới ngày chọn ở đầu trang, so cùng kỳ tháng trước.
+`phantich_tinh`), chỉ giữ người của nhóm (`phong_online.hd_theo_tinh`). Luỹ kế từ ngày 01 tới ngày chọn ở đầu trang, so cùng kỳ tháng trước.
 Quyền như trang Phòng Online (BGĐ và vai trò "online"); callback kiểm lại ở máy chủ."""
 from __future__ import annotations
 

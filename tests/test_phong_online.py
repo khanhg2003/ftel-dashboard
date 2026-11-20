@@ -1,4 +1,4 @@
-"""Phòng Online: nhóm 5 người của IBB2 gom vào một bảng riêng cho BGĐ (chốt 07/11/2026)."""
+"""Phòng Online: nhóm người của IBB2 (5 người lúc chốt 07/11/2026, thêm TungTHH 20/11/2026) gom vào một bảng riêng cho BGĐ (chốt 07/11/2026)."""
 from __future__ import annotations
 
 import json
@@ -19,9 +19,9 @@ def _tk(role: str, username: str | None = None, scope=()) -> SessionUser:
                                        session_version=0, scope=json.dumps(list(scope))))
 
 
-def test_nhom_gom_dung_5_nguoi_cua_ibb2():
+def test_nhom_gom_dung_6_nguoi_cua_ibb2():
     assert po.phong_goc() == "IBB2"
-    assert sorted(po.acc_nhom()) == ["dng.haoctp2", "dng.hieunt310", "dng.mottm", "dng.thutu", "dng.vannhk"]
+    assert sorted(po.acc_nhom()) == ["dng.haoctp2", "dng.hieunt310", "dng.mottm", "dng.thutu", "dng.tungthh", "dng.vannhk"]
     assert po.la_nguoi_online("DNG.MoTTM") and not po.la_nguoi_online("dng.longph") and not po.la_nguoi_online(None)
 
 

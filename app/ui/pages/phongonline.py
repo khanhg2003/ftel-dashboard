@@ -1,4 +1,4 @@
-"""Trang Phòng Online - nhóm 5 người của IBB2 gom vào một bảng riêng để BGĐ theo dõi (chốt 07/11/2026).
+"""Trang Phòng Online - nhóm người của IBB2 gom vào một bảng riêng để BGĐ theo dõi (chốt 07/11/2026).
 
 Số liệu y hệt Báo cáo phòng của IBB2 (`app/phong_online.py` gọi lại cùng hàm), chỉ giữ người trong nhóm; IBB2 vẫn
 hiện đủ mọi người ở Báo cáo phòng. Quyền: BGĐ (role admin, không phải tài khoản kỹ thuật) và tài khoản vai trò "online".
