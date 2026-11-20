@@ -2,7 +2,7 @@
 đi sâu một nhân viên), gói cước theo tỉnh, một ngày bán & online.
 
 Quản trị xem đủ ba cách xem. Nhân viên KD của phòng bật ở rules.yml (`ban_tinh`, hiện IBB7) chỉ thấy hai phần "Bán theo tỉnh" và
-"Ai bán ở tỉnh nào" (cách xem "Số online theo tỉnh"); số theo tỉnh / theo phòng là số chung, chi tiết nhân viên mọi phòng (22/10/2026). Chặn cả ở máy chủ, không chỉ ẩn trên giao diện.
+"Ai bán ở tỉnh nào" (cách xem "Số online theo tỉnh"); số theo tỉnh / theo phòng là số chung, chi tiết nhân viên mọi phòng (22/10/2026). Trưởng phòng thấy thẻ này nhưng chỉ số của phòng mình (`_gioi_han_phong`, 20/11/2026). Chặn cả ở máy chủ, không chỉ ẩn trên giao diện.
 Tách khỏi app/ui/pages/phantich.py cho gọn; dùng chung kỳ, bảng, biểu đồ của trang đó."""
 from __future__ import annotations
 
@@ -26,6 +26,16 @@ def _pham_vi_nv() -> list[str] | None:
     """Phạm vi nhân viên của hai phần theo tỉnh. Ai đã được xem phần này (Quản trị, nvkd phòng bật ở rules.yml) thì thấy nhân viên MỌI phòng
     (chủ app chốt 22/10/2026, thay quy tắc "chỉ phòng mình" của lần đầu); vai trò khác giữ phạm vi nhân sự thường."""
     return None if current_user.duoc_xem_ban_tinh else current_user.phong_nhan_su()
+
+
+def _duoc_xem() -> bool:
+    """Thấy thẻ: Quản trị, nvkd phòng bật ở rules.yml, và Trưởng phòng (chỉ số phòng mình, xem `_gioi_han_phong`)."""
+    return current_user.duoc_xem_ban_tinh or current_user.duoc_xem_ban_tinh_phong
+
+
+def _gioi_han_phong() -> list[str] | None:
+    """Trưởng phòng chỉ thấy số tỉnh của phòng mình (chủ app chốt 20/11/2026): mọi bảng, biểu đồ và cửa sổ chi tiết lọc theo danh sách này ở máy chủ. None = không giới hạn."""
+    return list(current_user.scope) if current_user.duoc_xem_ban_tinh_phong else None
 
 
 def _phong_nv_duoc_xem() -> list[dict]:
@@ -189,7 +199,7 @@ def register(app):
                   Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
                   Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"), Input("pt-tinh-xem", "value"))
     def _tinh(tu_iso, den_iso, chi_nhanh, pv, loai, xem):
-        if not current_user.duoc_xem_ban_tinh or xem not in (None, "tong"):
+        if not _duoc_xem() or xem not in (None, "tong"):
             raise PreventUpdate
         ky = _ky(tu_iso, den_iso)
         if ky is None:
@@ -198,9 +208,14 @@ def register(app):
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, thang)
         df = pt.online_theo_tinh(tu, den, scope)
         df_ck = pt.online_theo_tinh(*ky.ck, scope)
+        gh = _gioi_han_phong()
+        if gh is not None:
+            df, df_ck = df[df.phong_code.isin(gh)], df_ck[df_ck.phong_code.isin(gh)]
         mt, phong = pt.ma_tran_tinh_phong(df, thang)
         pham_vi = TEN_PHAM_VI.get(chi_nhanh, TEN_PHAM_VI["all"])
-        opts = [{"label": f"Toàn bộ · {pham_vi}", "value": "all"}] + [
+        if gh is not None:
+            pham_vi = "Phòng của bạn: " + (", ".join(p["ten"] for p in phong) or ", ".join(gh))
+        opts = [{"label": f"Toàn bộ · {pham_vi}" if gh is None else pham_vi, "value": "all"}] + [
             {"label": p["ten"], "value": p["code"]} for p in phong]
         if pv not in {o["value"] for o in opts}:
             pv = "all"
@@ -262,7 +277,7 @@ def register(app):
                   Input("pt-khoang", "start_date"), Input("pt-khoang", "end_date"), Input("pt-cn", "value"),
                   Input("pt-tinh-pv", "value"), Input("pt-tinh-loai", "value"), Input("pt-tinh-nv-phong", "value"))
     def _nv_tinh(xem, xem_tinh, tu_iso, den_iso, chi_nhanh, pv, loai, phong_nv):
-        if xem != "nv" or xem_tinh not in (None, "tong") or not current_user.duoc_xem_ban_tinh:
+        if xem != "nv" or xem_tinh not in (None, "tong") or not _duoc_xem():
             raise PreventUpdate
         ky = _ky(tu_iso, den_iso)
         if ky is None:
@@ -290,7 +305,7 @@ def register(app):
                   Input("pt-tinh-nv", "selectedRows"), Input("pt-khoang", "start_date"),
                   Input("pt-khoang", "end_date"), Input("pt-cn", "value"))
     def _ct_nv_tinh(chon, tu_iso, den_iso, chi_nhanh):
-        if not current_user.duoc_xem_ban_tinh:
+        if not _duoc_xem():
             raise PreventUpdate
         r = (chon or [None])[0]
         ky = _ky(tu_iso, den_iso)
@@ -363,7 +378,7 @@ def register(app):
                   Input("pt-tinh-bang", "selectedRows"), Input("pt-khoang", "start_date"),
                   Input("pt-khoang", "end_date"), Input("pt-cn", "value"), Input("pt-tinh-pv", "value"))
     def _ct_tinh(chon, tu_iso, den_iso, chi_nhanh, pv):
-        if not current_user.duoc_xem_ban_tinh:
+        if not _duoc_xem():
             raise PreventUpdate
         r = (chon or [None])[0]
         ky = _ky(tu_iso, den_iso)
@@ -371,6 +386,8 @@ def register(app):
             return "modal", "", []
         scope = loc_chi_nhanh(current_user.phong_duoc_xem(), chi_nhanh, ky.thang)
         df = pt.online_theo_tinh(ky.tu, ky.den, scope)
+        if _gioi_han_phong() is not None:
+            df = df[df.phong_code.isin(_gioi_han_phong())]
         if pv and pv != "all":
             df = df[df.phong_code == pv]
         ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}

@@ -162,6 +162,11 @@ class SessionUser(UserMixin):
         return self.role == "admin" or self.la_superadmin or (self.role == "nvkd" and bool(self.phong_ban_tinh()))
 
     @property
+    def duoc_xem_ban_tinh_phong(self) -> bool:
+        """Trưởng phòng xem thẻ "Bán theo tỉnh" nhưng CHỈ số của phòng mình (chủ app chốt 20/11/2026); `phantich_tinh` tự lọc theo `scope`."""
+        return self.role == "phong" and bool(self.scope)
+
+    @property
     def duoc_soan_mail(self) -> bool:
         """Soạn email + Danh bạ: admin (BGĐ + tài khoản kỹ thuật), nvkd đúng phòng IBB7 (chủ app chốt 10/10/2026) và tài khoản Phòng Online (10/11/2026)."""
         return (self.role in ("admin", "online") or self.la_superadmin

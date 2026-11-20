@@ -158,7 +158,7 @@ def layout(ky: dict | None = None):
             ], className="card"),
         ], style=an),
 
-        phantich_tinh.the(den, ngays, current_user.duoc_xem_ban_tinh, admin),
+        phantich_tinh.the(den, ngays, current_user.duoc_xem_ban_tinh or current_user.duoc_xem_ban_tinh_phong, admin),
 
         html.Div([
         html.Div([

@@ -118,3 +118,60 @@ def test_nvkd_ibb7_chi_tiet_tinh_liet_ke_nhan_vien_moi_phong():
     adm = _goi("pt-md-tinh-tieu-de.children", _tk("admin", []), [{"ma_tinh": ma, "tinh": "x"}], TU, DEN, "all", "all")[2]
     chu_adm = json.dumps(adm, default=lambda o: o.to_plotly_json() if hasattr(o, "to_plotly_json") else str(o))
     assert chu == chu_adm                                                             # nhân viên bán một tỉnh: giống hệt Quản trị
+
+
+# ---- Trưởng phòng xem thẻ "Bán theo tỉnh" nhưng CHỈ số phòng mình (chủ app chốt 20/11/2026)
+def test_quyen_truong_phong_xem_ban_tinh_chi_khi_co_phong():
+    assert _tk("phong", ["IBB6"]).duoc_xem_ban_tinh_phong and _tk("phong", ["IBB6"]).vao_duoc("/phantich")
+    assert not _tk("phong", []).duoc_xem_ban_tinh_phong
+    assert not _tk("admin", []).duoc_xem_ban_tinh_phong and not _tk("nvkd", ["IBB7"]).duoc_xem_ban_tinh_phong
+    assert not _tk("phong", ["IBB7"]).duoc_xem_ban_tinh, "không có quyền xem toàn chi nhánh"
+
+
+def test_truong_phong_chi_thay_so_tinh_cua_phong_minh():
+    from app import phan_tich as pt
+    df = pt.online_theo_tinh(TU, DEN, None)
+    tp = _tk("phong", ["IBB7"])
+    kq = _goi("pt-tinh-bang.rowData", tp, TU, DEN, "all", "all", "tat_ca", "tong")
+    assert "Phòng của bạn" in kq[1]
+    dung = int((df.phong_code == "IBB7").sum())
+    assert sum(r["online"] for r in kq[5]) == dung > 0, "tổng các tỉnh = số online của đúng phòng mình"
+    assert dung < len(df)
+    assert [c["field"] for c in kq[6] if c["field"] not in ("tinh", "tong")] == ["IBB7"], "bảng tỉnh x phòng chỉ có cột phòng mình"
+    adm = _goi("pt-tinh-bang.rowData", _tk("admin", []), TU, DEN, "all", "all", "tat_ca", "tong")
+    assert sum(r["online"] for r in adm[5]) == len(df), "Quản trị vẫn thấy toàn bộ, không đổi"
+
+
+def test_truong_phong_nhan_vien_va_cua_so_tinh_chi_trong_phong_minh():
+    from app import phan_tich as pt
+    tp = _tk("phong", ["IBB7"])
+    cot, dong = _goi("pt-tinh-nv.rowData", tp, "nv", "tong", TU, DEN, "all", "all", "tat_ca", "all")
+    assert dong and len({d["phong"] for d in dong}) == 1
+    df = pt.online_theo_tinh(TU, DEN, None)
+    khac = df[(df.phong_code != "IBB7") & df.acc_norm.notna()].acc_norm.iloc[0]
+    assert _goi("pt-md-nv-tieu-de.children", tp, [{"acc_key": khac, "ho_ten": "x", "phong": "x"}], TU, DEN, "all")[0] == "modal", "không mở được nhân viên phòng khác"
+    tinh = _goi("pt-tinh-bang.rowData", tp, TU, DEN, "all", "all", "tat_ca", "tong")[5]
+    ma = tinh[0]["ma_tinh"]
+    chips = lambda who: [c.children for c in _goi("pt-md-tinh-tieu-de.children", who, [{"ma_tinh": ma, "tinh": "x"}], TU, DEN, "all", "all")[2][0].children]
+    assert len(chips(tp)) == 1 and len(chips(_tk("admin", []))) > 1, "cửa sổ một tỉnh của Trưởng phòng chỉ có phòng mình"
+
+
+def test_layout_truong_phong_co_phong_thay_the_tinh_khong_phong_thi_an():
+    from flask_login import login_user
+    from app.ui.app import server
+    from app.ui.pages import phantich
+
+    def the_bi_an(tai_khoan) -> bool:
+        with server.test_request_context("/"):
+            login_user(tai_khoan)
+            lo = phantich.layout()
+
+        def tim(c):
+            if getattr(c, "id", None) == "pt-tinh-v-tong":
+                return True
+            ds = getattr(c, "children", None)
+            return any(tim(x) for x in (ds if isinstance(ds, list) else [ds])) if ds is not None else False
+        the = next(c for c in lo.children if getattr(c, "className", "") == "" and tim(c))
+        card = the.children[0]
+        return (card.style or {}).get("display") == "none"
+    assert not the_bi_an(_tk("phong", ["IBB7"])) and the_bi_an(_tk("phong", []))
