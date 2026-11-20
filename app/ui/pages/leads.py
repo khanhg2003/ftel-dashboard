@@ -30,6 +30,11 @@ AN = {"display": "none"}
 TAT_CA = "Tất cả"
 QUA_HAN_LOP = "params.data.qua_han"
 GIO_TRE_MAU = {"styleConditions": [{"condition": QUA_HAN_LOP, "style": {"color": "#B42318", "fontWeight": "700"}}]}
+# "2026-11-20" -> "20/11/2026": chỉ đổi CÁCH HIỂN THỊ (valueFormatter), giữ nguyên giá trị ISO trong ô để
+# sắp xếp theo ngày vẫn đúng (chuỗi "dd/mm/yyyy" sắp xếp kiểu chữ sẽ sai thứ tự). Chủ app báo bảng khó nhìn
+# 20/11/2026 - ISO dài hơn nên hay bị ag-grid cắt chữ ở cột hẹp, và không đúng kiểu Việt Nam.
+VN_NGAY = {"function": "params.value ? params.value.slice(8,10)+'/'+params.value.slice(5,7)+'/'+"
+                       "params.value.slice(0,4) : ''"}
 
 
 def topbar():
@@ -43,27 +48,32 @@ def _duoc_xem() -> bool:
 
 
 def _cot() -> list[dict]:
+    # Rà soát 20/11/2026 (chủ app báo bảng khó nhìn vì chữ bị cắt): cột nào hay có chữ dài thì nới rộng
+    # hẳn (minWidth, bỏ "width" chặn hẹp) thay vì để ag-grid cắt bớt bằng dấu "...", thêm tooltipField tự
+    # thân cho chắc (rê chuột vẫn đọc được đủ dù màn hẹp làm cột co lại). Bảng dài hơn, phải cuộn ngang
+    # nhiều hơn - chấp nhận đổi lấy không còn mất chữ, đúng tinh thần "còn ngắn hơn là cắt chữ" ở Nhập tồn.
     sua = {"editable": True, "cellClass": "o-sale"}
+    tu_than = {"tooltipValueGetter": {"function": "params.value || ''"}}
     return [
         {"field": "id", "headerName": "#", "width": 56, "maxWidth": 64, "pinned": "left", "cellClass": "o-dam"},
-        {"field": "ngay", "headerName": "Ngày", "width": 92, "maxWidth": 100},
-        {"field": "tinh", "headerName": "Tỉnh / Page", "minWidth": 110, "flex": 1},
-        {"field": "ten_kh", "headerName": "Tên KH", "minWidth": 130, "flex": 1.3, **sua},
-        {"field": "sdt", "headerName": "SĐT", "minWidth": 100, "width": 110, **sua},
-        {"field": "dia_chi", "headerName": "Địa chỉ", "minWidth": 140, "flex": 1.4, **sua},
-        {"field": "nhu_cau", "headerName": "Nhu cầu", "minWidth": 100, "width": 110, **sua},
-        {"field": "tinh_trang_xu_ly", "headerName": "Tình trạng xử lý", "minWidth": 130, "width": 140,
+        {"field": "ngay", "headerName": "Ngày", "width": 104, "maxWidth": 112, "valueFormatter": VN_NGAY},
+        {"field": "tinh", "headerName": "Tỉnh / Page", "minWidth": 120, "flex": 1},
+        {"field": "ten_kh", "headerName": "Tên KH", "minWidth": 170, "flex": 1.4, **tu_than, **sua},
+        {"field": "sdt", "headerName": "SĐT", "minWidth": 110, "width": 120, **sua},
+        {"field": "dia_chi", "headerName": "Địa chỉ", "minWidth": 180, "flex": 1.6, **tu_than, **sua},
+        {"field": "nhu_cau", "headerName": "Nhu cầu", "minWidth": 150, "flex": 1, **tu_than, **sua},
+        {"field": "tinh_trang_xu_ly", "headerName": "Tình trạng xử lý", "minWidth": 150, "width": 160,
          "cellEditor": "agSelectCellEditor", "cellEditorParams": {"values": leads.TRANG_THAI}, **sua},
-        {"field": "sale_ten", "headerName": "Sale tư vấn", "minWidth": 110, "width": 120,
+        {"field": "sale_ten", "headerName": "Sale tư vấn", "minWidth": 150, "width": 160,
          "cellEditor": "agSelectCellEditor", "tooltipField": "care_cheo_tooltip",
          "cellEditorParams": {"values": [a["ten"] for a in leads.nguoi_online()]},
          "cellClassRules": {"o-cheo": "params.data.care_cheo_boi"}, **sua},
-        {"field": "kh_dung_mang", "headerName": "KH dùng mạng", "minWidth": 100, "width": 120, **sua},
-        {"field": "sale_len", "headerName": "Sale lên", "minWidth": 100, "width": 110, **sua},
-        {"field": "mo_hinh", "headerName": "Mô hình", "minWidth": 100, "width": 120, **sua},
-        {"field": "tu_van_1", "headerName": "Tư vấn", "minWidth": 160, "flex": 1.6, "wrapText": True,
+        {"field": "kh_dung_mang", "headerName": "KH dùng mạng", "minWidth": 130, "width": 150, **tu_than, **sua},
+        {"field": "sale_len", "headerName": "Sale lên", "minWidth": 120, "width": 130, **tu_than, **sua},
+        {"field": "mo_hinh", "headerName": "Mô hình", "minWidth": 130, "width": 150, **tu_than, **sua},
+        {"field": "tu_van_1", "headerName": "Tư vấn", "minWidth": 180, "flex": 1.8, "wrapText": True,
          "autoHeight": True, "cellEditor": "agLargeTextCellEditor", "cellEditorPopup": True, **sua},
-        {"field": "gio_tre", "headerName": "Trễ (giờ)", "width": 86, "maxWidth": 96, "type": "numericColumn",
+        {"field": "gio_tre", "headerName": "Trễ (giờ)", "width": 92, "maxWidth": 100, "type": "numericColumn",
          "valueFormatter": SO, "cellStyle": GIO_TRE_MAU,
          "headerTooltip": f"Số giờ từ lần chăm sóc gần nhất. Quá {leads.HAN_SLA_GIO}h chưa đổi trạng thái -> đỏ, "
                           "hệ thống tự báo Zalo để nhờ người khác nhận chéo."},
