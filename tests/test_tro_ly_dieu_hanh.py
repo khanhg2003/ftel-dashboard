@@ -362,8 +362,9 @@ def test_kiem_so_doc_duoc_so_viet_nam():
 
 
 # ------------------------------------------------------------------ sổ quyết định và vòng chạy
-def test_cong_tac_tat_khong_chay_khong_gui_khong_nhan_lenh(zalo):
-    assert so.bat() is False, "rules.yml phải để tro_ly_dieu_hanh.bat = false"
+def test_cong_tac_tat_khong_chay_khong_gui_khong_nhan_lenh(zalo, monkeypatch):
+    monkeypatch.setattr(so, "cau_hinh", lambda: {**so.MAC_DINH, "bat": False})
+    assert so.bat() is False
     assert tdh.chay_buoi_sang() == tdh.TAT and tdh.nhac_quyet(gui=True) == tdh.TAT and tdh.kiem_chung(gui=True) == tdh.TAT and tdh.vong_tu_dong() == tdh.TAT
     assert so.tom_tat()["tong"] == 0
     assert tz.gui_cho("bgd", "x") is False and zalo.gui == []
@@ -534,6 +535,7 @@ def test_chi_bgd_vao_trang_va_menu_chi_hien_khi_bat(monkeypatch):
     from app.ui.app import server
     with server.test_request_context("/"):
         _dang_nhap("admin")
+        monkeypatch.setattr(so, "cau_hinh", lambda: {**so.MAC_DINH, "bat": False})
         assert "Trợ lý điều hành" not in repr(ung_dung._sidebar("/", "KD")), "tắt công tắc thì không có menu"
         assert "chưa được bật" in repr(ung_dung._router("/trolydieuhanh", "", None)[0])
         monkeypatch.setattr(so, "cau_hinh", lambda: {**so.MAC_DINH, "bat": True})
