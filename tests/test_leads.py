@@ -153,6 +153,18 @@ def test_ghi_chu_gom_chung_mot_o_tu_do():
     assert leads.danh_sach().set_index("id").loc[lid].ghi_chu == "Đã gọi, hẹn chiều mai"
 
 
+def test_xoa_lead_xoa_dung_dong_da_chon_con_lai_giu_nguyen():
+    """Thêm 20/11/2026 (nối nút "Xoá lead đã chọn" trên bảng vào `leads.xoa_lead` có sẵn): chỉ xoá đúng
+    id được chọn, id lạ bị bỏ qua, trả về đúng số dòng đã xoá."""
+    pid = _page()
+    lid1 = leads.tao_lead({"page_id": pid, "ten_kh": "A"}, NGUOI)
+    lid2 = leads.tao_lead({"page_id": pid, "ten_kh": "B"}, NGUOI)
+    n = leads.xoa_lead([lid1, 999999], NGUOI)
+    assert n == 1
+    con_lai = set(leads.danh_sach().id)
+    assert con_lai == {lid2}
+
+
 def test_luu_fb_cau_hinh_can_du_fb_page_id_va_token():
     pid = _page()
     with pytest.raises(leads.LoiLead):

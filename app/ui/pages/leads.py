@@ -15,6 +15,10 @@ Hộp "Thêm lead mới" (rút gọn 19-20/11/2026, chủ app thấy nhiều ô 
 Tên KH, SĐT, Trạng thái) + một ô "Ghi chú" tự do (gộp Địa chỉ/Nhu cầu/KH dùng mạng/Mô hình/Tư vấn cũ - sale
 ít khi điền đủ 5 ô riêng). KHTN của Báo cáo ngày (`app/bao_cao_ngay.dong_bo_khtn`) đếm theo người ĐANG phụ
 trách (`leads.nguoi_phu_trach`) nên gán Sale 1 ngay lúc thêm vẫn có ý nghĩa, dù chưa bắt buộc.
+
+**Xoá lead** (thêm 20/11/2026): tích ô # đầu dòng (checkbox, chọn nhiều dòng được) rồi bấm "Xoá lead đã
+chọn" - có hộp xác nhận trước khi xoá thật (`leads.xoa_lead`, đã ghi `AuditLog`). Không giới hạn riêng ai
+được xoá (ai xem/sửa được trang này thì xoá được), giống quyền sửa các ô khác trên bảng.
 """
 from __future__ import annotations
 
@@ -77,7 +81,8 @@ def _cot() -> list[dict]:
     tu_than = {"tooltipValueGetter": {"function": "params.value || ''"}}
     opt_ten = [a["ten"] for a in leads.nguoi_online()]
     return [
-        {"field": "id", "headerName": "#", "width": 56, "maxWidth": 64, "pinned": "left", "cellClass": "o-dam"},
+        {"field": "id", "headerName": "#", "width": 56, "maxWidth": 64, "pinned": "left", "cellClass": "o-dam",
+         "checkboxSelection": True, "headerCheckboxSelection": True},
         {"field": "ngay", "headerName": "Ngày", "width": 104, "maxWidth": 112, "valueFormatter": VN_NGAY},
         {"field": "tinh", "headerName": "Tỉnh / Page", "minWidth": 120, "flex": 1},
         {"field": "ten_kh", "headerName": "Tên KH", "minWidth": 170, "flex": 1.4, **tu_than, **sua},
@@ -107,6 +112,7 @@ def layout():
     opt_sale = [{"label": a["ten"], "value": a["acc_norm"]} for a in nguoi]
     return html.Div([
         dcc.Store(id="ld-da-luu"),
+        dcc.ConfirmDialog(id="ld-xoa-xacnhan", message=""),
         html.Div(id="ld-msg"),
         html.Div(id="ld-kpi", className="kpi-row kpi-3"),
         html.Div(id="ld-trang-thai"),
@@ -120,14 +126,18 @@ def layout():
                                                  style={"minWidth": "150px"})),
                 dcc.Input(id="ld-tim", type="search", placeholder="Tìm tên hoặc SĐT…", className="o-tim"),
                 html.Div(className="grow"),
+                html.Button([icon("trash", 14), html.Span("Xoá lead đã chọn")], id="ld-xoa-mo",
+                            className="btn nguy-hiem"),
                 html.Button([icon("plus", 14), html.Span("Thêm lead")], id="ld-them-mo", className="btn primary"),
             ], className="toolbar", style={"flexWrap": "wrap"}),
             dcc.Loading(bang("ld-luoi", _cot(), cao=560, lop="ag-theme-quartz ag-theme-ftel luoi-ke",
                              getRowId="params.data.id",
                              tuy_chon={"singleClickEdit": True, "stopEditingWhenCellsLoseFocus": True,
+                                       "rowSelection": "multiple", "suppressRowClickSelection": True,
                                        "rowClassRules": {"dong-do": QUA_HAN_LOP}})),
             html.Div("Bấm vào ô để sửa, sửa xong tự lưu. Sửa ô Sale 1/2/3 trống kế tiếp của một lead đang "
-                     "trễ (đỏ) chính là thao tác nhận lead.", className="goi-y-bam"),
+                     "trễ (đỏ) chính là thao tác nhận lead. Tích ô # đầu dòng rồi bấm \"Xoá lead đã chọn\" "
+                     "để xoá.", className="goi-y-bam"),
         ], className="card"),
         modal("ld-md", "Thêm lead mới", [
             # Rút gọn 19-20/11/2026 (chủ app thấy nhiều ô quá): còn 6 ô + một ô Ghi chú tự do gộp 5 ô ít
@@ -347,6 +357,26 @@ def register(app):
             except leads.LoiLead as e:
                 loi.append(str(e))
         return (alert(" ".join(loi), "bad") if loi else None), gio_viet_nam().isoformat()
+
+    @app.callback(Output("ld-xoa-xacnhan", "displayed"), Output("ld-xoa-xacnhan", "message"),
+                  Output("ld-msg", "children", allow_duplicate=True),
+                  Input("ld-xoa-mo", "n_clicks"), State("ld-luoi", "selectedRows"), prevent_initial_call=True)
+    def _hoi_xoa(_n, chon):
+        if not _duoc_xem():
+            raise PreventUpdate
+        if not chon:
+            return False, "", alert("Tích ô # của (các) lead cần xoá trước đã.", "warn")
+        return True, f"Xoá {len(chon)} lead đã chọn? Thao tác này không hoàn tác được.", no_update
+
+    @app.callback(Output("ld-msg", "children", allow_duplicate=True),
+                  Output("ld-da-luu", "data", allow_duplicate=True),
+                  Input("ld-xoa-xacnhan", "submit_n_clicks"), State("ld-luoi", "selectedRows"),
+                  prevent_initial_call=True)
+    def _xoa(_n, chon):
+        if not _duoc_xem() or not chon:
+            raise PreventUpdate
+        n = leads.xoa_lead([r["id"] for r in chon], current_user.username)
+        return alert(f"Đã xoá {n} lead.", "ok"), gio_viet_nam().isoformat()
 
     # ------------------------------------------------ cấu hình (admin)
     @app.callback(Output("ld-g-page", "rowData"), Output("ld-fb-page", "options"), Output("ld-f-page", "options"),
