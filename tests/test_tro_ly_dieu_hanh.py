@@ -335,6 +335,18 @@ def test_llm_gia_dung_so_thi_dung_sai_so_loi_json_hong_thi_ve_luat(c_gia):
         assert kq["nguon_noi_dung"] == "luat" and kq["ly_do_luat"] == ly_do and len(kq["phuong_an"]) == 3, (i, kq["ly_do_luat"])
 
 
+def test_ai_duoc_dat_thoi_han_trong_phuong_an_nhung_khong_duoc_bia_so_lieu(c_gia):
+    v = _van_de(c_gia)
+    j = json.loads(_llm_dung(v))
+    j["phuong_an"][0]["mo_ta"] = "Gặp trực tiếp, chốt số cần đạt trong 8 giờ và báo lại sau 2 ngày, theo dõi mỗi 12 giờ."
+    assert nd.kiem_ket_qua(j, v["su_that"]) is not None, "thời hạn giờ / ngày trong phương án là việc cần làm, không phải số liệu"
+    j["phuong_an"][0]["mo_ta"] = "Chốt thêm 777 hợp đồng trong 8 giờ."
+    assert nd.kiem_ket_qua(j, v["su_that"]) is None, "số liệu bịa vẫn bị loại"
+    j2 = json.loads(_llm_dung(v))
+    j2["nhan_dinh"] = "Phòng có 8 nhân sự cần chú ý trong 777 ngày."
+    assert nd.kiem_ket_qua(j2, v["su_that"]) is None, "nhận định vẫn phải đúng từng số, kể cả số ngày"
+
+
 def test_tran_luot_goi_llm_moi_ngay(c_gia, monkeypatch):
     monkeypatch.setenv("TRO_LY_DIEU_HANH_TRAN_NGAY", "1")
     vs, _ = tdh.thu_su_that(NOW, c=c_gia)
@@ -376,7 +388,7 @@ def test_cong_tac_tat_khong_chay_khong_gui_khong_nhan_lenh(zalo, monkeypatch):
 def test_gui_thu_chi_toi_mot_nguoi_va_khong_danh_dau_da_gui(c_gia, bat, zalo):
     with tz.chi_gui_cho("G1") as kq:
         r = tdh.chay_buoi_sang(NOW, goi_llm=None, gui=True)
-    assert r["moi"] == 7 and r["gui"] == 0 and kq["so_tin"] == 7 and kq["loi"] == 0
+    assert r["moi"] == 7 and r["gui"] == 0 and kq["so_tin"] == 1 and kq["loi"] == 0, "7 đề xuất gộp thành MỘT tin tổng hợp"
     assert {c for c, _ in zalo.gui} == {"G1"}, "người quyết thật (T7) không được nhận tin nào"
     assert all(str(t).startswith("[GỬI THỬ") for _, t in zalo.gui)
     assert all(not r["da_gui_luc"] for r in so.liet_ke()), "gửi thử không đánh dấu đã gửi"
@@ -398,7 +410,7 @@ def test_chay_buoi_sang_khong_tao_trung_khong_gui_khi_chua_tick(c_gia, bat, zalo
     assert r4["gui"] == 7 and {c for c, _ in zalo.gui} == {"T7", "G1"}
     assert tdh.chay_buoi_sang(NOW, goi_llm=None, gui=True)["gui"] == 0, "mỗi đề xuất gửi đúng một lần"
     tin = next(t for c, t in zalo.gui if c == "T7")
-    assert "ĐỀ XUẤT CẦN QUYẾT" in tin and "dong y" in tin and "sua" in tin and "bac" in tin and len(tin) <= 1900
+    assert "CẦN QUYẾT" in tin and "xem <số>" in tin and "dong y" in tin and "sua" in tin and "bac" in tin and len(tin) <= 1900
 
 
 def test_phong_chua_co_truong_phong_thi_tin_ve_ban_giam_doc(c_gia, bat, zalo, monkeypatch):
@@ -478,7 +490,27 @@ def test_phan_tich_lenh_co_dau_khong_dau():
     assert pt("sua 7 Giao thêm cho phòng khác nhé") == {"lenh": "sua", "id": 7, "chon": None, "y_kien": "Giao thêm cho phòng khác nhé"}
     assert pt("bac 3 chưa cần") == {"lenh": "bac", "id": 3, "chon": None, "y_kien": "chưa cần"}
     assert pt("quyết định")["lenh"] == "danh_sach"
+    assert pt("xem 5") == {"lenh": "xem", "id": 5, "chon": None, "y_kien": ""}
+    assert pt("báo cáo") == {"lenh": "bao_cao", "id": None, "chon": "kd", "y_kien": ""}, "chưa nói khối nào thì mặc định Kinh doanh"
+    assert pt("bao cao DVKH")["chon"] == "dvkh" and pt("bao cao khoi la") is None
     assert pt("xin chào") is None and pt("dong y") is None and pt("sua abc") is None and pt("") is None
+
+
+def test_chi_ra_khoi_duoc_yeu_cau_va_lenh_xem_bao_cao(c_gia, bat, zalo):
+    r = tdh.chay_buoi_sang(NOW, goi_llm=None, khoi="kd")
+    assert r["moi"] > 0 and {x["khoi"] for x in so.liet_ke()} == {"kd"}, "chỉ rà khối được yêu cầu"
+    assert tdh.chay_buoi_sang(NOW, goi_llm=None, khoi="dvkh")["moi"] > 0 and {x["khoi"] for x in so.liet_ke()} == {"kd", "dvkh"}
+    kd = next(x for x in so.liet_ke() if x["khoi"] == "kd")
+
+    def tra_loi() -> str:
+        chu = " ".join(str(t) for _, t in zalo.tra + zalo.gui)
+        zalo.tra.clear(), zalo.gui.clear()
+        return chu
+
+    assert _gui_lenh("G1", "xem %d" % kd["id"]) is True and "PHƯƠNG ÁN" in tra_loi()
+    assert _gui_lenh("T7", "bao cao dvkh") is True and "Không có đề xuất nào đang chờ bạn ở khối" in tra_loi(), "trưởng phòng không quyết được đề xuất khối DVKH"
+    assert _gui_lenh("G1", "bao cao") is True and "KHỐI KINH DOANH" in tra_loi(), "không nói khối thì mặc định Kinh doanh"
+    assert _gui_lenh("G1", "bao cao dvkh") is True and "KHỐI DỊCH VỤ KHÁCH HÀNG" in tra_loi()
 
 
 def test_lenh_dung_nguoi_duoc_ghi_so_sai_nguoi_bi_tu_choi(bat, zalo):
@@ -565,13 +597,13 @@ def test_callback_trang_tra_rong_khi_khong_phai_bgd_hoac_cong_tac_tat(monkeypatc
     with server.test_request_context("/"):
         _dang_nhap("phong")
         monkeypatch.setattr(so, "cau_hinh", lambda: {**so.MAC_DINH, "bat": True})
-        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
+        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, "kd", 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
             with pytest.raises(PreventUpdate):
                 f(*tham)
         assert trolydh.cb_chon([{"id": 1}]) == ""
         _dang_nhap("admin")
         monkeypatch.setattr(so, "cau_hinh", lambda: dict(so.MAC_DINH))
-        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
+        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, "kd", 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
             with pytest.raises(PreventUpdate):
                 f(*tham)
 

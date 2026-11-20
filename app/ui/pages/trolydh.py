@@ -114,12 +114,15 @@ def layout():
         dcc.Store(id="tdh-tick", data=0),
         html.Div(id="tdh-ai", style={"marginBottom": "10px"}),
         card([dcc.Checklist(id="tdh-gui", options=[{"label": " Gửi cho người quyết qua Zalo (không tick thì chỉ ghi vào sổ, không gửi gì)", "value": "gui"}], value=[], className="zalo-tick"),
+              html.Div([html.Div("Khối cần báo cáo:", className="desc"),
+                        dcc.RadioItems(id="tdh-khoi", options=[{"label": " Kinh doanh (mặc định)", "value": "kd"}, {"label": " Dịch vụ khách hàng", "value": "dvkh"}], value=td.KHOI_MAC_DINH, inline=True,
+                                       inputStyle={"marginRight": "4px"}, labelStyle={"marginRight": "18px"})], style={"margin": "8px 0 4px"}),
               html.Div([html.Div("Hoặc chỉ gửi thử cho một người (chọn tên mình):", className="desc"),
                         dcc.Dropdown(id="tdh-thu", options=_ds_nhan(), placeholder="Không chọn = theo ô tick ở trên", clearable=True, style={"maxWidth": "380px"}),
                         html.Div("Chọn người ở đây thì CHỈ người đó nhận tin (có nhãn GỬI THỬ), người quyết thật không nhận gì, và ô tick ở trên được bỏ qua.", className="desc")], style={"marginTop": "6px"}),
               html.Div([nut("tdh-sang", "Chạy trợ lý"), nut("tdh-kc", "Chạy kiểm chứng và nhắc", "btn")], style={"display": "flex", "gap": "10px", "margin": "10px 0", "flexWrap": "wrap"}),
               dcc.Loading(html.Div(id="tdh-thongbao"), type="dot")],
-             title="Chạy trợ lý", desc="Chạy trợ lý: rà soát mọi nhân sự, phòng, khối rồi tạo đề xuất cho người quyết (không tạo trùng trong ngày). Chạy kiểm chứng và nhắc: nhắc người chưa quyết, báo cấp trên khi quá hạn, đo lại các quyết định tới hạn."),
+             title="Chạy trợ lý", desc="Chạy trợ lý: rà soát một khối (mặc định Kinh doanh) rồi tạo đề xuất cho người quyết (không tạo trùng trong ngày); gửi Zalo thì mỗi người nhận MỘT tin tổng hợp. Chạy kiểm chứng và nhắc: nhắc người chưa quyết, báo cấp trên khi quá hạn, đo lại các quyết định tới hạn."),
         html.Div(id="tdh-kpi", className="kpi-row kpi-4"),
         card([bang("tdh-luoi", COT, cao=380, tuy_chon={"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableClickSelection": True}})], title="Sổ quyết định",
              desc="Mỗi dòng là một đề xuất của trợ lý. Bấm một dòng để xem nhận định, phương án và bằng chứng. Người quyết trả lời qua Zalo: dong y SỐ A, sua SỐ ý kiến hoặc bac SỐ lý do."),
@@ -137,32 +140,33 @@ def _ghi(hanh_dong: str, chi_tiet_: str) -> None:
         pass
 
 
-def _bam(ma: str, gui: bool, thu: str | None = None) -> str:
+def _bam(ma: str, gui: bool, thu: str | None = None, khoi: str = td.KHOI_MAC_DINH) -> str:
     """`thu` = chat_id được chọn "chỉ gửi thử": chỉ người đó nhận, sổ không đánh dấu đã gửi."""
     if thu:
         with tz.chi_gui_cho(thu) as kq:
-            chu = _bam(ma, True)
+            chu = _bam(ma, True, None, khoi)
         return f"{chu} [GỬI THỬ: đã gửi {kq['so_tin']} tin chỉ cho người bạn chọn" + (f", {kq['loi']} tin lỗi" if kq["loi"] else "") + "; người quyết thật chưa nhận gì.]"
     if ma == "tdh-sang":
-        r = td.chay_buoi_sang(gui=gui)
-        _ghi("tro_ly_dieu_hanh_chay", f"moi={r['moi']} gui={r['gui']} ai={r['ai']} gui_zalo={gui}")
+        r = td.chay_buoi_sang(gui=gui, khoi=khoi)
+        _ghi("tro_ly_dieu_hanh_chay", f"khoi={khoi} moi={r['moi']} gui={r['gui']} ai={r['ai']} gui_zalo={gui}")
         con = f" Còn {r['bo_qua_trung_binh']} vấn đề mức trung bình chưa đề xuất (vượt trần mỗi lần)." if r["bo_qua_trung_binh"] else ""
         loi = f" Nguồn dữ liệu lỗi: {', '.join(sorted(r['loi_nguon']))}." if r["loi_nguon"] else ""
-        return (f"Trợ lý đã đề xuất {r['moi']} vấn đề mới ({r['ai']} do AI viết, {r['luat']} bằng bản luật), {r['da_co']} vấn đề đã có từ trước, gửi {r['gui']} tin tới người quyết." + con + loi
+        return (f"Khối {NHAN_KHOI.get(khoi, khoi)}: trợ lý đã đề xuất {r['moi']} vấn đề mới ({r['ai']} do AI viết, {r['luat']} bằng bản luật), {r['da_co']} vấn đề đã có từ trước, "
+                f"{r['gui']} đề xuất đã gửi tới người quyết (mỗi người một tin tổng hợp)." + con + loi
                 + (" Hôm nay không có vấn đề mới." if not r["moi"] else ""))
     n, k = td.nhac_quyet(gui=gui), td.kiem_chung(gui=gui)
     _ghi("tro_ly_dieu_hanh_kiem_chung", f"nhac={n['nhac']} leo={n['bao_cap_tren']} kc={k['kiem_chung']} gui_zalo={gui}")
     return f"Đã nhắc {n['nhac']} đề xuất chưa quyết, báo cấp trên {n['bao_cap_tren']} đề xuất quá hạn, kiểm chứng {k['kiem_chung']} quyết định (báo kết quả {k['da_bao']} lần)."
 
 
-def cb_chay(_a, _b, gui, thu, tick):
+def cb_chay(_a, _b, gui, thu, khoi, tick):
     """Nút "Chạy trợ lý" / "Chạy kiểm chứng và nhắc". Gửi Zalo chỉ khi ô tick được chọn."""
     if not _cho_phep() or ctx.triggered_id not in ("tdh-sang", "tdh-kc") or not ctx.triggered[0]["value"]:
         raise PreventUpdate
     try:
         if thu and thu not in {n["value"] for n in _ds_nhan()}:
             return alert("Người nhận đã chọn không còn trong danh sách Bản tin Zalo (hoặc đã bị tắt). Chọn lại tên.", "bad"), tick or 0
-        tb = alert(_bam(ctx.triggered_id, "gui" in (gui or []), thu or None), "info")
+        tb = alert(_bam(ctx.triggered_id, "gui" in (gui or []), thu or None, khoi if khoi in td.KHOI_HOP_LE else td.KHOI_MAC_DINH), "info")
     except Exception as e:                                           # lỗi nguồn dữ liệu không được làm trang đứng
         tb = alert(f"Chưa chạy được ({type(e).__name__}). Xem lại dữ liệu rồi thử lại.", "bad")
     return tb, (tick or 0) + 1
@@ -192,7 +196,7 @@ def cb_chon(chon):
 def register(app):
     """Callback nào cũng kiểm `duoc_cau_hinh` ở máy chủ (`callback_can_quyen`) và công tắc `bat` (`_cho_phep`)."""
     cb = callback_can_quyen(app, QUYEN)
-    cb(Output("tdh-thongbao", "children"), Output("tdh-tick", "data"), Input("tdh-sang", "n_clicks"), Input("tdh-kc", "n_clicks"), State("tdh-gui", "value"), State("tdh-thu", "value"), State("tdh-tick", "data"),
+    cb(Output("tdh-thongbao", "children"), Output("tdh-tick", "data"), Input("tdh-sang", "n_clicks"), Input("tdh-kc", "n_clicks"), State("tdh-gui", "value"), State("tdh-thu", "value"), State("tdh-khoi", "value"), State("tdh-tick", "data"),
        prevent_initial_call=True, running=[(Output("tdh-sang", "disabled"), True, False), (Output("tdh-kc", "disabled"), True, False)])(cb_chay)
     cb(Output("tdh-ai", "children"), Output("tdh-kpi", "children"), Output("tdh-luoi", "rowData"), Input("tdh-tick", "data"))(cb_ve)
     cb(Output("tdh-phu", "rowData"), Input("tdh-tick", "data"))(cb_phu)

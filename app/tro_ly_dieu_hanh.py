@@ -87,12 +87,17 @@ def gom(fs: list[dict], now: datetime, c: dict) -> list[dict]:
     return [_gom_nhom(k, g, ngay, c) for k, g in nhom.items() if any(f["muc"] != q.THAP for f in g)]
 
 
-def thu_su_that(now: datetime | None = None, toi_da: int | None = None, c: dict | None = None) -> tuple[list[dict], int]:
-    """(các vấn đề được đề xuất, số vấn đề mức trung bình bị bỏ vì vượt trần). Mức cao xếp trước rồi điểm; mọi vấn đề mức cao luôn được giữ."""
+KHOI_MAC_DINH = "kd"                      # chưa yêu cầu khối nào thì chỉ báo khối Kinh doanh
+KHOI_HOP_LE = ("kd", "dvkh")
+
+
+def thu_su_that(now: datetime | None = None, toi_da: int | None = None, c: dict | None = None, khoi: str | None = None) -> tuple[list[dict], int]:
+    """(các vấn đề được đề xuất, số vấn đề mức trung bình bị bỏ vì vượt trần). Mức cao xếp trước rồi điểm; mọi vấn đề mức cao luôn được giữ.
+    `khoi` ("kd" / "dvkh") chỉ giữ vấn đề của khối đó; None = mọi khối."""
     now = now or utc_bay_gio()
     c = c or q.ngu_canh(now)
     toi_da = so.cau_hinh()["toi_da_van_de"] if toi_da is None else toi_da
-    vs = sorted(gom(q.quet(c), now, c), key=lambda v: (q.HANG_MUC[v["muc"]], -v["diem"]))
+    vs = sorted((v for v in gom(q.quet(c), now, c) if khoi is None or v["khoi"] == khoi), key=lambda v: (q.HANG_MUC[v["muc"]], -v["diem"]))
     giu = vs[:max(toi_da, sum(1 for v in vs if v["muc"] == q.CAO))]
     return giu, len(vs) - len(giu)
 
@@ -106,15 +111,16 @@ def _ghi_van_de(v: dict, kq: dict, ten: dict, now: datetime) -> int | None:
                    "nguon_noi_dung": kq["nguon_noi_dung"]}, now)
 
 
-def chay_buoi_sang(now: datetime | None = None, goi_llm=MAC_DINH, gui: bool = False) -> dict:
-    """Rà soát, tạo đề xuất cho các vấn đề CHƯA có (không tạo trùng trong ngày, không tạo khi nhóm đó còn đang theo dõi). `gui=True` mới gửi Zalo cho người quyết
-    những đề xuất chưa tới tay họ. Trả {moi, gui, ai, luat, da_co, bo_qua_trung_binh, nho_con_lai, loi_nguon}."""
+def chay_buoi_sang(now: datetime | None = None, goi_llm=MAC_DINH, gui: bool = False, khoi: str | None = None) -> dict:
+    """Rà soát, tạo đề xuất cho các vấn đề CHƯA có (không tạo trùng trong ngày, không tạo khi nhóm đó còn đang theo dõi). `khoi` chỉ rà một khối (None = mọi khối).
+    `gui=True` mới gửi Zalo cho người quyết, MỘT tin tổng hợp mỗi người, những đề xuất chưa tới tay họ (của khối đang rà).
+    Trả {moi, gui, ai, luat, da_co, bo_qua_trung_binh, nho_con_lai, loi_nguon}."""
     if not so.bat():
         return dict(TAT)
     now = now or utc_bay_gio()
     goi = nd.goi_llm_mac_dinh() if goi_llm is MAC_DINH else goi_llm
     c = q.ngu_canh(now)
-    vs, bo = thu_su_that(now, c=c)
+    vs, bo = thu_su_that(now, c=c, khoi=khoi)
     moi = ai = da_co = 0
     for v in vs:
         if so.doc_theo_ma(v["ma_van_de"]):
@@ -126,7 +132,7 @@ def chay_buoi_sang(now: datetime | None = None, goi_llm=MAC_DINH, gui: bool = Fa
             ai += kq["nguon_noi_dung"] == "llm"
     so.ghi_phu("buoi_sang", nd.ngay_hom_nay(now))
     from app import tro_ly_dieu_hanh_zalo as tz
-    return {"moi": moi, "ai": ai, "luat": moi - ai, "da_co": da_co, "bo_qua_trung_binh": bo, "loi_nguon": dict(c["loi"]), "gui": tz.gui_de_xuat_chua_gui(now) if gui else 0}
+    return {"moi": moi, "ai": ai, "luat": moi - ai, "da_co": da_co, "bo_qua_trung_binh": bo, "loi_nguon": dict(c["loi"]), "gui": tz.gui_de_xuat_chua_gui(now, khoi) if gui else 0}
 
 
 def nhac_quyet(now: datetime | None = None, gui: bool = False) -> dict:
@@ -182,8 +188,8 @@ def vong_tu_dong(now: datetime | None = None, goi_llm=MAC_DINH) -> dict:
     now = now or utc_bay_gio()
     sang = {"moi": 0, "gui": 0, "ai": 0, "luat": 0}
     if so.doc_phu("buoi_sang") != nd.ngay_hom_nay(now):
-        sang = chay_buoi_sang(now, goi_llm, gui=True)
+        sang = chay_buoi_sang(now, goi_llm, gui=True, khoi=KHOI_MAC_DINH)
     else:
         from app import tro_ly_dieu_hanh_zalo as tz
-        sang["gui"] = tz.gui_de_xuat_chua_gui(now)
+        sang["gui"] = tz.gui_de_xuat_chua_gui(now, KHOI_MAC_DINH)
     return {**sang, **nhac_quyet(now, gui=True), **kiem_chung(now, goi_llm, gui=True)}

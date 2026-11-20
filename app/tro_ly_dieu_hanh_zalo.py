@@ -20,7 +20,10 @@ from app.thoi_gian import chu_gio_vn, utc_bay_gio
 XANH_DUONG, CAM, DO, XAM = "c_0072bc", "c_f27806", "c_db342e", "c_667789"
 GIOI_HAN = bt.TOI_DA_KY_TU
 LOAI_CHAT_RIENG = ("PRIVATE", "USER")
-CUA_LENH = {"dong y": "dong_y", "sua": "sua", "bac": "bac", "quyet dinh": "danh_sach"}
+CUA_LENH = {"dong y": "dong_y", "sua": "sua", "bac": "bac", "xem": "xem", "bao cao": "bao_cao", "quyet dinh": "danh_sach"}
+TEN_KHOI = {"kd": "KINH DOANH", "dvkh": "DỊCH VỤ KHÁCH HÀNG", "chung": "CHUNG"}
+MUC_CHU = {"cao": "Cao", "trung_binh": "Trung bình", "thap": "Thấp"}
+TOI_DA_DONG = 10                          # số đề xuất ghi riêng từng dòng trong tin tổng hợp, còn lại gộp thành một dòng
 
 
 def bo_dau(chu: str) -> str:
@@ -61,6 +64,26 @@ def tin_de_xuat(r: dict) -> bt.TinZalo:
         t.them(f"\n\nTrả lời: {_tra_loi_mau(r)}", "b", bt.CO_NHO)
         if _goc() and s.get("duong_dan"):
             t.them(f"\nXem chi tiết: {_goc()}{s['duong_dan']}", bt.CO_NHO, XANH_DUONG)
+        tin = t.xong()
+        if len(tin) <= GIOI_HAN:
+            return tin
+    return bt._cat(tin, GIOI_HAN)
+
+
+def tin_tong_hop(rows: list[dict], khoi: str | None = None) -> bt.TinZalo:
+    """MỘT tin liệt kê các đề xuất đang chờ (mức cao trước), mỗi dòng: số, mức, tiêu đề, khuyến nghị. Dài quá thì bớt dòng, không bao giờ cắt hướng dẫn trả lời."""
+    ds = sorted(rows, key=lambda r: ({"cao": 0, "trung_binh": 1}.get(r["su_that"].get("muc"), 2), r["id"]))
+    for n in (TOI_DA_DONG, 6, 3, 1):
+        hien = ds[:n]
+        t = _dau(f"CẦN QUYẾT{' - KHỐI ' + TEN_KHOI.get(khoi, str(khoi).upper()) if khoi else ''}: {len(ds)} ĐỀ XUẤT")
+        for r in hien:
+            t.them(f"\n#{r['id']} ", "b").them(f"[{MUC_CHU.get(r['su_that'].get('muc'), '')}] {_ngan(r['tieu_de'], 80)} (khuyến nghị {r['khuyen_nghi']})")
+        if len(ds) > len(hien):
+            t.them(f"\n… và {len(ds) - len(hien)} đề xuất khác, gõ quyet dinh để xem hết.", bt.CO_NHO, XAM)
+        t.them("\n\nXem đủ phương án: xem <số>", "b", bt.CO_NHO)
+        t.them("\nQuyết: dong y <số> [A|B|C] | sua <số> <ý kiến> | bac <số> <lý do>", "b", bt.CO_NHO)
+        if _goc():
+            t.them(f"\nTrang đầy đủ: {_goc()}/trolydieuhanh", bt.CO_NHO, XANH_DUONG)
         tin = t.xong()
         if len(tin) <= GIOI_HAN:
             return tin
@@ -111,38 +134,56 @@ def chi_gui_cho(chat_id: str):
         _CHI_GUI.reset(mo)
 
 
+def _gui_mot(chat_id: str, tin) -> bool:
+    """Gửi một tin cho một chat. Chế độ gửi thử: chỉ gửi cho chat được chọn (nhãn GỬI THỬ), đếm số tin và luôn trả False (không đánh dấu đã gửi)."""
+    thu = _CHI_GUI.get()
+    try:
+        if thu is not None:
+            zalo_bot.gui_tin_du_phong(thu["chat_id"], bt._voi_dau("[GỬI THỬ - người quyết thật chưa nhận tin này]\n", tin))
+            thu["so_tin"] += 1
+            return False
+        zalo_bot.gui_tin_du_phong(str(chat_id), tin)
+        return True
+    except Exception:                       # một người lỗi (hoặc bot chưa cài) không làm hỏng các người khác; lượt sau thử lại vì chưa đánh dấu
+        if thu is not None:
+            thu["loi"] += 1
+        return False
+
+
 def gui_cho(khoa: str, tin, now: datetime | None = None) -> bool:
     """Gửi một tin cho mọi người nhận (đang bật) của khoá người quyết; True nếu ít nhất một người nhận được (Zalo từ chối kiểu chữ thì tự gửi chữ trơn).
     Đang ở chế độ gửi thử (`chi_gui_cho`) thì chỉ gửi cho chat được chọn và luôn trả False (không đánh dấu đã gửi)."""
     if not so.bat():
         return False
-    thu = _CHI_GUI.get()
-    if thu is not None:
-        try:
-            zalo_bot.gui_tin_du_phong(thu["chat_id"], bt._voi_dau("[GỬI THỬ - người quyết thật chưa nhận tin này]\n", tin))
-            thu["so_tin"] += 1
-        except Exception:
-            thu["loi"] += 1
+    if _CHI_GUI.get() is not None:
+        _gui_mot("", tin)
         return False
     ok = False
     for n in td.nguoi_nhan_cua(khoa):
-        try:
-            zalo_bot.gui_tin_du_phong(n["chat_id"], tin)
-            ok = True
-        except Exception:                       # một người lỗi (hoặc bot chưa cài) không làm hỏng các người khác; lượt sau thử lại vì chưa đánh dấu
-            continue
+        ok = _gui_mot(n["chat_id"], tin) or ok
     return ok
 
 
-def gui_de_xuat_chua_gui(now: datetime | None = None) -> int:
-    """Gửi các đề xuất đang chờ mà chưa tới tay người quyết (mỗi đề xuất đúng một lần); trả số tin đã gửi."""
+def gui_de_xuat_chua_gui(now: datetime | None = None, khoi: str | None = None) -> int:
+    """Gửi các đề xuất đang chờ mà chưa tới tay người quyết (của `khoi`, None = mọi khối), gom MỘT tin tổng hợp cho mỗi người nhận;
+    trả số đề xuất đã tới tay ít nhất một người (các đề xuất đó được đánh dấu, mỗi đề xuất đúng một lần)."""
+    if not so.bat():
+        return 0
     now = now or utc_bay_gio()
-    n = 0
+    thu = _CHI_GUI.get()
+    theo_chat: dict[str, list[dict]] = {}
     for r in sorted(so.liet_ke(so.CHO), key=lambda r: r["id"]):
-        if not r["da_gui_luc"] and gui_cho(r["nguoi_quyet"], tin_de_xuat(r), now):
-            so.danh_dau(r["id"], "da_gui_luc", now)
-            n += 1
-    return n
+        if r["da_gui_luc"] or (khoi is not None and r["khoi"] != khoi):
+            continue
+        for chat in [thu["chat_id"]] if thu else [n["chat_id"] for n in td.nguoi_nhan_cua(r["nguoi_quyet"])]:
+            theo_chat.setdefault(chat, []).append(r)
+    xong: set[int] = set()
+    for chat, rows in theo_chat.items():
+        if _gui_mot(chat, tin_tong_hop(rows, khoi)):
+            xong.update(r["id"] for r in rows)
+    for id_ in xong:
+        so.danh_dau(id_, "da_gui_luc", now)
+    return len(xong)
 
 
 def bao_kiem_chung(now: datetime | None = None) -> int:
@@ -161,13 +202,15 @@ def bao_kiem_chung(now: datetime | None = None) -> int:
 
 # ------------------------------------------------------------------ nhận lệnh
 def phan_tich_lenh(text: str) -> dict | None:
-    """"dong y 12 B" / "sua 12 ý kiến" / "bac 12 lý do" / "quyet dinh" -> {lenh, id, chon, y_kien}; không phải lệnh của trợ lý thì None.
+    """"dong y 12 B" / "sua 12 ý kiến" / "bac 12 lý do" / "xem 12" / "bao cao [kd|dvkh]" / "quyet dinh" -> {lenh, id, chon, y_kien}; không phải lệnh của trợ lý thì None.
     Tách theo từ trên chữ GỐC để giữ nguyên dấu và hoa thường của phần ý kiến."""
     tu = (text or "").split()
     nho = [bo_dau(t) for t in tu]
     if nho[:2] == ["quyet", "dinh"] and len(tu) == 2:
         return {"lenh": "danh_sach", "id": None, "chon": None, "y_kien": ""}
-    n = 2 if nho[:2] == ["dong", "y"] else 1 if nho[:1] in (["sua"], ["bac"]) else 0
+    if nho[:2] == ["bao", "cao"] and len(tu) <= 3 and (len(tu) == 2 or nho[2] in td.KHOI_HOP_LE):
+        return {"lenh": "bao_cao", "id": None, "chon": nho[2] if len(tu) == 3 else td.KHOI_MAC_DINH, "y_kien": ""}
+    n = 2 if nho[:2] == ["dong", "y"] else 1 if nho[:1] in (["sua"], ["bac"], ["xem"]) else 0
     if not n or len(tu) <= n or not tu[n].lstrip("#").isdigit():
         return None
     lenh = CUA_LENH[" ".join(nho[:n])]
@@ -184,17 +227,29 @@ def _liet_ke_cho(chat_id: str) -> str:
     return "Đề xuất đang chờ bạn quyết:\n" + "\n".join(dong) + "\n\nTrả lời: dong y <số> [A|B|C] | sua <số> <ý kiến> | bac <số> <lý do>"
 
 
+def _bao_cao_khoi(chat_id: str, khoi: str):
+    """Trả lời lệnh "bao cao [khối]": tin tổng hợp các đề xuất ĐANG CHỜ của khối đó mà người hỏi quyết được (không quét lại số liệu, không gửi cho ai khác)."""
+    ds = [r for r in so.liet_ke(so.CHO) if r["khoi"] == khoi and td.duoc_quyet(chat_id, r)]
+    if not ds:
+        return f"Không có đề xuất nào đang chờ bạn ở khối {TEN_KHOI.get(khoi, khoi).lower()}. Muốn rà soát khối này, chạy trợ lý ở trang Trợ lý điều hành."
+    return tin_tong_hop(ds, khoi)
+
+
 def thuc_hien(chat_id: str, lenh: dict, now: datetime | None = None) -> str:
     """Thực hiện một lệnh của người ĐÃ là người nhận; trả câu trả lời gửi lại họ. Chỉ ghi sổ."""
     from app.auth import ghi_log
     now = now or utc_bay_gio()
     if lenh["lenh"] == "danh_sach":
         return _liet_ke_cho(chat_id)
+    if lenh["lenh"] == "bao_cao":
+        return _bao_cao_khoi(chat_id, lenh["chon"])
     r = so.doc(lenh["id"])
     if r is None:
         return f"Không có đề xuất #{lenh['id']}."
     if not td.duoc_quyet(chat_id, r):
         return f"Bạn không có quyền quyết đề xuất #{r['id']} (thuộc {td.ten_nguoi_quyet(r['nguoi_quyet'])})."
+    if lenh["lenh"] == "xem":
+        return tin_de_xuat(r)
     if r["trang_thai"] not in so.CHO:
         return f"Đề xuất #{r['id']} đang ở trạng thái “{so.TRANG_THAI.get(r['trang_thai'], r['trang_thai'])}”, không đổi được nữa."
     ten = f"{td.nguoi_theo_chat(chat_id)['ten']} (Zalo)"
@@ -231,7 +286,10 @@ def xu_ly_webhook(payload) -> bool:
         return False
     tra_loi = thuc_hien(tin["chat_id"], lenh)
     try:
-        zalo_bot.gui_tin(tin["chat_id"], tra_loi, han=4)
+        if getattr(tra_loi, "kieu", None):
+            zalo_bot.gui_tin_du_phong(tin["chat_id"], tra_loi, han=4)
+        else:
+            zalo_bot.gui_tin(tin["chat_id"], tra_loi, han=4)
     except Exception:                          # trả lời hỏng không làm mất việc đã ghi sổ
         pass
     return True

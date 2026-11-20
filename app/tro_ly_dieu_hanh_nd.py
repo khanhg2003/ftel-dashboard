@@ -21,6 +21,7 @@ TOI_DA_DONG_CHI_TIET = 4
 TRAN_NGAY_MAC_DINH = 30
 _SO = re.compile(r"(?<![\w.,/:])\d+(?:[.,/:]\d+)*%?")
 _NGOAI_LE_CHU = re.compile(r"đấu\s*nối", re.I)
+_THOI_HAN = re.compile(r"\d+\s*(?:giờ|ngày|tuần|phút)\b", re.I)       # "trong 8 giờ", "sau 2 ngày": hạn việc cần làm, không phải số liệu để kiểm
 
 
 def dinh_so(x) -> str:
@@ -162,7 +163,8 @@ def kiem_ket_qua(j: dict | None, bang: dict) -> dict | None:
     if not nd or len(nd) > 700 or any(not p["tieu_de"] or not p["mo_ta"] or len(p["tieu_de"]) > 90 or len(p["mo_ta"]) > 220 for p in ds):
         return None
     chu = " ".join([nd, *[p["tieu_de"] + " " + p["mo_ta"] for p in ds]])
-    return None if _NGOAI_LE_CHU.search(chu) or not kiem_so(chu, bang) else {"nhan_dinh": nd, "phuong_an": ds, "khuyen_nghi": kn}
+    chu_so = " ".join([nd, *[_THOI_HAN.sub("", p["tieu_de"] + " " + p["mo_ta"]) for p in ds]])       # nhận định phải đúng từng số; phương án được tự đặt thời hạn (giờ / ngày / tuần)
+    return None if _NGOAI_LE_CHU.search(chu) or not kiem_so(chu_so, bang) else {"nhan_dinh": nd, "phuong_an": ds, "khuyen_nghi": kn}
 
 
 # ------------------------------------------------------------------ LLM: trần lượt, nhớ kết quả, gọi
