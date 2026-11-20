@@ -251,3 +251,37 @@ def test_dong_bo_khtn_tat_cong_tac_thi_khong_ghi_gi(monkeypatch):
     from app import bao_cao_ngay as bc
     monkeypatch.setattr(po, "khtn_tu_lead", lambda: False)
     assert bc.dong_bo_khtn() == 0
+
+
+# ------------------------------------------------------------------ thẻ "Bán / online theo tỉnh" (20/11/2026)
+def test_theo_tinh_chi_giu_nguoi_trong_nhom_va_khop_ham_phan_tich():
+    from app import phan_tich as pt
+    tu, den = f"{THANG}-01", f"{THANG}-{NGAY:02d}"
+    for theo in ("online", "ban"):
+        nhom = po.hd_theo_tinh(tu, den, theo)
+        goc = pt.hd_theo_tinh(tu, den, [po.phong_goc()], theo)
+        acc = goc.acc_norm.fillna(goc.acc_nhan_vien.str.lower())
+        mong = goc[acc.isin(set(po.acc_nhom()))]
+        assert len(nhom) == len(mong) and len(nhom) <= len(goc)
+        assert set(nhom.phong_code) <= {po.phong_goc()} and set(nhom.acc_norm.dropna()) <= set(po.acc_nhom())
+    onl = po.hd_theo_tinh(tu, den, "online")
+    tong = pt.bang_tinh(onl, po.hd_theo_tinh("2026-08-01", "2026-08-11", "online"))
+    assert int(tong.online.sum()) == len(onl) if len(onl) else tong.empty
+
+
+def test_the_theo_tinh_dung_duoc_va_callback_tra_du_cot(monkeypatch):
+    from app.ui.pages import phongonline_tinh as pt_ui
+    monkeypatch.setattr(pt_ui, "_duoc_xem", lambda: True)
+    luu = {}
+    app = SimpleNamespace(callback=lambda *a, **k: (lambda f: luu.setdefault("ham", f) or f))
+    pt_ui.register(app)
+    kq = luu["ham"](f"{THANG}-{NGAY:02d}", "online", "tat_ca")
+    mo_ta, chips, fig, cot_bang, dong, cot_nv, dong_nv = kq
+    assert "Phòng Online" in mo_ta and cot_bang[0]["field"] == "tinh" and "cellClass" not in cot_bang[0]
+    assert all("acc_norm" in r and "ho_ten" in r for r in dong_nv) and len(dong_nv) <= len(po.acc_nhom())
+    ban = luu["ham"](f"{THANG}-{NGAY:02d}", "ban", "ngoai")
+    assert ban[3][1]["headerName"] == "Bán mới"
+    monkeypatch.setattr(pt_ui, "_duoc_xem", lambda: False)
+    from dash.exceptions import PreventUpdate
+    with pytest.raises(PreventUpdate):
+        luu["ham"](f"{THANG}-{NGAY:02d}", "online", "tat_ca")

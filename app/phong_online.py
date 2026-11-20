@@ -48,6 +48,15 @@ def la_nguoi_online(acc_norm: str | None) -> bool:
     return (acc_norm or "").strip().lower() in set(acc_nhom())
 
 
+def hd_theo_tinh(tu: str, den: str, theo: str = "online") -> pd.DataFrame:
+    """Hợp đồng của nhóm trong kỳ kèm tỉnh của khách: đúng hàm của Phân tích → Bán theo tỉnh (`phan_tich.hd_theo_tinh`) trên phòng gốc, chỉ giữ người trong nhóm.
+    `theo`: "online" (ngày online trong kỳ) hoặc "ban" (ngày tạo hợp đồng trong kỳ, gồm cả hợp đồng chưa online)."""
+    from app import phan_tich as pt
+    df = pt.hd_theo_tinh(tu, den, [phong_goc()], theo)
+    acc = df.acc_norm.fillna(df.acc_nhan_vien.str.lower())
+    return df[acc.isin(set(acc_nhom()))]
+
+
 def bang_nhan_su(thang: str, ngay: int) -> pd.DataFrame:
     """Bảng nhân sự của nhóm: cùng cột với Báo cáo phòng, hạng và TỔNG tính trong riêng nhóm."""
     kq = bp.bang_nhan_su(thang, ngay, phong_goc(), acc=acc_nhom())

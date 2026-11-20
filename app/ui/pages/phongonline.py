@@ -51,6 +51,7 @@ def topbar():
 
 
 def layout(ky: dict | None = None):
+    from app.ui.pages import phongonline_tinh
     ky = ky or {}
     if not _duoc_xem():
         return alert("Tài khoản này không xem được Phòng Online.", "bad")
@@ -99,6 +100,8 @@ def layout(ky: dict | None = None):
             chu_giai("Cách tính các cột", DINH_NGHIA),
         ], className="card"),
 
+        phongonline_tinh.the(),
+
         html.Div([
             html.Div([
                 html.Div([html.H3("Số bán theo ngày của từng nhân viên", style={"margin": 0}),
@@ -134,7 +137,9 @@ def _the(tong: dict) -> list:
 
 
 def register(app):
+    from app.ui.pages import phongonline_tinh
     gan_chon_ngay(app, "po")
+    phongonline_tinh.register(app)
 
     @app.callback(
         Output("po-kpi", "children"), Output("po-badge", "children"), Output("po-canh-bao", "children"),

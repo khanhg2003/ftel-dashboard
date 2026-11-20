@@ -43,6 +43,62 @@ def _acc_duoc_xem(acc_key: str, tu: str, den: str, scope) -> bool:
     return bool((df.acc_norm.fillna(df.acc_nhan_vien.str.lower()) == acc_key).any())
 
 
+def hinh_tinh(x, ten_ck: str, nhan: str = "hợp đồng") -> go.Figure:
+    """Cột ngang số hợp đồng từng tỉnh (xanh đậm = nội tỉnh Đà Nẵng + Quảng Nam, xanh nhạt = ngoại tỉnh) kèm vạch cùng kỳ. `x`: dòng của `phan_tich.bang_tinh`.
+    Dùng chung cho thẻ "Bán theo tỉnh" của Phân tích và thẻ theo tỉnh của Phòng Online."""
+    fig = go.Figure()
+    if len(x):
+        fig.add_bar(y=x.tinh, x=x.online, orientation="h", name="Kỳ này",
+                    marker_color=["#0072BC" if n else "#37A5E6" for n in x.noi_tinh],
+                    text=[f"{int(o)} · {t:.0f}%" for o, t in zip(x.online, x.ty_trong)], textposition="outside",
+                    cliponaxis=False, hovertemplate="%{y}: %{x} " + nhan + "<extra></extra>")
+        fig.add_scatter(y=x.tinh, x=x.ck, mode="markers", name=ten_ck.capitalize(),
+                        marker={"symbol": "line-ns", "size": 16, "line": {"width": 3, "color": "#F37021"}},
+                        hovertemplate="%{y}: cùng kỳ %{x}<extra></extra>")
+        fig.update_yaxes(autorange="reversed")
+        fig.update_xaxes(range=[0, max(x.online.max(), x.ck.max()) * 1.25])
+    fig = _fig(fig, max(320, 60 + 30 * len(x)))
+    fig.update_layout(legend={"orientation": "h", "y": 1.08}, margin={"l": 110, "r": 30, "t": 30, "b": 20})
+    return fig
+
+
+def cot_bang_tinh(ten_ck: str, ten_ck_day: str, nhan_so: str = "Online", bam_duoc: bool = True) -> list[dict]:
+    """Cột bảng tỉnh: tỉnh, số kỳ này, tỷ trọng, cùng kỳ, chênh (xanh tăng / đỏ giảm)."""
+    return [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130, "flex": 1.3,
+             **({"cellClass": "o-bam", "headerTooltip": "Bấm vào tên tỉnh để xem chi tiết"} if bam_duoc else {})},
+            {"field": "online", "headerName": nhan_so, "type": "numericColumn", "minWidth": 75, "flex": 1,
+             "valueFormatter": SO},
+            {"field": "ty_trong", "headerName": "Tỷ trọng", "type": "numericColumn", "minWidth": 80, "flex": 1,
+             "valueFormatter": {"function": "params.value == null ? '' : params.value.toFixed(1) + '%'"}},
+            {"field": "ck", "headerName": ten_ck.capitalize(), "headerTooltip": ten_ck_day,
+             "type": "numericColumn", "minWidth": 90, "flex": 1, "valueFormatter": SO},
+            {"field": "chenh", "headerName": "+/-", "type": "numericColumn", "minWidth": 65, "flex": .8,
+             "valueFormatter": {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + params.value"},
+             "cellStyle": {"styleConditions": [
+                 {"condition": "params.value > 0", "style": {"color": "#04843F", "fontWeight": "700"}},
+                 {"condition": "params.value < 0", "style": {"color": "#C8372D", "fontWeight": "700"}}]}}]
+
+
+def cot_nv_tinh(tinh: list[tuple[str, str]], bam_duoc: bool = True) -> list[dict]:
+    """Cột bảng "nhân viên x tỉnh": tên, phòng, tổng, % ngoại tỉnh rồi mỗi tỉnh một cột (xanh đậm từ 20% số của chính người đó, xanh nhạt 5-20%).
+    `tinh`: danh sách (mã, tên) từ `phan_tich.ma_tran_nv_tinh`. Dùng chung với Phòng Online."""
+    nhiet = {"styleConditions": [
+        {"condition": "params.value && params.value >= params.data.tong * 0.2",
+         "style": {"backgroundColor": "#BFE6C8", "fontWeight": "700", "color": "#0F3D22"}},
+        {"condition": "params.value && params.value >= params.data.tong * 0.05",
+         "style": {"backgroundColor": "#E8F5EC"}}]}
+    so0 = {"function": "params.value ? params.value : ''"}
+    cot = [{"field": "ho_ten", "headerName": "Nhân viên", "pinned": "left", "minWidth": 170,
+            **({"cellClass": "o-bam", "headerTooltip": "Bấm vào tên để xem chi tiết"} if bam_duoc else {})},
+           {"field": "phong", "headerName": "Phòng", "pinned": "left", "width": 95},
+           {"field": "tong", "headerName": "Tổng", "pinned": "left", "width": 72, "type": "numericColumn",
+            "valueFormatter": SO, "cellStyle": {"fontWeight": "700"}},
+           {"field": "ngoai_pct", "headerName": "% ngoại tỉnh", "width": 92, "type": "numericColumn",
+            "valueFormatter": PCT, "headerTooltip": "Tỷ lệ hợp đồng khách ngoài Đà Nẵng + Quảng Nam"}]
+    return cot + [{"field": ma, "headerName": ten, "width": 90, "type": "numericColumn", "valueFormatter": so0,
+                   "cellStyle": nhiet} for ma, ten in tinh]
+
+
 def the(den, ngays, xem_tinh: bool, admin: bool):
     """Thẻ 'Bán theo tỉnh' + hai cửa sổ chi tiết một tỉnh / một nhân viên. `xem_tinh`: được thấy thẻ; `admin`: được đổi sang gói cước / một ngày."""
     return html.Div([
@@ -165,34 +221,8 @@ def register(app):
         mo_ta = f"{ten_pv} · online {ky.nhan}, so {ky.ten_ck_day} · tỉnh theo CN quản lý của hợp đồng (nơi khách ở)"
         x = bang[~bang.noi_tinh] if loai == "ngoai" and len(bang) else bang
         x = x[x.online > 0].head(15)
-        fig = go.Figure()
-        if len(x):
-            fig.add_bar(y=x.tinh, x=x.online, orientation="h", name="Kỳ này",
-                        marker_color=["#0072BC" if n else "#37A5E6" for n in x.noi_tinh],
-                        text=[f"{int(o)} · {t:.0f}%" for o, t in zip(x.online, x.ty_trong)], textposition="outside",
-                        cliponaxis=False, hovertemplate="%{y}: %{x} hợp đồng<extra></extra>")
-            fig.add_scatter(y=x.tinh, x=x.ck, mode="markers", name=ky.ten_ck.capitalize(),
-                            marker={"symbol": "line-ns", "size": 16, "line": {"width": 3, "color": "#F37021"}},
-                            hovertemplate="%{y}: cùng kỳ %{x}<extra></extra>")
-            fig.update_yaxes(autorange="reversed")
-            fig.update_xaxes(range=[0, max(x.online.max(), x.ck.max()) * 1.25])
-        fig = _fig(fig, max(320, 60 + 30 * len(x)))
-        fig.update_layout(legend={"orientation": "h", "y": 1.08}, margin={"l": 110, "r": 30, "t": 30, "b": 20})
-        cot_bang = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130, "flex": 1.3,
-                     "cellClass": "o-bam", "headerTooltip": "Bấm vào tên tỉnh để xem chi tiết"},
-                    {"field": "online", "headerName": "Online", "type": "numericColumn", "minWidth": 75, "flex": 1,
-                     "valueFormatter": SO},
-                    {"field": "ty_trong", "headerName": "Tỷ trọng", "type": "numericColumn", "minWidth": 80, "flex": 1,
-                     "valueFormatter": {"function": "params.value == null ? '' : params.value.toFixed(1) + '%'"}},
-                    {"field": "ck", "headerName": ky.ten_ck.capitalize(), "headerTooltip": ky.ten_ck_day,
-                     "type": "numericColumn", "minWidth": 90, "flex": 1,
-                     "valueFormatter": SO},
-                    {"field": "chenh", "headerName": "+/-", "type": "numericColumn", "minWidth": 65, "flex": .8,
-                     "valueFormatter": {"function": "params.value == null ? '' : (params.value > 0 ? '+' : '') + "
-                                                    "params.value"},
-                     "cellStyle": {"styleConditions": [
-                         {"condition": "params.value > 0", "style": {"color": "#04843F", "fontWeight": "700"}},
-                         {"condition": "params.value < 0", "style": {"color": "#C8372D", "fontWeight": "700"}}]}}]
+        fig = hinh_tinh(x, ky.ten_ck)
+        cot_bang = cot_bang_tinh(ky.ten_ck, ky.ten_ck_day)
         cot_mt = [{"field": "tinh", "headerName": "Tỉnh", "pinned": "left", "minWidth": 130},
                   {"field": "tong", "headerName": "Tổng", "pinned": "left", "width": 85, "type": "numericColumn",
                    "valueFormatter": SO, "cellStyle": {"fontWeight": "700"}}]
@@ -252,21 +282,7 @@ def register(app):
         ten_phong = {p["code"]: p["ten"] for p in phong_order(ky.thang)}
         mt, tinh = pt.ma_tran_nv_tinh(df, _ten_nhan_vien(), ten_phong)
         mt = mt.drop(columns=["khac"], errors="ignore")
-        nhiet = {"styleConditions": [
-            {"condition": "params.value && params.value >= params.data.tong * 0.2",
-             "style": {"backgroundColor": "#BFE6C8", "fontWeight": "700", "color": "#0F3D22"}},
-            {"condition": "params.value && params.value >= params.data.tong * 0.05",
-             "style": {"backgroundColor": "#E8F5EC"}}]}
-        so0 = {"function": "params.value ? params.value : ''"}
-        cot = [{"field": "ho_ten", "headerName": "Nhân viên", "pinned": "left", "minWidth": 170,
-                "cellClass": "o-bam", "headerTooltip": "Bấm vào tên để xem chi tiết"},
-               {"field": "phong", "headerName": "Phòng", "pinned": "left", "width": 95},
-               {"field": "tong", "headerName": "Tổng", "pinned": "left", "width": 72, "type": "numericColumn",
-                "valueFormatter": SO, "cellStyle": {"fontWeight": "700"}},
-               {"field": "ngoai_pct", "headerName": "% ngoại tỉnh", "width": 92, "type": "numericColumn",
-                "valueFormatter": PCT, "headerTooltip": "Tỷ lệ hợp đồng khách ngoài Đà Nẵng + Quảng Nam"}]
-        cot += [{"field": ma, "headerName": ten, "width": 90, "type": "numericColumn", "valueFormatter": so0,
-                 "cellStyle": nhiet} for ma, ten in tinh]
+        cot = cot_nv_tinh(tinh)
         return cot, mt.to_dict("records") if len(mt) else []
 
     @app.callback(Output("pt-md-nv", "className"), Output("pt-md-nv-tieu-de", "children"),
