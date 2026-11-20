@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import os
 import unicodedata
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 
 from app import ban_tin as bt, tro_ly_dieu_hanh as td, tro_ly_dieu_hanh_so as so, zalo_bot
@@ -94,9 +96,33 @@ def tin_kiem_chung(r: dict) -> bt.TinZalo:
 
 
 # ------------------------------------------------------------------ gửi
+_CHI_GUI: ContextVar[dict | None] = ContextVar("tdh_chi_gui", default=None)
+
+
+@contextmanager
+def chi_gui_cho(chat_id: str):
+    """Chế độ GỬI THỬ: trong khối này mọi tin của trợ lý chỉ đi tới đúng một chat (nhãn "GỬI THỬ"), người quyết thật KHÔNG nhận gì và tin KHÔNG bị đánh dấu là đã gửi
+    (nên lúc gửi thật họ vẫn nhận đủ). Trả {chat_id, so_tin, loi} để trang báo số tin đã đi."""
+    kq = {"chat_id": str(chat_id), "so_tin": 0, "loi": 0}
+    mo = _CHI_GUI.set(kq)
+    try:
+        yield kq
+    finally:
+        _CHI_GUI.reset(mo)
+
+
 def gui_cho(khoa: str, tin, now: datetime | None = None) -> bool:
-    """Gửi một tin cho mọi người nhận (đang bật) của khoá người quyết; True nếu ít nhất một người nhận được (Zalo từ chối kiểu chữ thì tự gửi chữ trơn)."""
+    """Gửi một tin cho mọi người nhận (đang bật) của khoá người quyết; True nếu ít nhất một người nhận được (Zalo từ chối kiểu chữ thì tự gửi chữ trơn).
+    Đang ở chế độ gửi thử (`chi_gui_cho`) thì chỉ gửi cho chat được chọn và luôn trả False (không đánh dấu đã gửi)."""
     if not so.bat():
+        return False
+    thu = _CHI_GUI.get()
+    if thu is not None:
+        try:
+            zalo_bot.gui_tin_du_phong(thu["chat_id"], bt._voi_dau("[GỬI THỬ - người quyết thật chưa nhận tin này]\n", tin))
+            thu["so_tin"] += 1
+        except Exception:
+            thu["loi"] += 1
         return False
     ok = False
     for n in td.nguoi_nhan_cua(khoa):

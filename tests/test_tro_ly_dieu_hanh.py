@@ -373,6 +373,17 @@ def test_cong_tac_tat_khong_chay_khong_gui_khong_nhan_lenh(zalo, monkeypatch):
     assert zalo.tra == [("T7", cd.LOI_CHAO)], "tắt công tắc thì tin đi luồng thêm người nhận như cũ"
 
 
+def test_gui_thu_chi_toi_mot_nguoi_va_khong_danh_dau_da_gui(c_gia, bat, zalo):
+    with tz.chi_gui_cho("G1") as kq:
+        r = tdh.chay_buoi_sang(NOW, goi_llm=None, gui=True)
+    assert r["moi"] == 7 and r["gui"] == 0 and kq["so_tin"] == 7 and kq["loi"] == 0
+    assert {c for c, _ in zalo.gui} == {"G1"}, "người quyết thật (T7) không được nhận tin nào"
+    assert all(str(t).startswith("[GỬI THỬ") for _, t in zalo.gui)
+    assert all(not r["da_gui_luc"] for r in so.liet_ke()), "gửi thử không đánh dấu đã gửi"
+    zalo.gui.clear()
+    assert tdh.chay_buoi_sang(NOW, goi_llm=None, gui=True)["gui"] == 7 and "T7" in {c for c, _ in zalo.gui}, "gửi thật sau đó vẫn tới đủ người quyết"
+
+
 def test_chay_buoi_sang_khong_tao_trung_khong_gui_khi_chua_tick(c_gia, bat, zalo):
     r1 = tdh.chay_buoi_sang(NOW, goi_llm=None)
     assert r1["moi"] == 7 and r1["gui"] == 0 and r1["luat"] == 7 and zalo.gui == [] and so.tom_tat()["cho_quyet"] == 7
@@ -554,13 +565,13 @@ def test_callback_trang_tra_rong_khi_khong_phai_bgd_hoac_cong_tac_tat(monkeypatc
     with server.test_request_context("/"):
         _dang_nhap("phong")
         monkeypatch.setattr(so, "cau_hinh", lambda: {**so.MAC_DINH, "bat": True})
-        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
+        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
             with pytest.raises(PreventUpdate):
                 f(*tham)
         assert trolydh.cb_chon([{"id": 1}]) == ""
         _dang_nhap("admin")
         monkeypatch.setattr(so, "cau_hinh", lambda: dict(so.MAC_DINH))
-        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
+        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
             with pytest.raises(PreventUpdate):
                 f(*tham)
 

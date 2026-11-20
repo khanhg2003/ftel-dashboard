@@ -98,12 +98,25 @@ def chi_tiet(r: dict, nguoi: str) -> html.Div:
                  html.H4("Bằng chứng (số do code lấy, không phải AI)"), bc, do, link, html.H4("Nhật ký"), nk, *ly_do], title=f"#{r['id']} · {r['tieu_de']}", desc="Chi tiết đề xuất đang chọn trong sổ.")
 
 
+def _ds_nhan() -> list[dict]:
+    """Người nhận Bản tin đang bật, để chọn "chỉ gửi thử cho". Lỗi đọc thì danh sách rỗng (trang vẫn mở)."""
+    try:
+        from app import ban_tin
+        return [{"label": f"{n['ten']} ({'Ban Giám đốc' if n['loai'] == 'bgd' else 'Trưởng phòng' if n['loai'] == ban_tin.LOAI_TRUONG_PHONG else 'Admin'})", "value": n["chat_id"]}
+                for n in ban_tin.ds_nguoi_nhan(chi_bat=True)]
+    except Exception:
+        return []
+
+
 def layout():
     nut = lambda id_, chu, lop="btn primary": html.Button(chu, id=id_, n_clicks=0, className=lop)
     return html.Div([
         dcc.Store(id="tdh-tick", data=0),
         html.Div(id="tdh-ai", style={"marginBottom": "10px"}),
         card([dcc.Checklist(id="tdh-gui", options=[{"label": " Gửi cho người quyết qua Zalo (không tick thì chỉ ghi vào sổ, không gửi gì)", "value": "gui"}], value=[], className="zalo-tick"),
+              html.Div([html.Div("Hoặc chỉ gửi thử cho một người (chọn tên mình):", className="desc"),
+                        dcc.Dropdown(id="tdh-thu", options=_ds_nhan(), placeholder="Không chọn = theo ô tick ở trên", clearable=True, style={"maxWidth": "380px"}),
+                        html.Div("Chọn người ở đây thì CHỈ người đó nhận tin (có nhãn GỬI THỬ), người quyết thật không nhận gì, và ô tick ở trên được bỏ qua.", className="desc")], style={"marginTop": "6px"}),
               html.Div([nut("tdh-sang", "Chạy trợ lý"), nut("tdh-kc", "Chạy kiểm chứng và nhắc", "btn")], style={"display": "flex", "gap": "10px", "margin": "10px 0", "flexWrap": "wrap"}),
               dcc.Loading(html.Div(id="tdh-thongbao"), type="dot")],
              title="Chạy trợ lý", desc="Chạy trợ lý: rà soát mọi nhân sự, phòng, khối rồi tạo đề xuất cho người quyết (không tạo trùng trong ngày). Chạy kiểm chứng và nhắc: nhắc người chưa quyết, báo cấp trên khi quá hạn, đo lại các quyết định tới hạn."),
@@ -124,7 +137,12 @@ def _ghi(hanh_dong: str, chi_tiet_: str) -> None:
         pass
 
 
-def _bam(ma: str, gui: bool) -> str:
+def _bam(ma: str, gui: bool, thu: str | None = None) -> str:
+    """`thu` = chat_id được chọn "chỉ gửi thử": chỉ người đó nhận, sổ không đánh dấu đã gửi."""
+    if thu:
+        with tz.chi_gui_cho(thu) as kq:
+            chu = _bam(ma, True)
+        return f"{chu} [GỬI THỬ: đã gửi {kq['so_tin']} tin chỉ cho người bạn chọn" + (f", {kq['loi']} tin lỗi" if kq["loi"] else "") + "; người quyết thật chưa nhận gì.]"
     if ma == "tdh-sang":
         r = td.chay_buoi_sang(gui=gui)
         _ghi("tro_ly_dieu_hanh_chay", f"moi={r['moi']} gui={r['gui']} ai={r['ai']} gui_zalo={gui}")
@@ -137,12 +155,14 @@ def _bam(ma: str, gui: bool) -> str:
     return f"Đã nhắc {n['nhac']} đề xuất chưa quyết, báo cấp trên {n['bao_cap_tren']} đề xuất quá hạn, kiểm chứng {k['kiem_chung']} quyết định (báo kết quả {k['da_bao']} lần)."
 
 
-def cb_chay(_a, _b, gui, tick):
+def cb_chay(_a, _b, gui, thu, tick):
     """Nút "Chạy trợ lý" / "Chạy kiểm chứng và nhắc". Gửi Zalo chỉ khi ô tick được chọn."""
     if not _cho_phep() or ctx.triggered_id not in ("tdh-sang", "tdh-kc") or not ctx.triggered[0]["value"]:
         raise PreventUpdate
     try:
-        tb = alert(_bam(ctx.triggered_id, "gui" in (gui or [])), "info")
+        if thu and thu not in {n["value"] for n in _ds_nhan()}:
+            return alert("Người nhận đã chọn không còn trong danh sách Bản tin Zalo (hoặc đã bị tắt). Chọn lại tên.", "bad"), tick or 0
+        tb = alert(_bam(ctx.triggered_id, "gui" in (gui or []), thu or None), "info")
     except Exception as e:                                           # lỗi nguồn dữ liệu không được làm trang đứng
         tb = alert(f"Chưa chạy được ({type(e).__name__}). Xem lại dữ liệu rồi thử lại.", "bad")
     return tb, (tick or 0) + 1
@@ -172,7 +192,7 @@ def cb_chon(chon):
 def register(app):
     """Callback nào cũng kiểm `duoc_cau_hinh` ở máy chủ (`callback_can_quyen`) và công tắc `bat` (`_cho_phep`)."""
     cb = callback_can_quyen(app, QUYEN)
-    cb(Output("tdh-thongbao", "children"), Output("tdh-tick", "data"), Input("tdh-sang", "n_clicks"), Input("tdh-kc", "n_clicks"), State("tdh-gui", "value"), State("tdh-tick", "data"),
+    cb(Output("tdh-thongbao", "children"), Output("tdh-tick", "data"), Input("tdh-sang", "n_clicks"), Input("tdh-kc", "n_clicks"), State("tdh-gui", "value"), State("tdh-thu", "value"), State("tdh-tick", "data"),
        prevent_initial_call=True, running=[(Output("tdh-sang", "disabled"), True, False), (Output("tdh-kc", "disabled"), True, False)])(cb_chay)
     cb(Output("tdh-ai", "children"), Output("tdh-kpi", "children"), Output("tdh-luoi", "rowData"), Input("tdh-tick", "data"))(cb_ve)
     cb(Output("tdh-phu", "rowData"), Input("tdh-tick", "data"))(cb_phu)
