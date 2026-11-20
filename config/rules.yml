@@ -129,3 +129,15 @@ ban_tin:
   tp_dang: anh
   khong_trao_doi:
     IBB7: [dng.khanhvhg, dng.duynt121]    # Văn Hữu Gia Khánh, Nguyễn Trúc Duy
+
+# Trợ lý điều hành (digital worker cho lãnh đạo: rà soát -> nhận định -> đề xuất -> chờ quyết -> nhắc / leo thang -> kiểm chứng).
+# Mặc định TẮT hẳn: tắt thì không hiện menu, không chạy, không gửi Zalo, không nhận lệnh. Bật = đổi `bat` thành true.
+# Gửi Zalo chỉ khi quản trị tick "gửi cho người quyết" ở trang /trolydieuhanh; `tu_dong: true` mới cho đồng hồ gọi POST /api/ban-tin/tro-ly/chay.
+tro_ly_dieu_hanh:
+  bat: false
+  tu_dong: false
+  han_quyet_gio: 8        # hạn quyết sau khi trợ lý đề xuất
+  leo_thang_gio: 16       # quá hạn quyết thêm bấy nhiêu giờ thì báo cấp trên
+  kiem_chung_gio: 48      # sau khi quyết, bấy nhiêu giờ thì đo lại chỉ số
+  tran_llm_ngay: 30       # trần lượt gọi AI mỗi ngày (biến TRO_LY_DIEU_HANH_TRAN_NGAY ghi đè)
+  toi_da_van_de: 8        # số vấn đề tối đa mỗi lần chạy (vấn đề mức cao luôn được giữ)

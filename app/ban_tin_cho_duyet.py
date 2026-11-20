@@ -93,7 +93,14 @@ def ghi_nhan(payload) -> bool:
 
 
 def xu_ly_su_kien(payload) -> None:
-    """Không bao giờ ném lỗi: webhook phải trả 200 để Zalo khỏi gửi lại."""
+    """Không bao giờ ném lỗi: webhook phải trả 200 để Zalo khỏi gửi lại. Lệnh trả lời của Trợ lý điều hành (chỉ khi công tắc bật, chỉ từ người nhận đã biết)
+    đi trước; mọi tin khác chạy như cũ."""
+    try:
+        from app import tro_ly_dieu_hanh_zalo
+        if tro_ly_dieu_hanh_zalo.xu_ly_webhook(payload):
+            return
+    except Exception:
+        pass
     try:
         moi = ghi_nhan(payload)
     except Exception:

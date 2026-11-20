@@ -5,6 +5,8 @@
 - GET /api/ban-tin/anh/<mã>.png : ảnh Báo cáo Tổng, hoặc Báo cáo của MỘT phòng (mã ký chứa loại + phòng), cho Zalo `sendPhoto`
   tự tải, KHÔNG đăng nhập, bảo vệ bằng mã ký có hạn 15 phút (xem app/ban_tin_anh.py). Mã sai / hết hạn đều trả đúng một phản hồi 404 giống hệt nhau.
 - POST /api/ban-tin/zalo-webhook : Zalo gọi khi có người nhắn bot, header `X-Bot-Api-Secret-Token` (khoá dẫn xuất từ APP_SECRET_KEY).
+- POST /api/ban-tin/tro-ly/chay : một vòng của Trợ lý điều hành cho đồng hồ bên ngoài, cùng khoá `X-Ban-Tin-Khoa`; CHỈ chạy khi `rules.yml` → `tro_ly_dieu_hanh` có `bat` và `tu_dong`
+  đều true (mặc định tắt), tắt thì trả 403 giống sai khoá. Mặc định KHÔNG gắn vào lịch nào.
 Thiếu biến môi trường hoặc sai khoá đều trả 403 giống hệt nhau, không tiết lộ gì thêm.
 """
 from __future__ import annotations
@@ -36,6 +38,18 @@ def chay():
     if not kho:
         kq.pop("noi_dung")
     return jsonify({"ok": not kq["loi"], **kq}), 200
+
+
+@bp.post("/api/ban-tin/tro-ly/chay")
+def tro_ly_chay():
+    from app import tro_ly_dieu_hanh as tdh, tro_ly_dieu_hanh_so as so
+    if not _khoa_dung(request.headers.get("X-Ban-Tin-Khoa")) or not (so.bat() and so.cau_hinh()["tu_dong"]):
+        return jsonify({"ok": False}), 403
+    try:
+        kq = tdh.vong_tu_dong()
+    except Exception as e:                      # chỉ trả tên lỗi: thông báo gốc có thể chứa chuỗi kết nối
+        return jsonify({"ok": False, "loi": f"Lỗi khi chạy trợ lý điều hành ({type(e).__name__})."}), 500
+    return jsonify({"ok": True, **kq}), 200
 
 
 @bp.post("/api/ban-tin/zalo-webhook")

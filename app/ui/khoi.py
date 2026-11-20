@@ -16,7 +16,7 @@ KHOI = {
          "ten_ngan": "Khối KT"},
 }
 THU_TU = [KD, DVKH, KT]
-TRANG_DUNG_CHUNG = {"/taikhoan", "/huongdan", "/quantri", "/settings", "/phanhoi"}
+TRANG_DUNG_CHUNG = {"/taikhoan", "/huongdan", "/quantri", "/settings", "/phanhoi", "/trolydieuhanh"}
 
 
 def khoi_cua_duong_dan(path: str) -> str | None:

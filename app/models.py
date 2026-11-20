@@ -624,3 +624,56 @@ class LeadZaloTin(Base):
 
 
 from app.dvkh import models as _dvkh_models  # noqa: E402,F401  (đăng ký các bảng dv_* của khối DVKH để init_db tạo bảng)
+
+
+# ---------------------------------------------------------------- Trợ lý điều hành (bảng MỚI, tiền tố td_; chỉ module tro_ly_dieu_hanh* dùng)
+class TdQuyetDinh(Base):
+    """Sổ quyết định của Trợ lý điều hành: mỗi vấn đề một dòng (nhận định + phương án + người quyết + kiểm chứng). Mốc giờ UTC.
+    `trang_thai`: cho_quyet | da_quyet | bac | qua_han | da_kiem_chung. `ma_van_de` = "<yyyymmdd>:<nhóm>" nên một nhóm chỉ có một dòng mỗi ngày."""
+    __tablename__ = "td_quyet_dinh"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ma_van_de: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    nhom: Mapped[str] = mapped_column(String(100), index=True)
+    tieu_de: Mapped[str] = mapped_column(String(300))
+    khoi: Mapped[str] = mapped_column(String(10))
+    nguoi_quyet: Mapped[str] = mapped_column(String(40))              # "bgd" hoặc "tp:<mã phòng>"
+    su_that: Mapped[str] = mapped_column(Text)                         # JSON bảng sự thật
+    nhan_dinh: Mapped[str] = mapped_column(Text)
+    phuong_an: Mapped[str] = mapped_column(Text)                       # JSON [{ma, tieu_de, mo_ta}]
+    khuyen_nghi: Mapped[str] = mapped_column(String(4))
+    trang_thai: Mapped[str] = mapped_column(String(16), default="cho_quyet", index=True)
+    lua_chon: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quyet_boi: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    quyet_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    han_quyet: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    han_kiem_chung: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    chi_so_truoc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chi_so_sau: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ket_qua: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nguon_noi_dung: Mapped[str] = mapped_column(String(8), default="luat")     # llm | luat
+    tao_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    da_gui_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    nhac_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    leo_thang_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    bao_kiem_chung_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class TdQuyetDinhNk(Base):
+    """Nhật ký từng quyết định: ai, lúc nào, làm gì."""
+    __tablename__ = "td_quyet_dinh_nk"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    quyet_dinh_id: Mapped[int] = mapped_column(Integer, index=True)
+    luc: Mapped[datetime] = mapped_column(DateTime)
+    boi: Mapped[str] = mapped_column(String(120))
+    hanh_dong: Mapped[str] = mapped_column(String(24))
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class TdPhu(Base):
+    """Khoá - giá trị phụ của trợ lý: đếm lượt gọi AI mỗi ngày, nhớ câu AI đã viết, đánh dấu buổi sáng đã chạy. Không dùng chung `cai_dat`."""
+    __tablename__ = "td_phu"
+    khoa: Mapped[str] = mapped_column(String(100), primary_key=True)
+    gia_tri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cap_nhat_luc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

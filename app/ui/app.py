@@ -211,9 +211,19 @@ def _chon_khoi_ui(khoi_dang_xem: str):
     ], className="khoi-doi")
 
 
+MUC_TRO_LY = ("/trolydieuhanh", "Trợ lý điều hành", "sparkle", None)
+
+
+def _muc_he_thong(muc: list) -> list:
+    """Mục "Trợ lý điều hành" chỉ được thêm vào nhóm Hệ thống khi công tắc `rules.yml` bật VÀ tài khoản là BGĐ (không nằm trong NAV tĩnh: tắt công tắc thì menu y hệt cũ)."""
+    from app import tro_ly_dieu_hanh_so
+    return [*muc, MUC_TRO_LY] if current_user.duoc_cau_hinh and tro_ly_dieu_hanh_so.bat() else muc
+
+
 def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
     items = []
     for nhom, muc in NAV_THEO_KHOI[khoi_dang_xem]:
+        muc = _muc_he_thong(muc) if nhom == "Hệ thống" else muc
         muc_hien = []
         for href, label, ico, quyen in muc:
             if not current_user.vao_duoc(href):
@@ -492,6 +502,11 @@ def _router(path, search=None, store=None):
         if not current_user.duoc_xem_ads:
             return html.Div("Tài khoản này không xem được mục Ads IBB7."), _topbar_simple("Ads IBB7")
         return ads_page.layout(tab), ads_page.topbar()
+    if path == "/trolydieuhanh":
+        from app.ui.pages import trolydh
+        if not (current_user.duoc_cau_hinh and trolydh.so.bat()):
+            return html.Div("Trang này chưa được bật hoặc tài khoản không có quyền."), _topbar_simple("Trợ lý điều hành")
+        return trolydh.layout(), trolydh.topbar()
     if path in ("/quantri", "/settings", "/phanhoi"):
         if not current_user.duoc_cau_hinh:
             return html.Div("Bạn không có quyền vào mục Quản trị."), _topbar_simple("Quản trị")
@@ -535,11 +550,11 @@ def _register_pages():
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, danhba, giafpt, nhapton, quantri_ban_tin, soanmail
     from app.ui.pages import dvkh as dvkh_page
-    from app.ui.pages import phongonline
+    from app.ui.pages import phongonline, trolydh
     from app.ui.pages import leads as leads_page
     for mod in (dvkh_page, tongquan, phong, phongonline, leads_page, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
-                danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin):
+                danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin, trolydh):
         mod.register(app)
 
 
