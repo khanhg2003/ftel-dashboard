@@ -281,11 +281,37 @@ def _ai_avatar(cham: str) -> html.Div:
                      style={"backgroundImage": _AI_AVATAR_URI})
 
 
-def _dai_trang_thai(qua_han: int) -> html.Div:
+def _nut_pipeline(ten_icon: str, nhan: str, so, mau: str = "") -> html.Div:
+    return html.Div([html.Div(icon(ten_icon, 18), className="ld-node-ico"),
+                      html.Div(f"{so}", className="ld-node-so"), html.Div(nhan, className="ld-node-nhan")],
+                     className=f"ld-node {mau}".strip())
+
+
+def _pipeline(tong: int, mo: int, qua_han: int, da_bao) -> html.Div:
+    """Sơ đồ 4 bước AI đang chạy thật (chốt 21/11/2026, chủ app muốn trông "máy móc" hơn): Quét lead (tổng
+    đang có) -> Phát hiện quá hạn (số thật đang hiện) -> Báo Zalo (số của lần quét cron gần nhất, không
+    phải lần này) -> Đang xử lý (sale chưa đóng). Mọi số lấy từ cùng nguồn với KPI/dải chữ bên trên, không
+    có số nào vẽ thêm cho đẹp."""
+    return html.Div([
+        _nut_pipeline("search", "Quét lead", tong),
+        html.Div(className="ld-link"),
+        _nut_pipeline("alert", "Quá hạn", qua_han, "canh-bao" if qua_han else ""),
+        html.Div(className="ld-link"),
+        _nut_pipeline("zap", "Đã báo Zalo", da_bao if da_bao is not None else "–"),
+        html.Div(className="ld-link"),
+        _nut_pipeline("user", "Đang xử lý", mo),
+    ], className="ld-pipeline")
+
+
+def _dai_trang_thai(df) -> html.Div:
     """Dải "đang theo dõi" phía trên bảng (chủ app muốn 20/11/2026 cảm giác có AI điều phối lead, cảnh báo
-    lead bị bỏ sót). Số liệu THẬT: `qua_han` từ chính `_kpi` đang hiện, mốc quét lấy từ `AuditLog` của
-    `canh_bao_lead.quet_va_canh_bao` (cron 15-30 phút/lần) - không phải số dựng cho đẹp. Chấm góc dưới của
-    avatar mới là tín hiệu thật (xanh/đỏ theo `qua_han`), mascot chỉ để gợi cảm giác "đang hoạt động"."""
+    lead bị bỏ sót; 21/11/2026 thêm sơ đồ quy trình cho "ra dáng AI Agent"). Số liệu THẬT tính từ chính
+    `df` đang hiện và `AuditLog` của `canh_bao_lead.quet_va_canh_bao` (cron 15-30 phút/lần) - không phải
+    số dựng cho đẹp. Chấm góc dưới của avatar mới là tín hiệu thật (xanh/đỏ theo `qua_han`), mascot chỉ để
+    gợi cảm giác "đang hoạt động"."""
+    tong = len(df)
+    mo = int((~df.tinh_trang_xu_ly.isin(leads.TRANG_THAI_DONG)).sum()) if tong else 0
+    qua_han = int(df.qua_han.sum()) if tong else 0
     lan = cb.lan_quet_gan_nhat()
     if qua_han:
         dong1 = (f"{qua_han} lead đang quá {leads.han_sla_gio():g}h chưa chăm sóc - hệ thống tự nhắc qua Zalo "
@@ -297,8 +323,11 @@ def _dai_trang_thai(qua_han: int) -> html.Div:
     dong2 = (f"Quét SLA lần gần nhất lúc {chu_gio_vn(lan['luc'])} · {lan['chi_tiet']}" if lan
              else "Chưa có lượt quét SLA nào.")
     return html.Div([
-        _ai_avatar(cham),
-        html.Div([html.Div(dong1, className="ld-dong-1"), html.Div(dong2, className="ld-dong-2")]),
+        html.Div([
+            _ai_avatar(cham),
+            html.Div([html.Div(dong1, className="ld-dong-1"), html.Div(dong2, className="ld-dong-2")]),
+        ], className="ld-trang-thai-hang"),
+        _pipeline(tong, mo, qua_han, lan.get("da_bao") if lan else None),
     ], className="ld-trang-thai")
 
 
@@ -319,11 +348,10 @@ def register(app):
         if not _duoc_xem():
             raise PreventUpdate
         df = leads.danh_sach(page_id=page_id, sale=sale, tinh_trang=tt)
-        qua_han = int(df.qua_han.sum()) if len(df) else 0
         if df.empty:
-            return _kpi(df), _dai_trang_thai(qua_han), []
+            return _kpi(df), _dai_trang_thai(df), []
         out = df.assign(ngay=[str(x)[:10] for x in df.ngay])
-        return _kpi(df), _dai_trang_thai(qua_han), out.to_dict("records")
+        return _kpi(df), _dai_trang_thai(df), out.to_dict("records")
 
     @app.callback(Output("ld-luoi", "dashGridOptions"), Input("ld-tim", "value"), prevent_initial_call=True)
     def _tim(chu):

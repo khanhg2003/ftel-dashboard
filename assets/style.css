@@ -2109,10 +2109,29 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 #ld-luoi .ag-row:hover .ag-cell.o-tu-ca { background: #E9EEF4; }
 
 /* ---------- Lead Online: dải "đang theo dõi" - số liệu thật (lần quét SLA gần nhất), không trang trí --- */
-.ld-trang-thai { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin: 0 0 12px;
+.ld-trang-thai { display: flex; flex-direction: column; gap: 14px; padding: 12px 16px; margin: 0 0 12px;
   border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); }
+.ld-trang-thai-hang { display: flex; align-items: center; gap: 12px; }
 .ld-trang-thai .ld-dong-1 { font-weight: 650; font-size: 13.5px; color: var(--text); }
 .ld-trang-thai .ld-dong-2 { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+/* Sơ đồ quy trình (chốt 21/11/2026, chủ app muốn "ra dáng AI Agent"): 4 bước thật nối bằng đường chạy -
+   phá lệ màu CHỈ đường nối (đồng bộ tím/xanh với mascot), ô số vẫn dùng đúng bảng màu phẳng của app. */
+.ld-pipeline { display: flex; align-items: flex-start; gap: 4px; flex-wrap: wrap; padding-left: 56px; }
+.ld-node { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 78px; text-align: center; }
+.ld-node .ld-node-ico { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; background: var(--border); color: var(--text-muted); flex: none; }
+.ld-node.canh-bao .ld-node-ico { background: rgba(200, 55, 45, .14); color: var(--bad); }
+.ld-node-so { font-weight: 700; font-size: 15px; color: var(--text); }
+.ld-node-nhan { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+.ld-link { flex: 1 1 22px; min-width: 22px; max-width: 48px; height: 2px; margin-top: 15px; border-radius: 2px;
+  background-image: repeating-linear-gradient(90deg, #8B5CF6 0 6px, transparent 6px 13px);
+  background-size: 26px 2px; animation: ld-chay 0.9s linear infinite; }
+@keyframes ld-chay { to { background-position: -26px 0; } }
+@media (max-width: 760px) {
+  .ld-pipeline { padding-left: 0; }
+  .ld-link { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .ld-link { animation: none !important; } }
 /* Mascot AI (chốt 20/11/2026, phá lệ CHỈ icon này - phần chữ của dải vẫn phẳng như cả app) */
 .ld-ai-avatar { position: relative; width: 44px; height: 44px; flex: none; border-radius: 50%;
   background-size: 72%; background-repeat: no-repeat; background-position: center;

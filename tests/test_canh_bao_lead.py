@@ -112,6 +112,22 @@ def test_khong_nhac_lai_trong_chu_ky(gui_gia):
     assert not goi
 
 
+def test_lan_quet_gan_nhat_tach_dung_so_tu_chi_tiet(gui_gia):
+    """Thêm 21/11/2026: sơ đồ quy trình trên trang /leads cần số "đã báo" của lần quét gần nhất, tách ra
+    từ chuỗi `chi_tiet` đã ghi trong AuditLog (không thêm cột mới)."""
+    nguoi = leads.nguoi_online()
+    if not nguoi:
+        pytest.skip("Chưa cấu hình config/rules.yml phong_online.acc.")
+    a = nguoi[0]["acc_norm"]
+    pid = _page()
+    lid = leads.tao_lead({"page_id": pid, "sale_1": a}, NGUOI)
+    cb.luu_nguoi_nhan(None, "sale", "A", "chat:a", a, True, NGUOI)
+    _qua_han(lid)
+    cb.quet_va_canh_bao()
+    lan = cb.lan_quet_gan_nhat()
+    assert lan["qua_han"] == 1 and lan["da_bao"] == 1 and lan["loi"] == 0
+
+
 def test_loi_gui_cho_mot_nguoi_khong_chan_nguoi_khac(gui_gia):
     goi, hong = gui_gia
     nguoi = leads.nguoi_online()

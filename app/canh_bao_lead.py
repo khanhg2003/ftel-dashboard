@@ -12,6 +12,7 @@ Gọi `quet_va_canh_bao()` từ `app/api_lead.py` (cron bên ngoài gọi mỗi 
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime
 
 from sqlalchemy import select
@@ -88,14 +89,26 @@ def _chat_id_sale(acc_norm: str | None, nguoi_nhan: list[dict]) -> str | None:
                 if n["vai_tro"] == "sale" and n["acc_norm"] == acc_norm and n["bat"]), None)
 
 
+_RE_CHI_TIET = re.compile(r"(\d+) quá hạn, (\d+) đã báo, (\d+) lỗi gửi")
+
+
 def lan_quet_gan_nhat() -> dict | None:
     """Lần cron quét SLA gần nhất (đọc AuditLog thật) - để trang /leads hiện dải "đang theo dõi" bằng số
-    thật, không phải số trang trí (chốt với người dùng 20/11/2026)."""
+    thật, không phải số trang trí (chốt với người dùng 20/11/2026). `qua_han`/`da_bao`/`loi` tách ra từ
+    `chi_tiet` (đúng định dạng `quet_va_canh_bao` ghi) để vẽ sơ đồ quy trình - None nếu dòng cũ không
+    đúng định dạng này."""
     dam_bao_bang()
     with session_scope() as s:
+        # `id.desc()` phân giải khi hai lượt quét trùng giây (SQLite CURRENT_TIMESTAMP chỉ có độ phân
+        # giải 1 giây) - chỉ sort theo `ts` thì "mới nhất" không ổn định khi trùng giây (lỗi thật khi
+        # test hai lượt quét chạy liền nhau).
         r = s.execute(select(AuditLog).where(AuditLog.action == "lead_canh_bao_sla")
-                     .order_by(AuditLog.ts.desc())).scalars().first()
-        return {"luc": r.ts, "chi_tiet": r.detail} if r else None
+                     .order_by(AuditLog.ts.desc(), AuditLog.id.desc())).scalars().first()
+        if not r:
+            return None
+        m = _RE_CHI_TIET.search(r.detail or "")
+        so = {"qua_han": int(m[1]), "da_bao": int(m[2]), "loi": int(m[3])} if m else {}
+        return {"luc": r.ts, "chi_tiet": r.detail, **so}
 
 
 def _noi_dung(r: Lead, ten_tinh: str, ten_sale: str) -> str:
