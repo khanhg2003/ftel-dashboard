@@ -597,10 +597,11 @@ def test_callback_trang_tra_rong_khi_khong_phai_bgd_hoac_cong_tac_tat(monkeypatc
     with server.test_request_context("/"):
         _dang_nhap("phong")
         monkeypatch.setattr(so, "cau_hinh", lambda: {**so.MAC_DINH, "bat": True})
-        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, "kd", 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
+        for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, "kd", 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,)),
+                        (trolydh.cb_quyet, (1, 0, 0, 1, "A", "", "", 0))):
             with pytest.raises(PreventUpdate):
                 f(*tham)
-        assert trolydh.cb_chon([{"id": 1}]) == ""
+        assert trolydh.cb_chon([{"id": 1}]) == ("", trolydh.AN, [], None, None, "", "")
         _dang_nhap("admin")
         monkeypatch.setattr(so, "cau_hinh", lambda: dict(so.MAC_DINH))
         for f, tham in ((trolydh.cb_chay, (1, 0, ["gui"], None, "kd", 0)), (trolydh.cb_ve, (0,)), (trolydh.cb_phu, (0,))):
@@ -620,5 +621,49 @@ def test_trang_dung_duoc_voi_so_va_chi_tiet(c_gia, bat, zalo):
         assert len(rows) == 7 and next(x for x in rows if x["id"] == r["id"])["trang_thai_ten"] == "Đã quyết" and next(x for x in rows if x["id"] == r["id"])["lua_chon_ten"].startswith("A - ")
         assert len(kpis) == 4 and "BẢN LUẬT" in repr(ai)
         assert "Sang Một" in repr(trolydh.cb_chon([{"id": r["id"]}]))
-        assert trolydh.cb_chon([{"id": 99999}]) == ""
+        assert trolydh.cb_chon([{"id": 99999}]) == ("", trolydh.AN, [], None, None, "", "")
         assert "tdh-sang" in repr(trolydh.layout())
+
+
+def test_the_quyet_dong_y_sua_bac_tren_trang(c_gia, bat, zalo, monkeypatch):
+    """Thêm 20/11/2026: 3 nút Đồng ý / Sửa ý / Bác trên thẻ chi tiết gọi ĐÚNG `so.quyet` / `so.bac` mà lệnh
+    Zalo dùng. `ctx.triggered_id` chỉ có thật trong một lượt callback Dash thật nên giả bằng monkeypatch,
+    giống cách các test khác trong file này chặn mạng (gui_tin_du_phong) thay vì gọi Zalo thật."""
+    from app.ui.app import server
+    from app.ui.pages import trolydh
+    tdh.chay_buoi_sang(NOW, goi_llm=None)
+    cho = [r for r in so.liet_ke() if r["trang_thai"] == "cho_quyet"]
+    r1, r2, r3 = cho[0], cho[1], cho[2]
+    with server.test_request_context("/"):
+        _dang_nhap("admin")
+        ct, style_the, opt, pa_mac_dinh, qid, ykien, lydo = trolydh.cb_chon([{"id": r1["id"]}])
+        assert style_the == {} and qid == r1["id"] and pa_mac_dinh == r1["khuyen_nghi"] and opt and ykien == "" and lydo == ""
+
+        # Đồng ý phương án B
+        monkeypatch.setattr(trolydh, "ctx", SimpleNamespace(triggered_id="tdh-dongy-nut"))
+        msg, tick, style_the = trolydh.cb_quyet(1, 0, 0, r1["id"], "B", "", "", 0)
+        assert "Đã ghi nhận" in repr(msg) and tick == 1 and style_the == trolydh.AN
+        assert so.doc(r1["id"])["trang_thai"] == "da_quyet" and so.doc(r1["id"])["lua_chon"] == "B"
+        _, style_the2, *_ = trolydh.cb_chon([{"id": r1["id"]}])
+        assert style_the2 == trolydh.AN, "đã quyết thì ẩn khung, không quyết lại được"
+
+        # Sửa ý: thiếu ý kiến thì báo chứ không ghi sổ, khung không ẩn (no_update)
+        monkeypatch.setattr(trolydh, "ctx", SimpleNamespace(triggered_id="tdh-sua-nut"))
+        msg, tick, style_the = trolydh.cb_quyet(0, 1, 0, r2["id"], "A", "  ", "", 0)
+        assert "Cần ghi ý kiến" in repr(msg) and tick == 0 and so.doc(r2["id"])["trang_thai"] == "cho_quyet"
+        msg, tick, style_the = trolydh.cb_quyet(0, 1, 0, r2["id"], "A", "Giao thêm người hỗ trợ", "", 0)
+        assert tick == 1 and style_the == trolydh.AN
+        assert so.doc(r2["id"])["lua_chon"] == so.LUA_CHON_SUA and so.doc(r2["id"])["ghi_chu"] == "Giao thêm người hỗ trợ"
+
+        # Bác: thiếu lý do thì báo, có lý do thì ghi sổ "bac"
+        monkeypatch.setattr(trolydh, "ctx", SimpleNamespace(triggered_id="tdh-bac-nut"))
+        msg, tick, style_the = trolydh.cb_quyet(0, 0, 1, r3["id"], "A", "", "", 0)
+        assert "Cần ghi lý do" in repr(msg) and tick == 0
+        msg, tick, style_the = trolydh.cb_quyet(0, 0, 1, r3["id"], "A", "", "Không phù hợp lúc này", 0)
+        assert tick == 1 and style_the == trolydh.AN
+        assert so.doc(r3["id"])["trang_thai"] == "bac" and so.doc(r3["id"])["ghi_chu"] == "Không phù hợp lúc này"
+
+        # quyết lại một đề xuất đã xong -> báo, không đổi gì thêm, khung ẩn luôn
+        monkeypatch.setattr(trolydh, "ctx", SimpleNamespace(triggered_id="tdh-dongy-nut"))
+        msg, tick, style_the = trolydh.cb_quyet(1, 0, 0, r1["id"], "A", "", "", 0)
+        assert "không đổi được nữa" in repr(msg) and tick == 0 and style_the == trolydh.AN

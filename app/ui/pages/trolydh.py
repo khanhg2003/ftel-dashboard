@@ -3,7 +3,7 @@ Số liệu và vòng chạy ở `app/tro_ly_dieu_hanh*.py`; ở đây chỉ d�
 mọi callback trả rỗng). Mọi callback kiểm quyền ở máy chủ. Trợ lý chỉ ĐỀ XUẤT và ghi sổ; gửi Zalo chỉ khi quản trị tick ô "Gửi cho người quyết"."""
 from __future__ import annotations
 
-from dash import Input, Output, State, ctx, dcc, html
+from dash import Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
@@ -13,6 +13,7 @@ from app.ui.components import alert, callback_can_quyen, card, kpi, tip
 from app.ui.luoi import bang
 
 QUYEN = "duoc_cau_hinh"
+AN = {"display": "none"}
 NHAN_CHI_SO = {"so_muc": "Số phát hiện", "so_cao": "Phát hiện mức cao", "so_trung_binh": "Phát hiện mức trung bình", "so_thap": "Phát hiện mức thấp", "so_nguoi": "Số người / đơn vị cần chú ý",
                "so_cao_nguoi": "Trong đó mức cao", "online": "Online luỹ kế", "cung_ky": "Cùng kỳ tháng trước", "muc_tieu": "Mục tiêu tháng", "luy_ke": "Luỹ kế", "du_bao": "Dự báo cuối tháng",
                "du_bao_nhip": "Dự báo (theo nhịp)", "hut": "Hụt so mục tiêu", "can_moi_ngay": "Cần mỗi ngày", "tb_ngay": "Bình quân mỗi ngày", "con_lai": "Số ngày còn lại", "danh_gia": "Đánh giá",
@@ -83,7 +84,10 @@ def _kpi() -> list:
 
 
 def chi_tiet(r: dict, nguoi: str) -> html.Div:
-    """Nhận định, phương án, bằng chứng, chỉ số trước / sau, nhật ký và đường dẫn xem chi tiết của MỘT đề xuất."""
+    """Nhận định, phương án, bằng chứng, chỉ số trước / sau, nhật ký và đường dẫn xem chi tiết của MỘT đề xuất.
+    Nút Đồng ý/Sửa/Bác KHÔNG nằm trong card này - nằm ở khung tĩnh `tdh-the-quyet` (xem `layout()`), vì một
+    nút Dash mới xuất hiện lần đầu (do callback khác vừa dựng ra) bị tính như vừa bấm dù `n_clicks=0`, nên
+    card xem chi tiết dựng lại mỗi lần chọn dòng KHÔNG được chứa trực tiếp nút gọi `so.quyet` / `so.bac`."""
     s = r["su_that"]
     pa = [html.Li([html.B(f"{p['ma']}. {p['tieu_de']}"), html.B(" (khuyến nghị)", style={"color": "#0072bc"}) if p["ma"] == r["khuyen_nghi"] else "",
                    html.B(" (đã chọn)", style={"color": "#0a5b31"}) if p["ma"] == r["lua_chon"] else "", html.Div(p["mo_ta"], className="desc")]) for p in r["phuong_an"]]
@@ -127,6 +131,16 @@ def layout():
         card([bang("tdh-luoi", COT, cao=380, tuy_chon={"rowSelection": {"mode": "singleRow", "checkboxes": False, "enableClickSelection": True}})], title="Sổ quyết định",
              desc="Mỗi dòng là một đề xuất của trợ lý. Bấm một dòng để xem nhận định, phương án và bằng chứng. Người quyết trả lời qua Zalo: dong y SỐ A, sua SỐ ý kiến hoặc bac SỐ lý do."),
         html.Div(id="tdh-chi-tiet"),
+        card([dcc.Store(id="tdh-dang-xem"),
+              dcc.RadioItems(id="tdh-pa-chon", options=[], labelStyle={"display": "block", "margin": "4px 0"}),
+              html.Button("✓ Đồng ý phương án đã chọn", id="tdh-dongy-nut", n_clicks=0, className="btn primary", style={"margin": "8px 0"}),
+              html.Div([dcc.Input(id="tdh-ykien", placeholder="Ý kiến khác (không theo phương án nào ở trên)…", className="inp", style={"flex": 1}),
+                        html.Button("Sửa ý", id="tdh-sua-nut", n_clicks=0, className="btn")], style={"display": "flex", "gap": "8px", "margin": "4px 0"}),
+              html.Div([dcc.Input(id="tdh-lydo", placeholder="Lý do bác đề xuất…", className="inp", style={"flex": 1}),
+                        html.Button("Bác đề xuất", id="tdh-bac-nut", n_clicks=0, className="btn nguy-hiem")], style={"display": "flex", "gap": "8px", "margin": "4px 0"}),
+              html.Div(id="tdh-quyet-msg")],
+             id="tdh-the-quyet", title="Quyết định đề xuất đang xem", style=AN,
+             desc="Chọn một phương án rồi Đồng ý, hoặc ghi ý kiến khác (Sửa ý), hoặc Bác kèm lý do. Giống hệt lệnh dong y / sua / bac qua Zalo, chỉ khác là bấm nút."),
         card([dcc.Loading(bang("tdh-phu", COT_PHU, cao=None), type="dot")], title="Sổ độ phủ", desc="Trợ lý đã quét bao nhiêu thực thể trên tổng của từng nguồn, và dữ liệu mới nhất tới ngày nào. Nguồn nào chưa có số cũng được nêu thành một phát hiện."),
         html.Div(["Công tắc ", html.Code("rules.yml → tro_ly_dieu_hanh.bat"), " đang BẬT. ", tip("Tắt công tắc này thì menu biến mất, trợ lý không chạy, không gửi Zalo, không nhận lệnh.")], className="desc"),
     ])
@@ -187,17 +201,68 @@ def cb_phu(_tick):
 
 
 def cb_chon(chon):
+    """Chọn một dòng: hiện card chi tiết (xem) và, nếu còn CHỜ QUYẾT, mở khung Đồng ý/Sửa/Bác tĩnh
+    (`tdh-the-quyet`) kèm đúng options phương án của dòng đó. Reset hai ô nhập để không dính chữ của
+    dòng trước."""
+    rong = ("", AN, [], None, None, "", "")
     if not chon or not _cho_phep():
-        return ""
+        return rong
     r = so.doc(int(chon[0]["id"]))
-    return "" if r is None else chi_tiet(r, td.ten_nguoi_quyet(r["nguoi_quyet"]))
+    if r is None:
+        return rong
+    ct = chi_tiet(r, td.ten_nguoi_quyet(r["nguoi_quyet"]))
+    if r["trang_thai"] not in so.CHO:
+        return ct, AN, [], None, None, "", ""
+    opt = [{"label": f" {p['ma']}. {p['tieu_de']}", "value": p["ma"]} for p in r["phuong_an"]]
+    return ct, {}, opt, r["khuyen_nghi"], r["id"], "", ""
+
+
+def cb_quyet(_dy, _sua, _bac, qid, pa_chon, y_kien, ly_do, tick):
+    """Nút Đồng ý / Sửa ý / Bác ở khung tĩnh `tdh-the-quyet` - gọi ĐÚNG `so.quyet` / `so.bac` mà lệnh Zalo
+    đang dùng (xem `tro_ly_dieu_hanh_zalo.thuc_hien`), không viết lại luật kiểm trạng thái ở hai nơi. Người
+    quyết ghi là tài khoản web đang đăng nhập - trang này đã sau cổng `duoc_cau_hinh`, coi như nhánh "BGĐ
+    quyết thay" bên Zalo (BGĐ quyết được mọi đề xuất bất kể người quyết gốc là ai). Quyết xong thì ẩn khung
+    lại (đợi `cb_chon` mở lại đúng kiểu khi chọn một đề xuất còn chờ khác)."""
+    if not _cho_phep() or not qid or ctx.triggered_id not in ("tdh-dongy-nut", "tdh-sua-nut", "tdh-bac-nut"):
+        raise PreventUpdate
+    r = so.doc(int(qid))
+    if r is None:
+        return alert("Không tìm thấy đề xuất này (có thể đã bị xoá).", "bad"), tick or 0, AN
+    if r["trang_thai"] not in so.CHO:
+        return alert(f"Đề xuất #{r['id']} đang ở trạng thái “{so.TRANG_THAI.get(r['trang_thai'], r['trang_thai'])}”, không đổi được nữa.", "warn"), tick or 0, AN
+    ten = f"{current_user.username} (web)"
+    if ctx.triggered_id == "tdh-dongy-nut":
+        ma = {p["ma"] for p in r["phuong_an"]}
+        chon = pa_chon or r["khuyen_nghi"]
+        if chon not in ma:
+            return alert("Chưa chọn phương án hợp lệ.", "warn"), tick or 0, no_update
+        ok, mo_ta = so.quyet(r["id"], ten, chon, ""), f"chọn phương án {chon}"
+    elif ctx.triggered_id == "tdh-sua-nut":
+        if not (y_kien or "").strip():
+            return alert("Cần ghi ý kiến trước khi bấm Sửa ý.", "warn"), tick or 0, no_update
+        ok, mo_ta = so.quyet(r["id"], ten, so.LUA_CHON_SUA, y_kien.strip()), "ghi ý kiến của bạn"
+    else:
+        if not (ly_do or "").strip():
+            return alert("Cần ghi lý do trước khi bác đề xuất.", "warn"), tick or 0, no_update
+        ok, mo_ta = so.bac(r["id"], ten, ly_do.strip()), "bác đề xuất"
+    if not ok:
+        return alert(f"Đề xuất #{r['id']} vừa được người khác quyết, không đổi được nữa.", "bad"), tick or 0, AN
+    _ghi("tro_ly_dieu_hanh_quyet", f"#{r['id']} {ctx.triggered_id} boi {ten}"[:200])
+    sau = f" Trợ lý sẽ đo lại kết quả sau {so.cau_hinh()['kiem_chung_gio']} giờ." if ctx.triggered_id != "tdh-bac-nut" else ""
+    return alert(f"Đã ghi nhận: {mo_ta} cho đề xuất #{r['id']}.{sau}", "ok"), (tick or 0) + 1, AN
 
 
 def register(app):
     """Callback nào cũng kiểm `duoc_cau_hinh` ở máy chủ (`callback_can_quyen`) và công tắc `bat` (`_cho_phep`)."""
     cb = callback_can_quyen(app, QUYEN)
+    cb(Output("tdh-quyet-msg", "children"), Output("tdh-tick", "data", allow_duplicate=True), Output("tdh-the-quyet", "style", allow_duplicate=True),
+       Input("tdh-dongy-nut", "n_clicks"), Input("tdh-sua-nut", "n_clicks"), Input("tdh-bac-nut", "n_clicks"),
+       State("tdh-dang-xem", "data"), State("tdh-pa-chon", "value"), State("tdh-ykien", "value"), State("tdh-lydo", "value"), State("tdh-tick", "data"),
+       prevent_initial_call=True)(cb_quyet)
     cb(Output("tdh-thongbao", "children"), Output("tdh-tick", "data"), Input("tdh-sang", "n_clicks"), Input("tdh-kc", "n_clicks"), State("tdh-gui", "value"), State("tdh-thu", "value"), State("tdh-khoi", "value"), State("tdh-tick", "data"),
        prevent_initial_call=True, running=[(Output("tdh-sang", "disabled"), True, False), (Output("tdh-kc", "disabled"), True, False)])(cb_chay)
     cb(Output("tdh-ai", "children"), Output("tdh-kpi", "children"), Output("tdh-luoi", "rowData"), Input("tdh-tick", "data"))(cb_ve)
     cb(Output("tdh-phu", "rowData"), Input("tdh-tick", "data"))(cb_phu)
-    cb(Output("tdh-chi-tiet", "children"), Input("tdh-luoi", "selectedRows"))(cb_chon)
+    cb(Output("tdh-chi-tiet", "children"), Output("tdh-the-quyet", "style"), Output("tdh-pa-chon", "options"), Output("tdh-pa-chon", "value"),
+       Output("tdh-dang-xem", "data"), Output("tdh-ykien", "value"), Output("tdh-lydo", "value"),
+       Input("tdh-luoi", "selectedRows"))(cb_chon)
