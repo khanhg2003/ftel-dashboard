@@ -288,17 +288,18 @@ def _nut_pipeline(ten_icon: str, nhan: str, so, mau: str = "") -> html.Div:
 
 
 def _pipeline(tong: int, mo: int, qua_han: int, da_bao) -> html.Div:
-    """Sơ đồ 4 bước AI đang chạy thật (chốt 21/11/2026, chủ app muốn trông "máy móc" hơn): Quét lead (tổng
-    đang có) -> Phát hiện quá hạn (số thật đang hiện) -> Báo Zalo (số của lần quét cron gần nhất, không
-    phải lần này) -> Đang xử lý (sale chưa đóng). Mọi số lấy từ cùng nguồn với KPI/dải chữ bên trên, không
-    có số nào vẽ thêm cho đẹp."""
+    """Sơ đồ 4 bước AI đang chạy thật (chốt 21/11/2026, chủ app muốn trông "máy móc" hơn - rà soát 21/11:
+    bản đầu bị chê "lỏ lỏ" vì 4 nút dồn bên trái, nửa thanh bỏ trống; nay dàn đều hết chiều ngang bằng
+    `justify-content: space-between`, đường nối vẽ MỘT lần bằng `::before`/`::after` của CSS thay vì từng
+    đoạn `.ld-link` rời - vừa đỡ markup vừa cho hiệu ứng "tín hiệu chạy dọc dây" liền mạch kiểu sơ đồ
+    workflow (n8n, GitHub Actions...) thay vì mấy dấu gạch tĩnh): Quét lead (tổng đang có) -> Phát hiện
+    quá hạn (số thật đang hiện) -> Báo Zalo (số của lần quét cron gần nhất, không phải lần này) -> Đang
+    xử lý (sale chưa đóng). Mọi số lấy từ cùng nguồn với KPI/dải chữ bên trên, không có số nào vẽ thêm
+    cho đẹp."""
     return html.Div([
         _nut_pipeline("search", "Quét lead", tong),
-        html.Div(className="ld-link"),
         _nut_pipeline("alert", "Quá hạn", qua_han, "canh-bao" if qua_han else ""),
-        html.Div(className="ld-link"),
         _nut_pipeline("zap", "Đã báo Zalo", da_bao if da_bao is not None else "–"),
-        html.Div(className="ld-link"),
         _nut_pipeline("user", "Đang xử lý", mo),
     ], className="ld-pipeline")
 
@@ -327,7 +328,7 @@ def _dai_trang_thai(df) -> html.Div:
             _ai_avatar(cham),
             html.Div([html.Div(dong1, className="ld-dong-1"), html.Div(dong2, className="ld-dong-2")]),
         ], className="ld-trang-thai-hang"),
-        _pipeline(tong, mo, qua_han, lan.get("da_bao") if lan else None),
+        html.Div(_pipeline(tong, mo, qua_han, lan.get("da_bao") if lan else None), className="ld-trang-thai-duoi"),
     ], className="ld-trang-thai")
 
 

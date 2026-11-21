@@ -2114,24 +2114,42 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .ld-trang-thai-hang { display: flex; align-items: center; gap: 12px; }
 .ld-trang-thai .ld-dong-1 { font-weight: 650; font-size: 13.5px; color: var(--text); }
 .ld-trang-thai .ld-dong-2 { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
-/* Sơ đồ quy trình (chốt 21/11/2026, chủ app muốn "ra dáng AI Agent"): 4 bước thật nối bằng đường chạy -
-   phá lệ màu CHỈ đường nối (đồng bộ tím/xanh với mascot), ô số vẫn dùng đúng bảng màu phẳng của app. */
-.ld-pipeline { display: flex; align-items: flex-start; gap: 4px; flex-wrap: wrap; padding-left: 56px; }
-.ld-node { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 78px; text-align: center; }
-.ld-node .ld-node-ico { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center;
-  justify-content: center; background: var(--border); color: var(--text-muted); flex: none; }
-.ld-node.canh-bao .ld-node-ico { background: rgba(200, 55, 45, .14); color: var(--bad); }
-.ld-node-so { font-weight: 700; font-size: 15px; color: var(--text); }
-.ld-node-nhan { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
-.ld-link { flex: 1 1 22px; min-width: 22px; max-width: 48px; height: 2px; margin-top: 15px; border-radius: 2px;
-  background-image: repeating-linear-gradient(90deg, #8B5CF6 0 6px, transparent 6px 13px);
-  background-size: 26px 2px; animation: ld-chay 0.9s linear infinite; }
-@keyframes ld-chay { to { background-position: -26px 0; } }
-@media (max-width: 760px) {
-  .ld-pipeline { padding-left: 0; }
-  .ld-link { display: none; }
+/* Sơ đồ quy trình (chốt 21/11/2026, chủ app muốn "ra dáng AI Agent"; rà soát lại cùng ngày vì chê "lỏ lỏ" -
+   4 nút dồn bên trái bỏ trống nửa thanh): dàn ĐỀU hết bề ngang bằng space-between, một đường ray liền vẽ
+   bằng ::before (không phải từng đoạn .ld-link rời) + một tín hiệu sáng chạy dọc ray bằng ::after, như
+   trạng thái "đang chạy" của sơ đồ workflow (n8n, GitHub Actions...). Phá lệ màu CHỈ phần ray/tín hiệu
+   (đồng bộ tím/xanh với mascot), ô số/nhãn vẫn dùng đúng bảng màu phẳng của app. */
+.ld-trang-thai-duoi { border-top: 1px dashed var(--border); padding-top: 14px; }
+.ld-pipeline { position: relative; display: flex; justify-content: space-between; align-items: flex-start;
+  width: 100%; padding: 2px 2px 0; }
+.ld-pipeline::before { content: ""; position: absolute; left: 42px; right: 42px; top: 17px; height: 3px;
+  border-radius: 3px; background: var(--border); }
+.ld-pipeline::after { content: ""; position: absolute; top: 17px; height: 3px; width: 64px; border-radius: 3px;
+  left: 42px; background: linear-gradient(90deg, transparent, #8B5CF6 30%, #38BDF8 70%, transparent);
+  box-shadow: 0 0 9px 1px rgba(124, 58, 237, .55); animation: ld-comet 3.4s linear infinite; }
+@keyframes ld-comet {
+  0% { left: 42px; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: calc(100% - 106px); opacity: 0; }
 }
-@media (prefers-reduced-motion: reduce) { .ld-link { animation: none !important; } }
+.ld-node { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 5px; min-width: 76px; text-align: center; }
+.ld-node .ld-node-ico { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
+  flex: none; box-shadow: 0 1px 2px rgba(16, 24, 40, .06); }
+.ld-node.canh-bao .ld-node-ico { background: rgba(200, 55, 45, .12); border-color: rgba(200, 55, 45, .35);
+  color: var(--bad); animation: ld-nhap 1.1s ease-in-out infinite; }
+.ld-node-so { font-weight: 700; font-size: 17px; color: var(--text); line-height: 1; }
+.ld-node-nhan { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+@media (max-width: 760px) {
+  .ld-pipeline { flex-wrap: wrap; gap: 14px 10px; justify-content: flex-start; }
+  .ld-pipeline::before, .ld-pipeline::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ld-pipeline::after { animation: none !important; opacity: .9; }
+  .ld-node.canh-bao .ld-node-ico { animation: none !important; }
+}
 /* Mascot AI (chốt 20/11/2026, phá lệ CHỈ icon này - phần chữ của dải vẫn phẳng như cả app) */
 .ld-ai-avatar { position: relative; width: 44px; height: 44px; flex: none; border-radius: 50%;
   background-size: 72%; background-repeat: no-repeat; background-position: center;
