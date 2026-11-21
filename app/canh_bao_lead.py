@@ -119,6 +119,7 @@ def quet_va_canh_bao() -> dict:
     now = datetime.utcnow()
     nguoi_nhan = ds_nguoi_nhan()
     ten_sale = {a["acc_norm"]: a["ten"] for a in leads.nguoi_online()}
+    han_giay = leads.han_sla_gio() * 3600
     kq = {"quet": 0, "qua_han": 0, "da_bao": 0, "loi": []}
     with session_scope() as s:
         rows = s.execute(select(Lead)).scalars().all()
@@ -127,7 +128,7 @@ def quet_va_canh_bao() -> dict:
             if r.tinh_trang_xu_ly in leads.TRANG_THAI_DONG:
                 continue
             moc = r.cap_nhat_luc or r.tao_luc
-            if not moc or (now - moc).total_seconds() < leads.HAN_SLA_GIO * 3600:
+            if not moc or (now - moc).total_seconds() < han_giay:
                 continue
             kq["qua_han"] += 1
             if r.canh_bao_luc and (now - r.canh_bao_luc).total_seconds() < CHU_KY_NHAC_LAI_GIO * 3600:

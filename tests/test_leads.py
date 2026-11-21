@@ -9,7 +9,7 @@ from sqlalchemy import delete
 from app import leads
 from app.bo_nho import xoa as xoa_nho
 from app.db import session_scope
-from app.models import CrmPage, Lead
+from app.models import CaiDat, CrmPage, Lead
 
 NGUOI = "kiemthu"
 
@@ -22,6 +22,7 @@ def don_dep():
         with session_scope() as s:
             s.execute(delete(Lead))
             s.execute(delete(CrmPage))
+            s.execute(delete(CaiDat).where(CaiDat.khoa == leads.KHOA_SLA))
         xoa_nho()
     xoa()
     yield
@@ -163,6 +164,24 @@ def test_xoa_lead_xoa_dung_dong_da_chon_con_lai_giu_nguyen():
     assert n == 1
     con_lai = set(leads.danh_sach().id)
     assert con_lai == {lid2}
+
+
+def test_nguong_sla_sua_duoc_va_anh_huong_qua_han():
+    """Thêm 21/11/2026: chủ app muốn tự sửa ngưỡng "quá hạn" (mặc định 24h) ở Cấu hình, đơn vị giờ hoặc
+    ngày. Lưu xuống `CaiDat` theo giờ; `danh_sach().qua_han` phải đổi theo ngay (không cần đợi cache)."""
+    assert leads.han_sla_gio() == leads.HAN_SLA_MAC_DINH == 24.0
+    pid = _page()
+    lid = leads.tao_lead({"page_id": pid}, NGUOI)
+    with session_scope() as s:
+        s.get(Lead, lid).cap_nhat_luc = datetime.utcnow() - timedelta(hours=10)
+    xoa_nho("leads")
+    assert not leads.danh_sach().set_index("id").loc[lid].qua_han        # 10h < 24h mặc định: chưa quá hạn
+
+    gio = leads.luu_han_sla_gio(8, NGUOI)                                 # chủ app đặt ngưỡng 8 giờ
+    assert gio == 8.0 and leads.han_sla_gio() == 8.0
+    assert leads.danh_sach().set_index("id").loc[lid].qua_han            # 10h > 8h mới: giờ đã quá hạn
+
+    assert leads.luu_han_sla_gio(0, NGUOI) == 1.0                        # chặn đặt 0 (mọi lead tức thì quá hạn)
 
 
 def test_luu_fb_cau_hinh_can_du_fb_page_id_va_token():

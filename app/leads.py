@@ -25,9 +25,9 @@ from sqlalchemy import select, text
 from app import phong_online as po
 from app.bo_nho import ghi, nho
 from app.db import engine, session_scope
-from app.models import AuditLog, CrmPage, Employee, Lead, StaffMap
+from app.models import AuditLog, CaiDat, CrmPage, Employee, Lead, StaffMap
 
-BANG = (CrmPage, Lead)
+BANG = (CrmPage, Lead, CaiDat)
 _da_tao = False
 # cột thêm sau 16/11/2026, phải tự vá vào database đang chạy (cùng cách bao_cao_ngay.COT_THEM)
 COT_THEM = {"sale_2": "VARCHAR(80)", "sale_3": "VARCHAR(80)", "ghi_chu": "TEXT"}
@@ -37,7 +37,8 @@ TRANG_THAI = ["Mới", "Đang tư vấn", "Hẹn gọi lại", "Đồng ý", "Đ
 # để phân biệt "chốt nhưng chưa lắp" với "đã lắp xong" khi xem lại. Không tính SLA / không đếm vào tải việc
 # đang xử lý, giống các trạng thái đóng khác.
 TRANG_THAI_DONG = {"Đã chốt", "Đã lên online", "Không nhu cầu", "Huỷ"}
-HAN_SLA_GIO = 24
+HAN_SLA_MAC_DINH = 24.0          # ngưỡng mặc định khi Quản trị chưa tự đặt (xem `han_sla_gio`)
+KHOA_SLA = "lead.han_sla_gio"
 _RE_SDT = re.compile(r"(0\d{9,10})")
 
 
@@ -57,6 +58,33 @@ def dam_bao_bang() -> None:
                 with engine.begin() as c:
                     c.execute(text(f"ALTER TABLE crm_lead ADD COLUMN {ten} {kieu}"))
         _da_tao = True
+
+
+def han_sla_gio() -> float:
+    """Số giờ chưa chăm sóc thì lead bị coi là quá hạn (sửa ở Lead Online -> Cấu hình -> Ngưỡng cảnh báo
+    SLA). Chưa tự đặt thì dùng `HAN_SLA_MAC_DINH`."""
+    dam_bao_bang()
+    with session_scope() as s:
+        r = s.get(CaiDat, KHOA_SLA)
+    try:
+        return float(r.gia_tri) if r and r.gia_tri else HAN_SLA_MAC_DINH
+    except (TypeError, ValueError):
+        return HAN_SLA_MAC_DINH
+
+
+@ghi("leads")
+def luu_han_sla_gio(gio: float, nguoi: str) -> float:
+    """Lưu ngưỡng quá hạn mới (tối thiểu 1 giờ, tránh gõ nhầm 0 làm mọi lead tức thì quá hạn)."""
+    dam_bao_bang()
+    gio = max(1.0, round(float(gio), 1))
+    with session_scope() as s:
+        r = s.get(CaiDat, KHOA_SLA)
+        if r is None:
+            s.add(CaiDat(khoa=KHOA_SLA, gia_tri=str(gio), updated_by=nguoi))
+        else:
+            r.gia_tri, r.updated_by, r.updated_at = str(gio), nguoi, datetime.utcnow()
+        s.add(AuditLog(username=nguoi, action="lead_cau_hinh_sla", detail=f"Ngưỡng quá hạn SLA: {gio} giờ"))
+    return gio
 
 
 def nguoi_phu_trach(sale_1, sale_2, sale_3) -> str | None:
@@ -272,7 +300,7 @@ def danh_sach(page_id: int | None = None, sale: str | None = None, tinh_trang: s
     moc = df.cap_nhat_luc.fillna(df.tao_luc)
     gio_tre = (pd.Timestamp(datetime.utcnow()) - moc).dt.total_seconds() / 3600
     df["gio_tre"] = gio_tre.round(1)
-    df["qua_han"] = (gio_tre > HAN_SLA_GIO) & (~df.tinh_trang_xu_ly.isin(TRANG_THAI_DONG))
+    df["qua_han"] = (gio_tre > han_sla_gio()) & (~df.tinh_trang_xu_ly.isin(TRANG_THAI_DONG))
     if page_id:
         df = df[df.page_id == int(page_id)]
     if sale:

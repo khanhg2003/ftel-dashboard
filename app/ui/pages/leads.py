@@ -97,7 +97,7 @@ def _cot() -> list[dict]:
          "autoHeight": True, "cellEditor": "agLargeTextCellEditor", "cellEditorPopup": True, **sua},
         {"field": "gio_tre", "headerName": "Trễ (giờ)", "width": 92, "maxWidth": 100, "type": "numericColumn",
          "valueFormatter": SO, "cellStyle": GIO_TRE_MAU,
-         "headerTooltip": f"Số giờ từ lần chăm sóc gần nhất. Quá {leads.HAN_SLA_GIO}h chưa đổi trạng thái -> đỏ, "
+         "headerTooltip": f"Số giờ từ lần chăm sóc gần nhất. Quá {leads.han_sla_gio():g}h chưa đổi trạng thái -> đỏ, "
                           "hệ thống tự báo Zalo để nhờ người khác nhận chéo."},
     ]
 
@@ -162,10 +162,17 @@ def layout():
     ])
 
 
+def _sla_hien_thi(gio: float) -> tuple[float, str]:
+    """Chọn đơn vị dễ đọc để hiện lại ngưỡng SLA đang lưu (bằng giờ): chia hết cho 24 thì hiện theo
+    ngày, không thì hiện theo giờ."""
+    return (gio / 24, "ngay") if gio and gio % 24 == 0 else (gio, "gio")
+
+
 def _cau_hinh():
     pages = leads.ds_page()
     opt_page = [{"label": t, "value": i} for i, t in zip(pages.id, pages.ten)] if len(pages) else []
     opt_sale = [{"label": a["ten"], "value": a["acc_norm"]} for a in leads.nguoi_online()]
+    _sla_so_luon, _sla_don_vi = _sla_hien_thi(leads.han_sla_gio())
     return html.Details([
         html.Summary("Cấu hình (chỉ Quản trị)", className="cg-tieu-de"),
         html.Div([
@@ -187,6 +194,20 @@ def _cau_hinh():
             ], cao=240, getRowId="params.data.id"),
             html.Button([icon("save", 14), html.Span("Lưu danh mục")], id="ld-pg-luu", className="btn primary",
                         style={"marginTop": "8px"}),
+
+            html.H3("Ngưỡng cảnh báo SLA", style={"margin": "18px 0 4px"}),
+            html.Div("Lead chưa chăm sóc (chưa đổi trạng thái/ghi chú/người phụ trách) quá khoảng này thì "
+                     "tính là quá hạn và hệ thống tự nhắc qua Zalo.", className="desc"),
+            html.Div([
+                field("Số lượng", dcc.Input(id="ld-sla-so", type="number", min=1, step=0.5,
+                                            value=_sla_so_luon, className="inp", style={"width": "90px"})),
+                field("Đơn vị", dcc.Dropdown(id="ld-sla-dv", options=[{"label": "Giờ", "value": "gio"},
+                                                                      {"label": "Ngày", "value": "ngay"}],
+                                             value=_sla_don_vi, clearable=False, style={"minWidth": "110px"})),
+                field(" ", html.Button([icon("save", 14), html.Span("Lưu ngưỡng")], id="ld-sla-luu",
+                                       className="btn primary")),
+            ], className="toolbar", style={"flexWrap": "wrap"}),
+            html.Div(id="ld-sla-msg"),
 
             html.H3("Người nhận cảnh báo SLA (Zalo)", style={"margin": "18px 0 4px"}),
             html.Div("Sale: gắn acc để tính tải việc khi gợi ý nhận chéo. Leader: chỉ nhận tin, không tính tải việc.",
@@ -267,7 +288,7 @@ def _dai_trang_thai(qua_han: int) -> html.Div:
     avatar mới là tín hiệu thật (xanh/đỏ theo `qua_han`), mascot chỉ để gợi cảm giác "đang hoạt động"."""
     lan = cb.lan_quet_gan_nhat()
     if qua_han:
-        dong1 = (f"{qua_han} lead đang quá {leads.HAN_SLA_GIO}h chưa chăm sóc - hệ thống tự nhắc qua Zalo "
+        dong1 = (f"{qua_han} lead đang quá {leads.han_sla_gio():g}h chưa chăm sóc - hệ thống tự nhắc qua Zalo "
                  f"mỗi {cb.CHU_KY_NHAC_LAI_GIO}h cho người phụ trách")
         cham = "canh-bao"
     else:
@@ -287,7 +308,7 @@ def _kpi(df) -> list:
     qua_han = int(df.qua_han.sum()) if tong else 0
     from app.ui.components import kpi
     return [kpi("Tổng lead", f"{tong}"), kpi("Đang xử lý", f"{mo}"),
-            kpi("Quá hạn care", f"{qua_han}", f"Trên {leads.HAN_SLA_GIO}h chưa chăm sóc", "bad" if qua_han else "ok")]
+            kpi("Quá hạn care", f"{qua_han}", f"Trên {leads.han_sla_gio():g}h chưa chăm sóc", "bad" if qua_han else "ok")]
 
 
 def register(app):
@@ -417,6 +438,19 @@ def register(app):
             except leads.LoiLead as e:
                 return alert(str(e), "bad")
         return alert(f"Đã lưu {n} page.", "ok")
+
+    @app.callback(Output("ld-sla-msg", "children"), Output("ld-da-luu", "data", allow_duplicate=True),
+                  Input("ld-sla-luu", "n_clicks"),
+                  State("ld-sla-so", "value"), State("ld-sla-dv", "value"), prevent_initial_call=True)
+    def _luu_sla(_n, so_luong, don_vi):
+        if not current_user.duoc_cau_hinh:
+            raise PreventUpdate
+        if not so_luong or so_luong <= 0:
+            return alert("Nhập số lượng lớn hơn 0.", "warn"), no_update
+        gio = leads.luu_han_sla_gio(float(so_luong) * (24 if don_vi == "ngay" else 1), current_user.username)
+        so, dv = _sla_hien_thi(gio)
+        return (alert(f"Đã lưu: lead chưa chăm sóc quá {so:g} {'ngày' if dv == 'ngay' else 'giờ'} thì tính quá hạn.", "ok"),
+                gio_viet_nam().isoformat())
 
     @app.callback(Output("ld-nn-msg", "children", allow_duplicate=True), Output("ld-nn-ten", "value"),
                   Output("ld-nn-chatid", "value"),
