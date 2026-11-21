@@ -347,14 +347,20 @@ def ma_ngoai_chi_nhanh() -> str:
     return (org_config()["fallback"].get("ngoai_chi_nhanh") or {}).get("ma", "")
 
 
-def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=None, doi_tuong_kh=None):
+def assign_phong(acc, phong_he_thong, cn_ban, cn_quan_ly, staff_map: dict, ngay=None, doi_tuong_kh=None, hop_dong=None):
     """Trả về (mã phòng, có phải hợp đồng ECOM không). `ngay` = ngày online (hoặc ngày tạo) của hợp đồng,
     dùng để chọn đúng phòng khi nhân sự chuyển phòng (cột Hiệu lực từ / đến của danh mục).
 
+    `hop_dong` khớp `fallback.hop_dong_rieng` (ngoại lệ gán tay MỘT hợp đồng cụ thể, chủ app xác nhận
+    từng ca - không phải sửa luật chung) được xét TRƯỚC TIÊN, vượt cả `doi_tuong_kh` đặc biệt bên dưới.
+
     `doi_tuong_kh` đặc biệt (config/org.yml -> fallback.doi_tuong_kh_dac_biet, vd VIP 7 -> ANCS) được
-    xét TRƯỚC TIÊN, vượt trên cả luật ECOM và danh mục nhân sự - nhóm khách này công ty quản lý
+    xét kế tiếp, vượt trên cả luật ECOM và danh mục nhân sự - nhóm khách này công ty quản lý
     riêng, không phụ thuộc ai đứng tên bán (chốt với chủ app 01/10/2026)."""
     fb = org_config()["fallback"]
+    rieng = (fb.get("hop_dong_rieng") or {}).get(hop_dong)
+    if rieng:
+        return rieng, False
     dac_biet = {k.upper(): v for k, v in (fb.get("doi_tuong_kh_dac_biet") or {}).items()}
     phong_dac_biet = dac_biet.get(norm_text(doi_tuong_kh).upper())
     cn_ban = norm_text(cn_ban).upper()

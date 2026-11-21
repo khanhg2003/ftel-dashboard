@@ -54,6 +54,14 @@ def test_vip7_theo_cn_quan_ly_cua_khach_nhu_inside():
     assert assign_phong("x", "", "HCM_ECOM", "QNM", DM) == ("ECOM_QNM", True)                                # không phải VIP 7: như cũ
 
 
+def test_hop_dong_rieng_vuot_ca_vip7():
+    """Chủ app chốt 21/11/2026: ngoại lệ gán tay một hợp đồng cụ thể (config/org.yml -> fallback.hop_dong_rieng)
+    thắng cả luật VIP 7 -> ANCS, nhưng CHỈ đúng hợp đồng đó - hợp đồng VIP 7 khác vẫn về ANCS như cũ."""
+    assert assign_phong("x", "", "DNG_02", "DNG_02", DM, doi_tuong_kh="VIP 7", hop_dong="DAAAR7259") == ("IBB5", False)
+    assert assign_phong("x", "", "DNG_02", "DNG_02", DM, doi_tuong_kh="VIP 7", hop_dong="HOPDONG_KHAC") == ("ANCS", False)
+    assert assign_phong("x", "", "DNG_02", "DNG_02", DM, doi_tuong_kh="VIP 7") == ("ANCS", False)
+
+
 def test_ancs_qnm_la_phong_quang_nam_va_khong_cong_nhan_su_muc_tieu_vao_tong():
     from app.org import org_config
     from app.overview import phong_khong_cong_tong

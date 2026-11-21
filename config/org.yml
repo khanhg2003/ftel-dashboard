@@ -52,7 +52,14 @@ phong:
 
 # Quy tắc gán phòng cho HĐ của nhân sự KHÔNG có trong danh mục (đã kiểm chứng khớp báo cáo)
 fallback:
-  # Đối tượng KH đặc biệt -> gán thẳng một phòng cố định, ƯU TIÊN CAO NHẤT (vượt cả luật ECOM và
+  # Ngoại lệ gán tay THEO TỪNG HỢP ĐỒNG - ƯU TIÊN CAO NHẤT, vượt cả "Đối tượng KH đặc biệt" bên dưới.
+  # Chỉ dùng khi chủ app xác nhận rõ TỪNG HĐ (không dùng để sửa hàng loạt - sửa hàng loạt thì đổi luật
+  # chung ở dưới). Mỗi dòng ghi lại lý do + ngày chốt để sau còn biết vì sao có ngoại lệ.
+  hop_dong_rieng:
+    # Chủ app chốt 21/11/2026: HĐ VIP 7 của DNG.Tuongnk (phòng IBB5/B5) - vẫn muốn B5 được tính dù khách
+    # thuộc nhóm VIP 7 (đáng lẽ về ANCS theo luật chung).
+    DAAAR7259: IBB5
+  # Đối tượng KH đặc biệt -> gán thẳng một phòng cố định, ƯU TIÊN CAO (vượt cả luật ECOM và
   # danh mục nhân sự): nhóm khách công ty quản lý riêng, không phụ thuộc ai đứng tên bán. Chốt với
   # chủ app 01/10/2026: HĐ "Đối tượng KH" = VIP 7 luôn tính cho ANCS. So khớp không phân biệt hoa
   # thường (khoá viết hoa).

@@ -149,7 +149,7 @@ def _fact_rows(res: LoadResult, staff_map: dict, batch_id: int) -> list[dict]:
         acc = r.get("acc_nhan_vien", "")
         code, la_ecom = assign_phong(acc, r.get("phong_he_thong"), r.get("cn_ban"),
                                      r.get("cn_quan_ly"), staff_map, r.get("ngay_online") or r.get("ngay_tao_hd"),
-                                     r.get("doi_tuong_kh"))
+                                     r.get("doi_tuong_kh"), r.get("hop_dong"))
         r["phong_code"] = code
         r["la_ecom"] = la_ecom
         if not LUU_TEN_KHACH_HANG and code not in giu_ten:
@@ -365,7 +365,7 @@ def recompute_phong(session) -> int:
         for obj in session.execute(select(model)).scalars():
             code, la_ecom = assign_phong(obj.acc_nhan_vien, obj.phong_he_thong, obj.cn_ban,
                                          obj.cn_quan_ly, staff_map, obj.ngay_online or obj.ngay_tao_hd,
-                                         obj.doi_tuong_kh)
+                                         obj.doi_tuong_kh, obj.hop_dong)
             if obj.phong_code != code or obj.la_ecom != la_ecom:
                 obj.phong_code, obj.la_ecom = code, la_ecom
                 total += 1
