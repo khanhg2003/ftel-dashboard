@@ -154,7 +154,7 @@ def the(den, ngays, xem_tinh: bool, admin: bool):
                                      options=[{"label": "Tất cả phòng" if admin or current_user.duoc_xem_ban_tinh else "Phòng của bạn", "value": "all"}] + [
                                          {"label": p["ten"], "value": p["code"]} for p in _phong_nv_duoc_xem()]),
                         dcc.Input(id="pt-tinh-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
-                                  className="o-tim"),
+                                  className="o-tim", autoComplete="off"),
                         html.Div([icon("zoom_in", 14), html.Span("Bấm vào tên nhân viên để xem chi tiết bán + online "
                                                                 "từng tỉnh, từng phường/xã")], className="goi-y-bam"),
                     ], className="the-thanh", style={"margin": "0 0 8px", "gap": "8px", "flexWrap": "wrap"}),

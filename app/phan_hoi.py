@@ -393,6 +393,7 @@ def pane_quan_tri(tab: str):
                 field("Tìm nhanh", dcc.Input(
                     id="qt-ph-tim",
                     type="search",
+                    autoComplete="off",
                     className="o-tim",
                     placeholder="Tìm người gửi, phòng, mục, nội dung…",
                 )),

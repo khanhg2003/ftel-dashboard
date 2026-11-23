@@ -87,7 +87,7 @@ def layout(ky: dict | None = None):
                 html.Div([html.H3(id="cl-ct-tieu-de"), html.Div(id="cl-ct-mo-ta", className="desc")],
                          className="the-ten"),
                 html.Div(dcc.Input(id="cl-ct-tim", type="search", placeholder="Tìm hợp đồng, acc, phòng…",
-                                   className="o-tim"), className="the-nut"),
+                                   className="o-tim", autoComplete="off"), className="the-nut"),
             ], className="the-dau"),
             dag.AgGrid(id="cl-ct", className="ag-theme-quartz ag-theme-ftel", columnDefs=[], rowData=[],
                        defaultColDef={"resizable": True, "sortable": True, "filter": True},

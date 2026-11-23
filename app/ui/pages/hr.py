@@ -157,7 +157,7 @@ def layout(ky: dict | None = None):
                                          className="btn", title="Tải đủ cột của các dòng đang lọc")),
                 html.Div([
                     dcc.Input(id="hr-tim", type="search", placeholder="Tìm tên hoặc acc…",
-                              className="o-tim", debounce=False),
+                              className="o-tim", debounce=False, autoComplete="off"),
                     dcc.Dropdown(id="hr-nhom", multi=True, placeholder="Mọi thâm niên",
                                  options=[{"label": v, "value": k} for k, v in TEN_NHOM.items()],
                                  style={"minWidth": "180px"}),

@@ -163,7 +163,7 @@ def layout(tab: str | None = None):
         html.Div(id="qt-pane-staff", style={} if tab == "staff" else an, children=[
             card([
                 html.Div([
-                    dcc.Input(id="qt-staff-tim", type="search", className="o-tim",
+                    dcc.Input(id="qt-staff-tim", type="search", className="o-tim", autoComplete="off",
                               placeholder="Tìm acc, mã NV, phòng…"),
                     html.Div(id="qt-staff-dem", className="desc", style={"margin": 0}),
                     html.Div(className="grow"),

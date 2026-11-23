@@ -169,7 +169,7 @@ def layout(ky: dict | None = None):
             html.Div([
                 html.Div([
                     dcc.Input(id="pt-ton-tim", type="search", placeholder="Tìm hợp đồng, acc, tên…",
-                              className="o-tim"),
+                              className="o-tim", autoComplete="off"),
                     dcc.Dropdown(id="pt-ton-phong-loc", options=lua_chon_phong, value="all",
                                  clearable=False, style={"width": "220px"}),
                 ], className="the-thanh"),
@@ -199,7 +199,7 @@ def layout(ky: dict | None = None):
         html.Div([
             _dau_the("Chất lượng bán theo nhân viên", "pt-mo-ta-nv",
                      dcc.Input(id="pt-nv-tim", type="search", placeholder="Tìm tên hoặc acc…",
-                               className="o-tim"),
+                               className="o-tim", autoComplete="off"),
                      dcc.Dropdown(id="pt-nv-phong", options=lua_chon_phong, value="all",
                                   clearable=False, style={"width": "210px"}),
                      dcc.Dropdown(

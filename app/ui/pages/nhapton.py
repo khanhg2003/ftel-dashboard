@@ -204,7 +204,7 @@ def layout():
                     id="nt-ton", options=[{"label": n, "value": v} for v, n in nt.NGUONG_TON],
                     value="all", clearable=False, searchable=False, style={"width": "150px"})),
                 field("Tìm", dcc.Input(id="nt-tim", type="search", placeholder="Mã HĐ hoặc tên KH",
-                                       className="o-tim", debounce=True)),
+                                       className="o-tim", debounce=True, autoComplete="off")),
                 html.Button([icon("download", 14), html.Span("Excel")], id="nt-xls", className="btn nt-nut",
                             title="Xuất đúng danh sách đang lọc", style={} if xem_tong else AN),
             ], className="toolbar nt-loc"),

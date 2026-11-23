@@ -133,7 +133,7 @@ def layout(ky: dict | None = None):
                           html.Div(id="bp-mo-ta-nv", className="desc", style={"margin": "2px 0 0"})]),
                 html.Div(className="grow"),
                 dcc.Input(id="bp-tim", type="search", placeholder="Tìm tên hoặc acc…",
-                          className="o-tim"),
+                          className="o-tim", autoComplete="off"),
                 seg_control("bp-xem", [("ban", "Bán hàng"), ("theo_doi", "Nhịp có số & tồn"),
                                        ("tat_ca", "Tất cả cột")], "ban"),
                 dcc.Dropdown(id="bp-loc", clearable=False, value="all", searchable=False,
