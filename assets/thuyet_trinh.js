@@ -117,7 +117,9 @@
       if (k >= ds.length) { if (xong) xong(); return; }
       var d = ds[k++], ke = k < ds.length ? ds[k].chu : (dsSau[0] && dsSau[0].chu);
       phuDe(dep[d.tu]); chip("Em đang chuẩn bị giọng đọc…", "nghi");
+      var cho = setTimeout(function () { if (ma === TT.ma) phuDe("Đang chờ Gemini tạo giọng đọc (gói miễn phí chỉ được 3 lượt mỗi phút, có thể chờ tới 1 phút)…"); }, 25000);
       layAm(d.chu, giong).then(function (url) {
+        clearTimeout(cho);
         if (ma !== TT.ma) return;
         function chay() {
           if (ma !== TT.ma) return;
@@ -131,7 +133,7 @@
           if (ke) layAm(ke, giong).catch(function () { /* lỗi sẽ báo khi tới đoạn đó */ });
         }
         if (TT.pause) TT.cho = chay; else chay();
-      }).catch(loi);
+      }).catch(function (e) { clearTimeout(cho); loi(e); });
     }
     tiep();
   }

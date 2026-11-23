@@ -32,7 +32,7 @@ PHONG_THUYET_TRINH = "đọc bằng tiếng Việt, giọng thuyết trình chuy
 MAC_DINH = "Sulafat"
 KHOA_LUU = "tt.gemini_key"
 TOI_DA_KY_TU = 1200                # một lần xin đọc (vài câu gộp lại) dài tối đa; quá thì từ chối để không bị lợi dụng đọc văn bản tuỳ ý
-TOI_DA_CHO = 30                    # Gemini báo quá giới hạn: chờ tối đa chừng này giây rồi thử lại MỘT lần
+TOI_DA_CHO = 65                    # Gemini báo quá giới hạn (gói miễn phí: 3 yêu cầu / phút): chờ tối đa chừng này giây rồi thử lại MỘT lần
 TOI_DA_NHO = 100                   # số câu nhớ tạm trong tiến trình (mỗi câu vài trăm KB WAV)
 
 # (tên giọng, mô tả tiếng Việt, "nu" / "nam") - 30 giọng có sẵn của Gemini; thứ tự như trang chọn giọng của Navi
@@ -134,7 +134,7 @@ def _wav(pcm: bytes, tan_so: int = 24000) -> bytes:
 
 def _tao_am(chu: str, giong: str, key: str) -> bytes:
     """Tạo lần lượt (khoá `_luot`); Gemini báo quá giới hạn mà chỉ cần chờ ngắn thì chờ rồi thử lại một lần."""
-    if not _luot.acquire(timeout=50):
+    if not _luot.acquire(timeout=150):
         raise tro_ly.LoiAI("Đang tạo giọng cho phần trước, thử lại sau ít giây.")
     try:
         try:

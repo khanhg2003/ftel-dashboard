@@ -92,7 +92,7 @@ def _chon_giong() -> html.Div:
                      dcc.Loading(html.Div(id="tt-gm-msg"), type="dot")], className="tt-gm")
     return card([html.Div(id="tt-gv-bao", className="tt-gv-bao"), html.Div(id="tt-giong-ds", children=nhom), html.Details([html.Summary("Mã Gemini (để tạo giọng đọc)"), khoa], className="tt-gm-hop")], title="Giọng của Fox",
                 desc="Bấm Nghe thử để nghe từng giọng (lần đầu mất vài giây), rồi bấm Dùng giọng này. Giọng mới áp dụng ngay từ câu đọc tiếp theo, nhớ trên máy này. "
-                     "Giọng do Gemini tạo, tính một khoản nhỏ vào ngân sách AI tháng (khoảng 0,015 USD mỗi phút nghe).")
+                     "Giọng do Gemini tạo. Gói miễn phí của Google chỉ cho 3 lượt tạo giọng mỗi phút (mỗi lần Nghe thử và mỗi slide tốn 1 lượt), nên đừng nghe thử liên tục khi đang thuyết trình. Bật thanh toán cho mã thì hết giới hạn, tốn khoảng 0,015 USD mỗi phút nghe.")
 
 
 def layout():
