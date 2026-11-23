@@ -212,18 +212,22 @@ def _chon_khoi_ui(khoi_dang_xem: str):
 
 
 MUC_TRO_LY = ("/trolydieuhanh", "Trợ lý điều hành", "sparkle", None)
+MUC_THUYET_TRINH = ("/thuyettrinh", "Thuyết trình AI", "mic", None)
 
 
-def _muc_he_thong(muc: list) -> list:
-    """Mục "Trợ lý điều hành" chỉ được thêm vào nhóm Hệ thống khi công tắc `rules.yml` bật VÀ tài khoản là BGĐ (không nằm trong NAV tĩnh: tắt công tắc thì menu y hệt cũ)."""
+def _muc_he_thong(muc: list, khoi: str = kh.KD) -> list:
+    """Nhóm Hệ thống của BGĐ có thêm: "Trợ lý điều hành" (khi công tắc `rules.yml` bật) và "Thuyết trình AI" (chỉ ở khối Kinh doanh, nơi có số liệu để thuyết trình).
+    Không nằm trong NAV tĩnh nên tài khoản khác thấy menu y hệt cũ."""
     from app import tro_ly_dieu_hanh_so
-    return [*muc, MUC_TRO_LY] if current_user.duoc_cau_hinh and tro_ly_dieu_hanh_so.bat() else muc
+    if not current_user.duoc_cau_hinh:
+        return muc
+    return [*muc, *([MUC_TRO_LY] if tro_ly_dieu_hanh_so.bat() else []), *([MUC_THUYET_TRINH] if khoi == kh.KD else [])]
 
 
 def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
     items = []
     for nhom, muc in NAV_THEO_KHOI[khoi_dang_xem]:
-        muc = _muc_he_thong(muc) if nhom == "Hệ thống" else muc
+        muc = _muc_he_thong(muc, khoi_dang_xem) if nhom == "Hệ thống" else muc
         muc_hien = []
         for href, label, ico, quyen in muc:
             if not current_user.vao_duoc(href):
@@ -502,6 +506,11 @@ def _router(path, search=None, store=None):
         if not current_user.duoc_xem_ads:
             return html.Div("Tài khoản này không xem được mục Ads IBB7."), _topbar_simple("Ads IBB7")
         return ads_page.layout(tab), ads_page.topbar()
+    if path == "/thuyettrinh":
+        from app.ui.pages import thuyettrinh
+        if not current_user.duoc_cau_hinh:
+            return html.Div("Trang này chỉ dành cho Ban Giám đốc."), _topbar_simple("Thuyết trình AI")
+        return thuyettrinh.layout(), thuyettrinh.topbar()
     if path == "/trolydieuhanh":
         from app.ui.pages import trolydh
         if not (current_user.duoc_cau_hinh and trolydh.so.bat()):
@@ -550,11 +559,11 @@ def _register_pages():
     from app.ui.pages import ads as ads_page
     from app.ui.pages import baocaongay, danhba, giafpt, nhapton, quantri_ban_tin, soanmail
     from app.ui.pages import dvkh as dvkh_page
-    from app.ui.pages import phongonline, trolydh
+    from app.ui.pages import phongonline, thuyettrinh, trolydh
     from app.ui.pages import leads as leads_page
     for mod in (dvkh_page, tongquan, phong, phongonline, leads_page, phantich, tracking, sosanh, dienbien, hr_page, chatluong, upload, quantri,
                 settings_page, huongdan, taikhoan, tro_ly, ads_page, nhapton, baocaongay, ngan_nhan_su,
-                danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin, trolydh):
+                danhba, soanmail, giafpt, phan_hoi, quantri_ban_tin, trolydh, thuyettrinh):
         mod.register(app)
 
 
