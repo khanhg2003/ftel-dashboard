@@ -33,7 +33,7 @@ HE_THONG = (
     "Slide đầu mở bằng lời chào ngắn và nói thẳng kết luận lớn nhất của cả bài trong một câu. Slide cuối (id ket_luan) chốt 2 đến 3 việc em đề xuất ưu tiên và nói rõ vì sao, kết bằng một câu ngắn mời anh chị cho ý kiến hoặc hỏi thêm.\n"
     "- Văn NÓI như người thật: câu ngắn xen câu vừa, có từ nối tự nhiên ('thế nhưng', 'nói cách khác', 'quan trọng hơn', 'đáng nói là', 'nếu để ý'), có lúc đặt câu hỏi rồi tự trả lời. Không văn bản hành chính, không liệt kê khô cứng, không sáo rỗng.\n"
     "QUY TẮC BẮT BUỘC (hệ thống kiểm tra từng con số, sai là lời bị loại):\n"
-    "- Mọi con số em nói ra phải có trong bang_su_that của ĐÚNG slide đó: chép đúng, không tự tính thêm, không làm tròn lại, không đổi đơn vị. Không tự đặt mốc thời gian hay hạn chót kiểu '48 giờ', '3 ngày', '2 tuần': chỉ dùng ngày đã có trong số liệu, hoặc nói 'sớm', 'trong vài ngày tới'. Muốn so sánh mà không có sẵn số thì nói bằng lời ('gần gấp đôi', 'chưa tới một nửa', 'nhỉnh hơn một chút'), không tự tạo con số mới. Không có số thì nói bằng lời, đừng bịa.\n"
+    "- Mọi con số em nói ra phải có trong bang_su_that của ĐÚNG slide đó: chép đúng, không tự tính thêm, không làm tròn lại, không đổi đơn vị. Không tự đặt mốc thời gian hay hạn chót kiểu '48 giờ', '3 ngày', '2 tuần': chỉ dùng ngày đã có trong số liệu, hoặc nói 'sớm', 'trong vài ngày tới'. Muốn so sánh mà không có sẵn số thì nói bằng lời ('gần gấp đôi', 'chưa tới một nửa', 'nhỉnh hơn một chút'), không tự tạo con số mới. Không có số thì nói bằng lời, đừng bịa. Số đếm nhỏ không phải số liệu (ba việc, hai phòng, một nửa, không có ai) VIẾT BẰNG CHỮ; ngày viết là 'ngày 25 tháng 11', không viết 25/11. KHÔNG lấy số của slide khác (kể cả số em đã nói ở phần trước) và không nhắc tên trường kỹ thuật có gạch dưới như tb_7_ngay.\n"
     "- Nhận định phải dựa trên số liệu có trong slide. KHÔNG khẳng định nguyên nhân bên ngoài hay lý do cá nhân (thời tiết, chính sách, đối thủ, tâm lý nhân viên...). Số liệu chưa cho biết lý do thì nói 'số liệu chưa cho biết lý do, phần này cần anh chị trao đổi thêm với phòng'. "
     "Được nêu giả thuyết khi nói rõ đó là giả thuyết cần kiểm tra. Việc đề xuất chỉ là việc trong tầm quản lý số liệu (tập trung vào phòng nào, người nào, mảng nào, theo dõi chỉ số gì, trong bao lâu); không đề xuất tăng người, tăng ca, đổi chính sách.\n"
     "- Độ dài mỗi slide khoảng 70 đến 120 từ (slide nguyen_nhan và ket_luan được tới 150 từ), chia thành các câu ngắn dễ nghe.\n"
@@ -89,7 +89,7 @@ def viet_loi(user, bai: dict) -> dict:
     except tro_ly.LoiAI as e:
         bai["dung_ai"], bai["ly_do_luat"] = False, f"AI chưa viết được lời nói ({e})"
         return bai
-    for lan in (1, 2):
+    for lan in (1, 2, 3):                 # lần 1 = lời vừa viết; lần 2, 3 = sau khi nhờ viết lại các slide bị loại
         loai = {}
         for s in bai["slides"]:
             if s["nguon_loi"] == "ai":
@@ -99,7 +99,7 @@ def viet_loi(user, bai: dict) -> dict:
                 s["loi_noi"], s["nguon_loi"] = chu.strip(), "ai"
             else:
                 loai[s["id"]] = (chu, _so_sai(chu, s["su_that"]))
-        if not loai or lan == 2:
+        if not loai or lan == 3:
             break
         try:
             ra = _goi_viet(user, ch, [s for s in bai["slides"] if s["id"] in loai], bai["ngay_hien"], loai)
