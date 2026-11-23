@@ -156,7 +156,7 @@ def test_chi_ban_giam_doc_goi_duoc_callback_va_thay_menu():
     for role in ("phong", "operator", "nvkd", "online", "dvkh"):
         with server.test_request_context("/"):
             login_user(_tk(role, ["IBB7"]))
-            for ham, tham in ((thuyettrinh.cb_tao, (1,)), (thuyettrinh.cb_hoi, (1, 0, "hỏi", {"slides": [{}]}, 0, [])), (thuyettrinh.cb_ve, ({"slides": [{}]}, 0))):
+            for ham, tham in ((thuyettrinh.cb_tao, (1, 0, "")), (thuyettrinh.cb_hoi, (1, 0, "hỏi", {"slides": [{}]}, 0, [])), (thuyettrinh.cb_ve, ({"slides": [{}]}, 0))):
                 with pytest.raises(PreventUpdate):
                     ham(*tham)
             assert ung_dung.MUC_THUYET_TRINH not in ung_dung._muc_he_thong([], "KD"), role
@@ -182,8 +182,61 @@ def test_js_phan_tich_lenh_giong_noi():
     ma = ('global.window = {}; global.document = { addEventListener() {}, getElementById() { return null; }, querySelector() { return null; } };'
           f'require({json.dumps(str(GOC / "assets" / "thuyet_trinh.js"))}); const p = window.dash_clientside.tt.phanTich;'
           'const v = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(JSON.stringify(v.map(x => p(x[0], x[1]))));')
-    vao = [["Thuyết trình cho tôi", False], ["xin chào", False], ["tiếp", True], ["Slide ba", True], ["slide số 5", True], ["lùi lại", True], ["dừng", True], ["đọc tiếp", True], ["nói lại", True],
+    vao = [["phân tích phòng IBB7", False], ["thuyết trình cho tôi", False], ["báo cáo toàn bộ chi nhánh tới 22/11", True], ["tiếp", True], ["Slide ba", True], ["slide số 5", True], ["lùi lại", True], ["dừng", True], ["đọc tiếp", True], ["nói lại", True],
            ["vì sao IBB5 hụt nhiều nhất", True], ["tại sao quay lại slide trước đó lại thấp như vậy", True]]
     kq = json.loads(subprocess.run([shutil.which("node"), "-e", ma], input=json.dumps(vao), capture_output=True, text=True, encoding="utf-8", check=True).stdout)
-    assert [k["lenh"] for k in kq] == ["tao", "chua_co_bai", "tiep", "slide", "slide", "lui", "dung", "phat", "lai", "hoi", "hoi"]
-    assert kq[3]["so"] == 3 and kq[4]["so"] == 5 and kq[9]["chu"] == "vì sao IBB5 hụt nhiều nhất"
+    assert [k["lenh"] for k in kq] == ["tao", "tao", "tao", "tiep", "slide", "slide", "lui", "dung", "phat", "lai", "hoi", "hoi"]
+    assert kq[0]["chu"] == "phân tích phòng IBB7" and kq[4]["so"] == 3 and kq[5]["so"] == 5 and kq[10]["chu"] == "vì sao IBB5 hụt nhiều nhất"
+
+
+# ------------------------------------------------------------------ hiểu yêu cầu bằng chữ
+PHONGS = [{"code": "IBB7", "ten": "IBB7"}, {"code": "IBB6", "ten": "IBB6"}, {"code": "TAMKY", "ten": "Tam Kỳ"}, {"code": "HOIAN", "ten": "Hội An"}]
+NGAYS = [f"2026-11-{d:02d}" for d in range(1, 23)] + ["2026-10-30", "2026-10-31"]
+
+
+def test_yeu_cau_toan_chi_nhanh_va_khoang_ngay():
+    from app import thuyet_trinh_yeu_cau as yc
+    ngays = sorted(NGAYS)
+    y = yc.phan_tich("báo cáo toàn bộ chi nhánh từ đầu tháng 11 - 22/11", ngays, PHONGS)
+    assert y["phong"] is None and y["ngay"] == "2026-11-22" and y["tu"] == "2026-11-01" and "toàn chi nhánh" in y["ghi_chu"] and "01/11/2026 đến 22/11/2026" in y["ghi_chu"]
+    assert "chỉ có số luỹ kế" not in y["ghi_chu"], "bắt đầu từ ngày 01 thì không cần nhắc"
+    y2 = yc.phan_tich("báo cáo từ ngày 5 tháng 11 đến ngày 20 tháng 11", ngays, PHONGS)
+    assert y2["ngay"] == "2026-11-20" and "chỉ có số luỹ kế từ ngày 01" in y2["ghi_chu"]
+    assert yc.phan_tich("", ngays, PHONGS)["ngay"] == "2026-11-22" and yc.phan_tich("hôm qua", ngays, PHONGS)["ngay"] == "2026-11-21"
+    y3 = yc.phan_tich("tổng kết tháng 10", ngays, PHONGS)
+    assert y3["ngay"] == "2026-10-31"
+    assert "chưa có số nên dùng ngày 22/11" in yc.phan_tich("tới 25/11", ngays, PHONGS)["ghi_chu"]
+    with pytest.raises(ValueError):
+        yc.phan_tich("báo cáo tới 15/09", ngays, PHONGS)
+    with pytest.raises(ValueError):
+        yc.phan_tich("tháng 8", ngays, PHONGS)
+
+
+def test_yeu_cau_tim_phong_theo_ma_ten_va_cach_noi():
+    from app import thuyet_trinh_yeu_cau as yc
+    tim = lambda c: yc.tim_phong(c, PHONGS)
+    assert tim("phân tích phòng IBB7") == "IBB7" and tim("phân tích phòng ibb 7 nhé") == "IBB7" and tim("báo cáo B6") == "IBB6" and tim("phân tích phòng ibb bảy") == "IBB7"
+    assert tim("phòng Tam Kỳ thế nào") == "TAMKY" and tim("phan tich phong hoi an") == "HOIAN" and tim("toàn bộ chi nhánh") is None
+    y = yc.phan_tich("phân tích phòng IBB7", sorted(NGAYS), PHONGS)
+    assert y["phong"] == "IBB7" and "phòng IBB7" in y["ghi_chu"]
+
+
+# ------------------------------------------------------------------ bài cho một phòng
+def test_bai_mot_phong_co_slide_dung_phong_va_so_khop(bai):
+    from app import ban_tin as bt, thuyet_trinh as tt
+    from app.tro_ly_dieu_hanh_nd import kiem_so
+    b = tt.dung_bai(_tk("admin"), bai["ngay"], "IBB7")
+    ids = [s["id"] for s in b["slides"]]
+    assert b["phong"] == "IBB7" and ids[0] == "tong_quan_phong" and ids[-1] == "ket_luan" and {"nhip_phong", "nhan_su_phong", "chat_luong_phong", "ton_phong"} <= set(ids)
+    sl = bt._so_lieu_bgd(b["ngay"])
+    hang = sl["phong"][sl["phong"]["phong_code"] == "IBB7"].iloc[0]
+    s0 = b["slides"][0]
+    assert s0["su_that"]["luy_ke"] == int(hang["luy_ke"]) and s0["su_that"]["muc_tieu"] == int(hang["mt"]) and "IBB7" in s0["tieu_de"] and s0["phong_chinh"]["ma"] == "IBB7"
+    ns = next(s for s in b["slides"] if s["id"] == "nhan_su_phong")
+    assert ns["hinh"] and ns["su_that"]["so_nguoi"] > 0
+    for s in b["slides"]:
+        assert s["diem"] and len(s["loi_noi"]) > 60 and s["nguon_loi"] == "luat", s["id"]
+        if s["id"] != "nguyen_nhan":
+            assert kiem_so(s["loi_noi"], tt.bang_kiem_so(s["su_that"])), (s["id"], s["loi_noi"])
+    with pytest.raises(ValueError):
+        tt.dung_bai(_tk("admin"), bai["ngay"], "KHONGCO")

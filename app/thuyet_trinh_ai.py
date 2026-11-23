@@ -26,7 +26,7 @@ HE_THONG = (
     "- KHÔNG bịa nguyên nhân hay lý do cá nhân. Số liệu không cho biết lý do thì nói 'số liệu chưa cho biết lý do'. Không đề xuất họp gấp, thêm người, tăng ca ngoài các việc có trong slide ket_luan.\n"
     "- Văn nói tiếng Việt, không gạch đầu dòng, không markdown, không ngoặc đơn, không ký hiệu như % + = /; viết 'phần trăm', 'tăng', 'giảm'. Giữ nguyên tên phòng, tên người.\n"
     "- Chỉ dùng chữ 'online' cho hợp đồng đã lắp xong, không dùng cách gọi khác. 'Tồn' là hợp đồng chưa online. 'Cùng kỳ' là cùng khoảng ngày tháng trước.\n"
-    "- Slide đầu (tong_quan) mở bằng lời chào ngắn; slide cuối (ket_luan) kết bằng lời chốt ngắn; các slide giữa mở bằng cụm chuyển ý rất ngắn.\n"
+    "- Slide đầu mở bằng lời chào ngắn; slide cuối (id ket_luan) kết bằng lời chốt ngắn; các slide giữa mở bằng cụm chuyển ý rất ngắn. Bài có thể là cả chi nhánh hoặc MỘT phòng (tên phòng nằm trong bang_su_that).\n"
     "Trả về MỘT đối tượng JSON: {\"loi_noi\": {\"<id slide>\": \"<lời nói>\", ...}} với đủ mọi id đã nhận.")
 
 Y_NGUYEN_NHAN = re.compile(r"vì sao|tại sao|do đâu|nguyên nhân|lý do|phân tích|vấn đề gì|sao lại|tại làm sao", re.I)

@@ -258,13 +258,14 @@ def _ton(c: dict) -> dict:
     return _slide("ton", "Hợp đồng tồn lâu", [x for x in diem if x], su_that, loi, hinh=ve.ton_lau([t for t, _ in top], [n for _, n in top]) if top else None)
 
 
-def _tinh(c: dict) -> dict:
+def _tinh(c: dict, code: str | None = None, ten_phong: str = "") -> dict:
+    """Slide theo tỉnh của cả chi nhánh, hoặc của MỘT phòng nếu có `code`."""
     from app.org import loc_chi_nhanh
     from app.ui.pages.phantich_tinh import hinh_tinh
     thang, ngay = c["thang"], c["ngay"]
     tu, den = f"{thang}-01", c["ngay_iso"]
     ck = pt.cung_ky_thang_truoc(thang, ngay)
-    scope = loc_chi_nhanh(None, "all", thang)
+    scope = [code] if code else loc_chi_nhanh(None, "all", thang)
     bang = pt.bang_tinh(pt.online_theo_tinh(tu, den, scope), pt.online_theo_tinh(*ck, scope))
     bang = bang[bang["online"] > 0]
     tong = int(bang["online"].sum())
@@ -290,7 +291,8 @@ def _tinh(c: dict) -> dict:
            + (("Giảm nhiều nhất là " + ", ".join(f"{t} giảm {abs(v)}" for t, v in giam_l) + ".") if giam_l else ""))
     hinh = json.loads(hinh_tinh(bang.head(12), f"Tháng {ck[0][5:7].lstrip('0')}").to_json())
     hinh["layout"]["height"] = 420
-    return _slide("tinh", "Online theo tỉnh", [x for x in diem if x], su_that, loi, hinh=hinh)
+    return _slide("tinh", "Online theo tỉnh" + (f" · {ten_phong}" if code else ""), [x for x in diem if x], su_that, (f"Về địa bàn của {ten_phong}. " if code else "") + loi, hinh=hinh,
+                  phong_chinh={"ma": code, "ten": ten_phong} if code else None)
 
 
 def _nhan_su(c: dict, user) -> dict | None:
@@ -331,12 +333,17 @@ def _nhan_su(c: dict, user) -> dict | None:
 
 
 def _nguyen_nhan(c: dict, user) -> dict | None:
-    from app.fox_nguyen_nhan import nguyen_nhan
+    """Slide "Vì sao" cho phòng đang hụt nhiều nhất của chi nhánh (không có phòng nào hụt thì bỏ slide)."""
     can = bnd._phong_can_chu_y(c["sl"])
     can = can[can["hut"] > 0] if len(can) else can
     if can.empty:
         return None
-    code, ten = str(can.iloc[0]["phong_code"]), str(can.iloc[0]["phong"])
+    return slide_nguyen_nhan(c, user, str(can.iloc[0]["phong_code"]), str(can.iloc[0]["phong"]), hut_nhieu_nhat=True)
+
+
+def slide_nguyen_nhan(c: dict, user, code: str, ten: str, hut_nhieu_nhat: bool = False) -> dict:
+    """Chẩn đoán nguyên nhân một phòng (`fox_nguyen_nhan.nguyen_nhan`, đã tách sẵn theo người, nguồn hợp đồng, tuần, đầu vào - đầu ra); dùng chung bài chi nhánh và bài từng phòng."""
+    from app.fox_nguyen_nhan import nguyen_nhan
     van_ban = nguyen_nhan(user, c["ngay_iso"], code)
     dong = [x.strip() for x in van_ban.split("\n")]
     ket_qua = next((x for x in dong if x.startswith("Kết quả:")), "")
@@ -344,8 +351,9 @@ def _nguyen_nhan(c: dict, user) -> dict | None:
     ket_qua = re.sub(r"\s*Mỗi phần dưới đây[^.]*\.", "", ket_qua)
     diem = ([_cat(ket_qua)] if ket_qua else []) + [_cat(x) for x in gach]
     su_that = _co(c, phong=ten, van_ban_chan_doan=van_ban)
-    loi = " ".join(x.rstrip(".") + "." for x in [f"Đi sâu vào {ten}, phòng đang hụt nhiều nhất so với mục tiêu", re.sub(r"\s*=\s*", ", tức ", ket_qua.replace("Kết quả:", "").strip()), *gach[:3]] if x)
-    return _slide("nguyen_nhan", f"Vì sao {ten} đang hụt?", diem, su_that, loi, phong_chinh={"ma": code, "ten": ten})
+    mo = f"Đi sâu vào {ten}" + (", phòng đang hụt nhiều nhất so với mục tiêu" if hut_nhieu_nhat else ", xem vì sao số online tăng giảm so với cùng kỳ")
+    loi = " ".join(x.rstrip(".") + "." for x in [mo, re.sub(r"\s*=\s*", ", tức ", ket_qua.replace("Kết quả:", "").strip()), *gach[:3]] if x)
+    return _slide("nguyen_nhan", f"Vì sao {ten} đang hụt?" if hut_nhieu_nhat else f"Phòng {ten}: vì sao tăng giảm so với cùng kỳ", diem, su_that, loi, phong_chinh={"ma": code, "ten": ten})
 
 
 def _ket_luan(c: dict, nhan_su: dict | None) -> dict:
@@ -387,9 +395,14 @@ def _ket_luan(c: dict, nhan_su: dict | None) -> dict:
 
 
 # ------------------------------------------------------------------ dựng bài
-def dung_bai(user, ngay_iso: str | None = None) -> dict:
-    """Bài thuyết trình khối Kinh doanh theo số mới nhất (hoặc `ngay_iso`). Slide nào không dựng được (thiếu nguồn) thì bỏ, không làm hỏng cả bài."""
+def dung_bai(user, ngay_iso: str | None = None, phong: str | None = None) -> dict:
+    """Bài thuyết trình khối Kinh doanh theo số mới nhất (hoặc `ngay_iso`): toàn chi nhánh, hoặc MỘT phòng nếu có `phong` (mã phòng, `thuyet_trinh_phong`).
+    Slide nào không dựng được (thiếu nguồn) thì bỏ, không làm hỏng cả bài."""
     c = _ngu_canh(ngay_iso)
+    if phong:
+        from app import thuyet_trinh_phong
+        slides = thuyet_trinh_phong.dung_slide(c, user, phong)
+        return _bai(c, slides, phong=phong)
     slides = [_tong_quan(c)]
     nhan_su = None
     for ham in (_phong_du_bao, _cung_ky, _nhip, _chat_luong, _ton, _tinh):
@@ -407,5 +420,10 @@ def dung_bai(user, ngay_iso: str | None = None) -> dict:
             if ten == "nhan_su":
                 nhan_su = s
     slides.append(_ket_luan(c, nhan_su))
+    return _bai(c, slides)
+
+
+def _bai(c: dict, slides: list[dict], phong: str | None = None) -> dict:
     ngay = date.fromisoformat(c["ngay_iso"])
-    return {"ngay": c["ngay_iso"], "ngay_hien": f"{ngay:%d/%m/%Y}", "tam_tinh": c["tam_tinh"], "slides": slides, "dung_ai": False, "ly_do_luat": "", "tao_luc": datetime.now().isoformat(timespec="seconds")}
+    return {"ngay": c["ngay_iso"], "ngay_hien": f"{ngay:%d/%m/%Y}", "tam_tinh": c["tam_tinh"], "phong": phong, "slides": slides, "dung_ai": False, "ly_do_luat": "",
+            "tao_luc": datetime.now().isoformat(timespec="seconds")}

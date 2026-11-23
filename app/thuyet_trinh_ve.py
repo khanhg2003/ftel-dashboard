@@ -75,3 +75,13 @@ def ton_lau(ten: list[str], so: list[int]) -> dict:
                            hovertemplate="%{y}: %{x} hợp đồng chờ từ 7 ngày<extra></extra>"))
     fig.update_yaxes(autorange="reversed")
     return _dict(fig, _cao(len(ten)))
+
+
+def nhan_su_online(ten: list[str], nay: list[int], truoc: list[int]) -> dict:
+    """Cột ngang đôi: online luỹ kế của từng nhân sự (xanh) so với cùng kỳ tháng trước (cam), người nhiều online đứng trên."""
+    fig = go.Figure()
+    fig.add_bar(y=ten, x=nay, name="Kỳ này", orientation="h", marker_color=XANH, text=nay, textposition="outside", cliponaxis=False, hovertemplate="%{y}: %{x} online<extra></extra>")
+    fig.add_bar(y=ten, x=truoc, name="Cùng kỳ tháng trước", orientation="h", marker_color=CAM, hovertemplate="%{y}: cùng kỳ %{x} online<extra></extra>")
+    fig.update_layout(barmode="group")
+    fig.update_yaxes(autorange="reversed")
+    return _dict(fig, _cao(len(ten), 44))
