@@ -409,3 +409,23 @@ def test_js_lenh_bat_dau_va_nut_bat_dau_o_trang(bai):
         ket = thuyettrinh.cb_ve(bai, 0)
         assert len(ket) == 6 and ket[3] and ket[4] is True and ket[5] is False                      # có lời của slide kế tiếp để xin sẵn giọng
         assert thuyettrinh.cb_ve(bai, len(bai["slides"]) - 1)[3] == ""
+
+
+# ------------------------------------------------------------------ tài khoản kỹ thuật không dùng được
+def test_tai_khoan_ky_thuat_admin_khong_thay_va_khong_goi_duoc_thuyet_trinh():
+    from dash.exceptions import PreventUpdate
+    from flask_login import login_user
+    from app import api_thuyet_trinh as api
+    from app.auth import ADMIN_USERNAME, SessionUser
+    from app.ui import app as ung_dung
+    from app.ui.app import server
+    from app.ui.pages import thuyettrinh
+    ky_thuat = SessionUser(SimpleNamespace(id=1, username=ADMIN_USERNAME, ho_ten="Kỹ thuật", role="admin", ma_nv=None, session_version=0, scope="[]"))
+    assert ky_thuat.la_superadmin and not ky_thuat.duoc_thuyet_trinh and _tk("admin").duoc_thuyet_trinh
+    with server.test_request_context("/api/thuyet-trinh/doc", method="POST", json={"chu": "Xin chào."}):
+        login_user(ky_thuat)
+        assert api.doc()[1] == 403
+        assert ung_dung.MUC_THUYET_TRINH not in ung_dung._muc_he_thong([], "KD")
+        assert "chỉ dành cho ban giám đốc" in repr(ung_dung._router("/thuyettrinh", "", None)[0]).lower()
+        with pytest.raises(PreventUpdate):
+            thuyettrinh.cb_tao(1, 0, "")

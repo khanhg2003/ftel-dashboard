@@ -1,4 +1,4 @@
-"""Trang "Thuyết trình AI" (`/thuyettrinh`, chỉ Ban Giám đốc - `duoc_cau_hinh`), khối Kinh doanh (chủ app chốt 23/11/2026, bản đầu).
+"""Trang "Thuyết trình AI" (`/thuyettrinh`, chỉ Ban Giám đốc, không gồm tài khoản kỹ thuật - `duoc_thuyet_trinh`), khối Kinh doanh (chủ app chốt 23/11/2026, bản đầu).
 
 Gõ hoặc nói YÊU CẦU ("báo cáo toàn bộ chi nhánh từ đầu tháng 11 đến 22/11", "phân tích phòng IBB7"; để trống = toàn chi nhánh, số mới nhất): `app/thuyet_trinh_yeu_cau.py` hiểu yêu cầu bằng luật,
 máy chủ dựng các slide phù hợp từ số liệu của app (`app/thuyet_trinh.py` cho chi nhánh, `thuyet_trinh_phong.py` cho một phòng) rồi nhờ AI viết lời nói (`app/thuyet_trinh_ai.py`).
@@ -17,7 +17,7 @@ from app.ui.components import alert, callback_can_quyen, card
 from app.ui.icons import icon
 from app.ui.tro_ly import con_cao
 
-QUYEN = "duoc_cau_hinh"
+QUYEN = "duoc_thuyet_trinh"
 TOC_DO = (("Chậm", "0.85"), ("Vừa", "1"), ("Nhanh", "1.15"), ("Rất nhanh", "1.3"))
 TOI_DA_LICH_SU = 12
 
@@ -216,7 +216,7 @@ def _ghi(hanh_dong: str, chi_tiet: str) -> None:
 
 
 def register(app):
-    """Callback nào cũng kiểm `duoc_cau_hinh` ở máy chủ (`callback_can_quyen`). Phần đọc to và nghe giọng nói chạy ở trình duyệt (`assets/thuyet_trinh.js`)."""
+    """Callback nào cũng kiểm `duoc_thuyet_trinh` ở máy chủ (`callback_can_quyen`). Phần đọc to và nghe giọng nói chạy ở trình duyệt (`assets/thuyet_trinh.js`)."""
     cb = callback_can_quyen(app, QUYEN)
     cb(Output("tt-bai", "data"), Output("tt-i", "data"), Output("tt-hoi-thoai", "data"), Output("tt-thongbao", "children"), Input("tt-tao", "n_clicks"), Input("tt-yeu-cau", "n_submit"),
        State("tt-yeu-cau", "value"), prevent_initial_call=True,

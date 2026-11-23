@@ -100,6 +100,11 @@ class SessionUser(UserMixin):
         return self.role in ROLE_SETTINGS
 
     @property
+    def duoc_thuyet_trinh(self) -> bool:
+        """Trang Thuyết trình AI: BGĐ (role admin) và KHÔNG phải tài khoản kỹ thuật (chủ app chốt 23/11/2026)."""
+        return self.role == "admin" and not self.la_superadmin
+
+    @property
     def duoc_xem_nhan_su(self) -> bool:
         return self.role in ROLE_XEM_NHAN_SU
 

@@ -223,7 +223,7 @@ def _muc_he_thong(muc: list, khoi: str = kh.KD) -> list:
     from app import tro_ly_dieu_hanh_so
     if not current_user.duoc_cau_hinh:
         return muc
-    return [*muc, *([MUC_TRO_LY] if tro_ly_dieu_hanh_so.bat() else []), *([MUC_THUYET_TRINH] if khoi == kh.KD else [])]
+    return [*muc, *([MUC_TRO_LY] if tro_ly_dieu_hanh_so.bat() else []), *([MUC_THUYET_TRINH] if khoi == kh.KD and current_user.duoc_thuyet_trinh else [])]
 
 
 def _sidebar(path: str, khoi_dang_xem: str = kh.KD):
@@ -510,7 +510,7 @@ def _router(path, search=None, store=None):
         return ads_page.layout(tab), ads_page.topbar()
     if path == "/thuyettrinh":
         from app.ui.pages import thuyettrinh
-        if not current_user.duoc_cau_hinh:
+        if not current_user.duoc_thuyet_trinh:
             return html.Div("Trang này chỉ dành cho Ban Giám đốc."), _topbar_simple("Thuyết trình AI")
         return thuyettrinh.layout(), thuyettrinh.topbar()
     if path == "/trolydieuhanh":

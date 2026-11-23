@@ -1,4 +1,4 @@
-"""Đường cho trang Thuyết trình AI xin giọng đọc tiếng Việt (xem app/thuyet_trinh_giong.py). Cần đăng nhập (bộ chặn chung của app) VÀ là Ban Giám đốc (`duoc_cau_hinh`).
+"""Đường cho trang Thuyết trình AI xin giọng đọc tiếng Việt (xem app/thuyet_trinh_giong.py). Cần đăng nhập (bộ chặn chung của app) VÀ là Ban Giám đốc, không gồm tài khoản kỹ thuật (`duoc_thuyet_trinh`).
 
 POST /api/thuyet-trinh/doc  {"chu": "một câu", "giong": "Sulafat"}  ->  audio/wav; lỗi trả JSON {"loi": "..."} bằng tiếng Việt.
 """
@@ -13,7 +13,7 @@ bp = Blueprint("api_thuyet_trinh", __name__)
 @bp.post("/api/thuyet-trinh/doc")
 def doc():
     from app import thuyet_trinh_giong as giong, tro_ly
-    if not getattr(current_user, "duoc_cau_hinh", False):
+    if not getattr(current_user, "duoc_thuyet_trinh", False):
         return jsonify({"loi": "Chỉ Ban Giám đốc dùng được giọng đọc này."}), 403
     d = request.get_json(silent=True) or {}
     chu, ten = d.get("chu"), d.get("giong")
