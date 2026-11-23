@@ -33,7 +33,7 @@ HE_THONG = (
     "Slide đầu mở bằng lời chào ngắn và nói thẳng kết luận lớn nhất của cả bài trong một câu. Slide cuối (id ket_luan) chốt 2 đến 3 việc em đề xuất ưu tiên và nói rõ vì sao, kết bằng một câu ngắn mời anh chị cho ý kiến hoặc hỏi thêm.\n"
     "- Văn NÓI như người thật: câu ngắn xen câu vừa, có từ nối tự nhiên ('thế nhưng', 'nói cách khác', 'quan trọng hơn', 'đáng nói là', 'nếu để ý'), có lúc đặt câu hỏi rồi tự trả lời. Không văn bản hành chính, không liệt kê khô cứng, không sáo rỗng.\n"
     "QUY TẮC BẮT BUỘC (hệ thống kiểm tra từng con số, sai là lời bị loại):\n"
-    "- Mọi con số em nói ra phải có trong bang_su_that của ĐÚNG slide đó: chép đúng, không tự tính thêm, không làm tròn lại, không đổi đơn vị. Muốn so sánh mà không có sẵn số thì nói bằng lời ('gần gấp đôi', 'chưa tới một nửa', 'nhỉnh hơn một chút'), không tự tạo con số mới. Không có số thì nói bằng lời, đừng bịa.\n"
+    "- Mọi con số em nói ra phải có trong bang_su_that của ĐÚNG slide đó: chép đúng, không tự tính thêm, không làm tròn lại, không đổi đơn vị. Không tự đặt mốc thời gian hay hạn chót kiểu '48 giờ', '3 ngày', '2 tuần': chỉ dùng ngày đã có trong số liệu, hoặc nói 'sớm', 'trong vài ngày tới'. Muốn so sánh mà không có sẵn số thì nói bằng lời ('gần gấp đôi', 'chưa tới một nửa', 'nhỉnh hơn một chút'), không tự tạo con số mới. Không có số thì nói bằng lời, đừng bịa.\n"
     "- Nhận định phải dựa trên số liệu có trong slide. KHÔNG khẳng định nguyên nhân bên ngoài hay lý do cá nhân (thời tiết, chính sách, đối thủ, tâm lý nhân viên...). Số liệu chưa cho biết lý do thì nói 'số liệu chưa cho biết lý do, phần này cần anh chị trao đổi thêm với phòng'. "
     "Được nêu giả thuyết khi nói rõ đó là giả thuyết cần kiểm tra. Việc đề xuất chỉ là việc trong tầm quản lý số liệu (tập trung vào phòng nào, người nào, mảng nào, theo dõi chỉ số gì, trong bao lâu); không đề xuất tăng người, tăng ca, đổi chính sách.\n"
     "- Độ dài mỗi slide khoảng 70 đến 120 từ (slide nguyen_nhan và ket_luan được tới 150 từ), chia thành các câu ngắn dễ nghe.\n"
@@ -58,28 +58,54 @@ def _hop_le(chu: str, su_that: dict) -> bool:
     return LOI_TOI_THIEU <= len(chu) <= LOI_TOI_DA and not re.search(r"đấu\s*nối", chu, re.I) and kiem_so(chu, tt.bang_kiem_so(su_that))
 
 
+def _so_sai(chu: str, su_that: dict) -> list[str]:
+    """Các con số trong lời nói không có trong bảng sự thật của slide (để báo cho AI khi nhờ viết lại)."""
+    from app.tro_ly_dieu_hanh_nd import _SO, _so_cho_phep, _ung_vien
+    cho_phep = _so_cho_phep(tt.bang_kiem_so(su_that), set())
+    return [tok for tok in _SO.findall(chu or "") if not any((round(v, 6) if isinstance(v, float) else v) in cho_phep for v in _ung_vien(tok))]
+
+
+def _goi_viet(user, ch: dict, slides: list[dict], ngay: str, loi_truoc: dict | None = None) -> dict:
+    """Một lượt nhờ AI viết lời cho `slides`; `loi_truoc` = {id: (lời cũ, [số sai])} khi nhờ viết lại các slide bị loại. Trả {id: lời nói}."""
+    dau_vao = {"ngay_so": ngay, "slides": [{"id": s["id"], "tieu_de": s["tieu_de"], "bang_su_that": s["su_that"], "ban_mau": s["loi_noi"]} for s in slides]}
+    if loi_truoc:
+        dau_vao["can_viet_lai"] = {i: f"Lời trước bị loại vì có số không nằm trong bang_su_that của slide: {', '.join(sai) or 'sai khuôn hoặc quá ngắn / dài'}. Viết lại, bỏ hoặc thay các số đó bằng lời." for i, (_, sai) in loi_truoc.items()}
+    msg = tro_ly.hoi([{"role": "system", "content": HE_THONG}, {"role": "user", "content": json.dumps(dau_vao, ensure_ascii=False, default=str)}],
+                     ch["model_chat"], ch["key"], user.username, "thuyet_trinh" if not loi_truoc else "thuyet_trinh_lai", toi_da=9000, han=HAN_VIET_LOI, dinh_dang={"type": "json_object"})
+    ra = (doc_json(msg.get("content") or "") or {}).get("loi_noi")
+    return ra if isinstance(ra, dict) else {}
+
+
 def viet_loi(user, bai: dict) -> dict:
-    """Thêm lời nói do AI viết vào `bai` (sửa tại chỗ và trả lại): slide nào lời hợp lệ thì `nguon_loi = "ai"`. Không dùng được AI thì ghi lý do ở `ly_do_luat`."""
+    """Thêm lời nói do AI viết vào `bai` (sửa tại chỗ và trả lại): slide nào lời hợp lệ thì `nguon_loi = "ai"`. Slide bị loại (số không khớp...) được nhờ viết lại MỘT lần kèm lý do cụ thể;
+    vẫn không đạt thì giữ lời mẫu. Không dùng được AI thì ghi lý do ở `ly_do_luat`."""
     try:
         ch = tro_ly.kiem_tra(user)
     except tro_ly.LoiAI as e:
         bai["dung_ai"], bai["ly_do_luat"] = False, str(e)
         return bai
-    dau_vao = {"ngay_so": bai["ngay_hien"], "slides": [{"id": s["id"], "tieu_de": s["tieu_de"], "bang_su_that": s["su_that"], "ban_mau": s["loi_noi"]} for s in bai["slides"]]}
     try:
-        msg = tro_ly.hoi([{"role": "system", "content": HE_THONG}, {"role": "user", "content": json.dumps(dau_vao, ensure_ascii=False, default=str)}],
-                         ch["model_chat"], ch["key"], user.username, "thuyet_trinh", toi_da=9000, han=HAN_VIET_LOI, dinh_dang={"type": "json_object"})
+        ra = _goi_viet(user, ch, bai["slides"], bai["ngay_hien"])
     except tro_ly.LoiAI as e:
         bai["dung_ai"], bai["ly_do_luat"] = False, f"AI chưa viết được lời nói ({e})"
         return bai
-    ra = (doc_json(msg.get("content") or "") or {}).get("loi_noi")
-    ra = ra if isinstance(ra, dict) else {}
-    dung = 0
-    for s in bai["slides"]:
-        chu = ra.get(s["id"])
-        if isinstance(chu, str) and _hop_le(tro_ly.lam_sach(chu), s["su_that"]):
-            s["loi_noi"], s["nguon_loi"] = tro_ly.lam_sach(chu).strip(), "ai"
-            dung += 1
+    for lan in (1, 2):
+        loai = {}
+        for s in bai["slides"]:
+            if s["nguon_loi"] == "ai":
+                continue
+            chu = tro_ly.lam_sach(ra.get(s["id"]) or "") if isinstance(ra.get(s["id"]), str) else ""
+            if _hop_le(chu, s["su_that"]):
+                s["loi_noi"], s["nguon_loi"] = chu.strip(), "ai"
+            else:
+                loai[s["id"]] = (chu, _so_sai(chu, s["su_that"]))
+        if not loai or lan == 2:
+            break
+        try:
+            ra = _goi_viet(user, ch, [s for s in bai["slides"] if s["id"] in loai], bai["ngay_hien"], loai)
+        except tro_ly.LoiAI:
+            break
+    dung = sum(1 for s in bai["slides"] if s["nguon_loi"] == "ai")
     bai["dung_ai"] = dung > 0
     bai["ly_do_luat"] = "" if dung == len(bai["slides"]) else ("AI viết sai số hoặc sai khuôn ở mọi slide nên dùng lời mẫu." if not dung else f"{len(bai['slides']) - dung} slide dùng lời mẫu vì lời AI có số không khớp bảng số liệu.")
     return bai

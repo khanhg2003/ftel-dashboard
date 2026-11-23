@@ -429,3 +429,23 @@ def test_tai_khoan_ky_thuat_admin_khong_thay_va_khong_goi_duoc_thuyet_trinh():
         assert "chỉ dành cho ban giám đốc" in repr(ung_dung._router("/thuyettrinh", "", None)[0]).lower()
         with pytest.raises(PreventUpdate):
             thuyettrinh.cb_tao(1, 0, "")
+
+
+def test_viet_loi_slide_bi_loai_duoc_nho_viet_lai_mot_lan_kem_ly_do(monkeypatch):
+    from app import thuyet_trinh_ai as ai, tro_ly
+    monkeypatch.setattr(tro_ly, "kiem_tra", lambda u: {"model_chat": "m", "key": "k"})
+    cac_lan = []
+
+    def hoi(messages, *a, **k):
+        nd = json.loads(messages[1]["content"])
+        cac_lan.append(nd)
+        if "can_viet_lai" not in nd:
+            return {"content": json.dumps({"loi_noi": {"a": "Tính đến ngày 11, toàn chi nhánh có 1394 online, đây là con số cần theo dõi sát.",
+                                                       "b": "Có tới 999 hợp đồng tồn, rất nhiều so với mọi khi và cần xử lý ngay trong tuần này."}}, ensure_ascii=False)}
+        return {"content": json.dumps({"loi_noi": {"b": "Hiện còn 279 hợp đồng tồn, đây là phần dư địa em thấy dễ chuyển thành online nhất trong ngắn hạn."}}, ensure_ascii=False)}
+    monkeypatch.setattr(tro_ly, "hoi", hoi)
+    b = ai.viet_loi(_tk("admin"), _bai_nho())
+    assert [s["nguon_loi"] for s in b["slides"]] == ["ai", "ai"] and b["ly_do_luat"] == "" and len(cac_lan) == 2
+    assert [s["id"] for s in cac_lan[1]["slides"]] == ["b"] and "999" in cac_lan[1]["can_viet_lai"]["b"]       # chỉ gửi lại slide bị loại, nói rõ số nào sai
+    assert "279" in b["slides"][1]["loi_noi"]
+    assert ai._so_sai("Có 48 giờ và 279 hợp đồng.", b["slides"][1]["su_that"]) == ["48"]
