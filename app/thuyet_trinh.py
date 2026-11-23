@@ -104,8 +104,10 @@ def _co(c: dict, **them) -> dict:
     return {"ngay": c["ngay"], "thang": c["thang_so"], "so_ngay_thang": c["so_ngay"], "con_lai": c["con_lai"], **them}
 
 
-def _slide(id_: str, tieu_de: str, diem: list[str], su_that: dict, loi: str, kpi=None, hinh=None, bang=None) -> dict:
-    return {"id": id_, "tieu_de": tieu_de, "kpi": kpi or [], "hinh": hinh, "bang": bang, "diem": [_cat(d) for d in diem], "su_that": su_that, "loi_noi": loi, "nguon_loi": "luat"}
+def _slide(id_: str, tieu_de: str, diem: list[str], su_that: dict, loi: str, kpi=None, hinh=None, bang=None, phong_chinh: dict | None = None) -> dict:
+    """`phong_chinh` = {ma, ten} của phòng mà slide đang nói tới (nếu có): để câu hỏi "vì sao" về slide đó được tra nguyên nhân đúng phòng."""
+    return {"id": id_, "tieu_de": tieu_de, "kpi": kpi or [], "hinh": hinh, "bang": bang, "diem": [_cat(d) for d in diem], "su_that": su_that, "loi_noi": loi, "nguon_loi": "luat",
+            "phong_chinh": phong_chinh}
 
 
 # ------------------------------------------------------------------ các slide
@@ -152,6 +154,7 @@ def _phong_du_bao(c: dict) -> dict:
     cao = list(zip(ten[::-1][:2], [f"{round(p)}%" for p in pct[::-1][:2]]))
     can = bnd._phong_can_chu_y(sl)
     hut = [(str(r["phong"]), int(r["hut"])) for _, r in can[can["hut"] > 0].head(3).iterrows()]
+    chinh = {"ma": str(can[can["hut"] > 0].iloc[0]["phong_code"]), "ten": hut[0][0]} if hut else None
     diem = [f"{rr}/{n} phòng ở mức Rủi ro, {tt} phòng cần tăng tốc, {at} phòng an toàn.", f"Dự báo thấp nhất: {_ds_ten(thap)}." if thap else "",
             f"Cao nhất: {_ds_ten(cao)}." if cao else "", ("Hụt nhiều nhất so với mục tiêu: " + ", ".join(f"{t} (hụt {_so(v)})" for t, v in hut) + ".") if hut else "Không phòng nào hụt so với mục tiêu."]
     su_that = _co(c, so_phong=n, rui_ro=rr, can_tang_toc=tt, an_toan=at, pct_du_bao={t: round(p) for t, p in zip(ten, pct)}, hut_nhieu_nhat={t: v for t, v in hut})
@@ -159,7 +162,7 @@ def _phong_du_bao(c: dict) -> dict:
            + (f"Thấp nhất là {_ds_ten([(t, v.replace('%', ' phần trăm')) for t, v in thap])} mục tiêu. " if thap else "")
            + (f"Cao nhất là {_ds_ten([(t, v.replace('%', ' phần trăm')) for t, v in cao])}. " if cao else "")
            + (("Phòng hụt nhiều nhất so với mục tiêu: " + ", ".join(f"{t} hụt {v}" for t, v in hut) + ".") if hut else ""))
-    return _slide("phong", "Dự báo cuối tháng của từng phòng", [x for x in diem if x], su_that, loi, hinh=ve.du_bao_theo_phong(ten, pct, dg))
+    return _slide("phong", "Dự báo cuối tháng của từng phòng", [x for x in diem if x], su_that, loi, hinh=ve.du_bao_theo_phong(ten, pct, dg), phong_chinh=chinh)
 
 
 def _cung_ky(c: dict) -> dict:
@@ -336,7 +339,7 @@ def _nguyen_nhan(c: dict, user) -> dict | None:
     diem = ([_cat(ket_qua)] if ket_qua else []) + [_cat(x) for x in gach]
     su_that = _co(c, phong=ten, van_ban_chan_doan=van_ban)
     loi = " ".join(x.rstrip(".") + "." for x in [f"Đi sâu vào {ten}, phòng đang hụt nhiều nhất so với mục tiêu", re.sub(r"\s*=\s*", ", tức ", ket_qua.replace("Kết quả:", "").strip()), *gach[:3]] if x)
-    return _slide("nguyen_nhan", f"Vì sao {ten} đang hụt?", diem, su_that, loi)
+    return _slide("nguyen_nhan", f"Vì sao {ten} đang hụt?", diem, su_that, loi, phong_chinh={"ma": code, "ten": ten})
 
 
 def _ket_luan(c: dict, nhan_su: dict | None) -> dict:

@@ -29,12 +29,15 @@ HE_THONG = (
     "- Slide đầu (tong_quan) mở bằng lời chào ngắn; slide cuối (ket_luan) kết bằng lời chốt ngắn; các slide giữa mở bằng cụm chuyển ý rất ngắn.\n"
     "Trả về MỘT đối tượng JSON: {\"loi_noi\": {\"<id slide>\": \"<lời nói>\", ...}} với đủ mọi id đã nhận.")
 
+Y_NGUYEN_NHAN = re.compile(r"vì sao|tại sao|do đâu|nguyên nhân|lý do|phân tích|vấn đề gì|sao lại|tại làm sao", re.I)
+
 LOI_DAN_NOI = (
     "\n\nĐANG THUYẾT TRÌNH BẰNG GIỌNG NÓI (quy định này GHI ĐÈ mọi quy định về độ dài và định dạng ở trên): trả lời bằng LỜI NÓI tự nhiên, liền mạch như người đang giải thích "
-    "trước phòng họp. KHÔNG markdown, KHÔNG gạch đầu dòng, KHÔNG tiêu đề, KHÔNG ngoặc đơn, KHÔNG ký hiệu % + = /; nói 'phần trăm', 'tăng', 'giảm'. Khoảng 60 đến 130 từ; câu hỏi "
-    "'vì sao / nguyên nhân' thì gọi công cụ phan_tich_nguyen_nhan rồi nêu 2-3 nguyên nhân theo mức ảnh hưởng kèm số, và việc nên làm. Câu hỏi giải thích một con số trên slide thì "
-    "giải thích con số đó nghĩa là gì và vì sao quan trọng bằng chính số liệu của slide, chỉ gọi công cụ khi cần đào sâu hơn slide. Số liệu không cho biết thì nói chưa có. "
-    "Không nhắc tên công cụ, không nói 'slide' trừ khi người hỏi nhắc tới.")
+    "trước phòng họp. KHÔNG markdown, KHÔNG gạch đầu dòng, KHÔNG tiêu đề, KHÔNG ngoặc đơn, KHÔNG ký hiệu % + = /; nói 'phần trăm', 'tăng', 'giảm'. Khoảng 60 đến 130 từ. "
+    "Câu hỏi 'vì sao / nguyên nhân / do đâu': trả lời bằng kết quả phân tích nguyên nhân (đã được tra sẵn bên dưới, hoặc TỰ gọi công cụ phan_tich_nguyen_nhan cho đúng phòng), nêu 2-3 nguyên nhân theo mức ảnh hưởng kèm số, "
+    "nói rõ điều KHÔNG phải nguyên nhân nếu số cho thấy, rồi việc nên làm. Câu hỏi giải thích một con số trên slide thì giải thích con số đó nghĩa là gì và vì sao quan trọng bằng chính số liệu của slide, "
+    "chỉ gọi công cụ khi cần đào sâu hơn slide. TỰ tra số cần thiết rồi trả lời: TUYỆT ĐỐI không bảo người nghe 'cần phân tích thêm', 'cần dùng công cụ', 'hãy yêu cầu tra'; không nhắc tên công cụ. "
+    "Chỉ khi tra rồi mà số liệu vẫn không cho biết thì nói 'số liệu chưa cho biết lý do'. Không nói 'slide' trừ khi người hỏi nhắc tới.")
 
 
 # ------------------------------------------------------------------ lời nói cho cả bài
@@ -78,6 +81,37 @@ def _ngu_canh_slide(bai: dict, i: int) -> str:
             + "\n".join(f"- {d}" for d in s["diem"]) + f"\nSố liệu của slide (JSON): {so}\nCâu hỏi 'cái này', 'phòng này', 'con số này' là nói về slide đang xem.")
 
 
+def _phong_trong_cau(cau: str) -> str | None:
+    """Mã phòng được nhắc trong câu hỏi (IBB5, "B5", tên phòng như Tam Kỳ); không có thì None."""
+    from app.org import phong_order
+    chu = cau.lower()
+    m = re.search(r"\b(?:ibb|b)\s*(\d)\b", chu)
+    ds = list(phong_order())
+    if m:
+        for x in ds:
+            if x["code"].lower() == f"ibb{m.group(1)}":
+                return x["code"]
+    for x in sorted(ds, key=lambda x: -len(x["ten"])):
+        if len(x["ten"]) >= 4 and x["ten"].lower() in chu:
+            return x["code"]
+    return None
+
+
+def _tra_san_nguyen_nhan(user, bai: dict, i: int, cau: str) -> str:
+    """Câu hỏi "vì sao..." thì tra SẴN chẩn đoán nguyên nhân của phòng được nhắc (hoặc phòng chính của slide) và đưa vào ngữ cảnh: không phụ thuộc việc AI có tự gọi công cụ hay không."""
+    if not Y_NGUYEN_NHAN.search(cau):
+        return ""
+    code = _phong_trong_cau(cau) or ((bai["slides"][i].get("phong_chinh") or {}).get("ma"))
+    if not code:
+        return ""
+    from app.fox_nguyen_nhan import nguyen_nhan
+    try:
+        van_ban = nguyen_nhan(user, bai["ngay"], code)
+    except Exception:
+        return ""
+    return (f"\n\nKẾT QUẢ PHÂN TÍCH NGUYÊN NHÂN ĐÃ TRA SẴN cho phòng {code} (đã tách theo người, nguồn hợp đồng, tuần, đầu vào - đầu ra; dùng để trả lời, không cần tra lại):\n{van_ban[:9000]}")
+
+
 def lam_sach_noi(chu: str) -> str:
     """Chữ trả lời của AI -> chữ hiển thị: bỏ markdown, gộp dòng, không còn gạch đầu dòng."""
     from app.zalo_gia_ai import bo_markdown
@@ -90,6 +124,7 @@ def hoi(user, bai: dict, i: int, cau_hoi: str, lich_su: list[dict]) -> str:
     """Trả lời `cau_hoi` về slide thứ `i` (có thể đào sâu bằng công cụ của Fox). Ném `tro_ly.LoiAI` (câu tiếng Việt) nếu AI không dùng được."""
     i = max(0, min(int(i), len(bai["slides"]) - 1))
     co_dinh, thay_doi = dl.ngu_canh_chat(user, "/", {})
-    tra_loi = tro_ly.chat(user, lich_su[-6:], cau_hoi.strip()[:500], (co_dinh, thay_doi + _ngu_canh_slide(bai, i) + LOI_DAN_NOI), dl.cong_cu(user),
+    tra_san = _tra_san_nguyen_nhan(user, bai, i, cau_hoi)
+    tra_loi = tro_ly.chat(user, lich_su[-6:], cau_hoi.strip()[:500], (co_dinh, thay_doi + _ngu_canh_slide(bai, i) + tra_san + LOI_DAN_NOI), dl.cong_cu(user),
                           lambda ten, ts: dl.chay_cong_cu(user, ten, ts))
     return lam_sach_noi(tra_loi)

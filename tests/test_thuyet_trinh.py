@@ -124,6 +124,24 @@ def test_hoi_gui_ngu_canh_slide_va_lam_sach_markdown(monkeypatch):
     assert "**" not in kq and "\n" not in kq and "- " not in kq and kq.startswith("Kết luận:")
 
 
+def test_cau_hoi_vi_sao_duoc_tra_san_nguyen_nhan_dung_phong(monkeypatch):
+    from app import fox_nguyen_nhan, thuyet_trinh_ai as ai, tro_ly
+    goi, thu = [], {}
+    monkeypatch.setattr(fox_nguyen_nhan, "nguyen_nhan", lambda user, den, code: goi.append((den, code)) or "CHẨN ĐOÁN GIẢ: người A giảm 5")
+    monkeypatch.setattr(tro_ly, "chat", lambda user, ls, cau, nc, cc, chay: thu.update(nc=nc) or "ok")
+    b = _bai_nho()
+    b["slides"][1]["phong_chinh"] = {"ma": "IBB2", "ten": "IBB2"}
+    ai.hoi(_tk("admin"), b, 1, "Vì sao phòng hụt nhiều nhất lại thấp như vậy?", [])
+    assert goi == [("2026-09-11", "IBB2")] and "CHẨN ĐOÁN GIẢ" in thu["nc"][1] and "ĐÃ TRA SẴN cho phòng IBB2" in thu["nc"][1], "phòng lấy từ slide"
+    goi.clear()
+    ai.hoi(_tk("admin"), b, 1, "tại sao IBB6 giảm", [])
+    assert goi == [("2026-09-11", "IBB6")], "phòng nêu trong câu hỏi được ưu tiên hơn phòng của slide"
+    goi.clear()
+    ai.hoi(_tk("admin"), b, 1, "con số này nghĩa là gì", [])
+    assert goi == [], "câu không hỏi nguyên nhân thì không tra thêm"
+    assert ai._phong_trong_cau("vì sao B5 thấp") == "IBB5" and ai._phong_trong_cau("xin chào") is None
+
+
 # ------------------------------------------------------------------ quyền và menu
 def test_chi_ban_giam_doc_goi_duoc_callback_va_thay_menu():
     from dash.exceptions import PreventUpdate
