@@ -388,3 +388,24 @@ def test_trang_co_bang_chon_giong_khong_con_giong_trinh_duyet_va_luu_ma_chi_bgd(
     assert "speechSynthesis" not in js and "SpeechSynthesisUtterance" not in js          # đã bỏ hẳn giọng của trình duyệt
     if shutil.which("node"):
         assert subprocess.run(["node", "--check", str(goc_js)], capture_output=True).returncode == 0
+
+
+# ------------------------------------------------------------------ nút Bắt đầu thuyết trình, đọc theo đoạn
+@pytest.mark.skipif(shutil.which("node") is None, reason="Không có Node để chạy đoạn JS")
+def test_js_lenh_bat_dau_va_nut_bat_dau_o_trang(bai):
+    ma = ('global.window = {}; global.document = { addEventListener() {}, getElementById() { return null; }, querySelector() { return null; } };'
+          f'require({json.dumps(str(GOC / "assets" / "thuyet_trinh.js"))}); const p = window.dash_clientside.tt.phanTich;'
+          'const v = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(JSON.stringify(v.map(x => p(x[0], x[1]))));')
+    vao = [["bắt đầu thuyết trình", True], ["bắt đầu", True], ["tiếp tục", True], ["thuyết trình lại phòng IBB7 đến 22/11", True]]
+    kq = json.loads(subprocess.run([shutil.which("node"), "-e", ma], input=json.dumps(vao), capture_output=True, text=True, encoding="utf-8", check=True).stdout)
+    assert [k["lenh"] for k in kq] == ["phat", "phat", "phat", "tao"]
+    from flask_login import login_user
+    from app.ui.app import server
+    from app.ui.pages import thuyettrinh
+    with server.test_request_context("/"):
+        login_user(_tk("admin"))
+        ly = thuyettrinh.layout()
+        assert ly["tt-phat"].children == "▶ Bắt đầu thuyết trình" and ly["tt-phat2"] is not None and ly["tt-loi-sau"] is not None
+        ket = thuyettrinh.cb_ve(bai, 0)
+        assert len(ket) == 6 and ket[3] and ket[4] is True and ket[5] is False                      # có lời của slide kế tiếp để xin sẵn giọng
+        assert thuyettrinh.cb_ve(bai, len(bai["slides"]) - 1)[3] == ""

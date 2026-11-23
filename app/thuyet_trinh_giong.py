@@ -11,9 +11,11 @@ import base64
 import hashlib
 import json
 import os
+import re
 import socket
 import struct
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections import OrderedDict
@@ -29,7 +31,8 @@ MODEL_DU_PHONG = "gemini-2.5-flash-preview-tts"  # API generateContent
 PHONG_THUYET_TRINH = "đọc bằng tiếng Việt, giọng thuyết trình chuyên nghiệp, rõ ràng, tự nhiên, nhịp vừa phải, không quá nhanh"
 MAC_DINH = "Sulafat"
 KHOA_LUU = "tt.gemini_key"
-TOI_DA_KY_TU = 700                 # một câu lời nói dài tối đa; quá thì từ chối để không bị lợi dụng đọc văn bản tuỳ ý
+TOI_DA_KY_TU = 1200                # một lần xin đọc (vài câu gộp lại) dài tối đa; quá thì từ chối để không bị lợi dụng đọc văn bản tuỳ ý
+TOI_DA_CHO = 30                    # Gemini báo quá giới hạn: chờ tối đa chừng này giây rồi thử lại MỘT lần
 TOI_DA_NHO = 100                   # số câu nhớ tạm trong tiến trình (mỗi câu vài trăm KB WAV)
 
 # (tên giọng, mô tả tiếng Việt, "nu" / "nam") - 30 giọng có sẵn của Gemini; thứ tự như trang chọn giọng của Navi
@@ -47,6 +50,7 @@ TEN_GIONG = {g[0] for g in GIONG}
 
 _nho: OrderedDict[str, bytes] = OrderedDict()
 _khoa = threading.Lock()
+_luot = threading.Lock()           # Gemini chỉ cho vài yêu cầu mỗi phút (gói miễn phí: 3): tạo giọng lần lượt từng yêu cầu, không dồn cùng lúc
 
 
 # ------------------------------------------------------------------ khoá Gemini
@@ -94,9 +98,12 @@ def _http(duong_dan: str, body: dict, key: str, han: float) -> dict:
         except Exception:
             chi_tiet = ""
         thong_bao = {401: "Mã Gemini không hợp lệ.", 403: "Mã Gemini không có quyền dùng giọng đọc.",
-                     429: "Gemini báo quá nhiều yêu cầu hoặc hết hạn mức giọng đọc, thử lại sau ít phút."}
-        loi = tro_ly.LoiAI(thong_bao.get(e.code, f"Gemini báo lỗi {e.code} khi tạo giọng đọc.") + (f" ({chi_tiet[:140]})" if chi_tiet and e.code not in (401, 403) else ""))
+                     429: ("Mã Gemini đang ở gói miễn phí nên chỉ được vài yêu cầu mỗi phút. Bật thanh toán cho mã ở aistudio.google.com để đọc liền mạch." if "free" in chi_tiet.lower()
+                           else "Gemini báo quá nhiều yêu cầu hoặc hết hạn mức giọng đọc, thử lại sau ít phút.")}
+        loi = tro_ly.LoiAI(thong_bao.get(e.code, f"Gemini báo lỗi {e.code} khi tạo giọng đọc.") + (f" ({chi_tiet[:140]})" if chi_tiet and e.code not in (401, 403, 429) else ""))
         loi.ma = e.code
+        m = re.search(r"retry in (\d+)", chi_tiet, re.I)
+        loi.cho = int(m.group(1)) if m else int(e.headers.get("Retry-After") or 0)
         raise loi from None
     except (socket.timeout, TimeoutError):
         raise tro_ly.LoiAI("Giọng đọc trả lời quá lâu, thử lại.") from None
@@ -126,6 +133,23 @@ def _wav(pcm: bytes, tan_so: int = 24000) -> bytes:
 
 
 def _tao_am(chu: str, giong: str, key: str) -> bytes:
+    """Tạo lần lượt (khoá `_luot`); Gemini báo quá giới hạn mà chỉ cần chờ ngắn thì chờ rồi thử lại một lần."""
+    if not _luot.acquire(timeout=50):
+        raise tro_ly.LoiAI("Đang tạo giọng cho phần trước, thử lại sau ít giây.")
+    try:
+        try:
+            return _tao_am_mot_lan(chu, giong, key)
+        except tro_ly.LoiAI as e:
+            cho = getattr(e, "cho", 0)
+            if getattr(e, "ma", None) != 429 or not 0 < cho <= TOI_DA_CHO:
+                raise
+            time.sleep(cho + 1)
+            return _tao_am_mot_lan(chu, giong, key)
+    finally:
+        _luot.release()
+
+
+def _tao_am_mot_lan(chu: str, giong: str, key: str) -> bytes:
     loi_dau = None
     try:
         kq = _http("interactions", {"model": MODEL, "response_format": {"type": "audio"}, "generation_config": {"speech_config": [{"voice": giong}]},

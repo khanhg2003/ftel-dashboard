@@ -72,7 +72,8 @@ def _phu_de() -> html.Div:
     """Dải phụ đề dưới slide: con cáo + trạng thái (đang thuyết trình / nghe / trả lời) + câu người dùng vừa yêu cầu hoặc hỏi + câu đang đọc. Do `assets/thuyet_trinh.js` điền chữ, Dash không dựng lại."""
     return html.Div([html.Div(con_cao("lon"), className="tt-fox"),
                      html.Div([html.Div("Sẵn sàng", id="tt-chip", className="tt-chip"), html.Div(id="tt-yc-hien", className="tt-yc"),
-                               html.Div("Phụ đề lời thuyết trình sẽ hiện ở đây.", id="tt-phu-de-chu", className="tt-phu-de-chu")], className="tt-phu-de-than")], id="tt-phu-de", className="tt-phu-de")
+                               html.Div("Phụ đề lời thuyết trình sẽ hiện ở đây.", id="tt-phu-de-chu", className="tt-phu-de-chu")], className="tt-phu-de-than"),
+                     _nut("tt-phat2", "▶ Bắt đầu thuyết trình", "btn tt-phat2")], id="tt-phu-de", className="tt-phu-de")
 
 
 def _the_giong(ten: str, mo_ta: str) -> html.Div:
@@ -102,7 +103,7 @@ def layout():
     dieu_khien = html.Div([
         _nut("tt-mic", [icon("mic", 15), html.Span("Nói yêu cầu")], "btn"),
         html.Span(className="tt-ngan"),
-        _nut("tt-lui", "‹ Lùi"), _nut("tt-phat", "▶ Phát"), _nut("tt-tiep", "Tiếp ›"),
+        _nut("tt-lui", "‹ Lùi"), _nut("tt-phat", "▶ Bắt đầu thuyết trình", "btn primary"), _nut("tt-tiep", "Tiếp ›"),
         dcc.Checklist(id="tt-tu-chuyen", options=[{"label": " Tự chuyển slide", "value": "auto"}], value=["auto"], className="tt-tick"),
         html.Label(["Tốc độ đọc ", giong], className="tt-nhan"),
         _nut("tt-toan-man", "Toàn màn hình"),
@@ -119,7 +120,7 @@ def layout():
                   html.Div([html.H3("Hỏi AI về slide này"), hoi, html.Div(_bong([]), id="tt-hoi-thoai-hien", className="tt-bong-ds")], className="tt-hoi-khung")],
                  id="tt-khung", className="tt-khung"),
         _chon_giong(),
-        html.Div(id="tt-loi", style={"display": "none"}), html.Div(id="tt-loi-hien", style={"display": "none"}),
+        html.Div(id="tt-loi", style={"display": "none"}), html.Div(id="tt-loi-hien", style={"display": "none"}), html.Div(id="tt-loi-sau", style={"display": "none"}),
     ], className="tt-trang")
 
 
@@ -166,7 +167,8 @@ def cb_ve(bai, i):
         raise PreventUpdate
     n, i = len(bai["slides"]), max(0, min(int(i or 0), len(bai["slides"]) - 1))
     s = bai["slides"][i]
-    return ve_slide(s, i, n, bai), tt.cho_giong(s["loi_noi"]), s["loi_noi"], i == 0, i >= n - 1
+    sau = tt.cho_giong(bai["slides"][i + 1]["loi_noi"]) if i + 1 < n else ""       # trình duyệt xin sẵn giọng đọc của slide kế tiếp
+    return ve_slide(s, i, n, bai), tt.cho_giong(s["loi_noi"]), s["loi_noi"], sau, i == 0, i >= n - 1
 
 
 def cb_hoi(_n, _enter, cau, bai, i, lich_su):
@@ -221,7 +223,7 @@ def register(app):
        running=[(Output("tt-tao", "disabled"), True, False), (Output("tt-phat", "disabled"), True, False)])(cb_tao)
     cb(Output("tt-i", "data", allow_duplicate=True), Input("tt-lui", "n_clicks"), Input("tt-tiep", "n_clicks"), Input("tt-nhay", "value"), State("tt-i", "data"), State("tt-bai", "data"),
        prevent_initial_call=True)(cb_chuyen)
-    cb(Output("tt-slide", "children"), Output("tt-loi", "children"), Output("tt-loi-hien", "children"), Output("tt-lui", "disabled"), Output("tt-tiep", "disabled"), Input("tt-bai", "data"),
+    cb(Output("tt-slide", "children"), Output("tt-loi", "children"), Output("tt-loi-hien", "children"), Output("tt-loi-sau", "children"), Output("tt-lui", "disabled"), Output("tt-tiep", "disabled"), Input("tt-bai", "data"),
        Input("tt-i", "data"))(cb_ve)
     cb(Output("tt-hoi-thoai", "data", allow_duplicate=True), Output("tt-cau-hoi", "value"), Output("tt-tra-loi", "data"), Input("tt-hoi", "n_clicks"), Input("tt-cau-hoi", "n_submit"),
        State("tt-cau-hoi", "value"), State("tt-bai", "data"), State("tt-i", "data"), State("tt-hoi-thoai", "data"), prevent_initial_call=True,

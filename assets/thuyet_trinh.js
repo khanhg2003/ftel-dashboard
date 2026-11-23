@@ -1,7 +1,7 @@
 /* Thuyết trình AI (trang /thuyettrinh): đọc to slide bằng GIỌNG AI TIẾNG VIỆT (Gemini, máy chủ tạo từng câu, người nghe chọn giọng), hiện PHỤ ĐỀ từng câu cạnh hình con cáo, tự chuyển slide, nghe giọng nói để tạo bài / ra lệnh / đặt câu hỏi.
    Nghe dùng Web Speech API của trình duyệt (miễn phí, âm thanh không gửi lên máy chủ: chỉ chữ đã nhận dạng được gửi đi như một yêu cầu hoặc câu hỏi gõ tay). Mọi nút là nút Dash; ở đây chỉ bấm hộ và đặt giá trị ô nhập. */
 (function () {
-  var TT = { phat: false, ma: 0, tuPhat: false, nghe: null, dangNghe: false };
+  var TT = { phat: false, ma: 0, daBd: false, ketThuc: false, moi: false, pause: false, coTamDung: false, cho: null, nghe: null, dangNghe: false };
   var SO_CHU = { mot: 1, hai: 2, ba: 3, bon: 4, nam: 5, sau: 6, bay: 7, tam: 8, chin: 9, muoi: 10 };
 
   function el(id) { return document.getElementById(id); }
@@ -25,8 +25,9 @@
   function yeuCau(chu) { var e = el("tt-yc-hien"); if (e) e.textContent = chu ? "🗣 " + chu : ""; }
   function phuDe(chu) { var e = el("tt-phu-de-chu"); if (e) e.textContent = chu || ""; }
   function veNut() {
-    var b = el("tt-phat"), m = el("tt-mic"), f = el("tt-phu-de");
-    if (b) b.textContent = TT.phat ? "⏸ Tạm dừng" : "▶ Phát";
+    var m = el("tt-mic"), f = el("tt-phu-de");
+    var chu = TT.phat ? "⏸ Tạm dừng" : TT.daBd ? "▶ Tiếp tục" : TT.ketThuc ? "↻ Thuyết trình lại" : "▶ Bắt đầu thuyết trình";
+    ["tt-phat", "tt-phat2"].forEach(function (id) { var b = el(id); if (b) { b.textContent = chu; b.classList.toggle("dang-noi", TT.phat); } });
     if (m) m.classList.toggle("dang-nghe", TT.dangNghe);
     if (f) f.classList.toggle("dang-noi", TT.phat);
   }
@@ -51,11 +52,18 @@
 
   function dung() {
     TT.ma++;
-    clearTimeout(TT.hen);
-    [TT.am, TT.thu].forEach(function (a) { if (a) { a.onended = null; a.onerror = null; try { a.pause(); } catch (e) { /* bỏ qua */ } } });
+    TT.pause = false; TT.cho = null; TT.coTamDung = false;
+    [TT.am, TT.thu].forEach(function (a) { if (a) { a.onended = null; a.onerror = null; a.ontimeupdate = null; try { a.pause(); } catch (e) { /* bỏ qua */ } } });
+  }
+  /* Tạm dừng giữ nguyên chỗ đang đọc: Tiếp tục sẽ phát tiếp đúng chỗ đó (không tạo lại giọng, không tốn thêm). */
+  function tamDung() {
+    if (!TT.phat) return;
+    TT.pause = true; TT.coTamDung = true; TT.phat = false;
+    if (TT.am) { try { TT.am.pause(); } catch (e) { /* bỏ qua */ } }
+    veNut(); chip("Đã tạm dừng. Bấm Tiếp tục hoặc nói “đọc tiếp”.", "dung");
   }
 
-  /* xin âm thanh từng câu (nhớ trong trang, xin sẵn các câu kế tiếp để không bị ngắt quãng) */
+  /* xin âm thanh từng ĐOẠN (vài câu gộp lại, nhớ trong trang). Gemini giới hạn số lần xin mỗi phút (gói miễn phí chỉ 3) nên phải gom câu, không xin từng câu. */
   function layAm(chu, giong) {
     TT.dem = TT.dem || {};
     var kh = giong + "|" + chu;
@@ -75,46 +83,56 @@
   }
 
   function tachCau(chu) { return (chu || "").split(/(?<=[.!?])\s+/).map(function (c) { return c.trim(); }).filter(Boolean); }
-
-  /* Chưa đọc được (chưa có mã Gemini, lỗi mạng...): vẫn chạy bài theo nhịp chữ, mỗi câu hiện đủ lâu để đọc, và báo lý do. */
-  function noiIm(cau, dep, xong, ma) {
-    var k = 0;
-    function tiep() {
-      if (ma !== TT.ma) return;
-      if (k >= cau.length) { if (xong) xong(); return; }
-      var i = k++;
-      phuDe(dep[i]);
-      TT.hen = setTimeout(tiep, Math.max(1500, cau[i].length * 70 / tocDo()));
-    }
-    tiep();
+  var DOAN_TOI_DA = 450;          /* ký tự mỗi lần xin giọng: đủ dài để ít yêu cầu, đủ ngắn để chờ không quá lâu */
+  function gomDoan(cau) {
+    var ds = [], cur = null;
+    cau.forEach(function (c, i) {
+      if (cur && cur.chu.length + c.length + 1 <= DOAN_TOI_DA) { cur.chu += " " + c; cur.den = i; }
+      else { cur = { tu: i, den: i, chu: c }; ds.push(cur); }
+    });
+    return ds;
   }
 
-  /* Đọc từng câu và hiện đúng câu đó làm phụ đề. `hien` là bản chữ đẹp để hiển thị (cùng số câu với bản đọc thì dùng). `xong` chạy khi đọc hết. */
-  function noi(chu, xong, hien) {
+  /* Đọc theo đoạn; phụ đề hiện đúng câu đang đọc (chia theo độ dài câu trên thời lượng đoạn âm thanh). `hien` là bản chữ đẹp (cùng số câu với bản đọc thì dùng), `sau` là lời của slide kế tiếp
+     (xin sẵn đoạn đầu của nó khi đang đọc đoạn cuối để chuyển slide liền mạch). Lỗi (chưa có mã, hết hạn mức, mất mạng...) thì DỪNG và báo rõ, không chạy im lặng. */
+  function noi(chu, xong, hien, sau) {
     if (!chu) { if (xong) xong(); return; }
     dung();
-    var ma = TT.ma, cau = tachCau(chu), dep = tachCau(hien), k = 0, giong = giongDangDung();
+    var ma = TT.ma, cau = tachCau(chu), dep = tachCau(hien), giong = giongDangDung(), ds = gomDoan(cau), dsSau = sau ? gomDoan(tachCau(sau)) : [], k = 0;
     if (dep.length !== cau.length) dep = cau;
-    function lui(i, e) {
-      bao("Chưa đọc được bằng giọng " + giong + ": " + ((e && e.message) || "lỗi") + " Bài vẫn chạy theo phụ đề.");
-      noiIm(cau.slice(i), dep.slice(i), xong, ma);
+    function loi(e) {
+      if (ma !== TT.ma) return;
+      TT.phat = false; TT.coTamDung = false; veNut();
+      var m = (e && e.message) || "lỗi";
+      chip("Chưa đọc được bằng giọng " + giong, "loi"); phuDe(m); baoGiong("Chưa đọc được bằng giọng " + giong + ": " + m, "loi");
+    }
+    function hienCau(d, ti) {
+      var tong = 0, moc = [], i, j;
+      for (i = d.tu; i <= d.den; i++) { tong += cau[i].length; moc.push(tong); }
+      for (j = 0; j < moc.length - 1 && ti * tong > moc[j]; j++);
+      phuDe(dep[d.tu + j]);
     }
     function tiep() {
       if (ma !== TT.ma) return;
-      if (k >= cau.length) { if (xong) xong(); return; }
-      var i = k++;
-      phuDe(dep[i]);
-      for (var n = 1; n <= 2; n++) if (i + n < cau.length) layAm(cau[i + n], giong).catch(function () { /* lỗi sẽ báo khi tới câu đó */ });
-      layAm(cau[i], giong).then(function (url) {
+      if (k >= ds.length) { if (xong) xong(); return; }
+      var d = ds[k++], ke = k < ds.length ? ds[k].chu : (dsSau[0] && dsSau[0].chu);
+      phuDe(dep[d.tu]); chip("Em đang chuẩn bị giọng đọc…", "nghi");
+      layAm(d.chu, giong).then(function (url) {
         if (ma !== TT.ma) return;
-        var a = TT.am || (TT.am = new Audio());
-        a.src = url; a.defaultPlaybackRate = a.playbackRate = tocDo();
-        a.onended = tiep; a.onerror = function () { lui(i, new Error("không phát được âm thanh.")); };
-        var p = a.play();
-        if (p && p.catch) p.catch(function () { if (ma === TT.ma) lui(i, new Error("trình duyệt chặn phát âm thanh.")); });
-      }).catch(function (e) { if (ma === TT.ma) lui(i, e); });
+        function chay() {
+          if (ma !== TT.ma) return;
+          var a = TT.am || (TT.am = new Audio());
+          a.src = url; a.defaultPlaybackRate = a.playbackRate = tocDo();
+          a.onended = tiep; a.onerror = function () { loi(new Error("không phát được âm thanh.")); };
+          a.ontimeupdate = function () { if (a.duration > 0) hienCau(d, a.currentTime / a.duration); };
+          var p = a.play();
+          if (p && p.catch) p.catch(function () { loi(new Error("trình duyệt chặn phát âm thanh, bấm Tiếp tục để thử lại.")); });
+          chip("Em đang thuyết trình…", "noi");
+          if (ke) layAm(ke, giong).catch(function () { /* lỗi sẽ báo khi tới đoạn đó */ });
+        }
+        if (TT.pause) TT.cho = chay; else chay();
+      }).catch(loi);
     }
-    bao("Đang đọc bằng giọng " + giong + ".");
     tiep();
   }
 
@@ -139,14 +157,34 @@
   function xongSlide() {
     var tiep = el("tt-tiep");
     if (TT.phat && tuChuyen() && tiep && !tiep.disabled) { bam("tt-tiep"); return; }
-    TT.phat = false; veNut();
-    chip(tiep && tiep.disabled ? "Em đã thuyết trình xong. Anh có thể hỏi thêm." : "Đã dừng. Bấm Phát hoặc nói “đọc tiếp”.", "dung");
+    var het = !tiep || tiep.disabled;
+    TT.phat = false; TT.daBd = false; TT.ketThuc = het; veNut();
+    chip(het ? "Em đã thuyết trình xong. Anh có thể hỏi thêm hoặc bấm Thuyết trình lại." : "Đã dừng. Bấm Bắt đầu thuyết trình để nghe tiếp.", "dung");
   }
 
+  function docSlideHienTai() {
+    TT.phat = true; TT.daBd = true; TT.ketThuc = false; veNut(); chip("Em đang thuyết trình…", "noi");
+    var s = el("tt-loi-sau");
+    noi(loiHienTai(), xongSlide, loiHien(), s ? s.textContent : "");
+  }
+
+  /* Nút Bắt đầu thuyết trình / Tạm dừng / Tiếp tục (bấm là mở khoá phát âm thanh của trình duyệt). */
   function phatHoacDung() {
     if (!coBai()) { bam("tt-tao"); return; }
-    if (TT.phat) { dung(); TT.phat = false; veNut(); chip("Đã tạm dừng. Bấm Phát hoặc nói “đọc tiếp”.", "dung"); return; }
-    TT.phat = true; veNut(); chip("Em đang thuyết trình…", "noi"); noi(loiHienTai(), xongSlide, loiHien());
+    if (TT.phat) { tamDung(); return; }
+    var a = TT.am || (TT.am = new Audio());
+    if (TT.daBd && TT.coTamDung) {
+      TT.pause = false; TT.coTamDung = false; TT.phat = true; veNut(); chip("Em đang thuyết trình…", "noi");
+      if (TT.cho) { var f = TT.cho; TT.cho = null; f(); }
+      else if (a.paused && a.src && a.src.indexOf("data:") !== 0 && !a.ended) { var p = a.play(); if (p && p.catch) p.catch(function () { /* bỏ qua */ }); }
+      return;
+    }
+    moKhoa(a);
+    if (TT.ketThuc) {       /* thuyết trình lại từ slide đầu */
+      var lui = el("tt-lui");
+      if (lui && !lui.disabled) { TT.phat = true; TT.daBd = true; TT.ketThuc = false; veNut(); datGiaTri("tt-nhay", "1:" + Date.now()); return; }
+    }
+    docSlideHienTai();
   }
 
   /* ---- lệnh bằng giọng nói. `phanTich` là hàm thuần (có test bằng Node): chưa có bài thì mọi câu là YÊU CẦU tạo bài; có bài rồi thì câu ngắn khớp lệnh là lệnh, câu bắt đầu bằng
@@ -157,7 +195,7 @@
     if (/^(thuyet trinh|bao cao|tao bai|lam bai|trinh bay)\b/.test(n) && tu >= 3) return { lenh: "tao", chu: chu };
     if (tu <= 7) {
       if ((m = n.match(/slide\s*(so\s*)?(\d+|mot|hai|ba|bon|nam|sau|bay|tam|chin|muoi)/))) return { lenh: "slide", so: SO_CHU[m[2]] || parseInt(m[2], 10) };
-      if (/^(tiep tuc|doc tiep|phat|bat dau lai)/.test(n)) return { lenh: "phat" };
+      if (/^(tiep tuc|doc tiep|phat|bat dau)/.test(n)) return { lenh: "phat" };
       if (/^(dung|tam dung|nghi|im)/.test(n)) return { lenh: "dung" };
       if (/^(noi lai|doc lai|lai di)/.test(n)) return { lenh: "lai" };
       if (/^(tiep|slide tiep|sang tiep|qua tiep|tiep theo|next)/.test(n)) return { lenh: "tiep" };
@@ -171,14 +209,14 @@
   function xuLy(chu) {
     var l = phanTich(chu, coBai());
     if (l.lenh === "tao") taoTuYeuCau(l.chu);
-    else if (l.lenh === "slide") datGiaTri("tt-nhay", l.so + ":" + Date.now());
+    else if (l.lenh === "slide") { if (TT.daBd) { dung(); TT.phat = true; veNut(); } datGiaTri("tt-nhay", l.so + ":" + Date.now()); }
     else if (l.lenh === "phat") { if (!TT.phat) phatHoacDung(); }
-    else if (l.lenh === "dung") { dung(); TT.phat = false; veNut(); chip("Đã tạm dừng. Bấm Phát hoặc nói “đọc tiếp”.", "dung"); }
-    else if (l.lenh === "lai") { TT.phat = true; veNut(); chip("Em đang thuyết trình…", "noi"); noi(loiHienTai(), xongSlide, loiHien()); }
-    else if (l.lenh === "tiep") bam("tt-tiep");
-    else if (l.lenh === "lui") bam("tt-lui");
+    else if (l.lenh === "dung") tamDung();
+    else if (l.lenh === "lai") docSlideHienTai();
+    else if (l.lenh === "tiep") { if (TT.daBd) { dung(); TT.phat = true; veNut(); } bam("tt-tiep"); }
+    else if (l.lenh === "lui") { if (TT.daBd) { dung(); TT.phat = true; veNut(); } bam("tt-lui"); }
     else {
-      dung(); TT.phat = false; veNut(); yeuCau(l.chu); chip("Em đang trả lời…", "nghi");
+      dung(); TT.phat = false; TT.daBd = false; veNut(); yeuCau(l.chu); chip("Em đang trả lời…", "nghi");
       datGiaTri("tt-cau-hoi", l.chu);
       setTimeout(function () { bam("tt-hoi"); }, 80);
     }
@@ -188,7 +226,7 @@
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { bao("Trình duyệt này chưa hỗ trợ nghe giọng nói. Hãy dùng Chrome hoặc Edge."); return; }
     if (TT.dangNghe && TT.nghe) { TT.nghe.stop(); return; }
-    dung(); TT.phat = false;
+    tamDung();
     var r = new SR();
     r.lang = "vi-VN"; r.interimResults = false; r.maxAlternatives = 1;
     r.onresult = function (e) { var t = e.results[0][0].transcript; bao("Đã nghe: “" + t + "”"); xuLy(t); };
@@ -202,15 +240,15 @@
   document.addEventListener("click", function (e) {
     var b = e.target.closest ? e.target.closest("button") : null;
     if (!b || !b.id || b.id.indexOf("tt-") !== 0) return;
-    if (b.id === "tt-phat") phatHoacDung();
+    if (b.id === "tt-phat" || b.id === "tt-phat2") phatHoacDung();
     else if (b.id === "tt-mic") nghe();
     else if (b.id === "tt-tao") {
-      dung(); TT.phat = false; TT.tuPhat = true; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi");
+      dung(); TT.phat = false; TT.daBd = false; TT.ketThuc = false; TT.moi = true; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi");
       var y = el("tt-yeu-cau"); yeuCau(y && y.value ? y.value : "Báo cáo toàn bộ chi nhánh");
       phuDe("Đang dựng slide và viết lời thuyết trình, anh chờ khoảng nửa phút…");
     }
     else if (b.id === "tt-lui" || b.id === "tt-tiep") { if (e.isTrusted) dung(); }
-    else if (b.id === "tt-hoi") { dung(); TT.phat = false; veNut(); var q = el("tt-cau-hoi"); if (q && q.value) yeuCau(q.value); chip("Em đang trả lời…", "nghi"); }
+    else if (b.id === "tt-hoi") { dung(); TT.phat = false; TT.daBd = false; veNut(); var q = el("tt-cau-hoi"); if (q && q.value) yeuCau(q.value); chip("Em đang trả lời…", "nghi"); }
     else if (b.id === "tt-toan-man") { var k = el("tt-khung"); if (k && k.requestFullscreen) k.requestFullscreen(); }
   }, true);
 
@@ -229,8 +267,8 @@
     if (!el("tt-khung")) return;
     var o = e.target && e.target.tagName;
     if (o === "INPUT" || o === "TEXTAREA" || o === "SELECT") {
-      if (e.key === "Enter" && e.target.id === "tt-cau-hoi") { dung(); TT.phat = false; veNut(); if (e.target.value) yeuCau(e.target.value); chip("Em đang trả lời…", "nghi"); }
-      if (e.key === "Enter" && e.target.id === "tt-yeu-cau") { dung(); TT.phat = false; TT.tuPhat = true; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi"); yeuCau(e.target.value || "Báo cáo toàn bộ chi nhánh"); }
+      if (e.key === "Enter" && e.target.id === "tt-cau-hoi") { dung(); TT.phat = false; TT.daBd = false; veNut(); if (e.target.value) yeuCau(e.target.value); chip("Em đang trả lời…", "nghi"); }
+      if (e.key === "Enter" && e.target.id === "tt-yeu-cau") { dung(); TT.phat = false; TT.daBd = false; TT.ketThuc = false; TT.moi = true; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi"); yeuCau(e.target.value || "Báo cáo toàn bộ chi nhánh"); }
       return;
     }
     if (e.key === "ArrowRight") bam("tt-tiep");
@@ -244,10 +282,12 @@
       phanTich: phanTich,
       /* slide mới hiện ra: đang ở chế độ phát (hoặc vừa tạo bài xong) thì đọc luôn */
       noiSlide: function (chu) {
-        if (TT.tuPhat && chu) { TT.tuPhat = false; TT.phat = true; }
         veNut();
-        if (TT.phat && chu) { chip("Em đang thuyết trình…", "noi"); noi(chu, xongSlide, loiHien()); }
-        else if (chu) { phuDe(loiHien()); }
+        if (TT.phat && chu) { var s = el("tt-loi-sau"); chip("Em đang thuyết trình…", "noi"); noi(chu, xongSlide, loiHien(), s ? s.textContent : ""); }
+        else if (chu) {
+          phuDe(loiHien());
+          if (TT.moi) { TT.moi = false; chip("Bài thuyết trình đã sẵn sàng. Bấm “Bắt đầu thuyết trình” để nghe.", "dung"); }
+        }
         return window.dash_clientside.no_update;
       },
       /* câu trả lời của AI về slide: đọc to rồi dừng ở đó (bấm "Phát" / nói "đọc tiếp" để nghe tiếp bài) */
