@@ -258,6 +258,7 @@ def test_loc_duoc_nem_ten_khong_vo_khi_khong_con_ai_de_nem():
 def giong_gia(monkeypatch):
     from app import thuyet_trinh_giong as g, tro_ly
     g._nho.clear()
+    g._tong_byte = 0
     dem = {"goi": [], "chi": []}
 
     def tao(chu, giong, key):
@@ -269,6 +270,7 @@ def giong_gia(monkeypatch):
     monkeypatch.setattr(tro_ly, "_ghi_su_dung", lambda *a, **k: dem["chi"].append(a) or 0.0)
     yield dem
     g._nho.clear()
+    g._tong_byte = 0
 
 
 def test_giong_doc_nho_tam_theo_giong_va_cau_ghi_chi_phi_tung_lan_goi_that(giong_gia):
@@ -449,3 +451,32 @@ def test_viet_loi_slide_bi_loai_duoc_nho_viet_lai_mot_lan_kem_ly_do(monkeypatch)
     assert [s["id"] for s in cac_lan[1]["slides"]] == ["b"] and "999" in cac_lan[1]["can_viet_lai"]["b"]       # chỉ gửi lại slide bị loại, nói rõ số nào sai
     assert "279" in b["slides"][1]["loi_noi"]
     assert ai._so_sai("Có 48 giờ và 279 hợp đồng.", b["slides"][1]["su_that"]) == ["48"]
+
+
+def test_loi_tat_ca_cho_trinh_duyet_tao_san_giong_va_bo_nho_tam_theo_dung_luong(bai, monkeypatch):
+    from flask_login import login_user
+    from app import thuyet_trinh_giong as g
+    from app.ui.app import server
+    from app.ui.pages import thuyettrinh
+    with server.test_request_context("/"):
+        login_user(_tk("admin"))
+        ds = json.loads(thuyettrinh.cb_loi_tat_ca(bai))
+        assert len(ds) == len(bai["slides"]) and all(isinstance(x, str) and x for x in ds) and ds[0] == tt_cho_giong(bai["slides"][0]["loi_noi"])
+    g._nho.clear()
+    g._tong_byte = 0
+    monkeypatch.setattr(g, "TOI_DA_BYTE", 2500)
+    monkeypatch.setattr(g, "khoa_gemini", lambda: "AIza-khoa-thu")
+    from app import tro_ly
+    monkeypatch.setattr(tro_ly, "chi_phi_thang", lambda: 0.0)
+    monkeypatch.setattr(tro_ly, "_ghi_su_dung", lambda *a, **k: 0.0)
+    monkeypatch.setattr(g, "_tao_am", lambda chu, giong, key: g._wav(b"\x00" * 1000))      # mỗi bản ~1,05 KB
+    for i in range(5):
+        g.doc(_tk("admin"), f"Câu số {i}.")
+    assert len(g._nho) == 2 and g._tong_byte == sum(len(v) for v in g._nho.values()) <= 2500
+    g._nho.clear()
+    g._tong_byte = 0
+
+
+def tt_cho_giong(chu):
+    from app.thuyet_trinh import cho_giong
+    return cho_giong(chu)

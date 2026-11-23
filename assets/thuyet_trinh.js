@@ -1,7 +1,7 @@
 /* Thuyết trình AI (trang /thuyettrinh): đọc to slide bằng GIỌNG AI TIẾNG VIỆT (Gemini, máy chủ tạo từng câu, người nghe chọn giọng), hiện PHỤ ĐỀ từng câu cạnh hình con cáo, tự chuyển slide, nghe giọng nói để tạo bài / ra lệnh / đặt câu hỏi.
    Nghe dùng Web Speech API của trình duyệt (miễn phí, âm thanh không gửi lên máy chủ: chỉ chữ đã nhận dạng được gửi đi như một yêu cầu hoặc câu hỏi gõ tay). Mọi nút là nút Dash; ở đây chỉ bấm hộ và đặt giá trị ô nhập. */
 (function () {
-  var TT = { phat: false, ma: 0, daBd: false, ketThuc: false, moi: false, pause: false, coTamDung: false, cho: null, nghe: null, dangNghe: false };
+  var TT = { phat: false, ma: 0, san: false, xong: 0, tong: 0, maChuan: 0, loiChuan: "", loiTatCa: [], daBd: false, ketThuc: false, moi: false, pause: false, coTamDung: false, cho: null, nghe: null, dangNghe: false };
   var SO_CHU = { mot: 1, hai: 2, ba: 3, bon: 4, nam: 5, sau: 6, bay: 7, tam: 8, chin: 9, muoi: 10 };
 
   function el(id) { return document.getElementById(id); }
@@ -24,12 +24,22 @@
   function chip(chu, kieu) { var e = el("tt-chip"); if (e) { e.textContent = chu; e.className = "tt-chip " + (kieu || ""); } }
   function yeuCau(chu) { var e = el("tt-yc-hien"); if (e) e.textContent = chu ? "🗣 " + chu : ""; }
   function phuDe(chu) { var e = el("tt-phu-de-chu"); if (e) e.textContent = chu || ""; }
+  function dangChuan() { return TT.tong > 0 && !TT.san && !TT.loiChuan; }
   function veNut() {
-    var m = el("tt-mic"), f = el("tt-phu-de");
+    var m = el("tt-mic"), f = el("tt-phu-de"), cho = dangChuan() && !TT.phat && !TT.daBd;
     var chu = TT.phat ? "⏸ Tạm dừng" : TT.daBd ? "▶ Tiếp tục" : TT.ketThuc ? "↻ Thuyết trình lại" : "▶ Bắt đầu thuyết trình";
-    ["tt-phat", "tt-phat2"].forEach(function (id) { var b = el(id); if (b) { b.textContent = chu; b.classList.toggle("dang-noi", TT.phat); } });
+    var b = el("tt-phat"), b2 = el("tt-phat2");
+    if (b) { b.textContent = cho ? "⏳ Đang chuẩn bị giọng " + TT.xong + "/" + TT.tong : chu; b.disabled = cho; b.classList.toggle("dang-noi", TT.phat); }
+    if (b2) { b2.textContent = cho ? "▶ Bắt đầu ngay" : chu; b2.classList.toggle("dang-noi", TT.phat); }
     if (m) m.classList.toggle("dang-nghe", TT.dangNghe);
     if (f) f.classList.toggle("dang-noi", TT.phat);
+  }
+  /* Thông báo trạng thái chuẩn bị giọng (chỉ khi chưa bắt đầu thuyết trình) */
+  function chipChuan() {
+    if (TT.phat || TT.daBd) return;
+    if (TT.loiChuan) { chip("Chưa chuẩn bị xong giọng đọc", "loi"); phuDe(TT.loiChuan + " Bấm Bắt đầu thuyết trình để thử lại."); return; }
+    if (dangChuan()) { chip("Em đang chuẩn bị giọng đọc cho cả bài: " + TT.xong + "/" + TT.tong, "nghi"); phuDe("Anh xem lướt các slide trong lúc chờ. Chuẩn bị xong em sẽ báo, rồi anh bấm Bắt đầu thuyết trình."); return; }
+    if (TT.tong > 0) { chip("Giọng đọc đã sẵn sàng", "dung"); phuDe("Đã chuẩn bị xong giọng đọc cho cả bài. Bấm “Bắt đầu thuyết trình” để nghe."); }
   }
 
   /* ---- giọng đọc: CHỈ giọng AI tiếng Việt (Gemini) do máy chủ tạo, người nghe chọn ở bảng "Giọng của Fox" (nhớ trên máy này). Không dùng giọng của trình duyệt: máy hay không có giọng Việt và đọc bằng giọng nước ngoài. */
@@ -45,7 +55,11 @@
     });
   }
   function baoGiong(chu, kieu) { var e = el("tt-gv-bao"); if (e) { e.textContent = chu || ""; e.className = "tt-gv-bao" + (kieu ? " " + kieu : ""); } bao(chu); }
-  function datGiong(ten) { try { localStorage.setItem("tt-giong", ten); } catch (e) { /* bỏ qua */ } veGiong(); baoGiong("Đã chọn giọng " + ten + ". Giọng này dùng từ câu đọc tiếp theo.", "ok"); }
+  function datGiong(ten) {
+    try { localStorage.setItem("tt-giong", ten); } catch (e) { /* bỏ qua */ }
+    veGiong(); baoGiong("Đã chọn giọng " + ten + ". Giọng này dùng từ câu đọc tiếp theo.", "ok");
+    if (TT.loiTatCa && TT.loiTatCa.length && !TT.phat && !TT.daBd) batDauChuanBi();
+  }
   /* Mở khoá phát âm thanh ngay trong lúc bấm (một số trình duyệt chặn phát tiếng sau khi chờ mạng): cho phần tử audio phát một đoạn im lặng rồi dùng lại chính nó. */
   var IM_LANG = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
   function moKhoa(a) { try { a.src = IM_LANG; var p = a.play(); if (p && p.catch) p.catch(function () { /* bỏ qua */ }); } catch (e) { /* bỏ qua */ } }
@@ -83,7 +97,7 @@
   }
 
   function tachCau(chu) { return (chu || "").split(/(?<=[.!?])\s+/).map(function (c) { return c.trim(); }).filter(Boolean); }
-  var DOAN_TOI_DA = 450;          /* ký tự mỗi lần xin giọng: đủ dài để ít yêu cầu, đủ ngắn để chờ không quá lâu */
+  var DOAN_TOI_DA = 1100;         /* ký tự mỗi lần xin giọng: gần như mỗi slide chỉ một lần (giọng đều hơn, ít yêu cầu hơn); tạo sẵn cả bài nên không lo chờ lâu */
   function gomDoan(cau) {
     var ds = [], cur = null;
     cau.forEach(function (c, i) {
@@ -91,6 +105,35 @@
       else { cur = { tu: i, den: i, chu: c }; ds.push(cur); }
     });
     return ds;
+  }
+
+  /* Tạo sẵn giọng đọc cho CẢ BÀI ngay khi bài hiện ra (mỗi slide thường một lần tạo duy nhất nên giọng đều hơn, và khi thuyết trình không phải chờ giữa các slide).
+     Làm tuần tự hai luồng để không vượt giới hạn của Google; lỗi thì dừng và báo, vẫn cho bấm Bắt đầu để thử lại. */
+  function batDauChuanBi() {
+    var ds = TT.loiTatCa || [], giong = giongDangDung(), hang = [], ma = ++TT.maChuan;
+    ds.forEach(function (chu) { gomDoan(tachCau(chu)).forEach(function (d) { hang.push(d.chu); }); });
+    TT.xong = 0; TT.tong = hang.length; TT.san = hang.length === 0; TT.loiChuan = "";
+    veNut(); chipChuan();
+    if (!hang.length) return;
+    var k = 0;
+    function chay() {
+      if (ma !== TT.maChuan) return;
+      if (k >= hang.length) return;
+      var chu = hang[k++];
+      layAm(chu, giong).then(function () {
+        if (ma !== TT.maChuan) return;
+        TT.xong++;
+        if (TT.xong >= TT.tong) { TT.san = true; }
+        veNut(); chipChuan();
+        chay();
+      }).catch(function (e) {
+        if (ma !== TT.maChuan) return;
+        TT.maChuan++;
+        TT.loiChuan = "Chưa tạo được giọng đọc: " + ((e && e.message) || "lỗi") + ".";
+        veNut(); chipChuan(); baoGiong(TT.loiChuan, "loi");
+      });
+    }
+    chay(); chay();
   }
 
   /* Đọc theo đoạn; phụ đề hiện đúng câu đang đọc (chia theo độ dài câu trên thời lượng đoạn âm thanh). `hien` là bản chữ đẹp (cùng số câu với bản đọc thì dùng), `sau` là lời của slide kế tiếp
@@ -245,7 +288,7 @@
     if (b.id === "tt-phat" || b.id === "tt-phat2") phatHoacDung();
     else if (b.id === "tt-mic") nghe();
     else if (b.id === "tt-tao") {
-      dung(); TT.phat = false; TT.daBd = false; TT.ketThuc = false; TT.moi = true; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi");
+      dung(); TT.phat = false; TT.daBd = false; TT.ketThuc = false; TT.moi = true; TT.maChuan++; TT.san = false; TT.tong = 0; TT.xong = 0; TT.loiChuan = ""; TT.loiTatCa = []; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi");
       var y = el("tt-yeu-cau"); yeuCau(y && y.value ? y.value : "Báo cáo toàn bộ chi nhánh");
       phuDe("Đang dựng slide và viết lời thuyết trình, anh chờ khoảng nửa phút…");
     }
@@ -270,7 +313,7 @@
     var o = e.target && e.target.tagName;
     if (o === "INPUT" || o === "TEXTAREA" || o === "SELECT") {
       if (e.key === "Enter" && e.target.id === "tt-cau-hoi") { dung(); TT.phat = false; TT.daBd = false; veNut(); if (e.target.value) yeuCau(e.target.value); chip("Em đang trả lời…", "nghi"); }
-      if (e.key === "Enter" && e.target.id === "tt-yeu-cau") { dung(); TT.phat = false; TT.daBd = false; TT.ketThuc = false; TT.moi = true; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi"); yeuCau(e.target.value || "Báo cáo toàn bộ chi nhánh"); }
+      if (e.key === "Enter" && e.target.id === "tt-yeu-cau") { dung(); TT.phat = false; TT.daBd = false; TT.ketThuc = false; TT.moi = true; TT.maChuan++; TT.san = false; TT.tong = 0; TT.xong = 0; TT.loiChuan = ""; TT.loiTatCa = []; veNut(); chip("Em đang chuẩn bị bài thuyết trình…", "nghi"); yeuCau(e.target.value || "Báo cáo toàn bộ chi nhánh"); }
       return;
     }
     if (e.key === "ArrowRight") bam("tt-tiep");
@@ -283,12 +326,20 @@
     tt: {
       phanTich: phanTich,
       /* slide mới hiện ra: đang ở chế độ phát (hoặc vừa tạo bài xong) thì đọc luôn */
+      /* lời đọc của cả bài (JSON) vừa về: bắt đầu tạo sẵn giọng */
+      chuanBi: function (json) {
+        var ds = [];
+        try { ds = JSON.parse(json || "[]"); } catch (e) { ds = []; }
+        TT.loiTatCa = ds;
+        if (ds.length) batDauChuanBi();
+        return window.dash_clientside.no_update;
+      },
       noiSlide: function (chu) {
         veNut();
         if (TT.phat && chu) { var s = el("tt-loi-sau"); chip("Em đang thuyết trình…", "noi"); noi(chu, xongSlide, loiHien(), s ? s.textContent : ""); }
         else if (chu) {
           phuDe(loiHien());
-          if (TT.moi) { TT.moi = false; chip("Bài thuyết trình đã sẵn sàng. Bấm “Bắt đầu thuyết trình” để nghe.", "dung"); }
+          if (TT.moi) { TT.moi = false; if (TT.tong > 0) chipChuan(); else chip("Bài thuyết trình đã dựng xong. Đang chuẩn bị giọng đọc…", "nghi"); }
         }
         return window.dash_clientside.no_update;
       },

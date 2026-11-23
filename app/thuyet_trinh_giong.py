@@ -28,12 +28,12 @@ from app.models import AuditLog, CaiDat
 API = "https://generativelanguage.googleapis.com/v1beta"
 MODEL = "gemini-3.8-flash-tts"                  # API interactions
 MODEL_DU_PHONG = "gemini-2.5-flash-preview-tts"  # API generateContent
-PHONG_THUYET_TRINH = "đọc bằng tiếng Việt, giọng thuyết trình chuyên nghiệp, rõ ràng, tự nhiên, nhịp vừa phải, không quá nhanh"
+PHONG_THUYET_TRINH = "đọc bằng tiếng Việt, giọng thuyết trình chuyên nghiệp, rõ ràng, tự nhiên, nhịp vừa phải, không quá nhanh, giữ nguyên một giọng, cao độ và tốc độ ổn định từ đầu đến cuối như đang đọc liền một bài"
 MAC_DINH = "Sulafat"
 KHOA_LUU = "tt.gemini_key"
 TOI_DA_KY_TU = 1200                # một lần xin đọc (vài câu gộp lại) dài tối đa; quá thì từ chối để không bị lợi dụng đọc văn bản tuỳ ý
 TOI_DA_CHO = 65                    # Gemini báo quá giới hạn (gói miễn phí: 3 yêu cầu / phút): chờ tối đa chừng này giây rồi thử lại MỘT lần
-TOI_DA_NHO = 100                   # số câu nhớ tạm trong tiến trình (mỗi câu vài trăm KB WAV)
+TOI_DA_BYTE = 150_000_000          # bộ nhớ tạm trong tiến trình (một slide ~1 phút tiếng = ~3 MB WAV)
 
 # (tên giọng, mô tả tiếng Việt, "nu" / "nam") - 30 giọng có sẵn của Gemini; thứ tự như trang chọn giọng của Navi
 GIONG = [
@@ -49,8 +49,9 @@ GIONG = [
 TEN_GIONG = {g[0] for g in GIONG}
 
 _nho: OrderedDict[str, bytes] = OrderedDict()
+_tong_byte = 0
 _khoa = threading.Lock()
-_luot = threading.Lock()           # Gemini chỉ cho vài yêu cầu mỗi phút (gói miễn phí: 3): tạo giọng lần lượt từng yêu cầu, không dồn cùng lúc
+_luot = threading.Semaphore(2)     # Gemini chỉ cho vài yêu cầu mỗi phút (gói miễn phí: 3): tối đa 2 yêu cầu chạy cùng lúc, không dồn một đống
 
 
 # ------------------------------------------------------------------ khoá Gemini
@@ -76,8 +77,10 @@ def luu_khoa(khoa: str | None, nguoi: str) -> None:
         else:
             row.gia_tri, row.updated_by, row.updated_at = tro_ly.ma_hoa(khoa.strip()), nguoi, datetime.utcnow()
         s.add(AuditLog(username=nguoi, action="thuyet_trinh_khoa_giong", detail="xoá mã" if khoa is None else "đã đổi mã"))
+    global _tong_byte
     with _khoa:
         _nho.clear()
+        _tong_byte = 0
 
 
 def trang_thai_khoa() -> str:
@@ -134,7 +137,7 @@ def _wav(pcm: bytes, tan_so: int = 24000) -> bytes:
 
 def _tao_am(chu: str, giong: str, key: str) -> bytes:
     """Tạo lần lượt (khoá `_luot`); Gemini báo quá giới hạn mà chỉ cần chờ ngắn thì chờ rồi thử lại một lần."""
-    if not _luot.acquire(timeout=150):
+    if not _luot.acquire(timeout=300):
         raise tro_ly.LoiAI("Đang tạo giọng cho phần trước, thử lại sau ít giây.")
     try:
         try:
@@ -153,7 +156,7 @@ def _tao_am_mot_lan(chu: str, giong: str, key: str) -> bytes:
     loi_dau = None
     try:
         kq = _http("interactions", {"model": MODEL, "response_format": {"type": "audio"}, "generation_config": {"speech_config": [{"voice": giong}]},
-                                    "input": [{"type": "user_input", "content": [{"type": "text", "text": chu, "annotations": [{"type": "speech_metadata", "style": PHONG_THUYET_TRINH}]}]}]}, key, 40)
+                                    "input": [{"type": "user_input", "content": [{"type": "text", "text": chu, "annotations": [{"type": "speech_metadata", "style": PHONG_THUYET_TRINH}]}]}]}, key, 170)
     except tro_ly.LoiAI as e:
         if getattr(e, "ma", None) not in (400, 404):
             raise
@@ -162,7 +165,7 @@ def _tao_am_mot_lan(chu: str, giong: str, key: str) -> bytes:
         try:
             kq = _http(f"models/{MODEL_DU_PHONG}:generateContent",
                        {"contents": [{"parts": [{"text": f"{PHONG_THUYET_TRINH.capitalize()}: {chu}"}]}],
-                        "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": giong}}}}}, key, 40)
+                        "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": giong}}}}}, key, 170)
         except tro_ly.LoiAI:
             raise loi_dau from None
     b64 = _tim_am(kq)
@@ -193,8 +196,10 @@ def doc(user, chu: str, giong: str = MAC_DINH) -> bytes:
         raise tro_ly.LoiAI("Đã dùng hết ngân sách AI tháng này, giọng đọc tạm dừng.")
     am = _tao_am(chu, giong, key)
     tro_ly._ghi_su_dung(user.username, "giong_doc", MODEL, len(chu), 0)      # giá tính theo ký tự (xem tro_ly.GIA)
+    global _tong_byte
     with _khoa:
         _nho[ma] = am
-        while len(_nho) > TOI_DA_NHO:
-            _nho.popitem(last=False)
+        _tong_byte += len(am)
+        while _tong_byte > TOI_DA_BYTE and len(_nho) > 1:
+            _tong_byte -= len(_nho.popitem(last=False)[1])
     return am

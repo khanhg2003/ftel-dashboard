@@ -7,6 +7,8 @@ slide N) hoặc đặt câu hỏi về slide đang xem; câu hỏi gửi lên m�
 """
 from __future__ import annotations
 
+import json
+
 from dash import ClientsideFunction, Input, Output, State, clientside_callback, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
@@ -120,7 +122,7 @@ def layout():
                   html.Div([html.H3("Hỏi AI về slide này"), hoi, html.Div(_bong([]), id="tt-hoi-thoai-hien", className="tt-bong-ds")], className="tt-hoi-khung")],
                  id="tt-khung", className="tt-khung"),
         _chon_giong(),
-        html.Div(id="tt-loi", style={"display": "none"}), html.Div(id="tt-loi-hien", style={"display": "none"}), html.Div(id="tt-loi-sau", style={"display": "none"}),
+        html.Div(id="tt-loi", style={"display": "none"}), html.Div(id="tt-loi-hien", style={"display": "none"}), html.Div(id="tt-loi-sau", style={"display": "none"}), html.Div(id="tt-loi-tat-ca", style={"display": "none"}), dcc.Store(id="tt-d3"),
     ], className="tt-trang")
 
 
@@ -169,6 +171,13 @@ def cb_ve(bai, i):
     s = bai["slides"][i]
     sau = tt.cho_giong(bai["slides"][i + 1]["loi_noi"]) if i + 1 < n else ""       # trình duyệt xin sẵn giọng đọc của slide kế tiếp
     return ve_slide(s, i, n, bai), tt.cho_giong(s["loi_noi"]), s["loi_noi"], sau, i == 0, i >= n - 1
+
+
+def cb_loi_tat_ca(bai):
+    """Lời đọc của MỌI slide (đã chuẩn hoá cho giọng đọc) để trình duyệt tạo sẵn giọng cho cả bài trước khi thuyết trình."""
+    if not _cho_phep() or not bai:
+        raise PreventUpdate
+    return json.dumps([tt.cho_giong(s["loi_noi"]) for s in bai["slides"]], ensure_ascii=False)
 
 
 def cb_hoi(_n, _enter, cau, bai, i, lich_su):
@@ -231,5 +240,7 @@ def register(app):
     cb(Output("tt-hoi-thoai-hien", "children"), Input("tt-hoi-thoai", "data"))(lambda ls: _bong(ls or []))
     cb(Output("tt-gm-key", "value"), Output("tt-gm-tt", "children"), Output("tt-gm-msg", "children"), Input("tt-gm-luu", "n_clicks"), Input("tt-gm-xoa", "n_clicks"), State("tt-gm-key", "value"),
        prevent_initial_call=True)(cb_khoa)
+    cb(Output("tt-loi-tat-ca", "children"), Input("tt-bai", "data"))(cb_loi_tat_ca)
+    clientside_callback(ClientsideFunction(namespace="tt", function_name="chuanBi"), Output("tt-d3", "data"), Input("tt-loi-tat-ca", "children"))
     clientside_callback(ClientsideFunction(namespace="tt", function_name="noiSlide"), Output("tt-d1", "data"), Input("tt-loi", "children"))
     clientside_callback(ClientsideFunction(namespace="tt", function_name="noiTraLoi"), Output("tt-d2", "data"), Input("tt-tra-loi", "data"))
