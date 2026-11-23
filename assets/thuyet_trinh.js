@@ -43,7 +43,11 @@
       if (t) t.style.display = la ? "" : "none";
     });
   }
-  function datGiong(ten) { try { localStorage.setItem("tt-giong", ten); } catch (e) { /* bỏ qua */ } veGiong(); bao("Đã chọn giọng " + ten + ". Giọng này dùng từ câu đọc tiếp theo."); }
+  function baoGiong(chu, kieu) { var e = el("tt-gv-bao"); if (e) { e.textContent = chu || ""; e.className = "tt-gv-bao" + (kieu ? " " + kieu : ""); } bao(chu); }
+  function datGiong(ten) { try { localStorage.setItem("tt-giong", ten); } catch (e) { /* bỏ qua */ } veGiong(); baoGiong("Đã chọn giọng " + ten + ". Giọng này dùng từ câu đọc tiếp theo.", "ok"); }
+  /* Mở khoá phát âm thanh ngay trong lúc bấm (một số trình duyệt chặn phát tiếng sau khi chờ mạng): cho phần tử audio phát một đoạn im lặng rồi dùng lại chính nó. */
+  var IM_LANG = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+  function moKhoa(a) { try { a.src = IM_LANG; var p = a.play(); if (p && p.catch) p.catch(function () { /* bỏ qua */ }); } catch (e) { /* bỏ qua */ } }
 
   function dung() {
     TT.ma++;
@@ -114,14 +118,22 @@
     tiep();
   }
 
-  function ngheThu(ten) {
+  function ngheThu(ten, nut) {
     dung(); TT.phat = false; veNut();
-    bao("Đang tạo giọng " + ten + " (lần đầu mất vài giây)…");
+    var a = TT.thu || (TT.thu = new Audio()), chu = nut ? nut.textContent : "";
+    moKhoa(a);
+    function xong() { if (nut) { nut.disabled = false; nut.textContent = chu; } }
+    if (nut) { nut.disabled = true; nut.textContent = "Đang tạo…"; }
+    baoGiong("Đang tạo giọng " + ten + " (lần đầu mất khoảng 8 giây)…");
     layAm(MAU_THU, ten).then(function (url) {
-      var a = TT.thu || (TT.thu = new Audio());
-      a.src = url; a.playbackRate = tocDo(); a.play();
-      bao("Đang nghe thử giọng " + ten + ". Thấy hợp thì bấm “Dùng giọng này”.");
-    }).catch(function (e) { bao("Chưa nghe thử được: " + ((e && e.message) || "lỗi")); });
+      xong();
+      a.onended = function () { baoGiong("Thấy giọng " + ten + " hợp thì bấm “Dùng giọng này”.", "ok"); };
+      a.onerror = function () { baoGiong("Không phát được âm thanh của giọng " + ten + ". Kiểm tra loa hoặc âm lượng của trình duyệt.", "loi"); };
+      a.src = url; a.playbackRate = tocDo();
+      var p = a.play();
+      if (p && p.catch) p.catch(function (e) { baoGiong("Trình duyệt không cho phát âm thanh (" + ((e && e.name) || "lỗi") + "). Bấm Nghe thử lần nữa.", "loi"); });
+      baoGiong("Đang phát giọng " + ten + "…", "ok");
+    }).catch(function (e) { xong(); baoGiong("Chưa nghe thử được giọng " + ten + ": " + ((e && e.message) || "lỗi"), "loi"); });
   }
 
   function xongSlide() {
@@ -206,7 +218,7 @@
     var b = e.target.closest ? e.target.closest(".tt-gv-nghe, .tt-gv-dung") : null;
     if (!b) return;
     var ten = b.getAttribute("data-giong");
-    if (b.classList.contains("tt-gv-nghe")) ngheThu(ten); else datGiong(ten);
+    if (b.classList.contains("tt-gv-nghe")) ngheThu(ten, b); else datGiong(ten);
   });
   if (window.MutationObserver) new MutationObserver(function () {
     var d = el("tt-giong-ds");

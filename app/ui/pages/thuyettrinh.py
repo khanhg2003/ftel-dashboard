@@ -89,7 +89,7 @@ def _chon_giong() -> html.Div:
                      html.Div([dcc.Input(id="tt-gm-key", type="password", placeholder="Dán mã Gemini (lấy ở aistudio.google.com/apikey)", className="tt-o-hoi", autoComplete="off"),
                                _nut("tt-gm-luu", "Lưu mã", "btn primary"), _nut("tt-gm-xoa", "Xoá mã", "btn")], className="tt-hang-hoi"),
                      dcc.Loading(html.Div(id="tt-gm-msg"), type="dot")], className="tt-gm")
-    return card([html.Div(id="tt-giong-ds", children=nhom), html.Details([html.Summary("Mã Gemini (để tạo giọng đọc)"), khoa], className="tt-gm-hop")], title="Giọng của Fox",
+    return card([html.Div(id="tt-gv-bao", className="tt-gv-bao"), html.Div(id="tt-giong-ds", children=nhom), html.Details([html.Summary("Mã Gemini (để tạo giọng đọc)"), khoa], className="tt-gm-hop")], title="Giọng của Fox",
                 desc="Bấm Nghe thử để nghe từng giọng (lần đầu mất vài giây), rồi bấm Dùng giọng này. Giọng mới áp dụng ngay từ câu đọc tiếp theo, nhớ trên máy này. "
                      "Giọng do Gemini tạo, tính một khoản nhỏ vào ngân sách AI tháng (khoảng 0,015 USD mỗi phút nghe).")
 
