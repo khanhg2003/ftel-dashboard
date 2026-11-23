@@ -99,6 +99,12 @@ def _ten(r, acc: str) -> str:
     return str(r.ho_ten) if isinstance(r.ho_ten, str) and r.ho_ten else acc
 
 
+def loc_duoc_nem_ten(nv: pd.DataFrame, phong: pd.Series, duoc_ten) -> pd.DataFrame:
+    """Giữ các dòng người mà người hỏi được xem tên. Dùng mặt nạ Series: danh sách rỗng đưa thẳng vào `nv[[]]` sẽ chọn CỘT (bảng không còn cột nào) và làm hỏng bước sau
+    (lỗi thật 23/11/2026 ở phòng IBB7: nhóm "mất số" chỉ toàn trưởng phòng / người nghỉ nên không còn ai để nêu tên)."""
+    return nv[pd.Series([bool(duoc_ten(phong.get(a))) for a in nv.index], index=nv.index, dtype=bool)]
+
+
 def cau_noi_theo_nguoi(nay: pd.DataFrame, ck: pd.DataFrame, codes: list[str], thang: str, ngay: int,
                        duoc_ten) -> tuple[list[str], dict]:
     """Tách mức chênh thành các nhóm người. `duoc_ten(phong_code)` cho biết người hỏi có được xem tên không."""
@@ -125,7 +131,7 @@ def cau_noi_theo_nguoi(nay: pd.DataFrame, ck: pd.DataFrame, codes: list[str], th
     def liet_ke(sub: pd.DataFrame, cot_so: str, chi_nv: bool = True) -> str:
         """Tên các người đáng kể nhất trong nhóm; người không được nêu tên (trưởng phòng, đã nghỉ, ngoài quyền) gộp."""
         nv = sub[(sub.loai == "NV") if chi_nv else sub.index == sub.index]
-        nv = nv[[bool(duoc_ten(phong.get(a))) for a in nv.index]]
+        nv = loc_duoc_nem_ten(nv, phong, duoc_ten)
         nv = nv.reindex(nv[cot_so].abs().sort_values(ascending=False).index).head(TOI_DA_TEN)
         return ", ".join(f"{_ten(r, a)} ({_doi(r.ck, r.nay)})" for a, r in nv.iterrows())
 

@@ -240,3 +240,14 @@ def test_bai_mot_phong_co_slide_dung_phong_va_so_khop(bai):
             assert kiem_so(s["loi_noi"], tt.bang_kiem_so(s["su_that"])), (s["id"], s["loi_noi"])
     with pytest.raises(ValueError):
         tt.dung_bai(_tk("admin"), bai["ngay"], "KHONGCO")
+
+
+def test_loc_duoc_nem_ten_khong_vo_khi_khong_con_ai_de_nem():
+    import pandas as pd
+    from app.fox_nguyen_nhan import loc_duoc_nem_ten
+    nv = pd.DataFrame({"ck": [5, 3], "chenh": [-5, -3]}, index=["a", "b"])
+    phong = pd.Series({"a": "IBB1", "b": "IBB2"})
+    assert list(loc_duoc_nem_ten(nv, phong, lambda p: p == "IBB2").index) == ["b"]
+    rong = loc_duoc_nem_ten(nv, phong, lambda p: False)
+    assert rong.empty and list(rong.columns) == ["ck", "chenh"], "không còn ai thì vẫn giữ nguyên các cột"
+    assert loc_duoc_nem_ten(nv.iloc[0:0], phong, lambda p: True).empty
