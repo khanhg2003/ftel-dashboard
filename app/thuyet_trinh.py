@@ -32,18 +32,24 @@ def cho_giong(chu: str) -> str:
     while re.search(r"\d\.\d{3}(?!\d)", chu):
         chu = re.sub(r"(\d)\.(\d{3})(?!\d)", r"\1\2", chu)
 
+    chu = re.sub(r"(?<![\d/])(\d{1,2})-(\d{1,2})/(\d{1,2})(?![\d/])", lambda m: f"từ ngày {int(m.group(1))} đến ngày {int(m.group(2))} tháng {int(m.group(3))}", chu)      # 08-14/11
+
     def ngay_thang(m):
         a, b = int(m.group(1)), int(m.group(2))
         return f"ngày {a} tháng {b}" if a <= 31 and b <= 12 else f"{a} trên {b}"
     chu = re.sub(r"(?<![\d/])(\d{1,2})/(\d{1,2})(?![\d/])", ngay_thang, chu)
     chu = re.sub(r"(\d)\s*%", r"\1 phần trăm", chu)
+    chu = re.sub(r"(tăng|giảm)\s+[+-](\d)", r"\1 \2", chu)                         # "tăng +27" không đọc thành "tăng tăng 27"
     chu = re.sub(r"(?<![\w])\+(\d)", r"tăng \1", chu)
     chu = re.sub(r"(?<=[\s(=,;])-(\d)", r"âm \1", chu)
     chu = re.sub(r"(?<=[A-Za-z])\.(?=[A-Za-z])", " ", chu)                  # DNG.Longph -> DNG Longph
     chu = re.sub(r"/ngày", " mỗi ngày", chu)
     chu = chu.replace("V.VIP", "V VIP").replace("_", " ")
     chu = re.sub(r"([A-Za-zÀ-ỹ]{2,})(\d+)", r"\1 \2", chu)
+    chu = re.sub(r"(?<=[A-Za-zÀ-ỹ])/(?=[A-Za-zÀ-ỹ])", ", ", chu)                  # kỹ thuật/triển khai
+    chu = re.sub(r"\s+[—–]\s+", ", ", chu)
     chu = re.sub(r"\s*[()]\s*", ", ", chu)
+    chu = re.sub(r"\s*,\s*([;.:])", r"\1", chu)
     chu = re.sub(r"\s*\n+\s*", ". ", chu)
     chu = re.sub(r"\s+([,.])", r"\1", chu)
     return re.sub(r"[,.]\s*([,.])+", r"\1", chu).strip(" ,.") + "."

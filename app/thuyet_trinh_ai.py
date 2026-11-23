@@ -117,7 +117,9 @@ def lam_sach_noi(chu: str) -> str:
     from app.zalo_gia_ai import bo_markdown
     chu = bo_markdown(tro_ly.lam_sach(chu or ""))
     chu = re.sub(r"^\s*•\s*", "", chu, flags=re.M)
-    return re.sub(r"\s*\n+\s*", " ", chu).strip()
+    chu = re.sub(r"\s*\n+\s*", " ", chu).strip()
+    ten = re.escape(str(tro_ly.cau_hinh().get("ten") or "Fox"))
+    return re.sub(rf"\s*[-—–]*\s*(?:{ten}|Fox)\.?\s*$", "", chu).strip()            # bỏ chữ ký nhân vật cuối câu trả lời
 
 
 def hoi(user, bai: dict, i: int, cau_hoi: str, lich_su: list[dict]) -> str:

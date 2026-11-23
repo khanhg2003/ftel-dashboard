@@ -36,6 +36,8 @@ def test_cho_giong_doc_duoc_so_phan_tram_ngay_thang_va_ma_phong():
     assert cho_giong("Tăng +12 so với 12/09, còn 3/30.") == "Tăng tăng 12 so với ngày 12 tháng 9, còn 3 trên 30."
     assert "IBB 7" in cho_giong("IBB7 hụt") and "V VIP" in cho_giong("V.VIP thấp") and "DNG Longph" in cho_giong("DNG.Longph") and "âm 20" in cho_giong("bằng -20 online")
     assert "(" not in cho_giong("Tam Kỳ (hụt 115)") and cho_giong("**Kết luận:** xong").startswith("Kết luận: xong")
+    assert cho_giong("tuần 08-14/11 là -23 online") == "tuần từ ngày 8 đến ngày 14 tháng 11 là âm 23 online."
+    assert cho_giong("bán mới tăng +27 hợp đồng; kỹ thuật/triển khai xử lý — ngay") == "bán mới tăng 27 hợp đồng; kỹ thuật, triển khai xử lý, ngay."
 
 
 # ------------------------------------------------------------------ bài do code dựng
@@ -122,6 +124,8 @@ def test_hoi_gui_ngu_canh_slide_va_lam_sach_markdown(monkeypatch):
     assert thu["cau"] == "vì sao con số này thấp?" and "SLIDE 2/2: B" in thu["ngu_canh"][1] and '"ton": 279' in thu["ngu_canh"][1] and "ĐANG THUYẾT TRÌNH BẰNG GIỌNG NÓI" in thu["ngu_canh"][1]
     assert "phan_tich_nguyen_nhan" in thu["cong_cu"] and thu["lich_su"][0]["content"] == "câu trước"
     assert "**" not in kq and "\n" not in kq and "- " not in kq and kq.startswith("Kết luận:")
+    monkeypatch.setattr(tro_ly, "chat", lambda *a, **k: "Phòng này hụt vì hai người giảm. Fox")
+    assert ai.hoi(_tk("admin"), _bai_nho(), 0, "câu hỏi", []) == "Phòng này hụt vì hai người giảm."
 
 
 def test_cau_hoi_vi_sao_duoc_tra_san_nguyen_nhan_dung_phong(monkeypatch):
