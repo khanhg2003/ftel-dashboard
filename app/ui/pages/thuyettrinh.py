@@ -75,6 +75,25 @@ def _phu_de() -> html.Div:
                                html.Div("Phụ đề lời thuyết trình sẽ hiện ở đây.", id="tt-phu-de-chu", className="tt-phu-de-chu")], className="tt-phu-de-than")], id="tt-phu-de", className="tt-phu-de")
 
 
+def _the_giong(ten: str, mo_ta: str) -> html.Div:
+    return html.Div([html.Div([html.Span(ten, className="tt-gv-ten"), html.Span("đang dùng", className="tt-gv-dang", style={"display": "none"})], className="tt-gv-dau"), html.Div(mo_ta, className="tt-gv-mo"),
+                     html.Div([html.Button("▶ Nghe thử", className="btn tt-gv-nghe", **{"data-giong": ten}),
+                               html.Button("Dùng giọng này", className="btn primary tt-gv-dung", **{"data-giong": ten})], className="tt-gv-nut")],
+                    className="tt-gv", **{"data-giong": ten})
+
+
+def _chon_giong() -> html.Div:
+    """Bảng chọn giọng đọc (bộ giọng Gemini): bấm Nghe thử để nghe, Dùng giọng này để chọn (nhớ trên máy này). Nút do `assets/thuyet_trinh.js` xử lý; ô mã Gemini do callback `cb_khoa` lưu."""
+    nhom = [html.Div([html.H4(ten_nhom, className="tt-gv-nhom"), html.Div([_the_giong(t, m) for t, m, g in giong_ai.GIONG if g == ma], className="tt-gv-luoi")]) for ma, ten_nhom in (("nu", "Giọng nữ"), ("nam", "Giọng nam"))]
+    khoa = html.Div([html.Div(id="tt-gm-tt", className="desc", children=giong_ai.trang_thai_khoa()),
+                     html.Div([dcc.Input(id="tt-gm-key", type="password", placeholder="Dán mã Gemini (lấy ở aistudio.google.com/apikey)", className="tt-o-hoi", autoComplete="off"),
+                               _nut("tt-gm-luu", "Lưu mã", "btn primary"), _nut("tt-gm-xoa", "Xoá mã", "btn")], className="tt-hang-hoi"),
+                     dcc.Loading(html.Div(id="tt-gm-msg"), type="dot")], className="tt-gm")
+    return card([html.Div(id="tt-giong-ds", children=nhom), html.Details([html.Summary("Mã Gemini (để tạo giọng đọc)"), khoa], className="tt-gm-hop")], title="Giọng của Fox",
+                desc="Bấm Nghe thử để nghe từng giọng (lần đầu mất vài giây), rồi bấm Dùng giọng này. Giọng mới áp dụng ngay từ câu đọc tiếp theo, nhớ trên máy này. "
+                     "Giọng do Gemini tạo, tính một khoản nhỏ vào ngân sách AI tháng (khoảng 0,015 USD mỗi phút nghe).")
+
+
 def layout():
     giong = html.Select([html.Option(ten, value=v, selected=v == "1") for ten, v in TOC_DO], id="tt-toc-do", className="tt-chon")
     yeu_cau = html.Div([dcc.Input(id="tt-yeu-cau", type="text", n_submit=0, className="tt-o-hoi", debounce=False,
@@ -85,8 +104,6 @@ def layout():
         html.Span(className="tt-ngan"),
         _nut("tt-lui", "‹ Lùi"), _nut("tt-phat", "▶ Phát"), _nut("tt-tiep", "Tiếp ›"),
         dcc.Checklist(id="tt-tu-chuyen", options=[{"label": " Tự chuyển slide", "value": "auto"}], value=["auto"], className="tt-tick"),
-        html.Label(["Giọng ", html.Select([html.Option("Tự chọn giọng Việt tốt nhất", value="auto", selected=True), html.Option("Giọng AI (tiếng Việt)", value="ai"), html.Option("Giọng của trình duyệt", value="td")],
-                                          id="tt-giong", className="tt-chon")], className="tt-nhan"),
         html.Label(["Tốc độ đọc ", giong], className="tt-nhan"),
         _nut("tt-toan-man", "Toàn màn hình"),
     ], className="tt-dieu-khien")
@@ -97,10 +114,11 @@ def layout():
         dcc.Input(id="tt-nhay", type="text", value="", style={"display": "none"}),
         card([yeu_cau, dieu_khien, html.Div(id="tt-js-bao", className="desc"), dcc.Loading(html.Div(id="tt-thongbao"), type="dot")], title="Yêu cầu thuyết trình",
              desc="Gõ yêu cầu rồi bấm “Tạo bài thuyết trình”, hoặc bấm “Nói yêu cầu” và nói (vd “phân tích phòng IBB7”). Có bài rồi thì nói “tiếp”, “lùi”, “dừng”, “đọc tiếp”, “nói lại”, “slide ba”; câu khác là câu hỏi về slide đang xem. "
-                  "Nghe giọng nói dùng Chrome hoặc Edge. Giọng đọc: máy có giọng tiếng Việt thì dùng luôn (miễn phí), không có thì dùng giọng AI tiếng Việt (tốn một khoản nhỏ trong ngân sách AI). App chỉ có số luỹ kế từ ngày 01 của tháng."),
+                  "Nghe giọng nói dùng Chrome hoặc Edge. Giọng đọc chọn ở mục “Giọng của Fox” bên dưới. App chỉ có số luỹ kế từ ngày 01 của tháng."),
         html.Div([html.Div([html.Div(html.Div("Chưa có bài thuyết trình. Gõ hoặc nói yêu cầu ở trên.", className="desc"), id="tt-slide", className="tt-man"), _phu_de()], className="tt-cot-trai"),
                   html.Div([html.H3("Hỏi AI về slide này"), hoi, html.Div(_bong([]), id="tt-hoi-thoai-hien", className="tt-bong-ds")], className="tt-hoi-khung")],
-                 id="tt-khung", className="tt-khung", **{"data-ai": "1" if giong_ai.san_sang(current_user) else "0"}),
+                 id="tt-khung", className="tt-khung"),
+        _chon_giong(),
         html.Div(id="tt-loi", style={"display": "none"}), html.Div(id="tt-loi-hien", style={"display": "none"}),
     ], className="tt-trang")
 
@@ -168,6 +186,25 @@ def cb_hoi(_n, _enter, cau, bai, i, lich_su):
     return lich_su[-2 * TOI_DA_LICH_SU:], "", {"n": len(lich_su), "text": tt.cho_giong(tra_loi), "hien": tra_loi}
 
 
+def cb_khoa(_luu, _xoa, khoa):
+    """Lưu / xoá mã Gemini (mã hoá, chỉ ở máy chủ), rồi thử tạo một câu để báo ngay mã có dùng được không."""
+    if not _cho_phep() or not ctx.triggered or not ctx.triggered[0]["value"]:
+        raise PreventUpdate
+    if ctx.triggered_id == "tt-gm-xoa":
+        giong_ai.luu_khoa(None, current_user.username)
+        return "", giong_ai.trang_thai_khoa(), alert("Đã xoá mã Gemini.", "ok")
+    khoa = (khoa or "").strip()
+    if len(khoa) < 20 or " " in khoa:
+        return no_update, no_update, alert("Mã Gemini thường dài khoảng 40 ký tự, bắt đầu bằng AIza. Kiểm tra lại mã rồi dán lại.", "bad")
+    giong_ai.luu_khoa(khoa, current_user.username)
+    try:
+        giong_ai.doc(current_user, "Xin chào, em là Fox.", giong_ai.MAC_DINH)
+        tin = alert("Đã lưu mã Gemini và thử tạo giọng thành công. Bấm Nghe thử ở các giọng bên trên.", "ok")
+    except tro_ly.LoiAI as e:
+        tin = alert(f"Đã lưu mã nhưng chưa tạo được giọng: {e}", "warn")
+    return "", giong_ai.trang_thai_khoa(), tin
+
+
 def _ghi(hanh_dong: str, chi_tiet: str) -> None:
     try:
         from app.auth import ghi_log
@@ -190,5 +227,7 @@ def register(app):
        State("tt-cau-hoi", "value"), State("tt-bai", "data"), State("tt-i", "data"), State("tt-hoi-thoai", "data"), prevent_initial_call=True,
        running=[(Output("tt-hoi", "disabled"), True, False)])(cb_hoi)
     cb(Output("tt-hoi-thoai-hien", "children"), Input("tt-hoi-thoai", "data"))(lambda ls: _bong(ls or []))
+    cb(Output("tt-gm-key", "value"), Output("tt-gm-tt", "children"), Output("tt-gm-msg", "children"), Input("tt-gm-luu", "n_clicks"), Input("tt-gm-xoa", "n_clicks"), State("tt-gm-key", "value"),
+       prevent_initial_call=True)(cb_khoa)
     clientside_callback(ClientsideFunction(namespace="tt", function_name="noiSlide"), Output("tt-d1", "data"), Input("tt-loi", "children"))
     clientside_callback(ClientsideFunction(namespace="tt", function_name="noiTraLoi"), Output("tt-d2", "data"), Input("tt-tra-loi", "data"))

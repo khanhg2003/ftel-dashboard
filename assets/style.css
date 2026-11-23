@@ -2233,3 +2233,18 @@ body:has(#bn-gn-mic) .page { padding-bottom: 110px; }       /* nút micro nổi 
 .tt-yc { font-size: 13px; color: #9FB8D1; min-height: 1em; }
 .tt-phu-de-chu { font-size: 20px; line-height: 1.45; font-weight: 600; }
 @media (max-width: 1100px) { .tt-phu-de { padding: 10px 12px; } .tt-fox { width: 56px; height: 56px; } .tt-phu-de-chu { font-size: 16px; } }
+
+/* ---- Thuyết trình AI: bảng chọn giọng của Fox (bộ giọng Gemini) */
+.tt-gv-nhom { margin: 14px 0 8px; font-size: 14px; color: var(--text-muted, #5B6B7D); }
+.tt-gv-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.tt-gv { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--card); display: flex; flex-direction: column; gap: 4px; }
+.tt-gv.dang-dung { border-color: var(--fpt-orange); box-shadow: 0 0 0 1px var(--fpt-orange) inset; }
+.tt-gv-dau { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.tt-gv-ten { font-weight: 700; }
+.tt-gv-dang { font-size: 12px; color: #04843F; }
+.tt-gv-mo { font-size: 13px; color: var(--text-muted, #5B6B7D); min-height: 1.3em; }
+.tt-gv-nut { display: flex; gap: 6px; margin-top: 6px; }
+.tt-gv-nut .btn { flex: 1; justify-content: center; padding: 6px 8px; font-size: 13px; }
+.tt-gm-hop { margin-top: 14px; }
+.tt-gm-hop summary { cursor: pointer; font-size: 14px; color: var(--text-muted, #5B6B7D); }
+.tt-gm { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }

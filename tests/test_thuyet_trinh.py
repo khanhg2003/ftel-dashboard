@@ -253,42 +253,88 @@ def test_loc_duoc_nem_ten_khong_vo_khi_khong_con_ai_de_nem():
     assert loc_duoc_nem_ten(nv.iloc[0:0], phong, lambda p: True).empty
 
 
-# ------------------------------------------------------------------ giọng đọc AI tiếng Việt (khi máy không có giọng Việt)
+# ------------------------------------------------------------------ giọng đọc Gemini (bộ giọng chọn được)
 @pytest.fixture
 def giong_gia(monkeypatch):
     from app import thuyet_trinh_giong as g, tro_ly
     g._nho.clear()
-    dem = {"goi": 0, "chi": []}
+    dem = {"goi": [], "chi": []}
 
-    def goi(chu, key, han=30):
-        dem["goi"] += 1
-        return b"ID3" + b"x" * 400
-    monkeypatch.setattr(g, "_goi", goi)
-    monkeypatch.setattr(tro_ly, "kiem_tra", lambda u, ch=None: {"key": "khoa"})
+    def tao(chu, giong, key):
+        dem["goi"].append((chu, giong))
+        return g._wav(b"\x00\x01" * 400)
+    monkeypatch.setattr(g, "_tao_am", tao)
+    monkeypatch.setattr(g, "khoa_gemini", lambda: "AIza-khoa-thu")
+    monkeypatch.setattr(tro_ly, "chi_phi_thang", lambda: 0.0)
     monkeypatch.setattr(tro_ly, "_ghi_su_dung", lambda *a, **k: dem["chi"].append(a) or 0.0)
     yield dem
     g._nho.clear()
 
 
-def test_giong_doc_nho_tam_theo_cau_ghi_chi_phi_tung_lan_goi_that(giong_gia):
+def test_giong_doc_nho_tam_theo_giong_va_cau_ghi_chi_phi_tung_lan_goi_that(giong_gia):
     from app import thuyet_trinh_giong as g
     u = _tk("admin")
-    a = g.doc(u, "Chi nhánh  đang  bằng 32 phần trăm mục tiêu.")
-    assert a.startswith(b"ID3") and g.doc(u, "Chi nhánh đang bằng 32 phần trăm mục tiêu.") == a        # khoảng trắng thừa không tạo bản mới
-    assert giong_gia["goi"] == 1 and len(giong_gia["chi"]) == 1 and giong_gia["chi"][0][3] == len("Chi nhánh đang bằng 32 phần trăm mục tiêu.")
-    g.doc(u, "Câu khác.")
-    assert giong_gia["goi"] == 2
+    a = g.doc(u, "Chi nhánh  đang  bằng 32 phần trăm mục tiêu.", "Kore")
+    assert a[:4] == b"RIFF" and g.doc(u, "Chi nhánh đang bằng 32 phần trăm mục tiêu.", "Kore") == a        # khoảng trắng thừa không tạo bản mới
+    assert len(giong_gia["goi"]) == 1 and len(giong_gia["chi"]) == 1 and giong_gia["chi"][0][3] == len("Chi nhánh đang bằng 32 phần trăm mục tiêu.")
+    g.doc(u, "Chi nhánh đang bằng 32 phần trăm mục tiêu.", "Aoede")            # giọng khác là bản khác
+    g.doc(u, "Giọng lạ bị đổi về giọng mặc định.", "KhongCoGiongNay")
+    assert [x[1] for x in giong_gia["goi"]] == ["Kore", "Aoede", g.MAC_DINH]
 
 
-def test_giong_doc_tu_choi_chu_rong_va_qua_dai(giong_gia):
+def test_giong_doc_tu_choi_chu_rong_qua_dai_chua_co_ma_va_het_ngan_sach(giong_gia, monkeypatch):
     from app import thuyet_trinh_giong as g, tro_ly
     for chu in ("", "   ", None, "a" * (g.TOI_DA_KY_TU + 1)):
         with pytest.raises(tro_ly.LoiAI):
             g.doc(_tk("admin"), chu)
-    assert giong_gia["goi"] == 0
+    monkeypatch.setattr(g, "khoa_gemini", lambda: "")
+    with pytest.raises(tro_ly.LoiAI, match="Chưa có mã Gemini"):
+        g.doc(_tk("admin"), "Xin chào.")
+    monkeypatch.setattr(g, "khoa_gemini", lambda: "AIza-khoa-thu")
+    monkeypatch.setattr(tro_ly, "chi_phi_thang", lambda: 10 ** 6)
+    with pytest.raises(tro_ly.LoiAI, match="ngân sách"):
+        g.doc(_tk("admin"), "Xin chào.")
+    assert giong_gia["goi"] == []
 
 
-def test_duong_giong_doc_chi_ban_giam_doc_va_tra_mp3_hoac_loi_tieng_viet(giong_gia, monkeypatch):
+def test_giong_30_giong_co_mo_ta_va_khong_trung():
+    from app import thuyet_trinh_giong as g
+    assert len(g.GIONG) == 30 and len(g.TEN_GIONG) == 30 and g.MAC_DINH in g.TEN_GIONG
+    assert all(m and nhom in ("nu", "nam") for _, m, nhom in g.GIONG)
+
+
+def test_gemini_tim_am_va_boc_wav_dung_ca_hai_kieu_tra_loi():
+    import base64
+    from app import thuyet_trinh_giong as g
+    pcm = b"\x01\x02" * 50
+    b64 = base64.b64encode(pcm).decode()
+    assert g._tim_am({"steps": [{"type": "model_output", "content": [{"type": "text", "text": "x"}, {"type": "audio", "data": b64}]}]}) == b64
+    assert g._tim_am({"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "audio/L16;rate=24000", "data": b64}}]}}]}) == b64
+    assert g._tim_am({"steps": [{"content": [{"type": "text", "data": "khong phai am thanh"}]}]}) is None
+    w = g._wav(pcm)
+    assert w[:4] == b"RIFF" and w[8:12] == b"WAVE" and w[-len(pcm):] == pcm and len(w) == 44 + len(pcm)
+
+
+def test_gemini_goi_that_loi_400_thi_thu_generate_content(monkeypatch):
+    import base64
+    from app import thuyet_trinh_giong as g, tro_ly
+    cac = []
+
+    def http(duong, body, key, han):
+        cac.append(duong)
+        if duong == "interactions":
+            e = tro_ly.LoiAI("sai")
+            e.ma = 404
+            raise e
+        return {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "audio/L16;rate=24000", "data": base64.b64encode(b"\x01\x02" * 20).decode()}}]}}]}
+    monkeypatch.setattr(g, "_http", http)
+    assert g._tao_am("Xin chào.", "Kore", "k")[:4] == b"RIFF" and cac == ["interactions", f"models/{g.MODEL_DU_PHONG}:generateContent"]
+    monkeypatch.setattr(g, "_http", lambda *a: (_ for _ in ()).throw(tro_ly.LoiAI("429")))      # lỗi không phải 400 / 404 thì không thử lại
+    with pytest.raises(tro_ly.LoiAI):
+        g._tao_am("Xin chào.", "Kore", "k")
+
+
+def test_duong_giong_doc_chi_ban_giam_doc_va_tra_wav_hoac_loi_tieng_viet(giong_gia, monkeypatch):
     from flask_login import login_user
     from app import api_thuyet_trinh as api, thuyet_trinh_giong as g, tro_ly
     from app.ui.app import server
@@ -296,31 +342,49 @@ def test_duong_giong_doc_chi_ban_giam_doc_va_tra_mp3_hoac_loi_tieng_viet(giong_g
         with server.test_request_context("/api/thuyet-trinh/doc", method="POST", json={"chu": "Xin chào."}):
             login_user(_tk(role, ["IBB7"]))
             assert api.doc()[1] == 403, role
-    with server.test_request_context("/api/thuyet-trinh/doc", method="POST", json={"chu": "Xin chào."}):
+    with server.test_request_context("/api/thuyet-trinh/doc", method="POST", json={"chu": "Xin chào.", "giong": "Leda"}):
         login_user(_tk("admin"))
         r = api.doc()
-        assert r.status_code == 200 and r.mimetype == "audio/mpeg" and r.data.startswith(b"ID3")
+        assert r.status_code == 200 and r.mimetype == "audio/wav" and r.data[:4] == b"RIFF" and giong_gia["goi"][-1][1] == "Leda"
     with server.test_request_context("/api/thuyet-trinh/doc", method="POST", json={"chu": "Xin chào hai."}):
         login_user(_tk("admin"))
-        monkeypatch.setattr(g, "_goi", lambda *a, **k: (_ for _ in ()).throw(tro_ly.LoiAI("OpenAI báo hết hạn mức giọng đọc.")))
+        monkeypatch.setattr(g, "_tao_am", lambda *a: (_ for _ in ()).throw(tro_ly.LoiAI("Gemini báo quá nhiều yêu cầu.")))
         r, ma = api.doc()
-        assert ma == 400 and "hạn mức" in r.get_json()["loi"]
+        assert ma == 400 and "quá nhiều" in r.get_json()["loi"]
     with server.test_request_context("/api/thuyet-trinh/doc", method="POST", json={"chu": "Xin chào ba."}):
         login_user(_tk("admin"))
-        monkeypatch.setattr(g, "_goi", lambda *a, **k: (_ for _ in ()).throw(KeyError("chi tiết kỹ thuật")))
+        monkeypatch.setattr(g, "_tao_am", lambda *a: (_ for _ in ()).throw(KeyError("chi tiết kỹ thuật")))
         r, ma = api.doc()
         assert ma == 502 and "KeyError" not in r.get_json()["loi"]
 
 
-def test_trang_bao_cho_trinh_duyet_biet_co_giong_ai_va_js_hop_le(monkeypatch):
+def test_trang_co_bang_chon_giong_khong_con_giong_trinh_duyet_va_luu_ma_chi_bgd(monkeypatch):
+    from dash.exceptions import PreventUpdate
     from flask_login import login_user
     from app import thuyet_trinh_giong as g
     from app.ui.app import server
     from app.ui.pages import thuyettrinh
-    for co in (True, False):
-        monkeypatch.setattr(g, "san_sang", lambda u, co=co: co)
+    with server.test_request_context("/"):
+        login_user(_tk("admin"))
+        ds = repr(thuyettrinh.layout()["tt-giong-ds"])
+        assert ds.count("tt-gv-nghe") == 30 and "Sulafat" in ds and "Nghe thử" in ds and "Giọng nữ" in ds and "Giọng nam" in ds
+    for role in ("phong", "nvkd", "online"):
         with server.test_request_context("/"):
-            login_user(_tk("admin"))
-            assert thuyettrinh.layout()["tt-khung"].to_plotly_json()["props"]["data-ai"] == ("1" if co else "0")
+            login_user(_tk(role, ["IBB7"]))
+            with pytest.raises(PreventUpdate):
+                thuyettrinh.cb_khoa(1, 0, "AIza" + "x" * 40)
+    luu = []
+    monkeypatch.setattr(g, "luu_khoa", lambda k, n: luu.append(k))
+    monkeypatch.setattr(g, "doc", lambda *a: b"RIFF")
+    monkeypatch.setattr(thuyettrinh, "ctx", SimpleNamespace(triggered=[{"value": 1}], triggered_id="tt-gm-luu"))
+    with server.test_request_context("/"):
+        login_user(_tk("admin"))
+        thuyettrinh.cb_khoa(1, 0, "ngắn")
+        assert luu == []                                  # mã quá ngắn: không lưu
+        thuyettrinh.cb_khoa(1, 0, "AIza" + "x" * 40)
+        assert luu == ["AIza" + "x" * 40]
+    goc_js = GOC / "assets" / "thuyet_trinh.js"
+    js = goc_js.read_text(encoding="utf-8")
+    assert "speechSynthesis" not in js and "SpeechSynthesisUtterance" not in js          # đã bỏ hẳn giọng của trình duyệt
     if shutil.which("node"):
-        assert subprocess.run(["node", "--check", str(GOC / "assets" / "thuyet_trinh.js")], capture_output=True).returncode == 0
+        assert subprocess.run(["node", "--check", str(goc_js)], capture_output=True).returncode == 0
