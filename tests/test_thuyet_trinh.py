@@ -360,36 +360,135 @@ def test_duong_giong_doc_chi_ban_giam_doc_va_tra_wav_hoac_loi_tieng_viet(giong_g
         assert ma == 502 and "KeyError" not in r.get_json()["loi"]
 
 
-def test_trang_co_bang_chon_giong_khong_con_giong_trinh_duyet_va_luu_ma_chi_bgd(monkeypatch):
+DS_GOOGLE = [{"ten": "vi-VN-Chirp3-HD-Kore", "loai": "Chirp3-HD", "gioi": "nu"}, {"ten": "vi-VN-Chirp3-HD-Sulafat", "loai": "Chirp3-HD", "gioi": "nu"},
+             {"ten": "vi-VN-Chirp3-HD-Puck", "loai": "Chirp3-HD", "gioi": "nam"}, {"ten": "vi-VN-Neural2-A", "loai": "Neural2", "gioi": "nu"}, {"ten": "vi-VN-Standard-B", "loai": "Standard", "gioi": "nam"}]
+
+
+def test_trang_co_bang_chon_giong_google_gemini_phu_va_luu_ma_chi_bgd(monkeypatch):
     from dash.exceptions import PreventUpdate
     from flask_login import login_user
-    from app import thuyet_trinh_giong as g
+    from app import thuyet_trinh_giong as g, thuyet_trinh_google as gc
     from app.ui.app import server
     from app.ui.pages import thuyettrinh
+    monkeypatch.setattr(gc, "khoa", lambda: "AIza-khoa-gg")
+    monkeypatch.setattr(gc, "danh_sach_giong", lambda k: list(DS_GOOGLE))
+    monkeypatch.setattr(g, "khoa_gemini", lambda: "")
     with server.test_request_context("/"):
         login_user(_tk("admin"))
-        ds = repr(thuyettrinh.layout()["tt-giong-ds"])
-        assert ds.count("tt-gv-nghe") == 30 and "Sulafat" in ds and "Nghe thử" in ds and "Giọng nữ" in ds and "Giọng nam" in ds
+        o = thuyettrinh.layout()["tt-giong-ds"]
+        ds = repr(o)
+        assert ds.count("tt-gv-nghe") == 5 and "Chirp 3 HD" in ds and "Neural2" in ds and "Standard" in ds and "chắc, rõ ràng" in ds
+        assert o.to_plotly_json()["props"]["data-mac-dinh"] == "vi-VN-Chirp3-HD-Sulafat" and "Giọng Gemini" not in ds
+        monkeypatch.setattr(g, "khoa_gemini", lambda: "AIza-khoa-gm")
+        ds2 = repr(thuyettrinh.layout()["tt-giong-ds"])
+        assert ds2.count("tt-gv-nghe") == 5 + 30 and "Giọng Gemini" in ds2                       # Gemini nằm trong mục phụ khi có mã
+        monkeypatch.setattr(gc, "khoa", lambda: "")
+        monkeypatch.setattr(g, "khoa_gemini", lambda: "")
+        o3 = thuyettrinh.layout()["tt-giong-ds"]
+        assert "Chưa có giọng đọc" in repr(o3) and o3.to_plotly_json()["props"]["data-mac-dinh"] == g.MAC_DINH
     for role in ("phong", "nvkd", "online"):
         with server.test_request_context("/"):
             login_user(_tk(role, ["IBB7"]))
             with pytest.raises(PreventUpdate):
-                thuyettrinh.cb_khoa(1, 0, "AIza" + "x" * 40)
-    luu = []
-    monkeypatch.setattr(g, "luu_khoa", lambda k, n: luu.append(k))
+                thuyettrinh.cb_khoa(1, 0, 0, 0, "AIza" + "x" * 40, "")
+    luu_gg, luu_gm = [], []
+    monkeypatch.setattr(gc, "luu_khoa", lambda k, n: luu_gg.append(k))
+    monkeypatch.setattr(gc, "khoa", lambda: "AIza-khoa-gg")
+    monkeypatch.setattr(g, "luu_khoa", lambda k, n: luu_gm.append(k))
     monkeypatch.setattr(g, "doc", lambda *a: b"RIFF")
-    monkeypatch.setattr(thuyettrinh, "ctx", SimpleNamespace(triggered=[{"value": 1}], triggered_id="tt-gm-luu"))
     with server.test_request_context("/"):
         login_user(_tk("admin"))
-        thuyettrinh.cb_khoa(1, 0, "ngắn")
-        assert luu == []                                  # mã quá ngắn: không lưu
-        thuyettrinh.cb_khoa(1, 0, "AIza" + "x" * 40)
-        assert luu == ["AIza" + "x" * 40]
+        monkeypatch.setattr(thuyettrinh, "ctx", SimpleNamespace(triggered=[{"value": 1}], triggered_id="tt-gc-luu"))
+        assert len(thuyettrinh.cb_khoa(1, 0, 0, 0, "ngắn", "")) == 5          # đủ số giá trị cho 5 đầu ra
+        assert luu_gg == []                                # mã quá ngắn: không lưu
+        ket = thuyettrinh.cb_khoa(1, 0, 0, 0, "AIza" + "x" * 40, "")
+        assert luu_gg == ["AIza" + "x" * 40] and len(ket) == 5 and "5 giọng" in repr(ket[3])
+        monkeypatch.setattr(thuyettrinh, "ctx", SimpleNamespace(triggered=[{"value": 1}], triggered_id="tt-gm-luu"))
+        thuyettrinh.cb_khoa(0, 0, 1, 0, "", "AIza" + "y" * 40)
+        assert luu_gm == ["AIza" + "y" * 40]
+        monkeypatch.setattr(thuyettrinh, "ctx", SimpleNamespace(triggered=[{"value": 1}], triggered_id="tt-gc-xoa"))
+        thuyettrinh.cb_khoa(0, 1, 0, 0, "", "")
+        assert luu_gg[-1] is None
     goc_js = GOC / "assets" / "thuyet_trinh.js"
     js = goc_js.read_text(encoding="utf-8")
     assert "speechSynthesis" not in js and "SpeechSynthesisUtterance" not in js          # đã bỏ hẳn giọng của trình duyệt
     if shutil.which("node"):
         assert subprocess.run(["node", "--check", str(goc_js)], capture_output=True).returncode == 0
+
+
+# ------------------------------------------------------------------ Google Cloud Text-to-Speech
+def test_google_nhan_dien_giong_phan_loai_va_xep_danh_sach(monkeypatch):
+    from app import thuyet_trinh_google as gc
+    assert gc.la_giong("vi-VN-Chirp3-HD-Aoede") and gc.la_giong("vi-VN-Neural2-A") and not gc.la_giong("Aoede") and not gc.la_giong("vi-VN-../x") and not gc.la_giong("")
+    assert gc.loai_cua("vi-VN-Chirp3-HD-Aoede")[0] == "Chirp3-HD" and gc.loai_cua("vi-VN-Wavenet-B")[3] == "google-wavenet" and gc.loai_cua("vi-VN-Standard-A")[2] == 4_000_000
+    monkeypatch.setattr(gc, "_goi", lambda dd, body, key, han=30: {"voices": [{"name": "vi-VN-Standard-A", "ssmlGender": "FEMALE"}, {"name": "vi-VN-Chirp3-HD-Puck", "ssmlGender": "MALE"},
+                                                                       {"name": "vi-VN-Chirp3-HD-Kore", "ssmlGender": "FEMALE"}, {"name": "vi-VN-Neural2-D", "ssmlGender": "MALE"}, {"name": "en-US-Standard-A"}]})
+    gc._nho_ds.update(luc=0.0, ds=[])
+    ds = gc.danh_sach_giong("khoa-thu")
+    assert [g["ten"] for g in ds] == ["vi-VN-Chirp3-HD-Kore", "vi-VN-Chirp3-HD-Puck", "vi-VN-Neural2-D", "vi-VN-Standard-A"]          # chỉ vi-VN, Chirp 3 HD trước, nữ trước nam
+    assert gc.mac_dinh(ds) == "vi-VN-Chirp3-HD-Kore" and gc.mac_dinh([]) == "" and gc.danh_sach_giong("") == []
+    gc._nho_ds.update(luc=0.0, ds=[])
+
+
+def test_google_tao_am_dung_khuon_goi_boc_wav_va_thu_lai_khi_429(monkeypatch):
+    import base64
+    from app import thuyet_trinh_google as gc, tro_ly
+    pcm = b"\x01\x02" * 40
+    cac = []
+
+    def goi(dd, body, key, han=30):
+        cac.append((dd, body))
+        if len(cac) == 1:
+            e = tro_ly.LoiAI("429")
+            e.ma = 429
+            raise e
+        return {"audioContent": base64.b64encode(pcm).decode()}
+    monkeypatch.setattr(gc, "_goi", goi)
+    monkeypatch.setattr(gc.time, "sleep", lambda s: None)
+    am = gc.tao_am("Xin chào.", "vi-VN-Chirp3-HD-Kore", "k")
+    assert am == pcm and cac[0][0] == "text:synthesize" and cac[1][1]["voice"] == {"languageCode": "vi-VN", "name": "vi-VN-Chirp3-HD-Kore"}
+    assert cac[1][1]["audioConfig"] == {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000} and len(cac) == 2
+    monkeypatch.setattr(gc, "_goi", lambda *a, **k: {})
+    with pytest.raises(tro_ly.LoiAI, match="không trả về"):
+        gc.tao_am("Xin chào.", "vi-VN-Chirp3-HD-Kore", "k")
+
+
+def test_google_dung_o_95_phan_tram_han_muc_mien_phi_de_khong_bi_tinh_tien(monkeypatch):
+    from app import thuyet_trinh_google as gc, tro_ly
+    da = {"google-chirp3": 940_000, "google-wavenet": 100_000}
+    monkeypatch.setattr(gc, "ky_tu_thang", lambda model: da[model])
+    assert gc.kiem_han_muc("vi-VN-Wavenet-A", 1000) == "google-wavenet"                          # WaveNet còn rất nhiều (hạn mức 4 triệu)
+    assert gc.kiem_han_muc("vi-VN-Chirp3-HD-Kore", 1000) == "google-chirp3"                      # 941.000 < 950.000
+    with pytest.raises(tro_ly.LoiAI, match="940.000 / 1.000.000"):
+        gc.kiem_han_muc("vi-VN-Chirp3-HD-Kore", 11_000)                                          # 951.000 > 950.000
+    da["google-chirp3"] = 950_000
+    with pytest.raises(tro_ly.LoiAI, match="dừng để không bị Google tính tiền"):
+        gc.kiem_han_muc("vi-VN-Chirp3-HD-Kore", 1)
+
+
+def test_giong_doc_chon_nguon_theo_ten_giong_google_hay_gemini(monkeypatch):
+    from app import thuyet_trinh_giong as g, thuyet_trinh_google as gc, tro_ly
+    g._nho.clear()
+    g._tong_byte = 0
+    dung = {"gg": [], "gm": [], "chi": []}
+    monkeypatch.setattr(gc, "khoa", lambda: "khoa-gg")
+    monkeypatch.setattr(g, "khoa_gemini", lambda: "khoa-gm")
+    monkeypatch.setattr(gc, "kiem_han_muc", lambda ten, n: "google-chirp3")
+    monkeypatch.setattr(gc, "tao_am", lambda chu, ten, key: dung["gg"].append((ten, key)) or g._wav(b"\x00\x01" * 300))
+    monkeypatch.setattr(g, "_tao_am", lambda chu, ten, key: dung["gm"].append((ten, key)) or g._wav(b"\x00\x01" * 300))
+    monkeypatch.setattr(tro_ly, "chi_phi_thang", lambda: 0.0)
+    monkeypatch.setattr(tro_ly, "_ghi_su_dung", lambda *a, **k: dung["chi"].append(a) or 0.0)
+    u = _tk("admin")
+    assert g.doc(u, "Chào anh.", "vi-VN-Chirp3-HD-Kore")[:4] == b"RIFF" and g.doc(u, "Chào anh.", "Kore")[:4] == b"RIFF"
+    assert dung["gg"] == [("vi-VN-Chirp3-HD-Kore", "khoa-gg")] and dung["gm"] == [("Kore", "khoa-gm")]          # cùng chữ, hai nguồn khác nhau: không dùng nhầm bản nhớ tạm của nguồn kia
+    assert [x[2] for x in dung["chi"]] == ["google-chirp3", g.MODEL]
+    g.doc(u, "Chào anh.", "vi-VN-Chirp3-HD-Kore")
+    assert len(dung["gg"]) == 1                                                                       # nghe lại lấy từ bộ nhớ tạm
+    monkeypatch.setattr(gc, "khoa", lambda: "")
+    with pytest.raises(tro_ly.LoiAI, match="Chưa có mã Google Cloud"):
+        g.doc(u, "Câu khác.", "vi-VN-Neural2-A")
+    g._nho.clear()
+    g._tong_byte = 0
 
 
 # ------------------------------------------------------------------ nút Bắt đầu thuyết trình, đọc theo đoạn

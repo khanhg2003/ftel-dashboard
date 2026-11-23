@@ -1,4 +1,5 @@
-"""Giọng đọc tiếng Việt cho "Thuyết trình AI": bộ giọng Gemini TTS (Aoede, Kore, Sulafat...), người nghe tự chọn giọng ở trang (CEO chốt 23/11/2026).
+"""Giọng đọc tiếng Việt cho "Thuyết trình AI", người nghe tự chọn giọng ở trang (CEO chốt 23/11/2026). NGUỒN CHÍNH là Google Cloud Text-to-Speech (`thuyet_trinh_google.py`: giọng cố định,
+nhanh, miễn phí trong hạn mức tháng, app tự dừng trước khi bị tính tiền); module này còn giữ giọng Gemini TTS (Aoede, Kore, Sulafat...) làm nguồn phụ và là nơi điều phối + nhớ tạm cho cả hai (tên giọng dạng `vi-VN-...` là Google Cloud).
 
 Đã bỏ hẳn giọng của trình duyệt (máy hay không có giọng Việt nên đọc bằng giọng nước ngoài) và giọng OpenAI. Trình duyệt gửi từng CÂU lên `POST /api/thuyet-trinh/doc`
 {chu, giong}, máy chủ nhờ Gemini đọc thành WAV rồi trình duyệt phát. Chỉ chữ lời nói đã qua kiểm số được gửi; không có tên khách.
@@ -21,7 +22,7 @@ import urllib.request
 from collections import OrderedDict
 from datetime import datetime
 
-from app import tro_ly
+from app import thuyet_trinh_google as gc, tro_ly
 from app.db import session_scope
 from app.models import AuditLog, CaiDat
 
@@ -51,6 +52,7 @@ TEN_GIONG = {g[0] for g in GIONG}
 _nho: OrderedDict[str, bytes] = OrderedDict()
 _tong_byte = 0
 _khoa = threading.Lock()
+_luot_gg = threading.Semaphore(4)    # Google Cloud cho hàng trăm yêu cầu mỗi phút nên chạy song song thoải mái hơn
 _luot = threading.Semaphore(2)     # Gemini chỉ cho vài yêu cầu mỗi phút (gói miễn phí: 3): tối đa 2 yêu cầu chạy cùng lúc, không dồn một đống
 
 
@@ -182,20 +184,28 @@ def doc(user, chu: str, giong: str = MAC_DINH) -> bytes:
         raise tro_ly.LoiAI("Không có chữ để đọc.")
     if len(chu) > TOI_DA_KY_TU:
         raise tro_ly.LoiAI("Câu quá dài để đọc.")
-    if giong not in TEN_GIONG:
+    gg = gc.la_giong(giong)                                  # tên dạng vi-VN-... là giọng Google Cloud, còn lại là giọng Gemini
+    if not gg and giong not in TEN_GIONG:
         giong = MAC_DINH
-    ma = hashlib.sha256(f"{MODEL}|{giong}|{chu}".encode()).hexdigest()
+    ma = hashlib.sha256(f"{'google' if gg else MODEL}|{giong}|{chu}".encode()).hexdigest()
     with _khoa:
         if ma in _nho:
             _nho.move_to_end(ma)
             return _nho[ma]
-    key = khoa_gemini()
+    key = gc.khoa() if gg else khoa_gemini()
     if not key:
-        raise tro_ly.LoiAI("Chưa có mã Gemini nên chưa có giọng đọc. Dán mã ở mục “Mã Gemini” bên dưới trang.")
+        raise tro_ly.LoiAI("Chưa có mã Google Cloud nên chưa có giọng đọc. Dán mã ở mục “Mã giọng đọc” bên dưới trang." if gg
+                           else "Chưa có mã Gemini nên chưa có giọng đọc. Dán mã ở mục “Mã giọng đọc” bên dưới trang.")
     if tro_ly.chi_phi_thang() >= tro_ly.cau_hinh()["tran_usd"]:
         raise tro_ly.LoiAI("Đã dùng hết ngân sách AI tháng này, giọng đọc tạm dừng.")
-    am = _tao_am(chu, giong, key)
-    tro_ly._ghi_su_dung(user.username, "giong_doc", MODEL, len(chu), 0)      # giá tính theo ký tự (xem tro_ly.GIA)
+    if gg:
+        model = gc.kiem_han_muc(giong, len(chu))
+        with _luot_gg:
+            am = gc.tao_am(chu, giong, key)
+        am = am if am[:4] == b"RIFF" else _wav(am, gc.TAN_SO)
+    else:
+        model, am = MODEL, _tao_am(chu, giong, key)
+    tro_ly._ghi_su_dung(user.username, "giong_doc", model, len(chu), 0)      # giá tính theo KÝ TỰ (xem tro_ly.GIA); giọng Google trong hạn mức miễn phí = 0 đồng
     global _tong_byte
     with _khoa:
         _nho[ma] = am

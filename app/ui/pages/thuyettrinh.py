@@ -13,7 +13,7 @@ from dash import ClientsideFunction, Input, Output, State, clientside_callback, 
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
-from app import metrics, thuyet_trinh as tt, thuyet_trinh_ai as ai, thuyet_trinh_giong as giong_ai, thuyet_trinh_yeu_cau as yc, tro_ly
+from app import metrics, thuyet_trinh as tt, thuyet_trinh_ai as ai, thuyet_trinh_giong as giong_ai, thuyet_trinh_google as gc, thuyet_trinh_yeu_cau as yc, tro_ly
 from app.org import phong_order
 from app.ui.components import alert, callback_can_quyen, card
 from app.ui.icons import icon
@@ -78,23 +78,61 @@ def _phu_de() -> html.Div:
                      _nut("tt-phat2", "▶ Bắt đầu thuyết trình", "btn tt-phat2")], id="tt-phu-de", className="tt-phu-de")
 
 
-def _the_giong(ten: str, mo_ta: str) -> html.Div:
-    return html.Div([html.Div([html.Span(ten, className="tt-gv-ten"), html.Span("đang dùng", className="tt-gv-dang", style={"display": "none"})], className="tt-gv-dau"), html.Div(mo_ta, className="tt-gv-mo"),
+def _the_giong(ten: str, nhan: str, mo_ta: str) -> html.Div:
+    return html.Div([html.Div([html.Span(nhan, className="tt-gv-ten"), html.Span("đang dùng", className="tt-gv-dang", style={"display": "none"})], className="tt-gv-dau"), html.Div(mo_ta, className="tt-gv-mo"),
                      html.Div([html.Button("▶ Nghe thử", className="btn tt-gv-nghe", **{"data-giong": ten}),
                                html.Button("Dùng giọng này", className="btn primary tt-gv-dung", **{"data-giong": ten})], className="tt-gv-nut")],
                     className="tt-gv", **{"data-giong": ten})
 
 
+def _nhom_gemini() -> list:
+    return [html.Div([html.H4(ten_nhom, className="tt-gv-nhom"), html.Div([_the_giong(t, t, m) for t, m, g in giong_ai.GIONG if g == ma], className="tt-gv-luoi")]) for ma, ten_nhom in (("nu", "Giọng nữ"), ("nam", "Giọng nam"))]
+
+
+def _nhom_google(ds: list[dict]) -> list:
+    """Giọng Google Cloud gom theo loại (tự nhiên nhất trước). Chirp 3 HD mang tên giống bộ giọng Gemini nên dùng lại mô tả; loại khác chỉ ghi giới tính."""
+    mo_ta = {ten: m for ten, m, _ in giong_ai.GIONG}
+    gioi = {"nu": "giọng nữ", "nam": "giọng nam", "": ""}
+    nhom = []
+    for ma, nhan, _, _ in gc.LOAI:
+        gs = [g for g in ds if g["loai"] == ma]
+        if gs:
+            the = [_the_giong(g["ten"], g["ten"].split("-")[-1] if ma == "Chirp3-HD" else g["ten"][6:], (mo_ta.get(g["ten"].split("-")[-1], "") + " · " if ma == "Chirp3-HD" and g["ten"].split("-")[-1] in mo_ta else "") + gioi[g["gioi"]]) for g in gs]
+            nhom.append(html.Div([html.H4(nhan, className="tt-gv-nhom"), html.Div(the, className="tt-gv-luoi")]))
+    return nhom
+
+
+def _noi_dung_giong() -> tuple[list, str]:
+    """(các nhóm thẻ giọng, giọng chọn sẵn) theo mã đã có: Google Cloud là nguồn chính, Gemini (nếu có mã) nằm trong mục phụ."""
+    k = gc.khoa()
+    ds = gc.danh_sach_giong(k) if k else []
+    co_gemini = bool(giong_ai.khoa_gemini())
+    phan = _nhom_google(ds)
+    if k and not ds:
+        phan.append(html.Div("Có mã Google Cloud nhưng chưa lấy được danh sách giọng. Kiểm tra đã bật dịch vụ Cloud Text-to-Speech cho dự án và đã bật thanh toán, rồi lưu lại mã.", className="desc"))
+    if not k and not co_gemini:
+        phan.append(html.Div("Chưa có giọng đọc. Dán mã Google Cloud ở mục “Mã giọng đọc” bên dưới.", className="desc"))
+    if co_gemini:
+        phan.append(html.Details([html.Summary("Giọng Gemini (phụ, gói miễn phí chỉ 3 lượt mỗi phút)"), *_nhom_gemini()], className="tt-gm-hop"))
+    return phan, (gc.mac_dinh(ds) if ds else giong_ai.MAC_DINH)
+
+
+def _trang_thai_ma() -> str:
+    return f"{gc.trang_thai()} {giong_ai.trang_thai_khoa()}"
+
+
 def _chon_giong() -> html.Div:
-    """Bảng chọn giọng đọc (bộ giọng Gemini): bấm Nghe thử để nghe, Dùng giọng này để chọn (nhớ trên máy này). Nút do `assets/thuyet_trinh.js` xử lý; ô mã Gemini do callback `cb_khoa` lưu."""
-    nhom = [html.Div([html.H4(ten_nhom, className="tt-gv-nhom"), html.Div([_the_giong(t, m) for t, m, g in giong_ai.GIONG if g == ma], className="tt-gv-luoi")]) for ma, ten_nhom in (("nu", "Giọng nữ"), ("nam", "Giọng nam"))]
-    khoa = html.Div([html.Div(id="tt-gm-tt", className="desc", children=giong_ai.trang_thai_khoa()),
-                     html.Div([dcc.Input(id="tt-gm-key", type="password", placeholder="Dán mã Gemini (lấy ở aistudio.google.com/apikey)", className="tt-o-hoi", autoComplete="off"),
-                               _nut("tt-gm-luu", "Lưu mã", "btn primary"), _nut("tt-gm-xoa", "Xoá mã", "btn")], className="tt-hang-hoi"),
+    """Bảng chọn giọng đọc: bấm Nghe thử để nghe, Dùng giọng này để chọn (nhớ trên máy này). Nút do `assets/thuyet_trinh.js` xử lý; ô mã do callback `cb_khoa` lưu rồi dựng lại bảng."""
+    phan, mac = _noi_dung_giong()
+    khoa = html.Div([html.Div(id="tt-gm-tt", className="desc", children=_trang_thai_ma()),
+                     html.Div([dcc.Input(id="tt-gc-key", type="password", placeholder="Mã Google Cloud (Credentials → API key, đã bật Cloud Text-to-Speech API)", className="tt-o-hoi", autoComplete="off"),
+                               _nut("tt-gc-luu", "Lưu mã", "btn primary"), _nut("tt-gc-xoa", "Xoá mã", "btn")], className="tt-hang-hoi"),
+                     html.Div([dcc.Input(id="tt-gm-key", type="password", placeholder="Mã Gemini (phụ, tuỳ chọn, aistudio.google.com/apikey)", className="tt-o-hoi", autoComplete="off"),
+                               _nut("tt-gm-luu", "Lưu mã", "btn"), _nut("tt-gm-xoa", "Xoá mã", "btn")], className="tt-hang-hoi"),
                      dcc.Loading(html.Div(id="tt-gm-msg"), type="dot")], className="tt-gm")
-    return card([html.Div(id="tt-gv-bao", className="tt-gv-bao"), html.Div(id="tt-giong-ds", children=nhom), html.Details([html.Summary("Mã Gemini (để tạo giọng đọc)"), khoa], className="tt-gm-hop")], title="Giọng của Fox",
-                desc="Bấm Nghe thử để nghe từng giọng (lần đầu mất vài giây), rồi bấm Dùng giọng này. Giọng mới áp dụng ngay từ câu đọc tiếp theo, nhớ trên máy này. "
-                     "Giọng do Gemini tạo. Gói miễn phí của Google chỉ cho 3 lượt tạo giọng mỗi phút (mỗi lần Nghe thử và mỗi slide tốn 1 lượt), nên đừng nghe thử liên tục khi đang thuyết trình. Bật thanh toán cho mã thì hết giới hạn, tốn khoảng 0,015 USD mỗi phút nghe.")
+    return card([html.Div(id="tt-gv-bao", className="tt-gv-bao"), html.Div(id="tt-giong-ds", children=phan, **{"data-mac-dinh": mac}), html.Details([html.Summary("Mã giọng đọc"), khoa], className="tt-gm-hop")], title="Giọng của Fox",
+                desc="Bấm Nghe thử để nghe từng giọng, rồi bấm Dùng giọng này. Giọng mới áp dụng ngay từ câu đọc tiếp theo, nhớ trên máy này. "
+                     "Giọng do Google Cloud tạo, miễn phí trong hạn mức mỗi tháng và app tự dừng trước khi vượt (Chirp 3 HD và Neural2 mỗi loại 1 triệu ký tự, WaveNet và Standard mỗi loại 4 triệu ký tự). Một bài thuyết trình khoảng 6.000 ký tự.")
 
 
 def layout():
@@ -197,23 +235,37 @@ def cb_hoi(_n, _enter, cau, bai, i, lich_su):
     return lich_su[-2 * TOI_DA_LICH_SU:], "", {"n": len(lich_su), "text": tt.cho_giong(tra_loi), "hien": tra_loi}
 
 
-def cb_khoa(_luu, _xoa, khoa):
-    """Lưu / xoá mã Gemini (mã hoá, chỉ ở máy chủ), rồi thử tạo một câu để báo ngay mã có dùng được không."""
+def cb_khoa(_gc_luu, _gc_xoa, _gm_luu, _gm_xoa, gc_khoa, gm_khoa):
+    """Lưu / xoá mã Google Cloud (chính) hoặc Gemini (phụ): mã hoá, chỉ ở máy chủ. Lưu xong báo ngay mã có dùng được không rồi dựng lại bảng giọng."""
     if not _cho_phep() or not ctx.triggered or not ctx.triggered[0]["value"]:
         raise PreventUpdate
-    if ctx.triggered_id == "tt-gm-xoa":
-        giong_ai.luu_khoa(None, current_user.username)
-        return "", giong_ai.trang_thai_khoa(), alert("Đã xoá mã Gemini.", "ok")
-    khoa = (khoa or "").strip()
-    if len(khoa) < 20 or " " in khoa:
-        return no_update, no_update, alert("Mã Gemini thường dài khoảng 40 ký tự, bắt đầu bằng AIza. Kiểm tra lại mã rồi dán lại.", "bad")
-    giong_ai.luu_khoa(khoa, current_user.username)
-    try:
-        giong_ai.doc(current_user, "Xin chào, em là Fox.", giong_ai.MAC_DINH)
-        tin = alert("Đã lưu mã Gemini và thử tạo giọng thành công. Bấm Nghe thử ở các giọng bên trên.", "ok")
-    except tro_ly.LoiAI as e:
-        tin = alert(f"Đã lưu mã nhưng chưa tạo được giọng: {e}", "warn")
-    return "", giong_ai.trang_thai_khoa(), tin
+    nut, nguoi = ctx.triggered_id, current_user.username
+    if nut == "tt-gc-xoa":
+        gc.luu_khoa(None, nguoi)
+        tin = alert("Đã xoá mã Google Cloud.", "ok")
+    elif nut == "tt-gm-xoa":
+        giong_ai.luu_khoa(None, nguoi)
+        tin = alert("Đã xoá mã Gemini.", "ok")
+    elif nut == "tt-gc-luu":
+        k = (gc_khoa or "").strip()
+        if len(k) < 20 or " " in k:
+            return (no_update, no_update, no_update, alert("Mã Google Cloud thường dài khoảng 40 ký tự. Kiểm tra lại mã rồi dán lại.", "bad"), no_update)
+        gc.luu_khoa(k, nguoi)
+        so = len(gc.danh_sach_giong(k))
+        tin = alert(f"Đã lưu mã Google Cloud, lấy được {so} giọng tiếng Việt. Bấm Nghe thử ở các giọng bên trên.", "ok") if so else \
+            alert("Đã lưu mã nhưng chưa lấy được danh sách giọng. Kiểm tra đã bật Cloud Text-to-Speech API, bật thanh toán cho dự án và mã không bị giới hạn sai dịch vụ.", "warn")
+    else:
+        k = (gm_khoa or "").strip()
+        if len(k) < 20 or " " in k:
+            return (no_update, no_update, no_update, alert("Mã Gemini thường dài khoảng 40 ký tự. Kiểm tra lại mã rồi dán lại.", "bad"), no_update)
+        giong_ai.luu_khoa(k, nguoi)
+        try:
+            giong_ai.doc(current_user, "Xin chào, em là Fox.", giong_ai.MAC_DINH)
+            tin = alert("Đã lưu mã Gemini và thử tạo giọng thành công.", "ok")
+        except tro_ly.LoiAI as e:
+            tin = alert(f"Đã lưu mã nhưng chưa tạo được giọng: {e}", "warn")
+    phan, mac = _noi_dung_giong()
+    return phan, mac, _trang_thai_ma(), tin, ""
 
 
 def _ghi(hanh_dong: str, chi_tiet: str) -> None:
@@ -238,7 +290,8 @@ def register(app):
        State("tt-cau-hoi", "value"), State("tt-bai", "data"), State("tt-i", "data"), State("tt-hoi-thoai", "data"), prevent_initial_call=True,
        running=[(Output("tt-hoi", "disabled"), True, False)])(cb_hoi)
     cb(Output("tt-hoi-thoai-hien", "children"), Input("tt-hoi-thoai", "data"))(lambda ls: _bong(ls or []))
-    cb(Output("tt-gm-key", "value"), Output("tt-gm-tt", "children"), Output("tt-gm-msg", "children"), Input("tt-gm-luu", "n_clicks"), Input("tt-gm-xoa", "n_clicks"), State("tt-gm-key", "value"),
+    cb(Output("tt-giong-ds", "children"), Output("tt-giong-ds", "data-mac-dinh"), Output("tt-gm-tt", "children"), Output("tt-gm-msg", "children"), Output("tt-gm-key", "value"),
+       Input("tt-gc-luu", "n_clicks"), Input("tt-gc-xoa", "n_clicks"), Input("tt-gm-luu", "n_clicks"), Input("tt-gm-xoa", "n_clicks"), State("tt-gc-key", "value"), State("tt-gm-key", "value"),
        prevent_initial_call=True)(cb_khoa)
     cb(Output("tt-loi-tat-ca", "children"), Input("tt-bai", "data"))(cb_loi_tat_ca)
     clientside_callback(ClientsideFunction(namespace="tt", function_name="chuanBi"), Output("tt-d3", "data"), Input("tt-loi-tat-ca", "children"))

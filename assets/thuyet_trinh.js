@@ -45,7 +45,14 @@
   /* ---- giọng đọc: CHỈ giọng AI tiếng Việt (Gemini) do máy chủ tạo, người nghe chọn ở bảng "Giọng của Fox" (nhớ trên máy này). Không dùng giọng của trình duyệt: máy hay không có giọng Việt và đọc bằng giọng nước ngoài. */
   var GIONG_MAC_DINH = "Sulafat";
   var MAU_THU = "Dạ, em là Fox, trợ lý của FTEL Đà Nẵng. Hôm nay chi nhánh mình đạt một nghìn bốn trăm ba mươi tám online, phòng IBB 7 đang dẫn đầu. Anh cần em báo cáo thêm gì không ạ?";
-  function giongDangDung() { try { return localStorage.getItem("tt-giong") || GIONG_MAC_DINH; } catch (e) { return GIONG_MAC_DINH; } }
+  /* giọng chọn sẵn do máy chủ ghi ở bảng giọng (giọng Google Cloud nếu có mã). Khoá lưu "tt-giong-v2" (khác khoá cũ) để lựa chọn giọng Gemini cũ không đè lên giọng Google mới. */
+  function giongMacDinh() { var d = el("tt-giong-ds"); return (d && d.getAttribute("data-mac-dinh")) || GIONG_MAC_DINH; }
+  function giongDangDung() {
+    var s = "";
+    try { s = localStorage.getItem("tt-giong-v2") || ""; } catch (e) { /* bỏ qua */ }
+    if (s && (!el("tt-giong-ds") || document.querySelector('.tt-gv[data-giong="' + s + '"]'))) return s;
+    return giongMacDinh();
+  }
   function veGiong() {
     var d = giongDangDung();
     document.querySelectorAll(".tt-gv").forEach(function (g) {
@@ -56,7 +63,7 @@
   }
   function baoGiong(chu, kieu) { var e = el("tt-gv-bao"); if (e) { e.textContent = chu || ""; e.className = "tt-gv-bao" + (kieu ? " " + kieu : ""); } bao(chu); }
   function datGiong(ten) {
-    try { localStorage.setItem("tt-giong", ten); } catch (e) { /* bỏ qua */ }
+    try { localStorage.setItem("tt-giong-v2", ten); } catch (e) { /* bỏ qua */ }
     veGiong(); baoGiong("Đã chọn giọng " + ten + ". Giọng này dùng từ câu đọc tiếp theo.", "ok");
     if (TT.loiTatCa && TT.loiTatCa.length && !TT.phat && !TT.daBd) batDauChuanBi();
   }
@@ -304,8 +311,11 @@
     if (b.classList.contains("tt-gv-nghe")) ngheThu(ten, b); else datGiong(ten);
   });
   if (window.MutationObserver) new MutationObserver(function () {
-    var d = el("tt-giong-ds");
-    if (d && !d.getAttribute("data-da-ve")) { d.setAttribute("data-da-ve", "1"); veGiong(); }
+    if (document.querySelector(".tt-gv:not([data-ve])")) {
+      document.querySelectorAll(".tt-gv").forEach(function (g) { g.setAttribute("data-ve", "1"); });
+      veGiong();
+      if (TT.loiTatCa && TT.loiTatCa.length && !TT.phat && !TT.daBd) batDauChuanBi();      /* bảng giọng vừa đổi (vừa lưu mã) thì chuẩn bị lại theo giọng đang dùng */
+    }
   }).observe(document.documentElement, { childList: true, subtree: true });
 
   document.addEventListener("keydown", function (e) {
