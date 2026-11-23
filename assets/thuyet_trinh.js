@@ -37,20 +37,76 @@
     var tot = ds.filter(function (v) { return /HoaiMy|NamMinh|Natural|Online/i.test(v.name); })[0];
     return tot || ds[0];
   }
+  /* Hai cách đọc: "td" = giọng của trình duyệt (miễn phí, chỉ tốt khi máy CÓ giọng Việt), "ai" = máy chủ nhờ AI đọc tiếng Việt rồi trình duyệt phát mp3 (tốn một khoản nhỏ).
+     "Tự chọn": có giọng Việt sẵn thì dùng nó, không có thì dùng giọng AI nếu được mở quyền. Máy không có giọng Việt mà ép dùng giọng trình duyệt thì nó đọc bằng giọng nước ngoài. */
+  function coAI() { var k = el("tt-khung"); return !!k && k.getAttribute("data-ai") === "1"; }
+  function kieuGiong() {
+    var s = el("tt-giong"), v = s ? s.value : "auto";
+    if (v === "ai") return coAI() ? "ai" : "td";
+    if (v === "td") return "td";
+    return giong() ? "td" : (coAI() ? "ai" : "td");
+  }
   function kiemTraGiong() {
+    var s = el("tt-giong"), v = s ? s.value : "auto";
+    if (kieuGiong() === "ai") { bao(v === "ai" ? "Đang dùng giọng AI tiếng Việt." : "Máy này chưa có giọng tiếng Việt nên dùng giọng AI tiếng Việt."); return; }
+    if (v === "ai") { bao("Giọng AI chưa dùng được (Trợ lý AI đang tắt hoặc tài khoản chưa được mở quyền), đang dùng giọng của trình duyệt."); return; }
     if (!window.speechSynthesis) { bao("Trình duyệt này không đọc được chữ thành tiếng. Hãy dùng Chrome hoặc Edge."); return; }
-    if (!giong()) bao("Máy này chưa có giọng tiếng Việt, trình duyệt sẽ dùng giọng mặc định. Edge thường có sẵn giọng tiếng Việt tự nhiên.");
+    if (!giong()) bao("Máy này chưa có giọng tiếng Việt và giọng AI chưa dùng được, nên trình duyệt đọc bằng giọng nước ngoài. Dùng Edge (có giọng Việt tự nhiên) hoặc nhờ Quản trị bật Trợ lý AI.");
+    else bao("");
   }
 
-  function dung() { TT.ma++; try { speechSynthesis.cancel(); } catch (e) { /* bỏ qua */ } }
+  function dung() {
+    TT.ma++;
+    try { speechSynthesis.cancel(); } catch (e) { /* bỏ qua */ }
+    if (TT.am) { TT.am.onended = null; TT.am.onerror = null; try { TT.am.pause(); } catch (e) { /* bỏ qua */ } }
+  }
+
+  /* ---- giọng AI: xin mp3 từng câu (nhớ trong trang, xin sẵn câu kế tiếp để không bị ngắt quãng) */
+  function layAm(chu) {
+    TT.dem = TT.dem || {};
+    if (!TT.dem[chu]) {
+      var p = fetch("/api/thuyet-trinh/doc", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chu: chu }), credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.loi || ("Lỗi " + r.status)); });
+          return r.blob();
+        })
+        .then(function (b) { return URL.createObjectURL(b); });
+      p.catch(function () { delete TT.dem[chu]; });
+      TT.dem[chu] = p;
+      var ks = Object.keys(TT.dem);
+      if (ks.length > 120) delete TT.dem[ks[0]];
+    }
+    return TT.dem[chu];
+  }
+  function noiAI(cau, dep, xong, ma) {
+    var k = 0;
+    function lui(i, e) {          /* giọng AI lỗi: đọc nốt phần còn lại bằng giọng trình duyệt, báo lý do */
+      bao("Giọng AI chưa dùng được (" + ((e && e.message) || "lỗi") + "), chuyển sang giọng trình duyệt.");
+      noiTD(cau.slice(i), dep.slice(i), xong, ma);
+    }
+    function tiep() {
+      if (ma !== TT.ma) return;
+      if (k >= cau.length) { if (xong) xong(); return; }
+      var i = k++;
+      phuDe(dep[i]);
+      if (i + 1 < cau.length) layAm(cau[i + 1]).catch(function () { /* lỗi sẽ báo khi tới câu đó */ });
+      layAm(cau[i]).then(function (url) {
+        if (ma !== TT.ma) return;
+        var a = TT.am || (TT.am = new Audio());
+        a.src = url; a.defaultPlaybackRate = a.playbackRate = tocDo();
+        a.onended = tiep; a.onerror = function () { lui(i, new Error("không phát được âm thanh")); };
+        var p = a.play();
+        if (p && p.catch) p.catch(function () { if (ma === TT.ma) lui(i, new Error("trình duyệt chặn phát âm thanh")); });
+      }).catch(function (e) { if (ma === TT.ma) lui(i, e); });
+    }
+    tiep();
+  }
   function tachCau(chu) { return (chu || "").split(/(?<=[.!?])\s+/).map(function (c) { return c.trim(); }).filter(Boolean); }
 
   /* Đọc từng câu một (Chrome hay tự ngắt khi đọc một đoạn dài) và hiện đúng câu đó làm phụ đề. `hien` là bản chữ đẹp để hiển thị (cùng số câu với bản đọc thì dùng). `xong` chạy khi đọc hết. */
-  function noi(chu, xong, hien) {
-    if (!window.speechSynthesis || !chu) { if (xong) xong(); return; }
-    dung();
-    var ma = TT.ma, cau = tachCau(chu), dep = tachCau(hien), k = 0;
-    if (dep.length !== cau.length) dep = cau;
+  function noiTD(cau, dep, xong, ma) {
+    var k = 0;
+    if (!window.speechSynthesis) { if (xong) xong(); return; }
     function tiep() {
       if (ma !== TT.ma) return;
       if (k >= cau.length) { if (xong) xong(); return; }
@@ -62,6 +118,13 @@
       speechSynthesis.speak(u);
     }
     setTimeout(tiep, 80);
+  }
+  function noi(chu, xong, hien) {
+    if (!chu) { if (xong) xong(); return; }
+    dung();
+    var ma = TT.ma, cau = tachCau(chu), dep = tachCau(hien);
+    if (dep.length !== cau.length) dep = cau;
+    if (kieuGiong() === "ai") noiAI(cau, dep, xong, ma); else noiTD(cau, dep, xong, ma);
   }
 
   function xongSlide() {

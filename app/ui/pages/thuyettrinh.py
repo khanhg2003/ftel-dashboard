@@ -11,7 +11,7 @@ from dash import ClientsideFunction, Input, Output, State, clientside_callback, 
 from dash.exceptions import PreventUpdate
 from flask_login import current_user
 
-from app import metrics, thuyet_trinh as tt, thuyet_trinh_ai as ai, thuyet_trinh_yeu_cau as yc, tro_ly
+from app import metrics, thuyet_trinh as tt, thuyet_trinh_ai as ai, thuyet_trinh_giong as giong_ai, thuyet_trinh_yeu_cau as yc, tro_ly
 from app.org import phong_order
 from app.ui.components import alert, callback_can_quyen, card
 from app.ui.icons import icon
@@ -85,6 +85,8 @@ def layout():
         html.Span(className="tt-ngan"),
         _nut("tt-lui", "‹ Lùi"), _nut("tt-phat", "▶ Phát"), _nut("tt-tiep", "Tiếp ›"),
         dcc.Checklist(id="tt-tu-chuyen", options=[{"label": " Tự chuyển slide", "value": "auto"}], value=["auto"], className="tt-tick"),
+        html.Label(["Giọng ", html.Select([html.Option("Tự chọn giọng Việt tốt nhất", value="auto", selected=True), html.Option("Giọng AI (tiếng Việt)", value="ai"), html.Option("Giọng của trình duyệt", value="td")],
+                                          id="tt-giong", className="tt-chon")], className="tt-nhan"),
         html.Label(["Tốc độ đọc ", giong], className="tt-nhan"),
         _nut("tt-toan-man", "Toàn màn hình"),
     ], className="tt-dieu-khien")
@@ -95,9 +97,10 @@ def layout():
         dcc.Input(id="tt-nhay", type="text", value="", style={"display": "none"}),
         card([yeu_cau, dieu_khien, html.Div(id="tt-js-bao", className="desc"), dcc.Loading(html.Div(id="tt-thongbao"), type="dot")], title="Yêu cầu thuyết trình",
              desc="Gõ yêu cầu rồi bấm “Tạo bài thuyết trình”, hoặc bấm “Nói yêu cầu” và nói (vd “phân tích phòng IBB7”). Có bài rồi thì nói “tiếp”, “lùi”, “dừng”, “đọc tiếp”, “nói lại”, “slide ba”; câu khác là câu hỏi về slide đang xem. "
-                  "Giọng đọc và nghe là của trình duyệt (dùng Chrome hoặc Edge). App chỉ có số luỹ kế từ ngày 01 của tháng."),
+                  "Nghe giọng nói dùng Chrome hoặc Edge. Giọng đọc: máy có giọng tiếng Việt thì dùng luôn (miễn phí), không có thì dùng giọng AI tiếng Việt (tốn một khoản nhỏ trong ngân sách AI). App chỉ có số luỹ kế từ ngày 01 của tháng."),
         html.Div([html.Div([html.Div(html.Div("Chưa có bài thuyết trình. Gõ hoặc nói yêu cầu ở trên.", className="desc"), id="tt-slide", className="tt-man"), _phu_de()], className="tt-cot-trai"),
-                  html.Div([html.H3("Hỏi AI về slide này"), hoi, html.Div(_bong([]), id="tt-hoi-thoai-hien", className="tt-bong-ds")], className="tt-hoi-khung")], id="tt-khung", className="tt-khung"),
+                  html.Div([html.H3("Hỏi AI về slide này"), hoi, html.Div(_bong([]), id="tt-hoi-thoai-hien", className="tt-bong-ds")], className="tt-hoi-khung")],
+                 id="tt-khung", className="tt-khung", **{"data-ai": "1" if giong_ai.san_sang(current_user) else "0"}),
         html.Div(id="tt-loi", style={"display": "none"}), html.Div(id="tt-loi-hien", style={"display": "none"}),
     ], className="tt-trang")
 

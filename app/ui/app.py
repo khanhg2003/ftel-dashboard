@@ -101,7 +101,9 @@ from app.api_ads import bp as _api_ads  # noqa: E402
 from app.api_ban_tin import bp as _api_ban_tin  # noqa: E402
 from app.api_zalo_gia import bp as _api_zalo_gia  # noqa: E402
 from app.api_lead import bp as _api_lead  # noqa: E402
+from app.api_thuyet_trinh import bp as _api_thuyet_trinh  # noqa: E402
 
+server.register_blueprint(_api_thuyet_trinh)
 server.register_blueprint(_api_ads)
 server.register_blueprint(_api_ban_tin)
 server.register_blueprint(_api_zalo_gia)
